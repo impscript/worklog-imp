@@ -294,6 +294,7 @@ export default function LogWorkPage() {
   const [role, setRole] = useState<string>('');
   const [projectType, setProjectType] = useState<string>('');
   const [projectName, setProjectName] = useState<string>('');
+  const [selectedProjectKey, setSelectedProjectKey] = useState<string>('');
   const [module, setModule] = useState<string>('');
   const [actionName, setActionName] = useState<string>('');
   const [selectedActionChannels, setSelectedActionChannels] = useState<string[]>([]);
@@ -389,36 +390,57 @@ export default function LogWorkPage() {
     }
   }, [isHolidayDate]);
 
-  const userMappings = mapUserRole;
-
-  const availableHoldings = useMemo(() => Array.from(new Set(userMappings.map(m => m.holding))), [userMappings]);
-  
-  const availableRoles = useMemo(() => {
-    if (!holding) return [];
-    return Array.from(new Set(userMappings.filter(m => m.holding === holding).map(m => m.department_operator)));
-  }, [holding, userMappings]);
+  const allowedProjects = useMemo(() => {
+    return mapProjectStructure.filter(proj => 
+      mapUserRole.some(ur => ur.holding === proj.holding && ur.department_operator === proj.department_operator)
+    );
+  }, [mapProjectStructure, mapUserRole]);
 
   const availableProjectTypes = useMemo(() => {
-    if (!holding || !role) return [];
-    return Array.from(new Set(mapProjectStructure
-      .filter(p => p.holding === holding && p.department_operator === role)
-      .map(p => p.project_type)));
-  }, [holding, role, mapProjectStructure]);
+    return Array.from(new Set(allowedProjects.map(p => p.project_type)));
+  }, [allowedProjects]);
 
   const availableProjects = useMemo(() => {
-    if (!holding || !role || !projectType) return [];
-    return Array.from(new Set(mapProjectStructure
-      .filter(p => p.holding === holding && p.department_operator === role && p.project_type === projectType)
-      .map(p => p.project_name)));
-  }, [holding, role, projectType, mapProjectStructure]);
+    if (!projectType) return [];
+    
+    const typeProjs = allowedProjects.filter(p => p.project_type === projectType);
+    const seen = new Set<string>();
+    const options: { label: string; value: string }[] = [];
+    
+    for (const p of typeProjs) {
+      const key = `${p.project_name}|${p.holding}|${p.department_operator}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const isDupeName = typeProjs.some(x => 
+          x.project_name === p.project_name && 
+          (x.holding !== p.holding || x.department_operator !== p.department_operator)
+        );
+        const label = isDupeName 
+          ? `${p.project_name} (${p.holding} - ${p.department_operator})` 
+          : p.project_name;
+          
+        options.push({
+          label,
+          value: key
+        });
+      }
+    }
+    return options;
+  }, [projectType, allowedProjects]);
 
   const availableModules = useMemo(() => {
-    if (!projectName) return [];
-    return mapProjectStructure
-      .filter(p => p.holding === holding && p.department_operator === role && p.project_type === projectType && p.project_name === projectName)
+    if (!selectedProjectKey) return [];
+    const [pName, pHolding, pRole] = selectedProjectKey.split('|');
+    return allowedProjects
+      .filter(p => 
+        p.project_type === projectType && 
+        p.project_name === pName && 
+        p.holding === pHolding && 
+        p.department_operator === pRole
+      )
       .map(p => p.module)
       .filter(Boolean); // Filter out nulls
-  }, [projectName, projectType, role, holding, mapProjectStructure]);
+  }, [selectedProjectKey, projectType, allowedProjects]);
 
   const availableActions = useMemo(() => {
     if (!projectType) return [];
@@ -426,37 +448,62 @@ export default function LogWorkPage() {
     return masterActions.filter(a => a.action_category === category).map(a => a.action_name);
   }, [projectType, masterActions]);
 
-  // Auto-fill BU & Department when Project/Module changes
+  // Sync derived fields from selected project key and module
   useEffect(() => {
-    if (projectName) {
-      const match = mapProjectStructure.find(p => 
-        p.holding === holding && p.department_operator === role && p.project_type === projectType && 
-        p.project_name === projectName && (module ? p.module === module : true)
+    if (selectedProjectKey) {
+      const [pName, pHolding, pRole] = selectedProjectKey.split('|');
+      setProjectName(pName);
+      setHolding(pHolding);
+      setRole(pRole);
+      
+      const match = allowedProjects.find(p => 
+        p.project_type === projectType && 
+        p.project_name === pName && 
+        p.holding === pHolding && 
+        p.department_operator === pRole &&
+        (module ? p.module === module : true)
       );
       if (match) {
         setBu(match.bu);
         setDepartment(match.department);
       }
     } else {
+      setProjectName('');
+      setHolding('');
+      setRole('');
       setBu('');
       setDepartment('');
     }
-  }, [projectName, module, holding, role, projectType, mapProjectStructure]);
+  }, [selectedProjectKey, module, projectType, allowedProjects]);
 
-  // Handle Resets on cascade
-  useEffect(() => { setRole(''); }, [holding]);
-  useEffect(() => { setProjectType(''); }, [role]);
-  useEffect(() => { setProjectName(''); }, [projectType]);
-  useEffect(() => { setModule(''); setActionName(''); }, [projectName]);
+  // Resets
+  useEffect(() => {
+    setSelectedProjectKey('');
+  }, [projectType]);
+
+  useEffect(() => {
+    setModule('');
+    setActionName('');
+  }, [selectedProjectKey]);
 
   // Auto-select if only 1 option available
   useEffect(() => {
-    if (availableHoldings.length === 1 && !holding) setHolding(availableHoldings[0]);
-    if (availableRoles.length === 1 && !role && holding) setRole(availableRoles[0]);
-    if (availableProjectTypes.length === 1 && !projectType && role) setProjectType(availableProjectTypes[0]);
-    if (availableProjects.length === 1 && !projectName && projectType) setProjectName(availableProjects[0]);
-    if (availableModules.length === 1 && !module && projectName) setModule(availableModules[0]);
-  }, [availableHoldings, availableRoles, availableProjectTypes, availableProjects, availableModules]);
+    if (availableProjectTypes.length === 1 && !projectType) {
+      setProjectType(availableProjectTypes[0]);
+    }
+  }, [availableProjectTypes, projectType]);
+
+  useEffect(() => {
+    if (availableProjects.length === 1 && !selectedProjectKey) {
+      setSelectedProjectKey(availableProjects[0].value);
+    }
+  }, [availableProjects, selectedProjectKey]);
+
+  useEffect(() => {
+    if (availableModules.length === 1 && !module) {
+      setModule(availableModules[0]);
+    }
+  }, [availableModules, module]);
 
   // Calculate live preview calculations (Overlap, Normal, OT, Implied OT)
   const preview = useMemo(() => {
@@ -710,54 +757,34 @@ export default function LogWorkPage() {
           {/* Cascading Logic Area */}
           <div className="space-y-6 mb-8">
             
-            {/* Row 1: Holding & Role */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <DropdownField 
-                label="Holding" 
-                value={holding} 
-                onChange={setHolding} 
-                options={availableHoldings} 
-                placeholder="Select Holding"
-              />
-              <DropdownField 
-                label="Role" 
-                value={role} 
-                onChange={setRole} 
-                options={availableRoles} 
-                disabled={!holding}
-                placeholder="Select Role"
-              />
-            </div>
-
-            {/* Row 2: Type & Project */}
+            {/* Row 1: Project Type & Project Name */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <DropdownField 
                 label="Project Type" 
                 value={projectType} 
                 onChange={setProjectType} 
                 options={availableProjectTypes} 
-                disabled={!role}
                 placeholder="Select Type"
               />
               <DropdownField 
                 label="Project Name" 
-                value={projectName} 
-                onChange={setProjectName} 
+                value={selectedProjectKey} 
+                onChange={setSelectedProjectKey} 
                 options={availableProjects} 
                 disabled={!projectType}
                 placeholder="Select Project"
               />
             </div>
 
-            {/* Row 3: Module & Action */}
+            {/* Row 2: Module & Action */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <DropdownField 
                 label="Module / Phase" 
                 value={module} 
                 onChange={setModule} 
                 options={availableModules} 
-                disabled={!projectName || availableModules.length === 0}
-                placeholder={availableModules.length === 0 && projectName ? "No Module (Auto-skip)" : "Select Module"}
+                disabled={!selectedProjectKey || availableModules.length === 0}
+                placeholder={availableModules.length === 0 && selectedProjectKey ? "No Module (Auto-skip)" : "Select Module"}
               />
               <DropdownField 
                 label="Action" 
@@ -768,6 +795,20 @@ export default function LogWorkPage() {
                 placeholder="Select Action"
               />
             </div>
+
+            {/* Business Unit & Department Auto-derived indicators */}
+            {projectName && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-800/40 border border-slate-700/50 rounded-xl text-xs font-semibold text-slate-400">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Business Unit:</span>
+                  <span className="text-slate-200 font-mono">{bu || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Target Department:</span>
+                  <span className="text-slate-200 font-mono">{department || '-'}</span>
+                </div>
+              </div>
+            )}
 
             {/* Optional Action Channels as Clickable Tag Chips */}
             <div className="space-y-2 mt-4">
@@ -1086,7 +1127,12 @@ export default function LogWorkPage() {
   );
 }
 
-function DropdownField({ label, value, onChange, options, disabled, placeholder }: { label: string, value: string, onChange: (v: string) => void, options: string[], disabled?: boolean, placeholder?: string }) {
+interface DropdownOption {
+  label: string;
+  value: string;
+}
+
+function DropdownField({ label, value, onChange, options, disabled, placeholder }: { label: string, value: string, onChange: (v: string) => void, options: (string | DropdownOption)[], disabled?: boolean, placeholder?: string }) {
   return (
     <div>
       <label className={cn("block text-sm font-medium mb-1.5 transition-colors", disabled ? "text-slate-500" : "text-slate-300")}>
@@ -1105,9 +1151,13 @@ function DropdownField({ label, value, onChange, options, disabled, placeholder 
           )}
         >
           <option value="" disabled>{placeholder}</option>
-          {options.map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
+          {options.map(opt => {
+            const optVal = typeof opt === 'string' ? opt : opt.value;
+            const optLabel = typeof opt === 'string' ? opt : opt.label;
+            return (
+              <option key={optVal} value={optVal}>{optLabel}</option>
+            );
+          })}
         </select>
         <ChevronDown size={16} className={cn("absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none", disabled ? "text-slate-600" : "text-slate-400")} />
       </div>

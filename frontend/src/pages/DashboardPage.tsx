@@ -15,6 +15,7 @@ interface WorklogEntry {
   end_time: string;
   break_time: boolean;
   total_hours: number;
+  is_ot?: boolean;
   holding: string;
   department_operator: string;
   project_type: string;
@@ -113,6 +114,7 @@ export default function DashboardPage() {
 
   // Compute Weekly metrics
   const totalHoursThisWeek = thisWeekEntries.reduce((sum, e) => sum + e.total_hours, 0);
+  const otHoursThisWeek = thisWeekEntries.filter(e => e.is_ot).reduce((sum, e) => sum + e.total_hours, 0);
   const activeProjectsCount = new Set(thisWeekEntries.map((e) => e.project_name)).size;
   const supportTicketsCount = thisWeekEntries.filter(
     (e) => e.project_type === 'Support MA' || e.project_type === 'Support Go-Live'
@@ -193,76 +195,83 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* KPI Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* KPI Row - Made 4 columns and more compact */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <KpiCard 
-                title="Total Hours This Week" 
+                title="Total Hours" 
                 value={`${totalHoursThisWeek.toFixed(1)}h`} 
-                icon={<TrendingUp className="text-indigo-400" />} 
+                icon={<TrendingUp className="text-indigo-400" size={20} />} 
                 trend={totalHoursThisWeek >= 40 ? "Goal Met" : "In Progress"} 
                 trendColor={totalHoursThisWeek >= 40 ? "text-emerald-400 bg-emerald-400/10" : "text-amber-400 bg-amber-400/10"}
                 className="border-indigo-500/30 bg-gradient-to-br from-[#1E293B] to-indigo-900/20"
               />
               <KpiCard 
-                title="Projects Active This Week" 
-                value={String(activeProjectsCount)} 
-                icon={<FolderGit2 className="text-emerald-400" />} 
+                title="OT Hours" 
+                value={`${otHoursThisWeek.toFixed(1)}h`} 
+                icon={<TrendingUp className="text-rose-400" size={20} />} 
               />
               <KpiCard 
-                title="Support Tasks Logged" 
+                title="Active Projects" 
+                value={String(activeProjectsCount)} 
+                icon={<FolderGit2 className="text-emerald-400" size={20} />} 
+              />
+              <KpiCard 
+                title="Support Tasks" 
                 value={String(supportTicketsCount)} 
-                icon={<Ticket className="text-amber-400" />} 
+                icon={<Ticket className="text-amber-400" size={20} />} 
               />
             </div>
 
-            {/* Weekly Strip */}
-            <div className="ai-glass rounded-2xl p-6 shadow-xl">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <CalendarIcon size={18} className="text-indigo-400" />
-                  <span>This Week's Attendance</span>
-                </h2>
-                <span className="text-xs text-slate-400 font-mono">
-                  {startOfWeek} to {endOfWeek}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-4">
-                {weekDays.map((d, index) => {
-                  const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-                  const dateNum = String(d.getDate());
-                  const formattedYMD = formatDateToYMD(d);
-                  
-                  // Hours on this day
-                  const hoursOnDay = entries
-                    .filter((e) => e.work_date === formattedYMD)
-                    .reduce((sum, e) => sum + e.total_hours, 0);
+            {/* Main Content Grid: 2/3 Left (Calendar + Logs) | 1/3 Right (Chart) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Left Column */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* Weekly Strip - Moved here to save vertical space */}
+                <div className="ai-glass rounded-2xl p-5 shadow-xl">
+                  <div className="flex justify-between items-center mb-5">
+                    <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                      <CalendarIcon size={18} className="text-indigo-400" />
+                      <span>This Week's Attendance</span>
+                    </h2>
+                    <span className="text-xs text-slate-400 font-mono">
+                      {startOfWeek} to {endOfWeek}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-7 gap-3">
+                    {weekDays.map((d, index) => {
+                      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                      const dateNum = String(d.getDate());
+                      const formattedYMD = formatDateToYMD(d);
+                      
+                      const hoursOnDay = entries
+                        .filter((e) => e.work_date === formattedYMD)
+                        .reduce((sum, e) => sum + e.total_hours, 0);
 
-                  const progress = Math.min((hoursOnDay / 8.0) * 100, 100);
-                  const isToday = formatDateToYMD(new Date()) === formattedYMD;
-                  const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                      const progress = Math.min((hoursOnDay / 8.0) * 100, 100);
+                      const isToday = formatDateToYMD(new Date()) === formattedYMD;
+                      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
-                  return (
-                    <DayCard 
-                      key={index} 
-                      day={dayName} 
-                      date={dateNum} 
-                      hours={hoursOnDay > 0 ? `${hoursOnDay.toFixed(1)}h` : '-'} 
-                      progress={progress} 
-                      active={isToday} 
-                      isWeekend={isWeekend} 
-                    />
-                  );
-                })}
-              </div>
-            </div>
+                      return (
+                        <DayCard 
+                          key={index} 
+                          day={dayName} 
+                          date={dateNum} 
+                          hours={hoursOnDay > 0 ? `${hoursOnDay.toFixed(1)}h` : '-'} 
+                          progress={progress} 
+                          active={isToday} 
+                          isWeekend={isWeekend} 
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
 
-            {/* Recent Entries & Chart */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Recent Entries Table */}
-              <div className="lg:col-span-2 ai-glass rounded-2xl shadow-xl overflow-hidden flex flex-col justify-between">
-                <div>
-                  <div className="p-6 border-b border-slate-800/60 flex justify-between items-center">
-                    <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                {/* Recent Entries Table */}
+                <div className="ai-glass rounded-2xl shadow-xl overflow-hidden flex flex-col">
+                  <div className="p-5 border-b border-slate-800/60 flex justify-between items-center bg-slate-900/40">
+                    <h2 className="text-base font-semibold text-white flex items-center gap-2">
                       <ClipboardList size={18} className="text-indigo-400" />
                       <span>Recent Work Logs</span>
                     </h2>
@@ -285,20 +294,20 @@ export default function DashboardPage() {
                       </Link>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
                       <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-slate-400 bg-[#0F172A]/50 uppercase border-b border-slate-800/50">
+                        <thead className="text-[10px] text-slate-400 bg-[#0F172A]/80 uppercase border-b border-slate-800/50 sticky top-0 z-10 backdrop-blur-md">
                           <tr>
-                            <th className="px-6 py-4 font-medium">Date</th>
-                            <th className="px-6 py-4 font-medium">Project</th>
-                            <th className="px-6 py-4 font-medium">Action</th>
-                            <th className="px-6 py-4 font-medium">Hours</th>
-                            <th className="px-6 py-4 font-medium">Type</th>
-                            <th className="px-6 py-4 font-medium text-right">Actions</th>
+                            <th className="px-4 py-3 font-medium">Date</th>
+                            <th className="px-4 py-3 font-medium">Project</th>
+                            <th className="px-4 py-3 font-medium">Action</th>
+                            <th className="px-4 py-3 font-medium">Hours</th>
+                            <th className="px-4 py-3 font-medium">Type</th>
+                            <th className="px-4 py-3 font-medium text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/30">
-                          {entries.slice(0, 5).map((entry) => (
+                          {entries.slice(0, 15).map((entry) => (
                             <TableRow 
                               key={entry.id}
                               date={formatTableDate(entry.work_date)} 
@@ -321,18 +330,18 @@ export default function DashboardPage() {
                       </table>
                     </div>
                   )}
+                  {entries.length > 15 && (
+                    <div className="p-3 border-t border-slate-700/30 text-center bg-slate-900/40">
+                      <Link to="/reports" className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider">
+                        View all work logs ({entries.length}) →
+                      </Link>
+                    </div>
+                  )}
                 </div>
-                {entries.length > 5 && (
-                  <div className="p-4 border-t border-slate-700/30 text-center">
-                    <Link to="/reports" className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider">
-                      View all work logs ({entries.length}) →
-                    </Link>
-                  </div>
-                )}
               </div>
               
               {/* Hours by Type Chart */}
-              <div className="ai-glass rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+              <div className="ai-glass rounded-2xl p-6 shadow-xl flex flex-col justify-between lg:sticky lg:top-6 self-start">
                 <div>
                   <h2 className="text-lg font-semibold text-white mb-6">Hours Breakdown</h2>
                   <div className="flex flex-col items-center justify-center py-6">
@@ -472,16 +481,16 @@ function KpiCard({
   className?: string; 
 }) {
   return (
-    <div className={cn("ai-glass-interactive rounded-2xl p-6 shadow-xl flex flex-col justify-between hover:scale-[1.02] duration-300", className)}>
-      <div className="flex justify-between items-start mb-4">
-        <div className="p-3 rounded-xl bg-slate-950/50 border border-slate-800/80 text-indigo-400 group-hover:scale-110 duration-300">
+    <div className={cn("ai-glass-interactive rounded-xl p-4 shadow-xl flex flex-col justify-between hover:scale-[1.02] duration-300", className)}>
+      <div className="flex justify-between items-start mb-3">
+        <div className="p-2.5 rounded-lg bg-slate-950/50 border border-slate-800/80 group-hover:scale-110 duration-300">
           {icon}
         </div>
-        {trend && <span className={cn("text-[10px] font-extrabold px-2.5 py-1 rounded-lg border uppercase tracking-wider", trendColor)}>{trend}</span>}
+        {trend && <span className={cn("text-[9px] font-extrabold px-2 py-0.5 rounded-md border uppercase tracking-wider", trendColor)}>{trend}</span>}
       </div>
       <div>
-        <h3 className="text-3xl font-extrabold text-white tracking-tight mb-1 font-mono">{value}</h3>
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{title}</p>
+        <h3 className="text-2xl font-extrabold text-white tracking-tight mb-0.5 font-mono">{value}</h3>
+        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{title}</p>
       </div>
     </div>
   );
@@ -554,11 +563,11 @@ function TableRow({
 
   return (
     <tr className="hover:bg-slate-900/35 border-b border-slate-900 transition-colors group">
-      <td className="px-6 py-4 text-slate-400 font-semibold font-mono text-xs whitespace-nowrap">{date}</td>
-      <td className="px-6 py-4 font-bold text-slate-200 whitespace-nowrap">
-        <span className="text-xs px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800/70">{project}</span>
+      <td className="px-4 py-3 text-slate-400 font-semibold font-mono text-xs whitespace-nowrap">{date}</td>
+      <td className="px-4 py-3 font-bold text-slate-200 whitespace-nowrap">
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-800/70">{project}</span>
       </td>
-      <td className="px-6 py-4 text-slate-400 max-w-xs text-xs">
+      <td className="px-4 py-3 text-slate-400 max-w-[150px] text-xs">
         <div className="truncate">{action}</div>
         {actionChannel && (
           <div className="flex flex-wrap gap-1 mt-1">
@@ -566,7 +575,7 @@ function TableRow({
               <span 
                 key={channel}
                 className={cn(
-                  "px-1.5 py-0.5 rounded-full text-[9px] font-extrabold border shrink-0 uppercase tracking-wider flex items-center gap-0.5",
+                  "px-1 py-0.5 rounded-full text-[8px] font-extrabold border shrink-0 uppercase tracking-wider flex items-center gap-0.5",
                   channel === 'Meeting' && "bg-indigo-500/10 border-indigo-500/25 text-indigo-400",
                   channel === 'Discuss via phone' && "bg-amber-500/10 border-amber-500/25 text-amber-400",
                   channel === 'On site' && "bg-rose-500/10 border-rose-500/25 text-rose-400"
@@ -581,24 +590,24 @@ function TableRow({
           </div>
         )}
       </td>
-      <td className="px-6 py-4 font-extrabold text-white font-mono text-sm">{hours}h</td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span className={cn("px-2.5 py-0.5 text-[9px] font-extrabold rounded uppercase tracking-wider border", typeColors[type])}>
+      <td className="px-4 py-3 font-extrabold text-white font-mono text-sm">{hours}h</td>
+      <td className="px-4 py-3 whitespace-nowrap">
+        <span className={cn("px-2 py-0.5 text-[8px] font-extrabold rounded uppercase tracking-wider border", typeColors[type])}>
           {type}
         </span>
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-right">
-        <div className="flex justify-end items-center gap-2">
+      <td className="px-4 py-3 whitespace-nowrap text-right">
+        <div className="flex justify-end items-center gap-1.5">
           {onView && (
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 onView();
               }}
-              className="bg-slate-800/60 hover:bg-slate-800 hover:text-slate-200 border border-slate-700/60 text-slate-400 px-2.5 py-1 rounded-lg cursor-pointer font-bold text-[10px] uppercase tracking-wider transition-all flex items-center gap-1"
+              className="bg-slate-800/60 hover:bg-slate-800 hover:text-slate-200 border border-slate-700/60 text-slate-400 px-2 py-1 rounded-md cursor-pointer font-bold text-[9px] uppercase tracking-wider transition-all flex items-center gap-1"
               title="ดูใบงานแบบเต็ม"
             >
-              <Eye size={12} />
+              <Eye size={10} />
               <span>View</span>
             </button>
           )}
@@ -608,7 +617,7 @@ function TableRow({
                 e.stopPropagation();
                 onEdit();
               }}
-              className="bg-indigo-500/10 hover:bg-indigo-500/25 active:scale-95 border border-indigo-500/30 text-indigo-400 px-3 py-1 rounded-lg cursor-pointer font-bold text-[10px] uppercase tracking-wider transition-all shadow-sm shadow-indigo-500/5"
+              className="bg-indigo-500/10 hover:bg-indigo-500/25 active:scale-95 border border-indigo-500/30 text-indigo-400 px-2.5 py-1 rounded-md cursor-pointer font-bold text-[9px] uppercase tracking-wider transition-all shadow-sm shadow-indigo-500/5"
             >
               Edit
             </button>

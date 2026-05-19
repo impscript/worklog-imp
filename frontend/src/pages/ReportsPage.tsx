@@ -44,6 +44,8 @@ interface WorklogEntry {
   is_ot: boolean;
   is_implied_ot: boolean;
   bu: string;
+  start_time: string;
+  end_time: string;
   action_channel?: string | null;
 }
 
@@ -63,7 +65,7 @@ export default function ReportsPage() {
 
   // State
   const [activeTab, setActiveTab] = useState<'personal' | 'overview' | 'individual'>('personal');
-  const [personalEntries, setPersonalEntries] = useState<WorklogEntry[]>([]);
+  const [sessionUser, setSessionUser] = useState<any>(null);
   const [allEntries, setAllEntries] = useState<WorklogEntry[]>([]);
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
@@ -128,6 +130,7 @@ export default function ReportsPage() {
       return;
     }
     const session = JSON.parse(sessionStr);
+    setSessionUser(session);
 
     try {
       setIsLoading(true);
@@ -161,9 +164,7 @@ export default function ReportsPage() {
 
       setAllEntries(mappedLogs);
 
-      // 3. Filter personal entries
-      const personal = mappedLogs.filter(log => log.user_id === session.id);
-      setPersonalEntries(personal);
+      // 3. Filter personal entries (now done via useMemo)
 
     } catch (err: any) {
       console.error('Error fetching dashboard reports data:', err);
@@ -213,6 +214,12 @@ export default function ReportsPage() {
   };
 
   // Memoized lists of logs based on filters
+  const personalEntries = useMemo(() => {
+    if (!sessionUser) return [];
+    const currentTargetId = sessionUser.role === 'admin' ? (selectedUser || sessionUser.id) : sessionUser.id;
+    return allEntries.filter(log => log.user_id === currentTargetId);
+  }, [allEntries, sessionUser, selectedUser]);
+
   const filteredPersonalEntries = useMemo(() => {
     return applyFilters(personalEntries);
   }, [personalEntries, dateFilter, customStart, customEnd, typeFilter, projectSearch]);
@@ -247,15 +254,19 @@ export default function ReportsPage() {
   };
 
   const getTableType = (pt: string) => {
-    if (pt === 'Support MA' || pt === 'Support Go-Live') return 'Support';
-    if (pt === 'Management') return 'Management';
-    return 'Project';
+    if (!pt) return 'Other';
+    const normalized = pt.toLowerCase();
+    if (normalized.includes('support')) return 'Support';
+    if (normalized.includes('management') || normalized.includes('admin')) return 'Management';
+    if (normalized.includes('project') || normalized.includes('upgrade')) return 'Project';
+    return 'Other';
   };
 
   const typeColors: Record<string, string> = {
     Project: "text-indigo-400 bg-indigo-400/10 border-indigo-400/20",
     Support: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-    Management: "text-amber-400 bg-amber-400/10 border-amber-400/20"
+    Management: "text-amber-400 bg-amber-400/10 border-amber-400/20",
+    Other: "text-slate-400 bg-slate-400/10 border-slate-400/20"
   };
 
   const toggleRow = (id: string) => {
@@ -265,17 +276,12 @@ export default function ReportsPage() {
   // --- MANAGEMENT OVERVIEW TAB MEMOS & DATA ---
   const overviewData = useMemo(() => {
     // 1. Separate logs by User Department
-    const impLogs: WorklogEntry[] = [];
-    const itLogs: WorklogEntry[] = [];
-
+    const deptLogsMap: Record<string, WorklogEntry[]> = {};
     filteredAllEntries.forEach(log => {
       const user = usersList.find(u => u.id === log.user_id);
-      const userDept = (user?.department || 'IMP').trim().toUpperCase();
-      if (userDept === 'IT') {
-        itLogs.push(log);
-      } else {
-        impLogs.push(log); // Default to IMP
-      }
+      const userDept = (user?.department || 'Unassigned').trim();
+      if (!deptLogsMap[userDept]) deptLogsMap[userDept] = [];
+      deptLogsMap[userDept].push(log);
     });
 
     const getMetrics = (logs: WorklogEntry[]) => {
@@ -285,31 +291,6 @@ export default function ReportsPage() {
       return { totalHours: totalH, otHours: otH, usersCount: uniqueUsers };
     };
 
-    const impMetrics = getMetrics(impLogs);
-    const itMetrics = getMetrics(itLogs);
-
-    // 2. Trend data (Grouped by Date)
-    const datesMap: Record<string, { date: string; imp: number; it: number }> = {};
-    filteredAllEntries.forEach(log => {
-      const dateStr = log.work_date;
-      if (!datesMap[dateStr]) {
-        datesMap[dateStr] = { date: dateStr, imp: 0, it: 0 };
-      }
-      const user = usersList.find(u => u.id === log.user_id);
-      const userDept = (user?.department || 'IMP').trim().toUpperCase();
-      if (userDept === 'IT') {
-        datesMap[dateStr].it += log.total_hours;
-      } else {
-        datesMap[dateStr].imp += log.total_hours;
-      }
-    });
-    
-    // Sort trends chronologically and take last 10 working days
-    const trendData = Object.values(datesMap)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-10);
-
-    // 3. Top Projects by Department
     const getTopProjects = (logs: WorklogEntry[]) => {
       const projMap: Record<string, number> = {};
       logs.forEach(log => {
@@ -321,8 +302,31 @@ export default function ReportsPage() {
         .slice(0, 5);
     };
 
-    const impProjects = getTopProjects(impLogs);
-    const itProjects = getTopProjects(itLogs);
+    const depts = Object.keys(deptLogsMap).map(deptName => {
+      const logs = deptLogsMap[deptName];
+      return {
+        name: deptName,
+        metrics: getMetrics(logs),
+        projects: getTopProjects(logs)
+      };
+    }).sort((a, b) => b.metrics.totalHours - a.metrics.totalHours);
+
+    // 2. Trend data (Grouped by Date)
+    const datesMap: Record<string, any> = {};
+    filteredAllEntries.forEach(log => {
+      const dateStr = log.work_date;
+      if (!datesMap[dateStr]) {
+        datesMap[dateStr] = { date: dateStr };
+      }
+      const user = usersList.find(u => u.id === log.user_id);
+      const userDept = (user?.department || 'Unassigned').trim();
+      datesMap[dateStr][userDept] = (datesMap[dateStr][userDept] || 0) + log.total_hours;
+    });
+    
+    // Sort trends chronologically and take last 10 working days
+    const trendData = Object.values(datesMap)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-10);
 
     // 4. Overtime Leaderboard (Overall)
     const otUserMap: Record<string, { id: string; name: string; dept: string; otHours: number }> = {};
@@ -330,7 +334,7 @@ export default function ReportsPage() {
       if (log.is_ot || log.is_implied_ot) {
         const user = usersList.find(u => u.id === log.user_id);
         const name = user?.full_name || 'Unknown Operator';
-        const dept = user?.department || 'IMP';
+        const dept = (user?.department || 'Unassigned').trim();
         if (!otUserMap[log.user_id]) {
           otUserMap[log.user_id] = { id: log.user_id, name, dept, otHours: 0 };
         }
@@ -344,11 +348,8 @@ export default function ReportsPage() {
       .slice(0, 5);
 
     return {
-      imp: impMetrics,
-      it: itMetrics,
+      depts,
       trend: trendData,
-      impProjects,
-      itProjects,
       otLeaderboard
     };
   }, [filteredAllEntries, usersList]);
@@ -388,16 +389,20 @@ export default function ReportsPage() {
       .sort((a, b) => b.hours - a.hours)
       .slice(0, 5);
 
-    // 3. Radar Chart (User Contribution across BUs compared to Team Average)
-    // Gather unique BUs from all logs
-    const activeBUs = Array.from(new Set(filteredAllEntries.map(e => e.bu || 'Other'))).slice(0, 6);
+    // Gather unique BUs from all logs, sorted by total hours
+    const buHoursMap: Record<string, number> = {};
+    filteredAllEntries.forEach(e => {
+      const bu = (e.bu || 'Unassigned').trim();
+      buHoursMap[bu] = (buHoursMap[bu] || 0) + e.total_hours;
+    });
+    const activeBUs = Object.keys(buHoursMap).sort((a, b) => buHoursMap[b] - buHoursMap[a]).slice(0, 6);
     
     const radarData = activeBUs.map(bu => {
       // User's total hours in this BU
-      const userBUHours = userLogs.filter(e => e.bu === bu).reduce((sum, e) => sum + e.total_hours, 0);
+      const userBUHours = userLogs.filter(e => (e.bu || 'Unassigned').trim() === bu).reduce((sum, e) => sum + e.total_hours, 0);
       
       // Team average hours in this BU
-      const totalBUHours = filteredAllEntries.filter(e => e.bu === bu).reduce((sum, e) => sum + e.total_hours, 0);
+      const totalBUHours = filteredAllEntries.filter(e => (e.bu || 'Unassigned').trim() === bu).reduce((sum, e) => sum + e.total_hours, 0);
       const totalTeamUsers = new Set(filteredAllEntries.map(e => e.user_id)).size || 1;
       const teamAvg = parseFloat((totalBUHours / totalTeamUsers).toFixed(1));
 
@@ -543,6 +548,24 @@ export default function ReportsPage() {
             </select>
           </div>
 
+          {/* Admin User Filter */}
+          {sessionUser?.role === 'admin' && activeTab === 'personal' && (
+            <div className="flex flex-col">
+              <label className="text-[10px] font-bold text-amber-400/80 uppercase tracking-widest mb-2 flex items-center gap-1">
+                Admin: Target User
+              </label>
+              <select
+                value={selectedUser}
+                onChange={(e) => setSelectedUser(e.target.value)}
+                className="bg-[#0F172A] border border-amber-700/50 rounded-xl py-2.5 px-4 text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer text-xs font-semibold"
+              >
+                {usersList.map((u) => (
+                  <option key={u.id} value={u.id}>{u.full_name} ({u.emp_id})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Custom Date inputs */}
           {dateFilter === 'custom' ? (
             <div className="grid grid-cols-2 gap-2">
@@ -635,7 +658,14 @@ export default function ReportsPage() {
                                   isExpanded && "bg-slate-800/40"
                                 )}
                               >
-                                <td className="px-6 py-4 font-bold font-mono text-indigo-300">{e.work_date}</td>
+                                <td className="px-6 py-4 font-mono text-indigo-300">
+                                  <div className="font-bold">{e.work_date}</div>
+                                  {e.start_time && e.end_time && (
+                                    <div className="text-[10px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
+                                      {e.start_time.slice(0, 5)} → {e.end_time.slice(0, 5)}
+                                    </div>
+                                  )}
+                                </td>
                                 <td className="px-6 py-4 text-slate-300">{e.holding}</td>
                                 <td className="px-6 py-4 font-bold text-white max-w-[200px] truncate">{e.project_name}</td>
                                 <td className="px-6 py-4 text-slate-300">{e.action_name}</td>
@@ -761,151 +791,137 @@ export default function ReportsPage() {
 
 
         {/* ======================================================== */}
-        {/* TAB 2: MANAGEMENT OVERVIEW (IMP vs IT) */}
+        {/* TAB 2: MANAGEMENT OVERVIEW (DYNAMIC DEPTS) */}
         {/* ======================================================== */}
-        {activeTab === 'overview' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            {/* Side-by-Side Departments Comparison Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* IMP Team Column Card */}
-              <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-blue-500/20 hover:border-blue-500/30 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl pointer-events-none group-hover:bg-blue-500/10 transition-colors"></div>
-                <div className="flex justify-between items-center mb-6">
-                  <div className="flex items-center gap-3">
-                    <span className="w-3.5 h-3.5 rounded-full bg-blue-500 animate-pulse"></span>
-                    <h2 className="text-xl font-black text-white tracking-tight">IMP CONSULTING TEAM</h2>
-                  </div>
-                  <span className="text-[10px] font-bold bg-blue-500/10 border border-blue-500/20 text-blue-400 px-3 py-1 rounded-full uppercase tracking-wider font-mono">
-                    {overviewData.imp.usersCount} Active Users
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
-                    <span className="text-3xl font-black text-white tracking-tight font-mono">{overviewData.imp.totalHours.toFixed(1)}h</span>
-                  </div>
-                  <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
-                    <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">Overtime Logged</span>
-                    <span className="text-3xl font-black text-amber-400 tracking-tight font-mono">{overviewData.imp.otHours.toFixed(1)}h</span>
-                  </div>
-                </div>
+        {activeTab === 'overview' && (() => {
+          const deptStyles = [
+            { border: 'border-blue-500/20', hover: 'hover:border-blue-500/30', bgGlow: 'bg-blue-500/5', hoverBg: 'group-hover:bg-blue-500/10', dot: 'bg-blue-500', badgeText: 'text-blue-400', badgeBg: 'bg-blue-500/10', badgeBorder: 'border-blue-500/20', barBg: 'bg-blue-500', stroke: '#3b82f6' },
+            { border: 'border-emerald-500/20', hover: 'hover:border-emerald-500/30', bgGlow: 'bg-emerald-500/5', hoverBg: 'group-hover:bg-emerald-500/10', dot: 'bg-emerald-500', badgeText: 'text-emerald-400', badgeBg: 'bg-emerald-500/10', badgeBorder: 'border-emerald-500/20', barBg: 'bg-emerald-500', stroke: '#10b981' },
+            { border: 'border-amber-500/20', hover: 'hover:border-amber-500/30', bgGlow: 'bg-amber-500/5', hoverBg: 'group-hover:bg-amber-500/10', dot: 'bg-amber-500', badgeText: 'text-amber-400', badgeBg: 'bg-amber-500/10', badgeBorder: 'border-amber-500/20', barBg: 'bg-amber-500', stroke: '#f59e0b' },
+            { border: 'border-purple-500/20', hover: 'hover:border-purple-500/30', bgGlow: 'bg-purple-500/5', hoverBg: 'group-hover:bg-purple-500/10', dot: 'bg-purple-500', badgeText: 'text-purple-400', badgeBg: 'bg-purple-500/10', badgeBorder: 'border-purple-500/20', barBg: 'bg-purple-500', stroke: '#a855f7' },
+            { border: 'border-rose-500/20', hover: 'hover:border-rose-500/30', bgGlow: 'bg-rose-500/5', hoverBg: 'group-hover:bg-rose-500/10', dot: 'bg-rose-500', badgeText: 'text-rose-400', badgeBg: 'bg-rose-500/10', badgeBorder: 'border-rose-500/20', barBg: 'bg-rose-500', stroke: '#f43f5e' },
+            { border: 'border-cyan-500/20', hover: 'hover:border-cyan-500/30', bgGlow: 'bg-cyan-500/5', hoverBg: 'group-hover:bg-cyan-500/10', dot: 'bg-cyan-500', badgeText: 'text-cyan-400', badgeBg: 'bg-cyan-500/10', badgeBorder: 'border-cyan-500/20', barBg: 'bg-cyan-500', stroke: '#06b6d4' }
+          ];
 
-                {/* IMP Top Projects */}
-                <div className="mt-6 space-y-3">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">🏆 Top IMP Projects</h3>
-                  {overviewData.impProjects.length === 0 ? (
-                    <span className="text-xs text-slate-500 italic block">No records logged in IMP team.</span>
-                  ) : (
-                    <div className="space-y-2">
-                      {overviewData.impProjects.map((p, idx) => (
-                        <div key={idx} className="flex flex-col gap-1.5">
-                          <div className="flex justify-between text-xs font-medium">
-                            <span className="text-slate-300 font-bold">{p.name}</span>
-                            <span className="text-blue-400 font-bold font-mono">{p.hours}h</span>
-                          </div>
-                          <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className="bg-blue-500 h-full rounded-full" 
-                              style={{ width: `${Math.min((p.hours / (overviewData.imp.totalHours || 1)) * 100, 100)}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* IT Team Column Card */}
-              <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-emerald-500/20 hover:border-emerald-500/30 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none group-hover:bg-emerald-500/10 transition-colors"></div>
-                <div className="flex justify-between items-center mb-6">
-                  <div className="flex items-center gap-3">
-                    <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <h2 className="text-xl font-black text-white tracking-tight">IT DEVELOPMENT TEAM</h2>
+          return (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {/* Dynamic Departments Comparison Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {overviewData.depts.length === 0 ? (
+                  <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-500 bg-[#1E293B]/40 rounded-3xl border border-slate-700/50">
+                    <UserIcon size={32} className="opacity-20 mb-3" />
+                    <span className="font-medium text-sm">No department data available for selected filters.</span>
                   </div>
-                  <span className="text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full uppercase tracking-wider font-mono">
-                    {overviewData.it.usersCount} Active Users
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
-                    <span className="text-3xl font-black text-white tracking-tight font-mono">{overviewData.it.totalHours.toFixed(1)}h</span>
-                  </div>
-                  <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
-                    <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">Overtime Logged</span>
-                    <span className="text-3xl font-black text-amber-400 tracking-tight font-mono">{overviewData.it.otHours.toFixed(1)}h</span>
-                  </div>
-                </div>
-
-                {/* IT Top Projects */}
-                <div className="mt-6 space-y-3">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">🏆 Top IT Projects</h3>
-                  {overviewData.itProjects.length === 0 ? (
-                    <span className="text-xs text-slate-500 italic block">No records logged in IT team.</span>
-                  ) : (
-                    <div className="space-y-2">
-                      {overviewData.itProjects.map((p, idx) => (
-                        <div key={idx} className="flex flex-col gap-1.5">
-                          <div className="flex justify-between text-xs font-medium">
-                            <span className="text-slate-300 font-bold">{p.name}</span>
-                            <span className="text-emerald-400 font-bold font-mono">{p.hours}h</span>
-                          </div>
-                          <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
-                            <div 
-                              className="bg-emerald-500 h-full rounded-full" 
-                              style={{ width: `${Math.min((p.hours / (overviewData.it.totalHours || 1)) * 100, 100)}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Interactive double trend area chart */}
-            <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl">
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-2.5">
-                  <TrendingUp className="text-indigo-400" size={18} />
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">📈 Team Daily Hours Trend (IMP vs IT)</h3>
-                </div>
-              </div>
-              <div className="h-72 w-full">
-                {overviewData.trend.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No trend data available for active filters.</div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={overviewData.trend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorImp" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorIt" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="date" stroke="#64748b" fontSize={10} tickLine={false} />
-                      <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
-                        labelClassName="text-slate-400 font-bold font-mono text-[10px]"
-                      />
-                      <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                      <Area name="IMP Team (Hours)" type="monotone" dataKey="imp" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorImp)" />
-                      <Area name="IT Team (Hours)" type="monotone" dataKey="it" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorIt)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  overviewData.depts.map((dept, idx) => {
+                    const style = deptStyles[idx % deptStyles.length];
+                    return (
+                      <div key={dept.name} className={`bg-[#1E293B]/80 backdrop-blur-xl border ${style.border} ${style.hover} rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all`}>
+                        <div className={`absolute top-0 right-0 w-32 h-32 ${style.bgGlow} rounded-full blur-3xl pointer-events-none ${style.hoverBg} transition-colors`}></div>
+                        <div className="flex justify-between items-center mb-6">
+                          <div className="flex items-center gap-3">
+                            <span className={`w-3.5 h-3.5 rounded-full ${style.dot} animate-pulse`}></span>
+                            <h2 className="text-xl font-black text-white tracking-tight uppercase truncate max-w-[200px]" title={dept.name}>{dept.name}</h2>
+                          </div>
+                          <span className={`text-[10px] font-bold ${style.badgeBg} border ${style.badgeBorder} ${style.badgeText} px-3 py-1 rounded-full uppercase tracking-wider font-mono shrink-0`}>
+                            {dept.metrics.usersCount} Active {dept.metrics.usersCount === 1 ? 'User' : 'Users'}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
+                            <span className="text-3xl font-black text-white tracking-tight font-mono">{dept.metrics.totalHours.toFixed(1)}h</span>
+                          </div>
+                          <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
+                            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">Overtime Logged</span>
+                            <span className="text-3xl font-black text-amber-400 tracking-tight font-mono">{dept.metrics.otHours.toFixed(1)}h</span>
+                          </div>
+                        </div>
+
+                        {/* Top Projects */}
+                        <div className="mt-6 space-y-3">
+                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">🏆 Top Projects</h3>
+                          {dept.projects.length === 0 ? (
+                            <span className="text-xs text-slate-500 italic block">No records logged in {dept.name}.</span>
+                          ) : (
+                            <div className="space-y-2">
+                              {dept.projects.map((p, pIdx) => (
+                                <div key={pIdx} className="flex flex-col gap-1.5">
+                                  <div className="flex justify-between text-xs font-medium">
+                                    <span className="text-slate-300 font-bold truncate max-w-[180px]">{p.name}</span>
+                                    <span className={`${style.badgeText} font-bold font-mono`}>{p.hours}h</span>
+                                  </div>
+                                  <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`${style.barBg} h-full rounded-full`} 
+                                      style={{ width: `${Math.min((p.hours / (dept.metrics.totalHours || 1)) * 100, 100)}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
-            </div>
+
+              {/* Interactive multiple trend area chart */}
+              <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl">
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex items-center gap-2.5">
+                    <TrendingUp className="text-indigo-400" size={18} />
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">📈 Department Daily Hours Trend</h3>
+                  </div>
+                </div>
+                <div className="h-72 w-full">
+                  {overviewData.trend.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No trend data available for active filters.</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={overviewData.trend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          {overviewData.depts.map((dept, idx) => {
+                            const style = deptStyles[idx % deptStyles.length];
+                            return (
+                              <linearGradient key={`color-${dept.name}`} id={`color-${dept.name}`} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={style.stroke} stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor={style.stroke} stopOpacity={0}/>
+                              </linearGradient>
+                            );
+                          })}
+                        </defs>
+                        <XAxis dataKey="date" stroke="#64748b" fontSize={10} tickLine={false} />
+                        <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
+                          labelClassName="text-slate-400 font-bold font-mono text-[10px]"
+                        />
+                        <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                        
+                        {overviewData.depts.map((dept, idx) => {
+                          const style = deptStyles[idx % deptStyles.length];
+                          return (
+                            <Area 
+                              key={dept.name}
+                              name={`${dept.name} (Hours)`}
+                              type="monotone" 
+                              dataKey={dept.name} 
+                              stroke={style.stroke} 
+                              strokeWidth={2.5} 
+                              fillOpacity={1} 
+                              fill={`url(#color-${dept.name})`} 
+                            />
+                          );
+                        })}
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
 
             {/* Overtime ranking leaderboard */}
             <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl max-w-2xl mx-auto">
@@ -948,7 +964,8 @@ export default function ReportsPage() {
               </div>
             </div>
           </div>
-        )}
+        );
+      })()}
 
 
         {/* ======================================================== */}
@@ -988,11 +1005,14 @@ export default function ReportsPage() {
                   {/* Left Column Profile Card */}
                   <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between items-center text-center relative overflow-hidden group">
                     <div className="absolute top-[-10%] right-[-10%] w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
-                    <div className="w-20 h-20 rounded-full bg-slate-800 border-2 border-indigo-500/30 overflow-hidden ring-4 ring-indigo-500/10 shadow-lg flex items-center justify-center shrink-0 mb-4">
+                     <div className="w-20 h-20 rounded-full bg-slate-800 border-2 border-indigo-500/30 overflow-hidden ring-4 ring-indigo-500/10 shadow-lg flex items-center justify-center shrink-0 mb-4">
                       <img 
-                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(individualData.user?.full_name || 'Guest')}&background=6366f1&color=fff&size=128`} 
+                        src={`https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID=${individualData.user?.emp_id}`} 
                         alt="Teammate avatar" 
                         className="w-full h-full object-cover" 
+                        onError={(e) => {
+                          e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(individualData.user?.full_name || 'Guest')}&background=6366f1&color=fff&size=128&bold=true`;
+                        }}
                       />
                     </div>
                     <div>

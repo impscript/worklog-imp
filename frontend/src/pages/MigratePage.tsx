@@ -32,6 +32,14 @@ interface PreviewRow {
   status: 'ready' | 'warning' | 'error';
   message: string;
   original: CSVRow;
+  holding: string;
+  department_operator: string;
+  project_type: string;
+  module: string;
+  bu: string;
+  department: string;
+  action_channel: string | null;
+  break_time: boolean;
 }
 
 export default function MigratePage() {
@@ -66,6 +74,7 @@ export default function MigratePage() {
   // Preview & Processing states
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
   const [newProjectsList, setNewProjectsList] = useState<any[]>([]);
+  const [holidaysList, setHolidaysList] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [importProgress, setImportProgress] = useState<number>(0);
   const [importStats, setImportStats] = useState<{ success: number; failed: number } | null>(null);
@@ -96,9 +105,13 @@ export default function MigratePage() {
 
     // Load project list to validate project names
     async function loadMasterData() {
-      const { data } = await supabase.from('tb_map_project_structure').select('project_name, holding, department_operator, bu, department');
+      const { data } = await supabase.from('tb_map_project_structure').select('project_name, holding, department_operator, bu, department, project_type, module');
       if (data) {
         setNewProjectsList(data);
+      }
+      const { data: holidayData } = await supabase.from('tb_master_holiday').select('date');
+      if (holidayData) {
+        setHolidaysList(holidayData.map(h => h.date));
       }
     }
     loadMasterData();
@@ -238,10 +251,30 @@ export default function MigratePage() {
       const action_name = row[mappings.action_name] || fallbackAction;
       const description = row[mappings.description] || '';
       const is_ot_val = row[mappings.is_ot] || '';
-      const is_ot = is_ot_val.toLowerCase() === 'true' || is_ot_val === '1' || is_ot_val.toLowerCase() === 'yes';
+      let is_ot = is_ot_val.toLowerCase() === 'true' || is_ot_val === '1' || is_ot_val.toLowerCase() === 'yes';
+
+      // Auto-detect OT if date is in holiday list or falls on a weekend
+      if (!is_ot && work_date && !isNaN(Date.parse(work_date))) {
+        const parsedDate = new Date(work_date);
+        const day = parsedDate.getDay(); // 0 = Sunday, 6 = Saturday
+        const isWeekend = day === 0 || day === 6;
+        const isHoliday = holidaysList.includes(work_date);
+        if (isWeekend || isHoliday) {
+          is_ot = true;
+        }
+      }
 
       let status: 'ready' | 'warning' | 'error' = 'ready';
       let message = 'Ready to import';
+
+      let holding = fallbackHolding;
+      let department_operator = fallbackOperator;
+      let project_type = 'Management';
+      let module = '';
+      let bu = '';
+      let department = '';
+      let action_channel: string | null = null;
+      let break_time = true;
 
       // 1. Validate date
       if (!work_date || isNaN(Date.parse(work_date))) {
@@ -256,7 +289,15 @@ export default function MigratePage() {
           is_ot,
           status: 'error',
           message: 'Invalid or missing work date',
-          original: row
+          original: row,
+          holding,
+          department_operator,
+          project_type,
+          module,
+          bu,
+          department,
+          action_channel,
+          break_time,
         };
       }
 
@@ -298,7 +339,14 @@ export default function MigratePage() {
         const normName = norm(project_name);
         const match = newProjectsList.find(p => norm(p.project_name) === normName);
 
-        if (!match) {
+        if (match) {
+          holding = match.holding;
+          department_operator = match.department_operator;
+          project_type = match.project_type || 'Management';
+          module = match.module || '';
+          bu = match.bu || '';
+          department = match.department || '';
+        } else {
           if (status !== 'error') {
             status = 'warning';
             message = `Project mismatch. Will map to fallback [${fallbackHolding} - ${fallbackOperator}]`;
@@ -320,7 +368,15 @@ export default function MigratePage() {
         is_ot,
         status,
         message,
-        original: row
+        original: row,
+        holding,
+        department_operator,
+        project_type,
+        module,
+        bu,
+        department,
+        action_channel,
+        break_time,
       };
     });
 

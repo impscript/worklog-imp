@@ -28,6 +28,9 @@ export default function CalendarPage() {
   const navigate = useNavigate();
   const [editingLog, setEditingLog] = useState<any | null>(null);
   const [viewingLog, setViewingLog] = useState<WorklogEntry | null>(null);
+  const [sessionUser, setSessionUser] = useState<any>(null);
+  const [usersList, setUsersList] = useState<{id: string; full_name: string; emp_id: string}[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
 
@@ -49,6 +52,23 @@ export default function CalendarPage() {
       return;
     }
     const session = JSON.parse(sessionStr);
+    
+    // Only set session user and default selected user on mount
+    if (!sessionUser) {
+      setSessionUser(session);
+      if (!selectedUserId) {
+        setSelectedUserId(session.id);
+      }
+      
+      // If admin, fetch users list
+      if (session.role === 'admin') {
+        supabase.from('users').select('id, full_name, emp_id').order('full_name').then(({data}) => {
+          if (data) setUsersList(data);
+        });
+      }
+    }
+
+    const currentTargetId = selectedUserId || session.id;
 
     async function fetchMonthEntries() {
       try {
@@ -57,7 +77,7 @@ export default function CalendarPage() {
         const { data, error } = await supabase
           .from('col_worklog')
           .select('*')
-          .eq('user_id', session.id);
+          .eq('user_id', currentTargetId);
 
         if (error) {
           console.error('Error fetching calendar entries:', error);
@@ -97,7 +117,7 @@ export default function CalendarPage() {
 
     fetchMonthEntries();
     fetchHolidays();
-  }, [navigate, selectedDateStr, refreshTrigger]);
+  }, [navigate, selectedDateStr, refreshTrigger, selectedUserId, sessionUser]);
 
   // Calendar calculations
   const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 is Sunday, 1 is Monday, etc.
@@ -179,7 +199,23 @@ export default function CalendarPage() {
               Visualize logged work hours and activities in a calendar dashboard.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col md:flex-row items-end md:items-center gap-3">
+            {sessionUser?.role === 'admin' && (
+              <div className="relative w-48">
+                <select
+                  value={selectedUserId}
+                  onChange={(e) => setSelectedUserId(e.target.value)}
+                  className="w-full bg-[#1E293B] border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-300 appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-800 transition-colors"
+                >
+                  {usersList.map((u) => (
+                    <option key={u.id} value={u.id}>{u.full_name}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+            )}
             <button 
               onClick={today}
               className="px-4 py-2 bg-[#1E293B] border border-slate-700/50 rounded-xl text-sm font-semibold text-slate-300 hover:text-white transition-all hover:bg-slate-800"
@@ -201,7 +237,7 @@ export default function CalendarPage() {
         </div>
 
         {/* Content Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
           {/* Calendar Grid Container */}
           <div className="lg:col-span-2 bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-xl flex flex-col">
@@ -318,7 +354,7 @@ export default function CalendarPage() {
           </div>
 
           {/* Right Pane: Day Details */}
-          <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-xl flex flex-col">
+          <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-xl flex flex-col max-h-[650px] lg:sticky lg:top-8">
             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <ClipboardList size={18} className="text-indigo-400" />
               <span>Details for {selectedDateStr ? new Date(selectedDateStr).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Selected Day'}</span>

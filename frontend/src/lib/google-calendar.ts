@@ -213,22 +213,29 @@ class GoogleCalendarService {
 
   buildEventPayload(entry: any, projectTitle: string, actionName: string) {
     const isOT = entry.is_ot === true || entry.is_ot === 'true';
-    const typeLabel = isOT ? 'OT' : 'STANDARD';
-    const summary = `[${typeLabel}] ${projectTitle} (${entry.module || 'General'})`;
+    const projectType = entry.project_type || 'Task';
+    
+    // Format Title: (Project Type) Description / Module
+    const shortDesc = entry.description 
+      ? (entry.description.length > 60 ? entry.description.substring(0, 60) + '...' : entry.description)
+      : (entry.module ? `${entry.module} - ${actionName}` : actionName);
+      
+    const typeLabel = isOT ? `OT / ${projectType}` : projectType;
+    const summary = `(${typeLabel}) ${shortDesc}`;
 
     const lines = [
-      '📋 Worklog Entry (NewGen)',
+      '📋 Worklog Entry',
       '━━━━━━━━━━━━━━━━━━━━━━━━',
       `🎯 Project: ${projectTitle}`,
-      `📦 Module/System: ${entry.module || 'General'}`,
-      `⚡ Action Taken: ${actionName}`,
-      `⏱ Logged Hours: ${Number(entry.total_hours).toFixed(1)}h (${entry.start_time.slice(0, 5)} - ${entry.end_time.slice(0, 5)})`,
-      isOT ? '🔥 Category: Overtime (OT)' : '💼 Category: Standard Work Hours',
+      entry.module ? `📦 Module: ${entry.module}` : null,
+      entry.bu || entry.department ? `🏢 BU: ${entry.bu || 'N/A'} | Dept: ${entry.department || 'N/A'}` : null,
+      `⏱ Hours: ${Number(entry.total_hours).toFixed(1)}h (${entry.start_time.slice(0, 5)} - ${entry.end_time.slice(0, 5)})`,
+      `⚡ Action: ${actionName}`,
+      isOT ? '🔥 Category: Overtime (OT)' : null,
+      entry.description ? `📝 ${entry.description}` : '📝 No description',
       '━━━━━━━━━━━━━━━━━━━━━━━━',
-      entry.description ? `📝 Description: \n${entry.description}` : '📝 No description provided.',
-      '━━━━━━━━━━━━━━━━━━━━━━━━',
-      `📌 Synced from Worklog NewGen Web App at ${new Date().toLocaleString('th-TH')}`
-    ];
+      `📌 Synced from Worklog NewGen Web App`
+    ].filter(Boolean); // Filter out nulls
 
     const description = lines.join('\n');
     const timeZone = 'Asia/Bangkok';

@@ -114,11 +114,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-slate-900 text-center">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-            For development, use <span className="text-indigo-400 font-extrabold font-mono">chatchawan</span> as username
-          </p>
-        </div>
       </div>
     </div>
   );

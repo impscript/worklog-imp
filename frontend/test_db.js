@@ -7,12 +7,8 @@ const supabase = createClient(
 
 async function run() {
   console.log('Testing users table...');
-  const users = await supabase.from('users').select('*').limit(1);
+  const users = await supabase.from('users').select('*');
   console.log('users:', users.data, users.error);
-
-  console.log('Testing tb_map_user_role table...');
-  const map_user_role = await supabase.from('tb_map_user_role').select('*').limit(1);
-  console.log('tb_map_user_role:', map_user_role.data, map_user_role.error);
 }
 
 run();

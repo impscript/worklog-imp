@@ -5,15 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { googleCalendar } from '../lib/google-calendar';
 
-interface UserRoleMap {
-  holding: string;
-  department_operator: string;
-}
-
 export default function ProfilePage() {
   const navigate = useNavigate();
   const [session, setSession] = useState<any>(null);
-  const [roles, setRoles] = useState<UserRoleMap[]>([]);
   const [stats, setStats] = useState({
     totalHours: 0,
     totalDays: 0,
@@ -38,7 +32,6 @@ export default function ProfilePage() {
     const sessionData = JSON.parse(sessionStr);
     setSession(sessionData);
 
-    const mapName = sessionData.nickname || sessionData.name?.split(' ')[0] || 'Chatchawan';
 
     // Handle Google Calendar redirect callback hash
     if (window.location.hash) {
@@ -81,13 +74,7 @@ export default function ProfilePage() {
     async function loadProfileData() {
       try {
         setIsLoading(true);
-        // 1. Fetch mapped holdings and operational roles
-        const { data: userRoles } = await supabase
-          .from('tb_map_user_role')
-          .select('holding, department_operator')
-          .eq('name', mapName);
 
-        if (userRoles) setRoles(userRoles);
 
         // 2. Fetch col_worklog summary stats
         const { data: logs } = await supabase
@@ -262,94 +249,63 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Stats and Holdings Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Stats Grid */}
+        <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
           
-          {/* Work Summary Stats */}
-          <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-lg space-y-6">
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-              <Award size={18} className="text-indigo-400" />
-              <span>Performance Statistics</span>
-            </h3>
+          <div className="relative z-10 space-y-6">
+            <div className="flex items-center gap-3 border-b border-slate-800/80 pb-4">
+              <Award size={24} className="text-indigo-400" />
+              <h3 className="text-xl font-bold text-white tracking-tight">Performance Statistics</h3>
+            </div>
 
             {isLoading ? (
-              <div className="animate-pulse space-y-4">
-                <div className="h-10 bg-slate-800 rounded-xl"></div>
-                <div className="h-10 bg-slate-800 rounded-xl"></div>
-                <div className="h-10 bg-slate-800 rounded-xl"></div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="h-28 bg-slate-800 animate-pulse rounded-2xl"></div>
+                <div className="h-28 bg-slate-800 animate-pulse rounded-2xl"></div>
+                <div className="h-28 bg-slate-800 animate-pulse rounded-2xl"></div>
               </div>
             ) : (
-              <div className="space-y-4 font-mono">
-                <div className="flex items-center justify-between p-3.5 bg-[#0F172A]/40 border border-slate-800 rounded-xl">
-                  <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                    <Calendar size={14} className="text-slate-500" />
-                    <span>Logged Days</span>
-                  </span>
-                  <span className="text-sm font-extrabold text-white">{stats.totalDays} Days</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                {/* Logged Days */}
+                <div className="bg-[#0F172A]/50 border border-slate-800 rounded-2xl p-5 flex items-center gap-4 hover:border-slate-700/30 transition-all duration-300">
+                  <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
+                    <Calendar size={24} />
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400 font-medium block">Logged Days</span>
+                    <span className="text-2xl font-black text-white mt-1 block">{stats.totalDays}</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between p-3.5 bg-[#0F172A]/40 border border-slate-800 rounded-xl">
-                  <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                    <BookOpen size={14} className="text-slate-500" />
-                    <span>Total Tasks</span>
-                  </span>
-                  <span className="text-sm font-extrabold text-white">{stats.totalTasks} Logs</span>
+
+                {/* Total Tasks */}
+                <div className="bg-[#0F172A]/50 border border-slate-800 rounded-2xl p-5 flex items-center gap-4 hover:border-slate-700/30 transition-all duration-300">
+                  <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
+                    <BookOpen size={24} />
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400 font-medium block">Total Tasks</span>
+                    <span className="text-2xl font-black text-white mt-1 block">
+                      {stats.totalTasks} <span className="text-xs text-slate-400 font-normal font-mono">Logs</span>
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between p-3.5 bg-[#0F172A]/40 border border-slate-800 rounded-xl">
-                  <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                    <Shield size={14} className="text-slate-500" />
-                    <span>Total Hours</span>
-                  </span>
-                  <span className="text-sm font-extrabold text-indigo-400">{stats.totalHours.toFixed(1)} hrs</span>
+
+                {/* Total Hours */}
+                <div className="bg-[#0F172A]/50 border border-slate-800 rounded-2xl p-5 flex items-center gap-4 hover:border-slate-700/30 transition-all duration-300">
+                  <div className="p-3 bg-[#0F172A]/80 border border-slate-800 rounded-xl text-indigo-400">
+                    <Shield size={24} />
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400 font-medium block">Total Hours</span>
+                    <span className="text-2xl font-black text-indigo-400 mt-1 block">
+                      {stats.totalHours.toFixed(1)} <span className="text-xs text-slate-400 font-normal font-mono">hrs</span>
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
           </div>
-
-          {/* Operational Holding maps */}
-          <div className="md:col-span-2 bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-lg flex flex-col justify-between">
-            <div>
-              <h3 className="text-base font-extrabold text-white flex items-center gap-2 mb-4">
-                <Shield size={18} className="text-indigo-400" />
-                <span>Operational Roles & Holdings</span>
-              </h3>
-              <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-                Your account is configured to operate in the following Holding groups and Departments based on the master user roles blueprint:
-              </p>
-
-              {isLoading ? (
-                <div className="animate-pulse space-y-3">
-                  <div className="h-6 bg-slate-800 rounded"></div>
-                  <div className="h-6 bg-slate-800 rounded"></div>
-                </div>
-              ) : roles.length === 0 ? (
-                <div className="text-center py-6 border border-dashed border-slate-700/50 rounded-xl text-slate-500 text-xs">
-                  No mapped holdings configured for your account.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[160px] overflow-y-auto pr-1">
-                  {roles.map((r, i) => (
-                    <div 
-                      key={i}
-                      className="p-3.5 bg-[#0F172A]/40 border border-slate-800 rounded-xl flex items-center justify-between hover:border-slate-700/30 transition-colors"
-                    >
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Holding Group</span>
-                        <span className="text-xs font-bold text-white mt-0.5 block">{r.holding}</span>
-                      </div>
-                      <span className="text-[10px] font-extrabold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded border border-indigo-500/20 uppercase tracking-wider">
-                        {r.department_operator}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="text-[10px] text-slate-500 font-mono text-center md:text-right mt-6 border-t border-slate-800/80 pt-4">
-              Environment: Supabase DB Blueprint Mode
-            </div>
-          </div>
-
         </div>
 
         {/* Google Calendar Sync Card */}

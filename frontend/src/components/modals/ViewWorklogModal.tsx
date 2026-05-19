@@ -29,6 +29,47 @@ export default function ViewWorklogModal({ isOpen, onClose, log }: ViewWorklogMo
     Management: "text-amber-400 bg-amber-500/10 border-amber-500/20"
   };
 
+  const getBreakTimeDisplay = () => {
+    if (!log.break_time || !log.start_time || !log.end_time) return null;
+    const [startH, startM] = log.start_time.split(':').map(Number);
+    const [endH, endM] = log.end_time.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    const lunchStart = 12 * 60;
+    const lunchEnd = 13 * 60;
+
+    const crossesMidnight = endMinutes < startMinutes || (endMinutes === startMinutes && startMinutes > 0);
+
+    let overlapMinutes = 0;
+    if (crossesMidnight) {
+      const overlapStart1 = Math.max(startMinutes, lunchStart);
+      const overlapEnd1 = Math.min(24 * 60, lunchEnd);
+      if (overlapEnd1 > overlapStart1) {
+        overlapMinutes += (overlapEnd1 - overlapStart1);
+      }
+      const overlapStart2 = Math.max(0, lunchStart);
+      const overlapEnd2 = Math.min(endMinutes, lunchEnd);
+      if (overlapEnd2 > overlapStart2) {
+        overlapMinutes += (overlapEnd2 - overlapStart2);
+      }
+    } else {
+      const overlapStart = Math.max(startMinutes, lunchStart);
+      const overlapEnd = Math.min(endMinutes, lunchEnd);
+      if (overlapEnd > overlapStart) {
+        overlapMinutes = overlapEnd - overlapStart;
+      }
+    }
+
+    if (overlapMinutes > 0) {
+      const hrs = overlapMinutes / 60;
+      return `✅ ใช่ (${hrs === 1 ? '1' : hrs.toFixed(1)} ชั่วโมง)`;
+    }
+    return null;
+  };
+
+  const breakTimeDisplay = getBreakTimeDisplay();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 print:bg-white print:p-0 print:static print:inset-auto">
       <div className="w-full max-w-3xl bg-[#1E293B] border border-slate-700/80 rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col print:bg-white print:border-none print:shadow-none print:max-h-full print:w-full print:rounded-none">
@@ -151,12 +192,14 @@ export default function ViewWorklogModal({ isOpen, onClose, log }: ViewWorklogMo
                     {log.start_time.slice(0, 5)} - {log.end_time.slice(0, 5)}
                   </span>
                 </div>
-                <div>
-                  <span className="text-[9px] font-bold text-slate-500 uppercase block">หักช่วงเวลาพัก</span>
-                  <span className="text-sm font-bold text-white print:text-black">
-                    {log.break_time ? '✅ ใช่ (1 ชั่วโมง)' : '❌ ไม่หัก'}
-                  </span>
-                </div>
+                {breakTimeDisplay && (
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase block">หักช่วงเวลาพัก</span>
+                    <span className="text-sm font-bold text-white print:text-black">
+                      {breakTimeDisplay}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-slate-700/30 pt-3 print:border-slate-200">
