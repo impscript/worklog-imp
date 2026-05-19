@@ -397,7 +397,7 @@ export default function LogWorkPage() {
   }, [mapProjectStructure, mapUserRole]);
 
   const availableProjectTypes = useMemo(() => {
-    return Array.from(new Set(allowedProjects.map(p => p.project_type)));
+    return Array.from(new Set(allowedProjects.map(p => p.project_type))).sort();
   }, [allowedProjects]);
 
   const availableProjects = useMemo(() => {
@@ -419,13 +419,10 @@ export default function LogWorkPage() {
           ? `${p.project_name} (${p.holding} - ${p.department_operator})` 
           : p.project_name;
           
-        options.push({
-          label,
-          value: key
-        });
+        options.push({ label, value: key });
       }
     }
-    return options;
+    return options.sort((a, b) => a.label.localeCompare(b.label));
   }, [projectType, allowedProjects]);
 
   const availableModules = useMemo(() => {
@@ -439,13 +436,50 @@ export default function LogWorkPage() {
         p.department_operator === pRole
       )
       .map(p => p.module)
-      .filter(Boolean); // Filter out nulls
+      .filter(Boolean)
+      .sort() as string[];
   }, [selectedProjectKey, projectType, allowedProjects]);
+
+  // When no modules exist for the selected project, expose BU/Dept options for manual selection
+  const noModuleMode = selectedProjectKey && availableModules.length === 0;
+
+  const availableBUs = useMemo(() => {
+    if (!noModuleMode) return [];
+    const [pName, pHolding, pRole] = selectedProjectKey.split('|');
+    return Array.from(new Set(
+      allowedProjects
+        .filter(p =>
+          p.project_type === projectType &&
+          p.project_name === pName &&
+          p.holding === pHolding &&
+          p.department_operator === pRole
+        )
+        .map(p => p.bu)
+        .filter(Boolean)
+    )).sort() as string[];
+  }, [noModuleMode, selectedProjectKey, projectType, allowedProjects]);
+
+  const availableDepts = useMemo(() => {
+    if (!noModuleMode || !bu) return [];
+    const [pName, pHolding, pRole] = selectedProjectKey.split('|');
+    return Array.from(new Set(
+      allowedProjects
+        .filter(p =>
+          p.project_type === projectType &&
+          p.project_name === pName &&
+          p.holding === pHolding &&
+          p.department_operator === pRole &&
+          p.bu === bu
+        )
+        .map(p => p.department)
+        .filter(Boolean)
+    )).sort() as string[];
+  }, [noModuleMode, bu, selectedProjectKey, projectType, allowedProjects]);
 
   const availableActions = useMemo(() => {
     if (!projectType) return [];
     const category = projectType === 'Management' ? 'Management' : projectType.includes('Support') ? 'Support' : 'Project';
-    return masterActions.filter(a => a.action_category === category).map(a => a.action_name);
+    return masterActions.filter(a => a.action_category === category).map(a => a.action_name).sort();
   }, [projectType, masterActions]);
 
   // Sync derived fields from selected project key and module
@@ -455,17 +489,31 @@ export default function LogWorkPage() {
       setProjectName(pName);
       setHolding(pHolding);
       setRole(pRole);
-      
-      const match = allowedProjects.find(p => 
-        p.project_type === projectType && 
-        p.project_name === pName && 
-        p.holding === pHolding && 
+
+      const hasModules = allowedProjects.some(p =>
+        p.project_type === projectType &&
+        p.project_name === pName &&
+        p.holding === pHolding &&
         p.department_operator === pRole &&
-        (module ? p.module === module : true)
+        p.module
       );
-      if (match) {
-        setBu(match.bu);
-        setDepartment(match.department);
+
+      if (hasModules) {
+        // Module-based: auto-derive BU/Dept from selected module
+        const match = allowedProjects.find(p =>
+          p.project_type === projectType &&
+          p.project_name === pName &&
+          p.holding === pHolding &&
+          p.department_operator === pRole &&
+          (module ? p.module === module : true)
+        );
+        if (match) {
+          setBu(match.bu);
+          setDepartment(match.department);
+        }
+      } else {
+        // No-module mode: BU/Dept chosen by user via dropdown — don't auto-set
+        // (keep whatever the user selected, only reset when project changes)
       }
     } else {
       setProjectName('');
@@ -484,6 +532,8 @@ export default function LogWorkPage() {
   useEffect(() => {
     setModule('');
     setActionName('');
+    setBu('');
+    setDepartment('');
   }, [selectedProjectKey]);
 
   // Auto-select if only 1 option available
@@ -796,18 +846,46 @@ export default function LogWorkPage() {
               />
             </div>
 
-            {/* Business Unit & Department Auto-derived indicators */}
+            {/* Business Unit & Department — auto-derived (with module) or selectable (no module) */}
             {projectName && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-800/40 border border-slate-700/50 rounded-xl text-xs font-semibold text-slate-400">
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Business Unit:</span>
-                  <span className="text-slate-200 font-mono">{bu || '-'}</span>
+              noModuleMode ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1.5">BUSINESS UNIT <span className="text-rose-400">*</span></label>
+                    <select
+                      value={bu}
+                      onChange={e => { setBu(e.target.value); setDepartment(''); }}
+                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-700 bg-[#0F172A]/80 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                    >
+                      <option value="">— Select BU —</option>
+                      {availableBUs.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1.5">TARGET DEPARTMENT <span className="text-rose-400">*</span></label>
+                    <select
+                      value={department}
+                      onChange={e => setDepartment(e.target.value)}
+                      disabled={!bu}
+                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-700 bg-[#0F172A]/80 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all disabled:opacity-40"
+                    >
+                      <option value="">— Select Department —</option>
+                      {availableDepts.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Target Department:</span>
-                  <span className="text-slate-200 font-mono">{department || '-'}</span>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-800/40 border border-slate-700/50 rounded-xl text-xs font-semibold text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Business Unit:</span>
+                    <span className="text-slate-200 font-mono">{bu || '-'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Target Department:</span>
+                    <span className="text-slate-200 font-mono">{department || '-'}</span>
+                  </div>
                 </div>
-              </div>
+              )
             )}
 
             {/* Optional Action Channels as Clickable Tag Chips */}
@@ -844,8 +922,8 @@ export default function LogWorkPage() {
               </div>
             </div>
 
-            {/* Auto-filled Preview */}
-            {(bu || department) && (
+            {/* Auto-filled Preview (only in module mode) */}
+            {!noModuleMode && (bu || department) && (
               <div className="flex items-center gap-3 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl mt-4">
                 <Check className="text-indigo-400 shrink-0" size={18} />
                 <div className="text-sm">
