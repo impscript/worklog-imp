@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, User, PlusCircle, Menu, X, LogOut, Database, Cpu, Sparkles, UploadCloud, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, User, PlusCircle, Menu, X, LogOut, Database, Cpu, Sparkles, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -11,6 +11,27 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   });
   const [user, setUser] = useState<{ name: string; role: string; empId?: string } | null>(null);
   const navigate = useNavigate();
+
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved || 'dark';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    } else {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+  };
 
   useEffect(() => {
     const session = sessionStorage.getItem('worklog_session');
@@ -166,6 +187,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
           <div className="flex items-center space-x-4">
             <span className="hidden sm:inline-block text-xs font-semibold text-slate-400 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-800/60 font-mono tracking-wide">{getFormattedDate()}</span>
+            
+            {/* Theme Toggle Button */}
+            <button 
+              onClick={toggleTheme}
+              className="p-2 rounded-lg border border-slate-800 bg-slate-900/50 hover:bg-slate-800 text-slate-400 hover:text-white transition-all duration-200 active:scale-95"
+              title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            >
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
+
             <div className="flex items-center space-x-3 pl-4 border-l border-slate-800">
               <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden ring-2 ring-indigo-500/20 shadow-lg shadow-indigo-500/5">
                 <img 

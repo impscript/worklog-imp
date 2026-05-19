@@ -126,3 +126,232 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(99, 102, 241, 0.45);
 }
+
+/* Premium Light Mode Overrides */
+html.light {
+  body {
+    background-color: #f1f5f9 !important;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.04) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.04) 0px, transparent 50%),
+      radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.02) 0px, transparent 60%) !important;
+    color: #334155 !important;
+  }
+
+  /* Grid lines in light mode */
+  .ai-cyber-grid {
+    background-image: 
+      linear-gradient(to right, rgba(0, 0, 0, 0.025) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.025) 1px, transparent 1px) !important;
+  }
+
+  /* Premium Frosted Glassmorphism in Light Mode */
+  .ai-glass {
+    background: rgba(255, 255, 255, 0.7) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.02) !important;
+  }
+
+  .ai-glass-interactive {
+    background: rgba(255, 255, 255, 0.6) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02) !important;
+  }
+
+  .ai-glass-interactive:hover {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-color: rgba(99, 102, 241, 0.3) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04), 0 0 15px rgba(99, 102, 241, 0.02) !important;
+  }
+
+  /* Hardcoded Dark Background classes mapped to Light Mode equivalents */
+  .bg-\[\#030712\], .from-\[\#030712\], .to-\[\#030712\] {
+    background-color: #f1f5f9 !important;
+    background-image: none !important;
+  }
+  .via-\[\#050b18\] {
+    background-color: #f8fafc !important;
+  }
+  .bg-\[\#0A0F1D\], .bg-\[\#0a0f1d\] {
+    background-color: #ffffff !important;
+  }
+  .bg-\[\#1E293B\], .bg-slate-800 {
+    background-color: #ffffff !important;
+  }
+  .bg-\[\#1E293B\]\/80 {
+    background-color: rgba(255, 255, 255, 0.8) !important;
+  }
+  .bg-\[\#1E293B\]\/40 {
+    background-color: rgba(241, 245, 249, 0.4) !important;
+  }
+  .bg-gradient-to-br.from-\[\#1E293B\].to-indigo-900\/20 {
+    background-image: linear-gradient(to bottom right, #ffffff, rgba(99, 102, 241, 0.05)) !important;
+    border-color: rgba(99, 102, 241, 0.2) !important;
+  }
+  .bg-\[\#0B0F19\] {
+    background-color: #f8fafc !important;
+  }
+  .bg-\[\#0F172A\] {
+    background-color: #f8fafc !important;
+  }
+  .bg-\[\#0F172A\]\/40 {
+    background-color: rgba(248, 250, 252, 0.6) !important;
+  }
+  .bg-\[\#0F172A\]\/50 {
+    background-color: rgba(248, 250, 252, 0.8) !important;
+  }
+  .bg-\[\#0F172A\]\/80 {
+    background-color: rgba(248, 250, 252, 0.9) !important;
+  }
+  .bg-slate-900 {
+    background-color: #f8fafc !important;
+  }
+  .bg-slate-950, .bg-slate-950\/20, .bg-slate-950\/25, .bg-slate-950\/50 {
+    background-color: rgba(241, 245, 249, 0.5) !important;
+  }
+
+  /* Specific widgets */
+  .bg-\[\#1E293B\]\/80.backdrop-blur-xl {
+    background-color: rgba(255, 255, 255, 0.8) !important;
+    border-color: rgba(226, 232, 240, 0.8) !important;
+  }
+
+  /* Text color overrides */
+  .text-white, .text-slate-100 {
+    color: #0f172a !important;
+  }
+  .text-slate-200 {
+    color: #1e293b !important;
+  }
+  .text-slate-300 {
+    color: #334155 !important;
+  }
+  .text-slate-400 {
+    color: #475569 !important;
+  }
+  .text-slate-500 {
+    color: #64748b !important;
+  }
+  .bg-gradient-to-r.from-white.to-slate-400 {
+    background-image: linear-gradient(to right, #0f172a, #475569) !important;
+    -webkit-text-fill-color: transparent !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+  }
+
+  /* Border color overrides */
+  .border-slate-800, .border-slate-800\/50, .border-slate-800\/60, .border-slate-800\/80 {
+    border-color: #e2e8f0 !important;
+  }
+  .border-slate-700, .border-slate-700\/50, .border-slate-700\/30 {
+    border-color: #cbd5e1 !important;
+  }
+  .border-slate-900 {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Sidebar logo and navigation items overrides */
+  .bg-indigo-500\/10 {
+    background-color: rgba(79, 70, 229, 0.08) !important;
+  }
+  .text-indigo-300 {
+    color: #4f46e5 !important;
+  }
+  .border-indigo-500\/25 {
+    border-color: rgba(79, 70, 229, 0.2) !important;
+  }
+  .hover\:bg-slate-800\/40:hover {
+    background-color: rgba(0, 0, 0, 0.03) !important;
+  }
+  .after\:bg-indigo-500::after {
+    background-color: #4f46e5 !important;
+  }
+
+  /* Form Controls */
+  input, select, textarea {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15) !important;
+  }
+  input::placeholder, textarea::placeholder {
+    color: #94a3b8 !important;
+  }
+  
+  /* Buttons and interactive elements */
+  .btn-secondary {
+    background-color: #f1f5f9 !important;
+    color: #334155 !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Modal background */
+  .bg-black\/60 {
+    background-color: rgba(15, 23, 42, 0.3) !important;
+  }
+  .bg-\[\#1E293B\]\/90 {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border-color: rgba(226, 232, 240, 0.9) !important;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  }
+  
+  /* Tables */
+  th {
+    color: #475569 !important;
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+  td {
+    color: #334155 !important;
+    border-color: #f1f5f9 !important;
+  }
+  tr {
+    border-color: #e2e8f0 !important;
+  }
+  .divide-y > * + * {
+    border-color: #e2e8f0 !important;
+  }
+  
+  /* Calendar specific styles */
+  .bg-\[\#0F172A\]\/30 {
+    background-color: rgba(241, 245, 249, 0.4) !important;
+  }
+  
+  /* Scrollbar override */
+  ::-webkit-scrollbar-track {
+    background: rgba(241, 245, 249, 0.8) !important;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.15) !important;
+    border-color: rgba(0, 0, 0, 0.01) !important;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.35) !important;
+  }
+
+  /* Calendar page day grid cells */
+  .text-indigo-400 {
+    color: #4f46e5 !important;
+  }
+  .text-rose-400 {
+    color: #e11d48 !important;
+  }
+  .text-emerald-400 {
+    color: #059669 !important;
+  }
+  
+  /* Background glow colors in light mode */
+  .bg-indigo-600\/10 {
+    background-color: rgba(99, 102, 241, 0.03) !important;
+  }
+  .bg-violet-600\/5 {
+    background-color: rgba(139, 92, 246, 0.02) !important;
+  }
+}
