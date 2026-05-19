@@ -184,7 +184,7 @@ export default function DashboardPage() {
         ) : (
           <>
             {/* Welcoming Header Banner */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800/60 pb-5">
               <div>
                 <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
                   Welcome back, {user?.name || 'Developer'}!
@@ -193,14 +193,12 @@ export default function DashboardPage() {
                   Here is a professional summary of your logged work activities and attendance.
                 </p>
               </div>
-            </div>
-
-            {/* Weekly Performance Header */}
-            <div className="flex items-center gap-2 mt-4 -mb-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
-                Weekly Performance ({startOfWeek} - {endOfWeek})
-              </span>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full self-start md:self-center">
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest font-mono">
+                  Weekly: {startOfWeek} ~ {endOfWeek}
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
