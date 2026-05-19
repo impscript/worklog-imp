@@ -9,3 +9,17 @@ build/
 .DS_Store
 app-tmp/
 *.md
+
+# Scratch analysis & migration scripts (one-off utilities)
+frontend/scratch/
+*.cjs
+apply_ot_logic.js
+import_to_supabase.js
+map_data.js
+test_db.js
+insert_ronnachai.js
+analyze_csv.js
+read_csv_sample.js
+
+# Raw CSV data files (sensitive / working data)
+*.csv

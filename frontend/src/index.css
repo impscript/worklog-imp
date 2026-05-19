@@ -173,38 +173,53 @@ html.light {
     background-color: #f1f5f9 !important;
     background-image: none !important;
   }
-  .via-\[\#050b18\] {
+  .via-\[\#050b18\], .via-\[\#050B18\] {
     background-color: #f8fafc !important;
   }
   .bg-\[\#0A0F1D\], .bg-\[\#0a0f1d\] {
     background-color: #ffffff !important;
   }
-  .bg-\[\#1E293B\], .bg-slate-800 {
+  .bg-\[\#1E293B\], .bg-\[\#1e293b\], .bg-slate-800 {
     background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #1e293b !important;
   }
-  .bg-\[\#1E293B\]\/80 {
+  .bg-\[\#1E293B\]\/80, .bg-\[\#1e293b\]\/80 {
     background-color: rgba(255, 255, 255, 0.8) !important;
+    border-color: rgba(203, 213, 225, 0.8) !important;
   }
-  .bg-\[\#1E293B\]\/40 {
+  .bg-\[\#1E293B\]\/60, .bg-\[\#1e293b\]\/60 {
+    background-color: rgba(241, 245, 249, 0.8) !important;
+    border-color: rgba(203, 213, 225, 0.8) !important;
+  }
+  .bg-\[\#1E293B\]\/40, .bg-\[\#1e293b\]\/40 {
+    background-color: rgba(241, 245, 249, 0.4) !important;
+    border-color: rgba(226, 232, 240, 0.6) !important;
+  }
+  .bg-\[\#1E293B\]\/10, .bg-\[\#1e293b\]\/10 {
+    background-color: rgba(241, 245, 249, 0.2) !important;
+  }
+  .bg-\[\#1E293B\]\/90, .bg-\[\#1e293b\]\/90 {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border-color: rgba(226, 232, 240, 0.9) !important;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  }
+  .bg-\[\#0B0F19\], .bg-\[\#0b0f19\] {
+    background-color: #f8fafc !important;
+  }
+  .bg-\[\#0F172A\], .bg-\[\#0f172a\] {
+    background-color: #f8fafc !important;
+  }
+  .bg-\[\#0F172A\]\/30, .bg-\[\#0f172a\]\/30 {
     background-color: rgba(241, 245, 249, 0.4) !important;
   }
-  .bg-gradient-to-br.from-\[\#1E293B\].to-indigo-900\/20 {
-    background-image: linear-gradient(to bottom right, #ffffff, rgba(99, 102, 241, 0.05)) !important;
-    border-color: rgba(99, 102, 241, 0.2) !important;
-  }
-  .bg-\[\#0B0F19\] {
-    background-color: #f8fafc !important;
-  }
-  .bg-\[\#0F172A\] {
-    background-color: #f8fafc !important;
-  }
-  .bg-\[\#0F172A\]\/40 {
+  .bg-\[\#0F172A\]\/40, .bg-\[\#0f172a\]\/40 {
     background-color: rgba(248, 250, 252, 0.6) !important;
   }
-  .bg-\[\#0F172A\]\/50 {
+  .bg-\[\#0F172A\]\/50, .bg-\[\#0f172a\]\/50 {
     background-color: rgba(248, 250, 252, 0.8) !important;
   }
-  .bg-\[\#0F172A\]\/80 {
+  .bg-\[\#0F172A\]\/80, .bg-\[\#0f172a\]\/80 {
     background-color: rgba(248, 250, 252, 0.9) !important;
   }
   .bg-slate-900 {
@@ -212,6 +227,22 @@ html.light {
   }
   .bg-slate-950, .bg-slate-950\/20, .bg-slate-950\/25, .bg-slate-950\/50 {
     background-color: rgba(241, 245, 249, 0.5) !important;
+  }
+  .bg-slate-950\/50 {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+  }
+  .bg-slate-950\/20 {
+    background-color: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+  }
+  .bg-slate-900\/50 {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+  }
+  .bg-slate-900\/80 {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
   }
 
   /* Specific widgets */
@@ -236,7 +267,11 @@ html.light {
   .text-slate-500 {
     color: #64748b !important;
   }
-  .bg-gradient-to-r.from-white.to-slate-400 {
+  
+  /* Titles gradients */
+  .from-white.to-slate-400,
+  .from-white.via-indigo-200.to-slate-400,
+  .from-white.to-slate-300 {
     background-image: linear-gradient(to right, #0f172a, #475569) !important;
     -webkit-text-fill-color: transparent !important;
     -webkit-background-clip: text !important;
@@ -250,8 +285,8 @@ html.light {
   .border-slate-700, .border-slate-700\/50, .border-slate-700\/30 {
     border-color: #cbd5e1 !important;
   }
-  .border-slate-900 {
-    border-color: #e2e8f0 !important;
+  .border-slate-900, .border-slate-950 {
+    border-color: #cbd5e1 !important;
   }
 
   /* Sidebar logo and navigation items overrides */
@@ -265,7 +300,10 @@ html.light {
     border-color: rgba(79, 70, 229, 0.2) !important;
   }
   .hover\:bg-slate-800\/40:hover {
-    background-color: rgba(0, 0, 0, 0.03) !important;
+    background-color: rgba(99, 102, 241, 0.08) !important;
+  }
+  .hover\:text-slate-200:hover {
+    color: #4f46e5 !important;
   }
   .after\:bg-indigo-500::after {
     background-color: #4f46e5 !important;
@@ -296,11 +334,6 @@ html.light {
   .bg-black\/60 {
     background-color: rgba(15, 23, 42, 0.3) !important;
   }
-  .bg-\[\#1E293B\]\/90 {
-    background-color: rgba(255, 255, 255, 0.95) !important;
-    border-color: rgba(226, 232, 240, 0.9) !important;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
-  }
   
   /* Tables */
   th {
@@ -319,11 +352,6 @@ html.light {
     border-color: #e2e8f0 !important;
   }
   
-  /* Calendar specific styles */
-  .bg-\[\#0F172A\]\/30 {
-    background-color: rgba(241, 245, 249, 0.4) !important;
-  }
-  
   /* Scrollbar override */
   ::-webkit-scrollbar-track {
     background: rgba(241, 245, 249, 0.8) !important;
@@ -336,7 +364,7 @@ html.light {
     background: rgba(99, 102, 241, 0.35) !important;
   }
 
-  /* Calendar page day grid cells */
+  /* Color contrasts fixes */
   .text-indigo-400 {
     color: #4f46e5 !important;
   }
@@ -346,12 +374,287 @@ html.light {
   .text-emerald-400 {
     color: #059669 !important;
   }
+  .text-indigo-200 {
+    color: #312e81 !important;
+  }
+  .text-rose-300 {
+    color: #9f1239 !important;
+  }
+
+  /* Amber/yellow contrast fixes */
+  .text-amber-400, .text-amber-400\/80, .text-amber-500 {
+    color: #b45309 !important;
+  }
+  .bg-amber-400\/10, .bg-amber-500\/10 {
+    background-color: rgba(217, 119, 6, 0.1) !important;
+  }
+  .border-amber-500\/20, .border-amber-400\/20 {
+    border-color: rgba(217, 119, 6, 0.2) !important;
+  }
+
+  /* Tag Types badges backgrounds */
+  .bg-indigo-400\/10, .bg-indigo-500\/10 {
+    background-color: rgba(99, 102, 241, 0.1) !important;
+  }
+  .bg-emerald-400\/10, .bg-emerald-500\/10 {
+    background-color: rgba(16, 185, 129, 0.1) !important;
+  }
+  .bg-slate-400\/10, .bg-slate-500\/10 {
+    background-color: rgba(148, 163, 184, 0.1) !important;
+  }
+
+  .border-indigo-400\/20, .border-indigo-500\/20 {
+    border-color: rgba(99, 102, 241, 0.2) !important;
+  }
+  .border-emerald-400\/20, .border-emerald-500\/20 {
+    border-color: rgba(16, 185, 129, 0.2) !important;
+  }
+  .border-slate-400\/20, .border-slate-500\/20 {
+    border-color: rgba(148, 163, 184, 0.2) !important;
+  }
+
+  /* Progress bars (non-active day) */
+  .bg-slate-750, .bg-slate-700 {
+    background-color: #cbd5e1 !important;
+  }
+
+  /* Weekend & Holiday Cell colors overrides */
+  .bg-slate-900\/35 {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+  }
+  .bg-rose-950\/20 {
+    background-color: rgba(254, 226, 226, 0.5) !important;
+    border-color: rgba(239, 68, 68, 0.2) !important;
+  }
+
+  /* Unselected channel pills override */
+  .bg-slate-800\/40.border-slate-700\/50.text-slate-400 {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #475569 !important;
+  }
+  .bg-slate-800\/40.border-slate-700\/50.text-slate-400:hover {
+    background-color: #e2e8f0 !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+  }
   
+  /* Tabs container */
+  .bg-\[\#1E293B\]\/60, .bg-\[\#1e293b\]\/60 {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+  }
+  
+  /* Tabs Inactive Buttons */
+  .text-slate-400.hover\:text-slate-200.hover\:bg-\[\#1E293B\]\/40,
+  .text-slate-400.hover\:text-slate-200.hover\:bg-\[\#1e293b\]\/40 {
+    color: #475569 !important;
+  }
+  .text-slate-400.hover\:text-slate-200.hover\:bg-\[\#1E293B\]\/40:hover,
+  .text-slate-400.hover\:text-slate-200.hover\:bg-\[\#1e293b\]\/40:hover {
+    background-color: rgba(99, 102, 241, 0.08) !important;
+    color: #4f46e5 !important;
+  }
+
   /* Background glow colors in light mode */
   .bg-indigo-600\/10 {
     background-color: rgba(99, 102, 241, 0.03) !important;
   }
   .bg-violet-600\/5 {
     background-color: rgba(139, 92, 246, 0.02) !important;
+  }
+
+  /* ── AppLayout: main area gradient background ── */
+  .bg-gradient-to-b {
+    background-image: linear-gradient(to bottom, #f8fafc, #f1f5f9) !important;
+  }
+
+  /* ── AppLayout: header bar ── */
+  .bg-slate-950\/25 {
+    background-color: rgba(255, 255, 255, 0.85) !important;
+  }
+  .border-slate-800\/50 {
+    border-color: #e2e8f0 !important;
+  }
+  .border-slate-800\/60 {
+    border-color: #e2e8f0 !important;
+  }
+  .border-slate-800\/80 {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* ── Header date chip ── */
+  .bg-slate-900\/80 {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* ── Theme toggle button ── */
+  .bg-slate-900\/50 {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+  }
+  .hover\:bg-slate-800:hover {
+    background-color: #e2e8f0 !important;
+  }
+
+  /* ── Sidebar bottom border & bg ── */
+  .border-slate-800\/80 {
+    border-color: #e2e8f0 !important;
+  }
+  .bg-slate-950\/20 {
+    background-color: rgba(255, 255, 255, 0.6) !important;
+  }
+
+  /* ── Sidebar collapse button ── */
+  .bg-slate-900\/50 {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* ── AI Copilot status bar ── */
+  .bg-slate-950\/50 {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* ── Dashboard: DayCard inactive background ── */
+  .bg-slate-950\/40 {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+  }
+  .border-slate-900 {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* ── Dashboard: progress bar track ── */
+  .bg-slate-900 {
+    background-color: #e2e8f0 !important;
+  }
+
+  /* ── Dashboard: inactive progress fill ── */
+  .bg-slate-700 {
+    background-color: #94a3b8 !important;
+  }
+
+  /* ── Dashboard TableRow ── */
+  .hover\:bg-slate-900\/35:hover {
+    background-color: rgba(99, 102, 241, 0.04) !important;
+  }
+  .border-b.border-slate-900 {
+    border-color: #f1f5f9 !important;
+  }
+  .divide-slate-800\/30 > * + * {
+    border-color: #f1f5f9 !important;
+  }
+
+  /* ── Dashboard: project badge chip ── */
+  .bg-slate-950\/80 {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+  }
+  .border-slate-800\/70 {
+    border-color: #cbd5e1 !important;
+  }
+
+  /* ── Dashboard: view/edit buttons in table ── */
+  .bg-slate-800\/60 {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+  }
+  .hover\:bg-slate-800:hover {
+    background-color: #e2e8f0 !important;
+  }
+  .border-slate-700\/60 {
+    border-color: #cbd5e1 !important;
+  }
+
+  /* ── Dashboard: empty state icon circle ── */
+  .bg-slate-800 {
+    background-color: #f1f5f9 !important;
+  }
+
+  /* ── Dashboard: KPI card header row bg ── */
+  .bg-slate-900\/40 {
+    background-color: rgba(248, 250, 252, 0.7) !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* ── Dashboard: KPI card bg gradient ── */
+  .bg-gradient-to-br {
+    background-image: linear-gradient(to bottom right, #ffffff, rgba(99, 102, 241, 0.04)) !important;
+  }
+
+  /* ── Calendar: current-month cell default bg ── */
+  .bg-\[\#0F172A\]\/40 {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+  }
+
+  /* ── Calendar: selected cell ── */
+  .bg-\[\\#1e293b\]\/90, .bg-\[\\#1E293B\]\/90 {
+    background-color: rgba(255,255,255,0.95) !important;
+    border-color: #6366f1 !important;
+  }
+
+  /* ── Calendar: hover border on normal cells ── */
+  .hover\:border-slate-600:hover {
+    border-color: #94a3b8 !important;
+  }
+
+  /* ── Calendar: weekend "WE" chip ── */
+  .bg-slate-800\/40 {
+    background-color: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+  }
+  .border-slate-700\/20 {
+    border-color: #e2e8f0 !important;
+  }
+  .text-slate-500 {
+    color: #64748b !important;
+  }
+
+  /* ── Calendar: day number hover (non-today) ── */
+  .group-hover\:text-white:hover,
+  .group:hover .group-hover\:text-white {
+    color: #1e293b !important;
+  }
+
+  /* ── Calendar: hours badge (partially logged) ── */
+  .bg-indigo-500\/40 {
+    background-color: rgba(99,102,241,0.15) !important;
+  }
+  .text-indigo-200 {
+    color: #4338ca !important;
+  }
+  .border-indigo-500\/50 {
+    border-color: rgba(99,102,241,0.3) !important;
+  }
+
+  /* ── Calendar: fully logged (8h) badge keeps white text ── */
+  .bg-indigo-500 .text-white {
+    color: #ffffff !important;
+  }
+
+  /* ── Calendar: loading skeleton cells ── */
+  .bg-\[\#0F172A\]\/30 {
+    background-color: #e2e8f0 !important;
+  }
+  .border-slate-800\/50 {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* ── Recharts chart labels / axis text ── */
+  .recharts-text, .recharts-cartesian-axis-tick-value {
+    fill: #475569 !important;
+  }
+  .recharts-cartesian-grid line {
+    stroke: #e2e8f0 !important;
+  }
+  .recharts-tooltip-wrapper .recharts-default-tooltip {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    color: #1e293b !important;
   }
 }
