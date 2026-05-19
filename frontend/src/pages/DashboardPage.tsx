@@ -195,7 +195,14 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* KPI Row - Made 4 columns and more compact */}
+            {/* Weekly Performance Header */}
+            <div className="flex items-center gap-2 mt-4 -mb-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                Weekly Performance ({startOfWeek} - {endOfWeek})
+              </span>
+            </div>
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <KpiCard 
                 title="Total Hours" 
