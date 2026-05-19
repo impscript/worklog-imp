@@ -645,8 +645,38 @@ export default function LogWorkPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!holding || !role || !projectType || !projectName || !actionName || preview.duration <= 0) return;
-    
+    // 1. Perform validation checks to let the user know what's missing
+    if (!projectType) {
+      showToast('กรุณาเลือกประเภทงาน / Please select Project Type', 'error');
+      return;
+    }
+    if (!selectedProjectKey || !projectName) {
+      showToast('กรุณาเลือกโครงการ / Please select Project Name', 'error');
+      return;
+    }
+    if (availableModules.length > 0 && !module) {
+      showToast('กรุณาเลือกโมดูล / Please select Module', 'error');
+      return;
+    }
+    if (noModuleMode) {
+      if (!bu) {
+        showToast('กรุณาเลือก Business Unit (BU) / Please select Business Unit', 'error');
+        return;
+      }
+      if (!department) {
+        showToast('กรุณาเลือก Target Department / Please select Target Department', 'error');
+        return;
+      }
+    }
+    if (!actionName) {
+      showToast('กรุณาเลือกกิจกรรม / Please select Action', 'error');
+      return;
+    }
+    if (preview.duration <= 0) {
+      showToast('กรุณาระบุจำนวนชั่วโมงหรือเลือกช่วงเวลาทำงานที่มากกว่า 0 / Work hours must be greater than 0', 'error');
+      return;
+    }
+
     let finalSegments = preview.segments;
     
     if (timeMode === 'duration') {
@@ -756,7 +786,7 @@ export default function LogWorkPage() {
           department,
           action_name: actionName,
           action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
-          description,
+          description: description,
           channel: 'Web App',
           is_ot: segment.is_ot,
           is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
@@ -769,9 +799,23 @@ export default function LogWorkPage() {
         }
       }
       
-      showToast('Work logged successfully!', 'success');
+      showToast('บันทึกใบงานสำเร็จแล้ว! / Work log saved successfully!', 'success');
+      
+      // Clear form inputs so the user has a clean state for the next entry
+      setProjectType('');
+      setSelectedProjectKey('');
+      setModule('');
+      setActionName('');
+      setBu('');
+      setDepartment('');
       setDescription('');
       setSelectedActionChannels([]);
+      setDurationHours(2);
+      setIsBreak(true);
+      setIsTimeCustomized(false);
+      setStartTime('08:00');
+      setEndTime('17:00');
+      
       setRefreshTrigger(prev => prev + 1);
       
     } catch (err: any) {
@@ -797,7 +841,7 @@ export default function LogWorkPage() {
                 type="date" 
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-[#0F172A] border border-slate-600 rounded-lg py-2.5 px-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all [color-scheme:dark]"
+                className="w-full bg-[#0F172A] border border-slate-600 rounded-lg py-2.5 px-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
               />
             </div>
           </div>
@@ -1085,7 +1129,7 @@ export default function LogWorkPage() {
           <div className="flex justify-end pt-6 border-t border-slate-700/50">
             <button 
               onClick={handleSubmit}
-              disabled={isSubmitting || !holding || !role || !projectType || !projectName || !actionName || preview.duration <= 0 || preview.isOverlap}
+              disabled={isSubmitting}
               className="px-8 py-3 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none text-white font-medium rounded-lg shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
             >
               {isSubmitting ? 'กำลังบันทึก...' : 'บันทึก / Save Log'}

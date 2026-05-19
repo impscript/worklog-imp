@@ -26,7 +26,8 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  Legend
+  Legend,
+  ReferenceLine
 } from 'recharts';
 
 interface WorklogEntry {
@@ -47,6 +48,7 @@ interface WorklogEntry {
   start_time: string;
   end_time: string;
   action_channel?: string | null;
+  department?: string;
 }
 
 interface UserProfile {
@@ -275,60 +277,181 @@ export default function ReportsPage() {
 
   // --- MANAGEMENT OVERVIEW TAB MEMOS & DATA ---
   const overviewData = useMemo(() => {
-    // 1. Separate logs by User Department
-    const deptLogsMap: Record<string, WorklogEntry[]> = {};
-    filteredAllEntries.forEach(log => {
-      const user = usersList.find(u => u.id === log.user_id);
-      const userDept = (user?.department || 'Unassigned').trim();
-      if (!deptLogsMap[userDept]) deptLogsMap[userDept] = [];
-      deptLogsMap[userDept].push(log);
-    });
+    // Left Group: IMP ONLY
+    const impEntries = filteredAllEntries.filter(
+      e => e.department_operator === 'IMP'
+    );
+    // Right Group: IT ONLY
+    const itEntries = filteredAllEntries.filter(
+      e => e.department_operator === 'IT'
+    );
 
-    const getMetrics = (logs: WorklogEntry[]) => {
-      const totalH = logs.reduce((s, e) => s + e.total_hours, 0);
-      const otH = logs.filter(e => e.is_ot || e.is_implied_ot).reduce((s, e) => s + e.total_hours, 0);
-      const uniqueUsers = new Set(logs.map(e => e.user_id)).size;
+    const getGroupMetrics = (entries: WorklogEntry[]) => {
+      const totalH = entries.reduce((s, e) => s + e.total_hours, 0);
+      const otH = entries.filter(e => e.is_ot || e.is_implied_ot).reduce((s, e) => s + e.total_hours, 0);
+      const uniqueUsers = new Set(entries.map(e => e.user_id)).size;
       return { totalHours: totalH, otHours: otH, usersCount: uniqueUsers };
     };
 
-    const getTopProjects = (logs: WorklogEntry[]) => {
+    const getGroupProjects = (entries: WorklogEntry[]) => {
       const projMap: Record<string, number> = {};
-      logs.forEach(log => {
-        projMap[log.project_name] = (projMap[log.project_name] || 0) + log.total_hours;
+      entries.forEach(e => {
+        projMap[e.project_name] = (projMap[e.project_name] || 0) + e.total_hours;
       });
+      const total = entries.reduce((s, e) => s + e.total_hours, 0) || 1;
       return Object.entries(projMap)
-        .map(([name, hours]) => ({ name: name.length > 20 ? name.substring(0, 20) + '...' : name, hours: parseFloat(hours.toFixed(1)) }))
+        .map(([name, hours]) => ({
+          name: name.length > 25 ? name.substring(0, 25) + '...' : name,
+          hours: parseFloat(hours.toFixed(1)),
+          percentage: parseFloat(((hours / total) * 100).toFixed(1))
+        }))
         .sort((a, b) => b.hours - a.hours)
-        .slice(0, 5);
+        .slice(0, 6);
     };
 
-    const depts = Object.keys(deptLogsMap).map(deptName => {
-      const logs = deptLogsMap[deptName];
-      return {
-        name: deptName,
-        metrics: getMetrics(logs),
-        projects: getTopProjects(logs)
-      };
-    }).sort((a, b) => b.metrics.totalHours - a.metrics.totalHours);
+    const impMetrics = getGroupMetrics(impEntries);
+    const impProjects = getGroupProjects(impEntries);
 
-    // 2. Trend data (Grouped by Date)
-    const datesMap: Record<string, any> = {};
-    filteredAllEntries.forEach(log => {
-      const dateStr = log.work_date;
-      if (!datesMap[dateStr]) {
-        datesMap[dateStr] = { date: dateStr };
-      }
-      const user = usersList.find(u => u.id === log.user_id);
-      const userDept = (user?.department || 'Unassigned').trim();
-      datesMap[dateStr][userDept] = (datesMap[dateStr][userDept] || 0) + log.total_hours;
+    const itMetrics = getGroupMetrics(itEntries);
+    const itProjects = getGroupProjects(itEntries);
+
+    // --- IMP Distributions ---
+    const impBuMap: Record<string, number> = {};
+    impEntries.forEach(e => {
+      const bu = (e.bu || 'Unassigned').trim();
+      impBuMap[bu] = (impBuMap[bu] || 0) + e.total_hours;
     });
-    
-    // Sort trends chronologically and take last 10 working days
-    const trendData = Object.values(datesMap)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-10);
+    const impTotalHours = impEntries.reduce((s, e) => s + e.total_hours, 0) || 1;
+    const impBuBreakdown = Object.entries(impBuMap)
+      .map(([name, hours]) => ({
+        name,
+        hours: parseFloat(hours.toFixed(1)),
+        percentage: parseFloat(((hours / impTotalHours) * 100).toFixed(1))
+      }))
+      .sort((a, b) => b.hours - a.hours)
+      .slice(0, 8);
 
-    // 4. Overtime Leaderboard (Overall)
+    const impDeptMap: Record<string, number> = {};
+    impEntries.forEach(e => {
+      let deptName = (e.department || '').trim();
+      if (!deptName) {
+        const user = usersList.find(u => u.id === e.user_id);
+        deptName = (user?.department || 'Unassigned').trim();
+      }
+      impDeptMap[deptName] = (impDeptMap[deptName] || 0) + e.total_hours;
+    });
+    const impDeptBreakdown = Object.entries(impDeptMap)
+      .map(([name, hours]) => ({
+        name,
+        hours: parseFloat(hours.toFixed(1)),
+        percentage: parseFloat(((hours / impTotalHours) * 100).toFixed(1))
+      }))
+      .sort((a, b) => b.hours - a.hours)
+      .slice(0, 8);
+
+    // --- IT Distributions ---
+    const itBuMap: Record<string, number> = {};
+    itEntries.forEach(e => {
+      const bu = (e.bu || 'Unassigned').trim();
+      itBuMap[bu] = (itBuMap[bu] || 0) + e.total_hours;
+    });
+    const itTotalHours = itEntries.reduce((s, e) => s + e.total_hours, 0) || 1;
+    const itBuBreakdown = Object.entries(itBuMap)
+      .map(([name, hours]) => ({
+        name,
+        hours: parseFloat(hours.toFixed(1)),
+        percentage: parseFloat(((hours / itTotalHours) * 100).toFixed(1))
+      }))
+      .sort((a, b) => b.hours - a.hours)
+      .slice(0, 8);
+
+    const itDeptMap: Record<string, number> = {};
+    itEntries.forEach(e => {
+      let deptName = (e.department || '').trim();
+      if (!deptName) {
+        const user = usersList.find(u => u.id === e.user_id);
+        deptName = (user?.department || 'Unassigned').trim();
+      }
+      itDeptMap[deptName] = (itDeptMap[deptName] || 0) + e.total_hours;
+    });
+    const itDeptBreakdown = Object.entries(itDeptMap)
+      .map(([name, hours]) => ({
+        name,
+        hours: parseFloat(hours.toFixed(1)),
+        percentage: parseFloat(((hours / itTotalHours) * 100).toFixed(1))
+      }))
+      .sort((a, b) => b.hours - a.hours)
+      .slice(0, 8);
+
+    // Helper to format date string to MM-DD
+    const formatToMMDD = (dateStr: string) => {
+      if (!dateStr) return '';
+      if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts.length >= 3) {
+          return `${parts[1]}-${parts[2]}`;
+        }
+        return dateStr;
+      }
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length >= 3) {
+          const d = parts[0].padStart(2, '0');
+          const m = parts[1].padStart(2, '0');
+          return `${m}-${d}`;
+        }
+      }
+      return dateStr;
+    };
+
+    // IMP Trend: Grouped by Date, splitting Normal and OT
+    const impTrendMap: Record<string, { date: string; Normal: number; OT: number }> = {};
+    impEntries.forEach(log => {
+      const dateStr = log.work_date;
+      if (!impTrendMap[dateStr]) {
+        impTrendMap[dateStr] = { date: dateStr, Normal: 0, OT: 0 };
+      }
+      if (log.is_ot || log.is_implied_ot) {
+        impTrendMap[dateStr].OT += log.total_hours;
+      } else {
+        impTrendMap[dateStr].Normal += log.total_hours;
+      }
+    });
+
+    const impTrendData = Object.values(impTrendMap)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({
+        date: d.date,
+        dateDisplay: formatToMMDD(d.date),
+        Normal: parseFloat(d.Normal.toFixed(1)),
+        OT: parseFloat(d.OT.toFixed(1))
+      }))
+      .slice(-20);
+
+    // IT Trend: Grouped by Date, splitting Normal and OT
+    const itTrendMap: Record<string, { date: string; Normal: number; OT: number }> = {};
+    itEntries.forEach(log => {
+      const dateStr = log.work_date;
+      if (!itTrendMap[dateStr]) {
+        itTrendMap[dateStr] = { date: dateStr, Normal: 0, OT: 0 };
+      }
+      if (log.is_ot || log.is_implied_ot) {
+        itTrendMap[dateStr].OT += log.total_hours;
+      } else {
+        itTrendMap[dateStr].Normal += log.total_hours;
+      }
+    });
+
+    const itTrendData = Object.values(itTrendMap)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({
+        date: d.date,
+        dateDisplay: formatToMMDD(d.date),
+        Normal: parseFloat(d.Normal.toFixed(1)),
+        OT: parseFloat(d.OT.toFixed(1))
+      }))
+      .slice(-20);
+
     const otUserMap: Record<string, { id: string; name: string; dept: string; otHours: number }> = {};
     filteredAllEntries.forEach(log => {
       if (log.is_ot || log.is_implied_ot) {
@@ -348,8 +471,20 @@ export default function ReportsPage() {
       .slice(0, 5);
 
     return {
-      depts,
-      trend: trendData,
+      imp: {
+        metrics: impMetrics,
+        projects: impProjects
+      },
+      it: {
+        metrics: itMetrics,
+        projects: itProjects
+      },
+      impBuBreakdown,
+      impDeptBreakdown,
+      itBuBreakdown,
+      itDeptBreakdown,
+      impTrend: impTrendData,
+      itTrend: itTrendData,
       otLeaderboard
     };
   }, [filteredAllEntries, usersList]);
@@ -368,7 +503,49 @@ export default function ReportsPage() {
     const avgHoursPerDay = uniqueDatesCount > 0 ? parseFloat((totalHours / uniqueDatesCount).toFixed(1)) : 0;
     const uniqueProjectsCount = new Set(userLogs.map(e => e.project_name)).size;
 
-    // 1. Work Type Breakdown (Pie Chart)
+    // Date formatting helper
+    const formatToMMDD = (dateStr: string) => {
+      if (!dateStr) return '';
+      if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts.length >= 3) {
+          return `${parts[1]}-${parts[2]}`;
+        }
+        return dateStr;
+      }
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts.length >= 3) {
+          const d = parts[0].padStart(2, '0');
+          const m = parts[1].padStart(2, '0');
+          return `${m}-${d}`;
+        }
+      }
+      return dateStr;
+    };
+
+    // 1. Daily Hours Data (stacked Normal vs OT)
+    const dailyMap: Record<string, { date: string; dateDisplay: string; Normal: number; OT: number }> = {};
+    userLogs.forEach(log => {
+      const dateStr = log.work_date;
+      if (!dailyMap[dateStr]) {
+        dailyMap[dateStr] = { date: dateStr, dateDisplay: formatToMMDD(dateStr), Normal: 0, OT: 0 };
+      }
+      if (log.is_ot || log.is_implied_ot) {
+        dailyMap[dateStr].OT += log.total_hours;
+      } else {
+        dailyMap[dateStr].Normal += log.total_hours;
+      }
+    });
+    const dailyHoursData = Object.values(dailyMap)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({
+        ...d,
+        Normal: parseFloat(d.Normal.toFixed(1)),
+        OT: parseFloat(d.OT.toFixed(1))
+      }));
+
+    // 2. Work Type Breakdown (Pie Chart)
     const typeBreakdown: Record<string, number> = {};
     userLogs.forEach(log => {
       const type = getTableType(log.project_type);
@@ -379,7 +556,7 @@ export default function ReportsPage() {
       value: parseFloat(value.toFixed(1))
     }));
 
-    // 2. Project Effort Breakdown
+    // 3. Project Effort Breakdown
     const projectEffort: Record<string, number> = {};
     userLogs.forEach(log => {
       projectEffort[log.project_name] = (projectEffort[log.project_name] || 0) + log.total_hours;
@@ -389,7 +566,131 @@ export default function ReportsPage() {
       .sort((a, b) => b.hours - a.hours)
       .slice(0, 5);
 
-    // Gather unique BUs from all logs, sorted by total hours
+    // 4. Normal vs OT Split Data
+    const normalHours = Math.max(0, totalHours - otHours);
+    const otSplitData = [
+      { name: 'Normal Hours', value: parseFloat(normalHours.toFixed(1)), percentage: totalHours > 0 ? parseFloat(((normalHours / totalHours) * 100).toFixed(1)) : 0 },
+      { name: 'Overtime Hours', value: parseFloat(otHours.toFixed(1)), percentage: totalHours > 0 ? parseFloat(((otHours / totalHours) * 100).toFixed(1)) : 0 }
+    ];
+
+    // 5. Weekly Trend (8 weeks) vs Team Average
+    const weeksList: string[] = [];
+    const today = new Date();
+    const currentSunday = new Date(today);
+    currentSunday.setDate(today.getDate() - today.getDay());
+    
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date(currentSunday);
+      d.setDate(currentSunday.getDate() - i * 7);
+      weeksList.push(d.toISOString().split('T')[0]);
+    }
+
+    const formatDateLabel = (dateStr: string) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    const weeklyTrendData = weeksList.map(weekStr => {
+      const weekStartStr = weekStr;
+      const weekStart = new Date(weekStr);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      const weekEndStr = weekEnd.toISOString().split('T')[0];
+
+      const userWeekLogs = userLogs.filter(e => e.work_date >= weekStartStr && e.work_date <= weekEndStr);
+      const userWeekHours = userWeekLogs.reduce((sum, e) => sum + e.total_hours, 0);
+
+      const teamWeekLogs = filteredAllEntries.filter(e => e.work_date >= weekStartStr && e.work_date <= weekEndStr);
+      const totalWeekHours = teamWeekLogs.reduce((sum, e) => sum + e.total_hours, 0);
+      const weekUsers = new Set(teamWeekLogs.map(e => e.user_id)).size || 1;
+      const teamAvg = totalWeekHours / weekUsers;
+
+      return {
+        label: `${formatDateLabel(weekStartStr)}`,
+        User: parseFloat(userWeekHours.toFixed(1)),
+        TeamAvg: parseFloat(teamAvg.toFixed(1))
+      };
+    });
+
+    // 6. Hours by Business Unit (BU)
+    const buMap: Record<string, number> = {};
+    userLogs.forEach(log => {
+      const bu = (log.bu || 'Unassigned').trim();
+      buMap[bu] = (buMap[bu] || 0) + log.total_hours;
+    });
+    const buDistributionData = Object.entries(buMap)
+      .map(([name, hours]) => ({
+        name,
+        hours: parseFloat(hours.toFixed(1)),
+        percentage: totalHours > 0 ? parseFloat(((hours / totalHours) * 100).toFixed(1)) : 0
+      }))
+      .sort((a, b) => b.hours - a.hours)
+      .slice(0, 8);
+
+    // 7. Hours by Customer Dept
+    const deptMap: Record<string, number> = {};
+    userLogs.forEach(log => {
+      const dept = (log.department || 'Unassigned').trim();
+      deptMap[dept] = (deptMap[dept] || 0) + log.total_hours;
+    });
+    const deptDistributionData = Object.entries(deptMap)
+      .map(([name, hours]) => ({
+        name,
+        hours: parseFloat(hours.toFixed(1)),
+        percentage: totalHours > 0 ? parseFloat(((hours / totalHours) * 100).toFixed(1)) : 0
+      }))
+      .sort((a, b) => b.hours - a.hours)
+      .slice(0, 8);
+
+    // 8. Top Actions Data
+    const actionMap: Record<string, number> = {};
+    userLogs.forEach(log => {
+      const action = (log.action_name || 'Unspecified Action').trim();
+      actionMap[action] = (actionMap[action] || 0) + log.total_hours;
+    });
+    const topActionsData = Object.entries(actionMap)
+      .map(([name, hours]) => ({
+        name: name.length > 28 ? name.substring(0, 28) + '...' : name,
+        hours: parseFloat(hours.toFixed(1)),
+        percentage: totalHours > 0 ? parseFloat(((hours / totalHours) * 100).toFixed(1)) : 0
+      }))
+      .sort((a, b) => b.hours - a.hours)
+      .slice(0, 8);
+
+    // 9. Monthly Comparison Data (Normal vs OT comparison by month)
+    const monthlyMap: Record<string, { month: string; Normal: number; OT: number }> = {};
+    userLogs.forEach(log => {
+      const dateStr = log.work_date;
+      const monthStr = dateStr.substring(0, 7); // YYYY-MM
+      if (!monthlyMap[monthStr]) {
+        monthlyMap[monthStr] = { month: monthStr, Normal: 0, OT: 0 };
+      }
+      if (log.is_ot || log.is_implied_ot) {
+        monthlyMap[monthStr].OT += log.total_hours;
+      } else {
+        monthlyMap[monthStr].Normal += log.total_hours;
+      }
+    });
+    const formatMonthLabel = (monthStr: string) => {
+      const [year, month] = monthStr.split('-');
+      const d = new Date(parseInt(year), parseInt(month) - 1, 1);
+      return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    };
+    const monthlyComparisonData = Object.values(monthlyMap)
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .map(m => {
+        const total = m.Normal + m.OT;
+        return {
+          month: m.month,
+          monthLabel: formatMonthLabel(m.month),
+          Normal: parseFloat(m.Normal.toFixed(1)),
+          OT: parseFloat(m.OT.toFixed(1)),
+          NormalPercent: total > 0 ? parseFloat(((m.Normal / total) * 100).toFixed(0)) : 0,
+          OTPercent: total > 0 ? parseFloat(((m.OT / total) * 100).toFixed(0)) : 0
+        };
+      });
+
+    // Gather unique BUs from all logs, sorted by total hours for the Radar Chart
     const buHoursMap: Record<string, number> = {};
     filteredAllEntries.forEach(e => {
       const bu = (e.bu || 'Unassigned').trim();
@@ -423,12 +724,29 @@ export default function ReportsPage() {
       totalEntries: userLogs.length,
       pieData,
       projectData,
-      radarData
+      radarData,
+      otSplitData,
+      weeklyTrendData,
+      dailyHoursData,
+      buDistributionData,
+      deptDistributionData,
+      topActionsData,
+      monthlyComparisonData
     };
   }, [selectedUser, filteredAllEntries, usersList]);
 
   // Color arrays for Pie cells
   const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6'];
+  const GRADIENT_LIST = [
+    'from-indigo-500 to-indigo-600 shadow-indigo-500/20',
+    'from-emerald-500 to-teal-500 shadow-emerald-500/20',
+    'from-amber-500 to-orange-500 shadow-amber-500/20',
+    'from-rose-500 to-pink-500 shadow-rose-500/20',
+    'from-cyan-500 to-blue-500 shadow-cyan-500/20',
+    'from-purple-500 to-fuchsia-500 shadow-purple-500/20',
+    'from-teal-500 to-cyan-500 shadow-teal-500/20',
+    'from-violet-500 to-indigo-500 shadow-violet-500/20'
+  ];
 
   return (
     <AppLayout>
@@ -575,7 +893,7 @@ export default function ReportsPage() {
                   type="date" 
                   value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
-                  className="bg-[#0F172A] border border-slate-700 rounded-lg py-1.5 px-2 text-[10px] text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:dark] font-mono"
+                  className="bg-[#0F172A] border border-slate-700 rounded-lg py-1.5 px-2 text-[10px] text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                 />
               </div>
               <div className="flex flex-col">
@@ -584,7 +902,7 @@ export default function ReportsPage() {
                   type="date" 
                   value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}
-                  className="bg-[#0F172A] border border-slate-700 rounded-lg py-1.5 px-2 text-[10px] text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:dark] font-mono"
+                  className="bg-[#0F172A] border border-slate-700 rounded-lg py-1.5 px-2 text-[10px] text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                 />
               </div>
             </div>
@@ -791,181 +1109,342 @@ export default function ReportsPage() {
 
 
         {/* ======================================================== */}
-        {/* TAB 2: MANAGEMENT OVERVIEW (DYNAMIC DEPTS) */}
+        {/* TAB 2: MANAGEMENT OVERVIEW (IMP VS IT COMPARISON) */}
         {/* ======================================================== */}
         {activeTab === 'overview' && (() => {
-          const deptStyles = [
-            { border: 'border-blue-500/20', hover: 'hover:border-blue-500/30', bgGlow: 'bg-blue-500/5', hoverBg: 'group-hover:bg-blue-500/10', dot: 'bg-blue-500', badgeText: 'text-blue-400', badgeBg: 'bg-blue-500/10', badgeBorder: 'border-blue-500/20', barBg: 'bg-blue-500', stroke: '#3b82f6' },
-            { border: 'border-emerald-500/20', hover: 'hover:border-emerald-500/30', bgGlow: 'bg-emerald-500/5', hoverBg: 'group-hover:bg-emerald-500/10', dot: 'bg-emerald-500', badgeText: 'text-emerald-400', badgeBg: 'bg-emerald-500/10', badgeBorder: 'border-emerald-500/20', barBg: 'bg-emerald-500', stroke: '#10b981' },
-            { border: 'border-amber-500/20', hover: 'hover:border-amber-500/30', bgGlow: 'bg-amber-500/5', hoverBg: 'group-hover:bg-amber-500/10', dot: 'bg-amber-500', badgeText: 'text-amber-400', badgeBg: 'bg-amber-500/10', badgeBorder: 'border-amber-500/20', barBg: 'bg-amber-500', stroke: '#f59e0b' },
-            { border: 'border-purple-500/20', hover: 'hover:border-purple-500/30', bgGlow: 'bg-purple-500/5', hoverBg: 'group-hover:bg-purple-500/10', dot: 'bg-purple-500', badgeText: 'text-purple-400', badgeBg: 'bg-purple-500/10', badgeBorder: 'border-purple-500/20', barBg: 'bg-purple-500', stroke: '#a855f7' },
-            { border: 'border-rose-500/20', hover: 'hover:border-rose-500/30', bgGlow: 'bg-rose-500/5', hoverBg: 'group-hover:bg-rose-500/10', dot: 'bg-rose-500', badgeText: 'text-rose-400', badgeBg: 'bg-rose-500/10', badgeBorder: 'border-rose-500/20', barBg: 'bg-rose-500', stroke: '#f43f5e' },
-            { border: 'border-cyan-500/20', hover: 'hover:border-cyan-500/30', bgGlow: 'bg-cyan-500/5', hoverBg: 'group-hover:bg-cyan-500/10', dot: 'bg-cyan-500', badgeText: 'text-cyan-400', badgeBg: 'bg-cyan-500/10', badgeBorder: 'border-cyan-500/20', barBg: 'bg-cyan-500', stroke: '#06b6d4' }
-          ];
+          const impStyle = { border: 'border-blue-500/20', hover: 'hover:border-blue-500/30', bgGlow: 'bg-blue-500/5', hoverBg: 'group-hover:bg-blue-500/10', dot: 'bg-blue-500', badgeText: 'text-blue-400', badgeBg: 'bg-blue-500/10', badgeBorder: 'border-blue-500/20', barBg: 'bg-blue-500', stroke: '#3b82f6' };
+          const itStyle = { border: 'border-emerald-500/20', hover: 'hover:border-emerald-500/30', bgGlow: 'bg-emerald-500/5', hoverBg: 'group-hover:bg-emerald-500/10', dot: 'bg-emerald-500', badgeText: 'text-emerald-400', badgeBg: 'bg-emerald-500/10', badgeBorder: 'border-emerald-500/20', barBg: 'bg-emerald-500', stroke: '#10b981' };
 
           return (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              {/* Dynamic Departments Comparison Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {overviewData.depts.length === 0 ? (
-                  <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-500 bg-[#1E293B]/40 rounded-3xl border border-slate-700/50">
-                    <UserIcon size={32} className="opacity-20 mb-3" />
-                    <span className="font-medium text-sm">No department data available for selected filters.</span>
+              
+              {/* Dual Stacked Bar Charts for Daily Hours Trend - MOVED TO TOP */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Hours Trend IMP */}
+                <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl transition-all h-full">
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-2.5">
+                      <TrendingUp className="text-indigo-400" size={18} />
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">📈 Hours Trend (IMP)</h3>
+                    </div>
                   </div>
-                ) : (
-                  overviewData.depts.map((dept, idx) => {
-                    const style = deptStyles[idx % deptStyles.length];
-                    return (
-                      <div key={dept.name} className={`bg-[#1E293B]/80 backdrop-blur-xl border ${style.border} ${style.hover} rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all`}>
-                        <div className={`absolute top-0 right-0 w-32 h-32 ${style.bgGlow} rounded-full blur-3xl pointer-events-none ${style.hoverBg} transition-colors`}></div>
-                        <div className="flex justify-between items-center mb-6">
-                          <div className="flex items-center gap-3">
-                            <span className={`w-3.5 h-3.5 rounded-full ${style.dot} animate-pulse`}></span>
-                            <h2 className="text-xl font-black text-white tracking-tight uppercase truncate max-w-[200px]" title={dept.name}>{dept.name}</h2>
-                          </div>
-                          <span className={`text-[10px] font-bold ${style.badgeBg} border ${style.badgeBorder} ${style.badgeText} px-3 py-1 rounded-full uppercase tracking-wider font-mono shrink-0`}>
-                            {dept.metrics.usersCount} Active {dept.metrics.usersCount === 1 ? 'User' : 'Users'}
-                          </span>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
-                            <span className="text-3xl font-black text-white tracking-tight font-mono">{dept.metrics.totalHours.toFixed(1)}h</span>
-                          </div>
-                          <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
-                            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">Overtime Logged</span>
-                            <span className="text-3xl font-black text-amber-400 tracking-tight font-mono">{dept.metrics.otHours.toFixed(1)}h</span>
-                          </div>
-                        </div>
-
-                        {/* Top Projects */}
-                        <div className="mt-6 space-y-3">
-                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">🏆 Top Projects</h3>
-                          {dept.projects.length === 0 ? (
-                            <span className="text-xs text-slate-500 italic block">No records logged in {dept.name}.</span>
-                          ) : (
-                            <div className="space-y-2">
-                              {dept.projects.map((p, pIdx) => (
-                                <div key={pIdx} className="flex flex-col gap-1.5">
-                                  <div className="flex justify-between text-xs font-medium">
-                                    <span className="text-slate-300 font-bold truncate max-w-[180px]">{p.name}</span>
-                                    <span className={`${style.badgeText} font-bold font-mono`}>{p.hours}h</span>
-                                  </div>
-                                  <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
-                                    <div 
-                                      className={`${style.barBg} h-full rounded-full`} 
-                                      style={{ width: `${Math.min((p.hours / (dept.metrics.totalHours || 1)) * 100, 100)}%` }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Interactive multiple trend area chart */}
-              <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl">
-                <div className="flex justify-between items-center mb-6">
-                  <div className="flex items-center gap-2.5">
-                    <TrendingUp className="text-indigo-400" size={18} />
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">📈 Department Daily Hours Trend</h3>
+                  <div className="h-72 w-full">
+                    {overviewData.impTrend.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No trend data available for IMP.</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={overviewData.impTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <XAxis dataKey="dateDisplay" stroke="#64748b" fontSize={10} tickLine={false} />
+                          <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
+                            labelClassName="text-slate-400 font-bold font-mono text-[10px]"
+                          />
+                          <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                          <Bar name="Normal" dataKey="Normal" stackId="a" fill="#6366f1" radius={[0, 0, 0, 0]} />
+                          <Bar name="OT" dataKey="OT" stackId="a" fill="#d97706" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 </div>
-                <div className="h-72 w-full">
-                  {overviewData.trend.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No trend data available for active filters.</div>
+
+                {/* Hours Trend IT */}
+                <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-violet-500/10 hover:border-violet-500/20 rounded-3xl p-6 shadow-xl transition-all h-full">
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-2.5">
+                      <TrendingUp className="text-emerald-400" size={18} />
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">📈 Hours Trend (IT)</h3>
+                    </div>
+                  </div>
+                  <div className="h-72 w-full">
+                    {overviewData.itTrend.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No trend data available for IT.</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={overviewData.itTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <XAxis dataKey="dateDisplay" stroke="#64748b" fontSize={10} tickLine={false} />
+                          <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
+                            labelClassName="text-slate-400 font-bold font-mono text-[10px]"
+                          />
+                          <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                          <Bar name="Normal" dataKey="Normal" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                          <Bar name="OT" dataKey="OT" stackId="a" fill="#d97706" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Comparative Operator Groups Layout */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                
+                {/* IMP Group summary */}
+                <div className={`bg-[#1E293B]/80 backdrop-blur-xl border ${impStyle.border} ${impStyle.hover} rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full flex flex-col`}>
+                  <div className={`absolute top-0 right-0 w-32 h-32 ${impStyle.bgGlow} rounded-full blur-3xl pointer-events-none ${impStyle.hoverBg} transition-colors`}></div>
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-3.5 h-3.5 rounded-full ${impStyle.dot} animate-pulse`}></span>
+                      <h2 className="text-xl font-black text-white tracking-tight uppercase">IMP Group (IMP)</h2>
+                    </div>
+                    <span className={`text-[10px] font-bold ${impStyle.badgeBg} border ${impStyle.badgeBorder} ${impStyle.badgeText} px-3 py-1 rounded-full uppercase tracking-wider font-mono shrink-0`}>
+                      {overviewData.imp.metrics.usersCount} Active {overviewData.imp.metrics.usersCount === 1 ? 'User' : 'Users'}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
+                      <span className="text-3xl font-black text-white tracking-tight font-mono">{overviewData.imp.metrics.totalHours.toFixed(1)}h</span>
+                    </div>
+                    <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
+                      <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">Overtime Logged</span>
+                      <span className="text-3xl font-black text-amber-400 tracking-tight font-mono">{overviewData.imp.metrics.otHours.toFixed(1)}h</span>
+                    </div>
+                  </div>
+
+                  {/* Top Projects */}
+                  <div className="mt-6 space-y-3 flex-1">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">🏆 Top IMP Projects</h3>
+                    {overviewData.imp.projects.length === 0 ? (
+                      <span className="text-xs text-slate-500 italic block">No records logged in IMP group.</span>
+                    ) : (
+                      <div className="space-y-3">
+                        {overviewData.imp.projects.map((p, pIdx) => (
+                          <div key={pIdx} className="flex flex-col gap-1.5">
+                            <div className="flex justify-between text-xs font-medium">
+                              <span className="text-slate-300 font-bold truncate max-w-[200px]">{p.name}</span>
+                              <span className={`${impStyle.badgeText} font-bold font-mono`}>{p.hours.toFixed(1)}h ({p.percentage}%)</span>
+                            </div>
+                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                              <div 
+                                className={`${impStyle.barBg} h-full rounded-full`} 
+                                style={{ width: `${p.percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* IT Group summary */}
+                <div className={`bg-[#1E293B]/80 backdrop-blur-xl border ${itStyle.border} ${itStyle.hover} rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full flex flex-col`}>
+                  <div className={`absolute top-0 right-0 w-32 h-32 ${itStyle.bgGlow} rounded-full blur-3xl pointer-events-none ${itStyle.hoverBg} transition-colors`}></div>
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-3.5 h-3.5 rounded-full ${itStyle.dot} animate-pulse`}></span>
+                      <h2 className="text-xl font-black text-white tracking-tight uppercase">IT Group (IT)</h2>
+                    </div>
+                    <span className={`text-[10px] font-bold ${itStyle.badgeBg} border ${itStyle.badgeBorder} ${itStyle.badgeText} px-3 py-1 rounded-full uppercase tracking-wider font-mono shrink-0`}>
+                      {overviewData.it.metrics.usersCount} Active {overviewData.it.metrics.usersCount === 1 ? 'User' : 'Users'}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
+                      <span className="text-3xl font-black text-white tracking-tight font-mono">{overviewData.it.metrics.totalHours.toFixed(1)}h</span>
+                    </div>
+                    <div className="bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl p-4 shadow-inner">
+                      <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">Overtime Logged</span>
+                      <span className="text-3xl font-black text-amber-400 tracking-tight font-mono">{overviewData.it.metrics.otHours.toFixed(1)}h</span>
+                    </div>
+                  </div>
+
+                  {/* Top Projects */}
+                  <div className="mt-6 space-y-3 flex-1">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">🏆 Top IT Projects</h3>
+                    {overviewData.it.projects.length === 0 ? (
+                      <span className="text-xs text-slate-500 italic block">No records logged in IT group.</span>
+                    ) : (
+                      <div className="space-y-3">
+                        {overviewData.it.projects.map((p, pIdx) => (
+                          <div key={pIdx} className="flex flex-col gap-1.5">
+                            <div className="flex justify-between text-xs font-medium">
+                              <span className="text-slate-300 font-bold truncate max-w-[200px]">{p.name}</span>
+                              <span className={`${itStyle.badgeText} font-bold font-mono`}>{p.hours.toFixed(1)}h ({p.percentage}%)</span>
+                            </div>
+                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                              <div 
+                                className={`${itStyle.barBg} h-full rounded-full`} 
+                                style={{ width: `${p.percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* BU Distribution Comparative Row */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2.5 px-2">
+                  <div className="w-2.5 h-6 bg-indigo-500 rounded-full shadow-[0_0_12px_rgba(99,102,241,0.5)]"></div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">🏢 Business Unit (BU) Distribution</h3>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* BU Distribution IMP */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
+                    <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-6">🏢 Business Unit (BU) Distribution IMP</h3>
+                    {overviewData.impBuBreakdown.length === 0 ? (
+                      <span className="text-xs text-slate-500 italic block py-4 text-center">No Business Unit records found.</span>
+                    ) : (
+                      <div className="space-y-3.5">
+                        {overviewData.impBuBreakdown.map((item) => (
+                          <div key={item.name} className="flex flex-col gap-1.5">
+                            <div className="flex justify-between text-xs font-medium">
+                              <span className="text-slate-200 font-bold truncate max-w-[200px]">{item.name}</span>
+                              <span className="text-indigo-400 font-bold font-mono">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
+                            </div>
+                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                              <div 
+                                className="bg-indigo-500 h-full rounded-full" 
+                                style={{ width: `${item.percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* BU Distribution IT */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-violet-500/10 hover:border-violet-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
+                    <h3 className="text-xs font-bold text-violet-400 uppercase tracking-widest mb-6">🏢 Business Unit (BU) Distribution IT</h3>
+                    {overviewData.itBuBreakdown.length === 0 ? (
+                      <span className="text-xs text-slate-500 italic block py-4 text-center">No Business Unit records found.</span>
+                    ) : (
+                      <div className="space-y-3.5">
+                        {overviewData.itBuBreakdown.map((item) => (
+                          <div key={item.name} className="flex flex-col gap-1.5">
+                            <div className="flex justify-between text-xs font-medium">
+                              <span className="text-slate-200 font-bold truncate max-w-[200px]">{item.name}</span>
+                              <span className="text-violet-400 font-bold font-mono">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
+                            </div>
+                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                              <div 
+                                className="bg-violet-500 h-full rounded-full" 
+                                style={{ width: `${item.percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Department Operator Distribution Comparative Row */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2.5 px-2">
+                  <div className="w-2.5 h-6 bg-violet-500 rounded-full shadow-[0_0_12px_rgba(139,92,246,0.5)]"></div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">🛠️ Department Operator Support</h3>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Department Operator Distribution IMP */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
+                    <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-6">🛠️ Department Operator Distribution IMP</h3>
+                    {overviewData.impDeptBreakdown.length === 0 ? (
+                      <span className="text-xs text-slate-500 italic block py-4 text-center">No Department records found.</span>
+                    ) : (
+                      <div className="space-y-3.5">
+                        {overviewData.impDeptBreakdown.map((item) => (
+                          <div key={item.name} className="flex flex-col gap-1.5">
+                            <div className="flex justify-between text-xs font-medium">
+                              <span className="text-slate-200 font-bold truncate max-w-[200px]">{item.name}</span>
+                              <span className="text-indigo-400 font-bold font-mono">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
+                            </div>
+                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                              <div 
+                                className="bg-indigo-500 h-full rounded-full" 
+                                style={{ width: `${item.percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Department Operator Distribution IT */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-violet-500/10 hover:border-violet-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
+                    <h3 className="text-xs font-bold text-violet-400 uppercase tracking-widest mb-6">🛠️ Department Operator Distribution IT</h3>
+                    {overviewData.itDeptBreakdown.length === 0 ? (
+                      <span className="text-xs text-slate-500 italic block py-4 text-center">No Department records found.</span>
+                    ) : (
+                      <div className="space-y-3.5">
+                        {overviewData.itDeptBreakdown.map((item) => (
+                          <div key={item.name} className="flex flex-col gap-1.5">
+                            <div className="flex justify-between text-xs font-medium">
+                              <span className="text-slate-200 font-bold truncate max-w-[200px]">{item.name}</span>
+                              <span className="text-violet-400 font-bold font-mono">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
+                            </div>
+                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                              <div 
+                                className="bg-violet-500 h-full rounded-full" 
+                                style={{ width: `${item.percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Overtime ranking leaderboard */}
+              <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl max-w-2xl mx-auto">
+                <div className="flex items-center gap-2.5 mb-6">
+                  <Clock className="text-amber-400" size={18} />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">⏰ Top Overtime (OT) Operators</h3>
+                </div>
+                <div className="space-y-4">
+                  {overviewData.otLeaderboard.length === 0 ? (
+                    <span className="text-xs text-slate-500 italic block text-center py-4">No overtime hours logged in selected range.</span>
                   ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={overviewData.trend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <defs>
-                          {overviewData.depts.map((dept, idx) => {
-                            const style = deptStyles[idx % deptStyles.length];
-                            return (
-                              <linearGradient key={`color-${dept.name}`} id={`color-${dept.name}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={style.stroke} stopOpacity={0.2}/>
-                                <stop offset="95%" stopColor={style.stroke} stopOpacity={0}/>
-                              </linearGradient>
-                            );
-                          })}
-                        </defs>
-                        <XAxis dataKey="date" stroke="#64748b" fontSize={10} tickLine={false} />
-                        <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
-                          labelClassName="text-slate-400 font-bold font-mono text-[10px]"
-                        />
-                        <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                        
-                        {overviewData.depts.map((dept, idx) => {
-                          const style = deptStyles[idx % deptStyles.length];
-                          return (
-                            <Area 
-                              key={dept.name}
-                              name={`${dept.name} (Hours)`}
-                              type="monotone" 
-                              dataKey={dept.name} 
-                              stroke={style.stroke} 
-                              strokeWidth={2.5} 
-                              fillOpacity={1} 
-                              fill={`url(#color-${dept.name})`} 
-                            />
-                          );
-                        })}
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    overviewData.otLeaderboard.map((item, idx) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl">
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "w-8 h-8 rounded-xl font-bold flex items-center justify-center text-xs font-mono border shadow-md",
+                            idx === 0 ? "bg-amber-500/10 border-amber-500/30 text-amber-400 shadow-amber-500/5" :
+                            idx === 1 ? "bg-slate-400/10 border-slate-400/30 text-slate-300" :
+                            "bg-slate-800 border-slate-700 text-slate-400"
+                          )}>
+                            #{idx + 1}
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-white block">{item.name}</span>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{item.dept} Department</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-mono font-black text-amber-400">{item.otHours.toFixed(1)}h OT</span>
+                          <div className="w-16 bg-[#0F172A] h-2 rounded-full overflow-hidden">
+                            <div 
+                              className="bg-amber-400 h-full rounded-full"
+                              style={{ width: `${Math.min((item.otHours / (overviewData.otLeaderboard[0]?.otHours || 1)) * 100, 100)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
-
-            {/* Overtime ranking leaderboard */}
-            <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl max-w-2xl mx-auto">
-              <div className="flex items-center gap-2.5 mb-6">
-                <Clock className="text-amber-400" size={18} />
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">⏰ Top Overtime (OT) Operators</h3>
-              </div>
-              <div className="space-y-4">
-                {overviewData.otLeaderboard.length === 0 ? (
-                  <span className="text-xs text-slate-500 italic block text-center py-4">No overtime hours logged in selected range.</span>
-                ) : (
-                  overviewData.otLeaderboard.map((item, idx) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 bg-[#0F172A]/50 border border-slate-700/40 rounded-2xl">
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          "w-8 h-8 rounded-xl font-bold flex items-center justify-center text-xs font-mono border shadow-md",
-                          idx === 0 ? "bg-amber-500/10 border-amber-500/30 text-amber-400 shadow-amber-500/5" :
-                          idx === 1 ? "bg-slate-400/10 border-slate-400/30 text-slate-300" :
-                          "bg-slate-800 border-slate-700 text-slate-400"
-                        )}>
-                          #{idx + 1}
-                        </div>
-                        <div>
-                          <span className="text-xs font-bold text-white block">{item.name}</span>
-                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{item.dept} Department</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-mono font-black text-amber-400">{item.otHours}h OT</span>
-                        <div className="w-16 bg-[#0F172A] h-2 rounded-full overflow-hidden">
-                          <div 
-                            className="bg-amber-400 h-full rounded-full"
-                            style={{ width: `${Math.min((item.otHours / (overviewData.otLeaderboard[0]?.otHours || 1)) * 100, 100)}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
 
         {/* ======================================================== */}
@@ -1071,83 +1550,372 @@ export default function ReportsPage() {
                   </div>
                 </div>
 
-                {/* Radar performance & pie ratio graphs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Radar Chart (Teammate vs Team Avg in BUs) */}
+                {/* 1. Daily Hours Trend with 8-Hour Baseline */}
+                <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">📅 Daily Logged Hours</h3>
+                      <p className="text-[10px] text-slate-500 mt-1">Daily effort showing Normal vs. Overtime hours with a red 8-hour workday standard baseline.</p>
+                    </div>
+                    <div className="flex items-center gap-4 text-[10px] font-bold">
+                      <div className="flex items-center gap-1.5 text-slate-400">
+                        <div className="w-2.5 h-2.5 rounded-sm bg-[#6366f1]"></div>
+                        <span>Normal Hours</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-slate-400">
+                        <div className="w-2.5 h-2.5 rounded-sm bg-[#f59e0b]"></div>
+                        <span>Overtime</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-rose-400">
+                        <div className="w-5 h-0.5 border-t-2 border-dashed border-rose-500"></div>
+                        <span>8h Baseline</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="h-72 w-full">
+                    {individualData.dailyHoursData.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No logging records found.</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={individualData.dailyHoursData} margin={{ top: 15, right: 10, left: -25, bottom: 0 }}>
+                          <XAxis dataKey="dateDisplay" stroke="#64748b" fontSize={9} tickLine={false} />
+                          <YAxis stroke="#64748b" fontSize={9} tickLine={false} unit="h" />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                            formatter={(value: any, name: any) => [`${value}h`, name]}
+                          />
+                          <ReferenceLine y={8} stroke="#f43f5e" strokeWidth={2} strokeDasharray="5 5" />
+                          <Bar name="Normal Hours" dataKey="Normal" stackId="a" fill="#6366f1" radius={[0, 0, 0, 0]} />
+                          <Bar name="Overtime" dataKey="OT" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Monthly Comparison & Weekly Trend Side-by-Side */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Monthly Comparison */}
                   <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">🕸️ Business Unit Allocation Map</h3>
-                    <div className="h-64 w-full">
-                      {individualData.radarData.length === 0 ? (
-                        <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No allocation data.</div>
+                    <div className="mb-6">
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest font-bold">🗓️ Monthly Comparison</h3>
+                      <p className="text-[10px] text-slate-500 mt-1 font-bold">Comparison of total logged hours (Normal vs OT) across active months.</p>
+                    </div>
+                    <div className="h-72 w-full">
+                      {individualData.monthlyComparisonData.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No monthly data logged.</div>
                       ) : (
                         <ResponsiveContainer width="100%" height="100%">
-                          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={individualData.radarData}>
-                            <PolarGrid stroke="#334155" />
-                            <PolarAngleAxis dataKey="subject" stroke="#64748b" fontSize={9} />
-                            <PolarRadiusAxis stroke="#334155" fontSize={8} />
-                            <Radar name="This User" dataKey="User" stroke="#6366f1" fill="#6366f1" fillOpacity={0.3} />
-                            <Radar name="Team Average" dataKey="TeamAvg" stroke="#10b981" fill="#10b981" fillOpacity={0.1} />
-                            <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} />
-                            <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
-                          </RadarChart>
+                          <BarChart data={individualData.monthlyComparisonData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                            <XAxis dataKey="monthLabel" stroke="#64748b" fontSize={9} tickLine={false} />
+                            <YAxis stroke="#64748b" fontSize={9} tickLine={false} unit="h" />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                              formatter={(value: any, name: any) => [`${value}h`, name]}
+                            />
+                            <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+                            <Bar name="Normal Hours" dataKey="Normal" stackId="a" fill="#6366f1" radius={[0, 0, 0, 0]} />
+                            <Bar name="Overtime" dataKey="OT" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                          </BarChart>
                         </ResponsiveContainer>
                       )}
                     </div>
                   </div>
 
-                  {/* Work Type Pie Chart */}
+                  {/* Weekly Trend vs Team Average */}
                   <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">🎯 Work Type Ratio breakdown</h3>
-                    <div className="h-64 w-full flex items-center justify-center">
-                      {individualData.pieData.length === 0 ? (
-                        <div className="text-xs text-slate-500 italic">No logging records.</div>
+                    <div className="mb-6">
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">📈 Weekly Trend vs Team Average</h3>
+                      <p className="text-[10px] text-slate-500 mt-1">Comparing user weekly hours to the team average over the last 8 weeks.</p>
+                    </div>
+                    <div className="h-72 w-full">
+                      {individualData.weeklyTrendData.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No weekly trend data available.</div>
                       ) : (
-                        <div className="relative w-full h-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={individualData.pieData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={85}
-                                paddingAngle={5}
-                                dataKey="value"
-                              >
-                                {individualData.pieData.map((_, index) => (
-                                  <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                                ))}
-                              </Pie>
-                              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} />
-                              <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={individualData.weeklyTrendData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="color-user-weekly" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                              </linearGradient>
+                              <linearGradient id="color-team-weekly" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <XAxis dataKey="label" stroke="#64748b" fontSize={9} tickLine={false} />
+                            <YAxis stroke="#64748b" fontSize={9} tickLine={false} unit="h" />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
+                              labelClassName="text-slate-400 font-bold text-[10px]"
+                            />
+                            <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+                            
+                            <Area 
+                              name="This User (Hours)"
+                              type="monotone" 
+                              dataKey="User" 
+                              stroke="#6366f1" 
+                              strokeWidth={2.5} 
+                              fillOpacity={1} 
+                              fill="url(#color-user-weekly)" 
+                            />
+                            <Area 
+                              name="Team Average (Hours)"
+                              type="monotone" 
+                              dataKey="TeamAvg" 
+                              stroke="#10b981" 
+                              strokeWidth={2.5} 
+                              fillOpacity={1} 
+                              fill="url(#color-team-weekly)" 
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Top Projects Contribution bar chart */}
-                <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">🏆 Top 5 Projects by Contributed Hours</h3>
-                  <div className="h-64 w-full">
-                    {individualData.projectData.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No project data logged.</div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={individualData.projectData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} />
-                          <YAxis stroke="#64748b" fontSize={9} tickLine={false} />
-                          <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} />
-                          <Bar name="Hours Contributed" dataKey="hours" radius={[8, 8, 0, 0]}>
-                            {individualData.projectData.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
+                {/* 3. Hours by BU & Hours by Customer Dept */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Hours by BU */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">🏢 Hours by Business Unit (BU)</h3>
+                      <div className="space-y-4">
+                        {individualData.buDistributionData.length === 0 ? (
+                          <div className="text-xs text-slate-500 italic py-6 text-center">No BU allocation logged.</div>
+                        ) : (
+                          individualData.buDistributionData.map((item, idx) => (
+                            <div key={idx} className="space-y-1.5">
+                              <div className="flex justify-between text-xs font-bold text-slate-300">
+                                <span className="truncate max-w-[240px]">{item.name}</span>
+                                <span className="font-mono text-slate-400">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
+                              </div>
+                              <div className="w-full bg-[#0F172A] h-2.5 rounded-full overflow-hidden border border-slate-800">
+                                <div 
+                                  className={cn(
+                                    "bg-gradient-to-r h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(99,102,241,0.2)]",
+                                    GRADIENT_LIST[idx % GRADIENT_LIST.length]
+                                  )}
+                                  style={{ width: `${item.percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hours by Customer Dept */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">🏬 Hours by Customer Department</h3>
+                      <div className="space-y-4">
+                        {individualData.deptDistributionData.length === 0 ? (
+                          <div className="text-xs text-slate-500 italic py-6 text-center">No customer department hours logged.</div>
+                        ) : (
+                          individualData.deptDistributionData.map((item, idx) => (
+                            <div key={idx} className="space-y-1.5">
+                              <div className="flex justify-between text-xs font-bold text-slate-300">
+                                <span className="truncate max-w-[240px]">{item.name}</span>
+                                <span className="font-mono text-slate-400">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
+                              </div>
+                              <div className="w-full bg-[#0F172A] h-2.5 rounded-full overflow-hidden border border-slate-800">
+                                <div 
+                                  className={cn(
+                                    "bg-gradient-to-r h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(99,102,241,0.2)]",
+                                    GRADIENT_LIST[idx % GRADIENT_LIST.length]
+                                  )}
+                                  style={{ width: `${item.percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Top Actions & Top Projects Side-by-Side */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Top Actions list */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">⚡ Top Actions by Effort</h3>
+                      <div className="space-y-4">
+                        {individualData.topActionsData.length === 0 ? (
+                          <div className="text-xs text-slate-500 italic py-6 text-center">No action details logged.</div>
+                        ) : (
+                          individualData.topActionsData.map((item, idx) => (
+                            <div key={idx} className="space-y-1.5">
+                              <div className="flex justify-between text-xs font-bold text-slate-300">
+                                <span className="truncate max-w-[240px]">{item.name}</span>
+                                <span className="font-mono text-slate-400">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
+                              </div>
+                              <div className="w-full bg-[#0F172A] h-2.5 rounded-full overflow-hidden border border-slate-800">
+                                <div 
+                                  className={cn(
+                                    "bg-gradient-to-r h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(99,102,241,0.2)]",
+                                    GRADIENT_LIST[idx % GRADIENT_LIST.length]
+                                  )}
+                                  style={{ width: `${item.percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Top 5 Projects by Contributed Hours */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">🏆 Top 5 Projects by Contributed Hours</h3>
+                      <div className="h-72 w-full">
+                        {individualData.projectData.length === 0 ? (
+                          <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No project data logged.</div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={individualData.projectData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                              <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} />
+                              <YAxis stroke="#64748b" fontSize={9} tickLine={false} unit="h" />
+                              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} />
+                              <Bar name="Hours Contributed" dataKey="hours" radius={[8, 8, 0, 0]}>
+                                {individualData.projectData.map((_, index) => (
+                                  <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Donut, Work Type & Radar Charts Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Normal vs Overtime Split Donut Chart */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">📊 Normal vs. OT Split</h3>
+                      <div className="h-56 w-full flex items-center justify-center relative">
+                        {individualData.otSplitData[0].value === 0 && individualData.otSplitData[1].value === 0 ? (
+                          <div className="text-xs text-slate-500 italic">No hours logged.</div>
+                        ) : (
+                          <>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={individualData.otSplitData}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={55}
+                                  outerRadius={75}
+                                  paddingAngle={4}
+                                  dataKey="value"
+                                >
+                                  <Cell fill="#6366f1" />
+                                  <Cell fill="#f59e0b" />
+                                </Pie>
+                                <Tooltip 
+                                   contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                                   formatter={(value: any, name: any, props: any) => [
+                                     `${value}h (${props.payload.percentage}%)`,
+                                     name
+                                   ]}
+                                 />
+                              </PieChart>
+                            </ResponsiveContainer>
+                            {/* Centered Total Hours Info */}
+                            <div className="absolute flex flex-col items-center justify-center pointer-events-none">
+                              <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Total</span>
+                              <span className="text-xl font-black text-white font-mono">{individualData.totalHours.toFixed(1)}h</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {/* Visual Custom Legend below */}
+                    <div className="flex justify-around items-center border-t border-slate-700/30 pt-4 mt-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-lg bg-[#6366f1] shadow-md shadow-indigo-500/20"></div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] text-slate-400 font-bold">Normal</span>
+                          <span className="text-[10px] font-bold text-white font-mono">{individualData.otSplitData[0].value}h ({individualData.otSplitData[0].percentage}%)</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-lg bg-[#f59e0b] shadow-md shadow-amber-500/20"></div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] text-slate-400 font-bold">OT</span>
+                          <span className="text-[10px] font-bold text-amber-400 font-mono">{individualData.otSplitData[1].value}h ({individualData.otSplitData[1].percentage}%)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Work Type Pie Chart */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">🎯 Work Type Ratio</h3>
+                      <div className="h-56 w-full flex items-center justify-center">
+                        {individualData.pieData.length === 0 ? (
+                          <div className="text-xs text-slate-500 italic">No logging records.</div>
+                        ) : (
+                          <div className="relative w-full h-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={individualData.pieData}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={50}
+                                  outerRadius={70}
+                                  paddingAngle={5}
+                                  dataKey="value"
+                                >
+                                  {individualData.pieData.map((_, index) => (
+                                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                                  ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} />
+                                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '9px', fontWeight: 'bold' }} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Radar Chart (Teammate vs Team Avg in BUs) */}
+                  <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">🕸️ BU Allocation Map</h3>
+                      <div className="h-56 w-full">
+                        {individualData.radarData.length === 0 ? (
+                          <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No allocation data.</div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RadarChart cx="50%" cy="50%" outerRadius="60%" data={individualData.radarData}>
+                              <PolarGrid stroke="#334155" />
+                              <PolarAngleAxis dataKey="subject" stroke="#64748b" fontSize={8} />
+                              <PolarRadiusAxis stroke="#334155" fontSize={7} />
+                              <Radar name="This User" dataKey="User" stroke="#6366f1" fill="#6366f1" fillOpacity={0.3} />
+                              <Radar name="Team Avg" dataKey="TeamAvg" stroke="#10b981" fill="#10b981" fillOpacity={0.1} />
+                              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} />
+                              <Legend wrapperStyle={{ fontSize: '8px', fontWeight: 'bold' }} />
+                            </RadarChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </>
