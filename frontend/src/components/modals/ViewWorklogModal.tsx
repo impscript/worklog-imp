@@ -1,0 +1,268 @@
+import { Zap, X, Calendar, Clock, Briefcase, Tag, Layers, Printer, CheckCircle2, Laptop } from 'lucide-react';
+import { cn } from '../../lib/utils';
+
+
+interface ViewWorklogModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  log: any;
+}
+
+export default function ViewWorklogModal({ isOpen, onClose, log }: ViewWorklogModalProps) {
+  if (!isOpen || !log) return null;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const getTableType = (projType: string) => {
+    if (projType === 'Support MA' || projType === 'Support Go-Live') return 'Support';
+    if (projType === 'Management') return 'Management';
+    return 'Project';
+  };
+
+  const cat = getTableType(log.project_type);
+
+  const typeColors = {
+    Project: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20",
+    Support: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+    Management: "text-amber-400 bg-amber-500/10 border-amber-500/20"
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 print:bg-white print:p-0 print:static print:inset-auto">
+      <div className="w-full max-w-3xl bg-[#1E293B] border border-slate-700/80 rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col print:bg-white print:border-none print:shadow-none print:max-h-full print:w-full print:rounded-none">
+        
+        {/* Modal Header */}
+        <div className="p-6 border-b border-slate-700/50 flex justify-between items-center bg-[#0F172A]/40 shrink-0 print:hidden">
+          <div>
+            <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+              <Zap className="text-indigo-400" size={20} />
+              <span>รายละเอียดใบงานบันทึกการทำงาน</span>
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">ตรวจสอบความถูกต้องและรายละเอียดภาพรวมทั้งหมดของใบงาน</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handlePrint}
+              className="text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 font-bold text-xs"
+            >
+              <Printer size={14} />
+              <span>พิมพ์ใบงาน (Print)</span>
+            </button>
+            <button 
+              onClick={onClose}
+              className="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 p-2 rounded-xl transition-all"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Modal Content - Styled like a Premium Job Card / Invoice */}
+        <div className="p-8 overflow-y-auto space-y-6 flex-1 text-slate-300 print:overflow-visible print:p-0 print:text-black">
+          
+          {/* Printable Job Ticket Header */}
+          <div className="flex justify-between items-start border-b border-slate-700/50 pb-6 print:border-slate-300">
+            <div>
+              <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest print:text-indigo-600">Work Log Ticket</span>
+              <h1 className="text-2xl font-black text-white mt-1 print:text-black">JOB REPORT CARD</h1>
+              <p className="text-xs text-slate-400 mt-1 font-mono">ID: {log.id}</p>
+            </div>
+            
+            <div className="text-right">
+              <span className={cn(
+                "px-3 py-1 text-xs font-black rounded-full border uppercase tracking-wider",
+                (log.is_ot || log.is_implied_ot)
+                  ? "bg-amber-500/10 border-amber-500/25 text-amber-400 print:border-amber-600 print:text-amber-600"
+                  : "bg-indigo-500/10 border-indigo-500/25 text-indigo-400 print:border-indigo-600 print:text-indigo-600"
+              )}>
+                {(log.is_ot || log.is_implied_ot) ? '⚡ OVERTIME WORK' : '💼 STANDARD WORK'}
+              </span>
+              <div className="text-[10px] text-slate-500 mt-2 font-mono">Created: {new Date(log.created_at).toLocaleString()}</div>
+            </div>
+          </div>
+
+          {/* Job Details Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0F172A]/30 border border-slate-700/40 p-6 rounded-2xl print:bg-slate-50 print:border-slate-300 print:grid-cols-2">
+            
+            {/* Left Column: Organization Structure & Classification */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5 print:text-indigo-600">
+                <Layers size={14} />
+                <span>โครงสร้างองค์กรและการจำแนก</span>
+              </h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase block">Holding</span>
+                  <span className="text-sm font-bold text-white print:text-black">{log.holding}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase block">Business Unit (BU)</span>
+                  <span className="text-sm font-bold text-white print:text-black">{log.bu || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase block">Department Operator</span>
+                  <span className="text-sm font-bold text-white print:text-black">{log.department_operator}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase block">Department</span>
+                  <span className="text-sm font-bold text-white print:text-black">{log.department || '-'}</span>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-700/30 pt-3 print:border-slate-200">
+                <span className="text-[9px] font-bold text-slate-500 uppercase block">Project Type / Category</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={cn("px-2.5 py-0.5 text-[9px] font-extrabold rounded uppercase tracking-wider border", typeColors[cat])}>
+                    {cat}
+                  </span>
+                  <span className="text-xs text-slate-400">({log.project_type})</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Date, Time & Project Info */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5 print:text-indigo-600">
+                <Calendar size={14} />
+                <span>เวลาปฏิบัติงานและโครงการ</span>
+              </h3>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase block">วันที่ทำงาน</span>
+                  <span className="text-sm font-bold text-white print:text-black flex items-center gap-1 font-mono">
+                    <Calendar size={12} className="text-slate-400" />
+                    {log.work_date}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase block">ชั่วโมงการทำงานรวม</span>
+                  <span className="text-sm font-extrabold text-indigo-300 print:text-indigo-600 font-mono">
+                    {log.total_hours.toFixed(1)} ชั่วโมง
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase block">เวลา เริ่ม - สิ้นสุด</span>
+                  <span className="text-sm font-bold text-white print:text-black flex items-center gap-1 font-mono">
+                    <Clock size={12} className="text-slate-400" />
+                    {log.start_time.slice(0, 5)} - {log.end_time.slice(0, 5)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase block">หักช่วงเวลาพัก</span>
+                  <span className="text-sm font-bold text-white print:text-black">
+                    {log.break_time ? '✅ ใช่ (1 ชั่วโมง)' : '❌ ไม่หัก'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-700/30 pt-3 print:border-slate-200">
+                <span className="text-[9px] font-bold text-slate-500 uppercase block">ชื่อโครงการ (Project Name)</span>
+                <span className="text-sm font-black text-white print:text-black block mt-0.5">{log.project_name}</span>
+                {log.module && (
+                  <span className="text-xs text-slate-400 block font-medium mt-0.5">Module: {log.module}</span>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Action & Description Panel */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5 print:text-indigo-600">
+              <Briefcase size={14} />
+              <span>การปฏิบัติงานและรายละเอียดงาน</span>
+            </h3>
+
+            <div className="bg-[#0F172A]/50 border border-slate-700/50 p-6 rounded-2xl space-y-4 print:bg-white print:border-slate-300">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase block">กิจกรรมหลัก (Action Name)</span>
+                  <span className="text-sm font-extrabold text-slate-200 print:text-black flex items-center gap-1.5 mt-1">
+                    <Tag size={12} className="text-indigo-400" />
+                    {log.action_name}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase block">ช่องทางการสื่อสาร (Action Channels)</span>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {log.action_channel ? (
+                      (log.action_channel as string).split(',').map((c: string) => c.trim()).map((channel: string) => (
+                        <span 
+                          key={channel}
+                          className={cn(
+                            "px-2 py-0.5 rounded-full text-[9px] font-extrabold border shrink-0 uppercase tracking-wider flex items-center gap-0.5",
+                            channel === 'Meeting' && "bg-indigo-500/10 border-indigo-500/25 text-indigo-400",
+                            channel === 'Discuss via phone' && "bg-amber-500/10 border-amber-500/25 text-amber-400",
+                            channel === 'On site' && "bg-rose-500/10 border-rose-500/25 text-rose-400"
+                          )}
+                        >
+                          {channel === 'Meeting' && '👥'}
+                          {channel === 'Discuss via phone' && '📞'}
+                          {channel === 'On site' && '📍'}
+                          <span>{channel}</span>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-500 italic">ไม่ได้เลือกช่องทาง</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-700/30 pt-4 print:border-slate-200">
+                <span className="text-[9px] font-bold text-slate-500 uppercase block mb-1.5">รายละเอียดงานปฏิบัติจริง</span>
+                <div className="bg-[#0F172A]/70 border border-slate-800/40 p-4 rounded-xl text-xs text-slate-200 leading-relaxed font-sans italic whitespace-pre-wrap print:bg-slate-50 print:border-slate-300 print:text-black">
+                  {log.description ? `"${log.description}"` : 'ไม่มีการระบุรายละเอียดเพิ่มเติม'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sync status and Sign-off */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-700/30 print:border-slate-200 print:grid-cols-2">
+            
+            {/* Sync status */}
+            <div className="flex items-start gap-3 bg-[#0F172A]/30 border border-slate-700/40 p-4 rounded-xl print:bg-none print:border-none print:p-0">
+              <div className="p-2 bg-emerald-500/10 border border-emerald-500/25 rounded-lg text-emerald-400 shrink-0">
+                <CheckCircle2 size={16} />
+              </div>
+              <div>
+                <span className="text-[9px] font-bold text-slate-400 uppercase block">สถานะการบันทึก</span>
+                <span className="text-xs font-bold text-white print:text-black block mt-0.5">บันทึกสำเร็จในระบบเรียบร้อย</span>
+                <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-1 font-mono">
+                  <Laptop size={10} />
+                  <span>Channel: {log.channel || 'Web App'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Print Signature block (only visible when printing or in summary) */}
+            <div className="hidden print:flex flex-col justify-end items-end text-right">
+              <div className="w-48 border-b border-black/80 mt-12 mb-2"></div>
+              <span className="text-xs font-bold text-black uppercase mr-8">ผู้บันทึกการปฏิบัติงาน</span>
+              <span className="text-[10px] text-slate-500 mr-12">({log.department_operator})</span>
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* Modal Footer (hidden when printing) */}
+        <div className="p-6 border-t border-slate-700/50 bg-[#0F172A]/40 flex justify-end gap-3 shrink-0 print:hidden">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-xl transition-all active:scale-[0.98] shadow-md shadow-indigo-500/10"
+          >
+            ปิดหน้าต่าง
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}

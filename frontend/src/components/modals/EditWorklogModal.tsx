@@ -1,0 +1,1051 @@
+import { useState, useMemo, useEffect } from 'react';
+import { X, Clock, AlertTriangle, Calendar as CalendarIcon, Zap } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { useNotification } from '../../context/NotificationContext';
+import { cn } from '../../lib/utils';
+import { syncWorklogToGCal } from '../../lib/google-calendar';
+
+// Generate Time Options (00:00 to 24:00 - 24 Hours)
+const timeOptions = Array.from({ length: 49 }, (_, i) => {
+  const hour = Math.floor(i / 2);
+  const min = i % 2 === 0 ? '00' : '30';
+  const period = hour >= 12 && hour < 24 ? 'PM' : 'AM';
+  const displayHour = hour === 0 ? 12 : (hour > 12 && hour < 24 ? hour - 12 : (hour === 24 ? 12 : hour));
+  const timeString = hour === 24 ? 'Midnight (24:00)' : `${displayHour.toString().padStart(2, '0')}:${min} ${period}`;
+  const val24 = `${hour.toString().padStart(2, '0')}:${min}`;
+  return { label: `${val24} (${timeString})`, value: val24 };
+});
+
+interface WorklogEntry {
+  id: string;
+  user_id: string;
+  work_date: string;
+  holding: string;
+  department_operator: string;
+  project_type: string;
+  project_name: string;
+  action_name: string;
+  total_hours: number;
+  description: string | null;
+  created_at: string;
+  is_ot: boolean;
+  is_implied_ot: boolean;
+  bu: string;
+  start_time?: string;
+  end_time?: string;
+  break_time?: boolean;
+  module?: string | null;
+  department?: string;
+  channel?: string;
+  action_channel?: string | null;
+}
+
+interface SplitEntry {
+  work_date: string;
+  hours: number;
+  start_time: string;
+  end_time: string;
+  is_ot: boolean;
+}
+
+function getEndOfWorkdayTime(dateStr: string, isHoliday: boolean): string | null {
+  if (!dateStr || isHoliday) return null;
+  const d = new Date(dateStr);
+  const day = d.getDay(); // 0=Sun, 6=Sat
+  if (day === 0 || day === 6) return null;
+  if (day === 5) return '17:00';
+  return '18:00';
+}
+
+function calculateSegmentHours(startTime: string, endTime: string, deductLunch = false): number {
+  const [startH, startM] = startTime.split(':').map(Number);
+  const [endH, endM] = endTime.split(':').map(Number);
+  const startMinutes = startH * 60 + startM;
+  const endMinutes = endH * 60 + endM;
+
+  let totalMinutes = endMinutes - startMinutes;
+  if (totalMinutes < 0) totalMinutes = 0;
+
+  if (deductLunch) {
+    const lunchStart = 12 * 60;
+    const lunchEnd = 13 * 60;
+    const overlapStart = Math.max(startMinutes, lunchStart);
+    const overlapEnd = Math.min(endMinutes, lunchEnd);
+    if (overlapEnd > overlapStart) {
+      totalMinutes -= (overlapEnd - overlapStart);
+    }
+  }
+
+  return Math.round((totalMinutes / 60) * 100) / 100;
+}
+
+function splitEntriesWithOT(
+  workDate: string,
+  startTime: string,
+  endTime: string,
+  deductLunch: boolean,
+  isHoliday: boolean
+): SplitEntry[] {
+  const formatDate = (d: Date) => d.toISOString().split('T')[0];
+  const entries: SplitEntry[] = [];
+
+  const [startH, startM] = startTime.split(':').map(Number);
+  const [endH, endM] = endTime.split(':').map(Number);
+  const startMinutes = startH * 60 + startM;
+  const endMinutes = endH * 60 + endM;
+
+  const crossesMidnight = endMinutes < startMinutes || (endMinutes === startMinutes && startMinutes > 0);
+  const endOfWorkday = getEndOfWorkdayTime(workDate, isHoliday);
+
+  if (endOfWorkday === null) {
+    if (crossesMidnight) {
+      const date1 = new Date(workDate);
+      const date2 = new Date(workDate);
+      date2.setDate(date2.getDate() + 1);
+
+      const hoursDay1 = (24 * 60 - startMinutes) / 60;
+      const hoursDay2 = endMinutes / 60;
+
+      let day1Hours = hoursDay1;
+      if (deductLunch) {
+        const lunchStart = 12 * 60;
+        const lunchEnd = 13 * 60;
+        const overlapStart = Math.max(startMinutes, lunchStart);
+        const overlapEnd = Math.min(24 * 60, lunchEnd);
+        if (overlapEnd > overlapStart) {
+          day1Hours -= (overlapEnd - overlapStart) / 60;
+        }
+      }
+
+      entries.push({
+        work_date: formatDate(date1),
+        hours: Math.round(day1Hours * 100) / 100,
+        start_time: startTime,
+        end_time: '23:59',
+        is_ot: true
+      });
+
+      entries.push({
+        work_date: formatDate(date2),
+        hours: Math.round(hoursDay2 * 100) / 100,
+        start_time: '00:00',
+        end_time: endTime,
+        is_ot: true
+      });
+    } else {
+      const hours = calculateSegmentHours(startTime, endTime, deductLunch);
+      entries.push({
+        work_date: workDate,
+        hours: hours,
+        start_time: startTime,
+        end_time: endTime,
+        is_ot: true
+      });
+    }
+    return entries;
+  }
+
+  const [endWorkH, endWorkM] = endOfWorkday.split(':').map(Number);
+  const endOfWorkdayMinutes = endWorkH * 60 + endWorkM;
+
+  if (crossesMidnight) {
+    if (startMinutes < endOfWorkdayMinutes) {
+      const normalHours = calculateSegmentHours(startTime, endOfWorkday, deductLunch);
+      if (normalHours > 0) {
+        entries.push({
+          work_date: workDate,
+          hours: normalHours,
+          start_time: startTime,
+          end_time: endOfWorkday,
+          is_ot: false
+        });
+      }
+
+      const otHoursDay1 = (24 * 60 - endOfWorkdayMinutes) / 60;
+      if (otHoursDay1 > 0) {
+        entries.push({
+          work_date: workDate,
+          hours: Math.round(otHoursDay1 * 100) / 100,
+          start_time: endOfWorkday,
+          end_time: '23:59',
+          is_ot: true
+        });
+      }
+    } else {
+      const otHoursDay1 = (24 * 60 - startMinutes) / 60;
+      entries.push({
+        work_date: workDate,
+        hours: Math.round(otHoursDay1 * 100) / 100,
+        start_time: startTime,
+        end_time: '23:59',
+        is_ot: true
+      });
+    }
+
+    const date2 = new Date(workDate);
+    date2.setDate(date2.getDate() + 1);
+    const date2Str = formatDate(date2);
+    const hoursDay2 = endMinutes / 60;
+
+    if (hoursDay2 > 0) {
+      entries.push({
+        work_date: date2Str,
+        hours: Math.round(hoursDay2 * 100) / 100,
+        start_time: '00:00',
+        end_time: endTime,
+        is_ot: true
+      });
+    }
+  } else {
+    if (endMinutes > endOfWorkdayMinutes && startMinutes < endOfWorkdayMinutes) {
+      const normalHours = calculateSegmentHours(startTime, endOfWorkday, deductLunch);
+      const otHours = calculateSegmentHours(endOfWorkday, endTime, false);
+
+      if (normalHours > 0) {
+        entries.push({
+          work_date: workDate,
+          hours: normalHours,
+          start_time: startTime,
+          end_time: endOfWorkday,
+          is_ot: false
+        });
+      }
+
+      if (otHours > 0) {
+        entries.push({
+          work_date: workDate,
+          hours: otHours,
+          start_time: endOfWorkday,
+          end_time: endTime,
+          is_ot: true
+        });
+      }
+    } else if (startMinutes >= endOfWorkdayMinutes) {
+      const otHours = calculateSegmentHours(startTime, endTime, false);
+      entries.push({
+        work_date: workDate,
+        hours: otHours,
+        start_time: startTime,
+        end_time: endTime,
+        is_ot: true
+      });
+    } else {
+      const normalHours = calculateSegmentHours(startTime, endTime, deductLunch);
+      entries.push({
+        work_date: workDate,
+        hours: normalHours,
+        start_time: startTime,
+        end_time: endTime,
+        is_ot: false
+      });
+    }
+  }
+
+  return entries;
+}
+
+interface EditWorklogModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  log: WorklogEntry | null;
+  onSaveSuccess: () => void;
+}
+
+export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }: EditWorklogModalProps) {
+  const { showToast } = useNotification();
+  const [session] = useState(() => JSON.parse(sessionStorage.getItem('worklog_session') || '{}'));
+
+  // Form State
+  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState('08:00');
+  const [endTime, setEndTime] = useState('17:00');
+  const [isBreak, setIsBreak] = useState(true);
+  const [description, setDescription] = useState('');
+  const [isExplicitOt, setIsExplicitOt] = useState(false);
+  const [selectedActionChannels, setSelectedActionChannels] = useState<string[]>([]);
+
+  // Cascading Dropdown States
+  const [holding, setHolding] = useState('');
+  const [role, setRole] = useState('');
+  const [projectType, setProjectType] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [module, setModule] = useState('');
+  const [actionName, setActionName] = useState('');
+
+  // Auto-calculated fields
+  const [bu, setBu] = useState('');
+  const [department, setDepartment] = useState('');
+
+  // Dropdown options loaded from DB
+  const [mapUserRole, setMapUserRole] = useState<any[]>([]);
+  const [mapProjectStructure, setMapProjectStructure] = useState<any[]>([]);
+  const [masterActions, setMasterActions] = useState<any[]>([]);
+
+  // Verification lists
+  const [existingEntries, setExistingEntries] = useState<any[]>([]);
+  const [isHolidayDate, setIsHolidayDate] = useState(false);
+  const [holidayName, setHolidayName] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Fetch Mapping Structures
+  useEffect(() => {
+    if (!isOpen || !log) return;
+    
+    async function loadDropdownData() {
+      const mapName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+      
+      const [resUser, resProj, resAct] = await Promise.all([
+        supabase.from('tb_map_user_role').select('*').eq('name', mapName),
+        supabase.from('tb_map_project_structure').select('*'),
+        supabase.from('tb_master_action').select('*')
+      ]);
+
+      if (resUser.data && resUser.data.length > 0) {
+        setMapUserRole(resUser.data);
+      } else {
+        const fallback = await supabase.from('tb_map_user_role').select('*').eq('name', 'Chatchawan');
+        if (fallback.data) setMapUserRole(fallback.data);
+      }
+      if (resProj.data) setMapProjectStructure(resProj.data);
+      if (resAct.data) setMasterActions(resAct.data);
+    }
+    loadDropdownData();
+  }, [isOpen, log, session]);
+
+  // Prepopulate form when log changes
+  useEffect(() => {
+    if (log && isOpen) {
+      setDate(log.work_date);
+      setStartTime(log.start_time ? log.start_time.slice(0, 5) : '08:00');
+      setEndTime(log.end_time ? log.end_time.slice(0, 5) : '17:00');
+      setIsBreak(log.break_time !== undefined ? log.break_time : true);
+      setDescription(log.description || '');
+      setIsExplicitOt(log.is_ot);
+      
+      // Cascading fields
+      setHolding(log.holding);
+      setRole(log.department_operator);
+      setProjectType(log.project_type);
+      setProjectName(log.project_name);
+      setModule(log.module || '');
+      setActionName(log.action_name);
+      setBu(log.bu || '');
+      setDepartment(log.department || '');
+
+      // Action channels
+      if (log.action_channel) {
+        setSelectedActionChannels(log.action_channel.split(',').map((c: string) => c.trim()));
+      } else {
+        setSelectedActionChannels([]);
+      }
+    }
+  }, [log, isOpen]);
+
+  // Fetch other entries of the day to prevent overlaps
+  useEffect(() => {
+    if (!isOpen || !log || !date) return;
+
+    const currentLogId = log.id;
+    const currentUserId = log.user_id;
+
+    async function loadDailyData() {
+      // 1. Fetch other logs on this date (exclude current log)
+      const { data: logs } = await supabase
+        .from('col_worklog')
+        .select('*')
+        .eq('user_id', currentUserId)
+        .eq('work_date', date)
+        .neq('id', currentLogId);
+      
+      if (logs) setExistingEntries(logs);
+
+      // 2. Check if weekend/holiday
+      const d = new Date(date);
+      const day = d.getDay();
+      if (day === 0 || day === 6) {
+        setIsHolidayDate(true);
+        setHolidayName(day === 0 ? 'วันอาทิตย์ (Weekend)' : 'วันเสาร์ (Weekend)');
+      } else {
+        const { data: holiday } = await supabase
+          .from('tb_master_holiday')
+          .select('name')
+          .eq('date', date)
+          .maybeSingle();
+        
+        if (holiday) {
+          setIsHolidayDate(true);
+          setHolidayName(holiday.name);
+        } else {
+          setIsHolidayDate(false);
+          setHolidayName('');
+        }
+      }
+    }
+    loadDailyData();
+  }, [date, isOpen, log]);
+
+  // Handle auto explicit OT triggers on holidays
+  useEffect(() => {
+    if (isHolidayDate) {
+      setIsExplicitOt(true);
+    }
+  }, [isHolidayDate]);
+
+  // Memoized dropdown constraints matching LogWorkPage
+  const availableHoldings = useMemo(() => Array.from(new Set(mapUserRole.map(m => m.holding))), [mapUserRole]);
+  
+  const availableRoles = useMemo(() => {
+    if (!holding) return [];
+    return Array.from(new Set(mapUserRole.filter(m => m.holding === holding).map(m => m.department_operator)));
+  }, [holding, mapUserRole]);
+
+  const availableProjectTypes = useMemo(() => {
+    if (!holding || !role) return [];
+    return Array.from(new Set(mapProjectStructure
+      .filter(p => p.holding === holding && p.department_operator === role)
+      .map(p => p.project_type)));
+  }, [holding, role, mapProjectStructure]);
+
+  const availableProjects = useMemo(() => {
+    if (!holding || !role || !projectType) return [];
+    return Array.from(new Set(mapProjectStructure
+      .filter(p => p.holding === holding && p.department_operator === role && p.project_type === projectType)
+      .map(p => p.project_name)));
+  }, [holding, role, projectType, mapProjectStructure]);
+
+  const availableModules = useMemo(() => {
+    if (!projectName) return [];
+    return mapProjectStructure
+      .filter(p => p.holding === holding && p.department_operator === role && p.project_type === projectType && p.project_name === projectName)
+      .map(p => p.module)
+      .filter(Boolean);
+  }, [projectName, projectType, role, holding, mapProjectStructure]);
+
+  const availableActions = useMemo(() => {
+    if (!projectType) return [];
+    const category = projectType === 'Management' ? 'Management' : projectType.includes('Support') ? 'Support' : 'Project';
+    return masterActions.filter(a => a.action_category === category).map(a => a.action_name);
+  }, [projectType, masterActions]);
+
+  // Cascade resets
+  const handleHoldingChange = (val: string) => {
+    setHolding(val);
+    setRole('');
+    setProjectType('');
+    setProjectName('');
+    setModule('');
+    setActionName('');
+  };
+
+  const handleRoleChange = (val: string) => {
+    setRole(val);
+    setProjectType('');
+    setProjectName('');
+    setModule('');
+    setActionName('');
+  };
+
+  const handleProjectTypeChange = (val: string) => {
+    setProjectType(val);
+    setProjectName('');
+    setModule('');
+    setActionName('');
+  };
+
+  const handleProjectNameChange = (val: string) => {
+    setProjectName(val);
+    setModule('');
+    setActionName('');
+  };
+
+  // Sync BU & Department
+  useEffect(() => {
+    if (projectName) {
+      const match = mapProjectStructure.find(p => 
+        p.holding === holding && p.department_operator === role && p.project_type === projectType && 
+        p.project_name === projectName && (module ? p.module === module : true)
+      );
+      if (match) {
+        setBu(match.bu);
+        setDepartment(match.department);
+      }
+    }
+  }, [projectName, module, holding, role, projectType, mapProjectStructure]);
+
+  // Live Durations & Overlaps preview calculations
+  const preview = useMemo(() => {
+    if (!startTime || !endTime) {
+      return {
+        duration: 0,
+        normalHours: 0,
+        otHours: 0,
+        isOverlap: false,
+        overlappingEvent: '',
+        isImpliedOt: false,
+        segments: [] as SplitEntry[]
+      };
+    }
+    
+    const [sH, sM] = startTime.split(':').map(Number);
+    const [eH, eM] = endTime.split(':').map(Number);
+
+    const startMins = sH * 60 + sM;
+    const endMins = eH * 60 + eM;
+
+    // 1. Time overlap verify
+    let isOverlap = false;
+    let overlappingEvent = '';
+
+    for (const entry of existingEntries) {
+      const [eSH, eSM] = entry.start_time.split(':').map(Number);
+      const [eEH, eEM] = entry.end_time.split(':').map(Number);
+      const eStart = eSH * 60 + eSM;
+      const eEnd = eEH * 60 + eEM;
+
+      if (startMins < eEnd && endMins > eStart) {
+        isOverlap = true;
+        overlappingEvent = `${entry.start_time.slice(0, 5)} - ${entry.end_time.slice(0, 5)} (${entry.project_name})`;
+        break;
+      }
+    }
+
+    // 2. OT vs Normal calculation using official workday end boundaries
+    const isHoliday = isHolidayDate || isExplicitOt;
+    const segments = splitEntriesWithOT(date, startTime, endTime, isBreak, isHoliday);
+
+    let totalDuration = 0;
+    let normalHours = 0;
+    let otHours = 0;
+
+    for (const segment of segments) {
+      totalDuration += segment.hours;
+      if (segment.is_ot) {
+        otHours += segment.hours;
+      } else {
+        normalHours += segment.hours;
+      }
+    }
+
+    // Implied OT is true if any segment is OT and user didn't explicitly tick OT/Holiday
+    const isImpliedOt = otHours > 0 && !isHolidayDate && !isExplicitOt;
+
+    return {
+      duration: Math.round(totalDuration * 100) / 100,
+      normalHours: Math.round(normalHours * 100) / 100,
+      otHours: Math.round(otHours * 100) / 100,
+      isOverlap,
+      overlappingEvent,
+      isImpliedOt,
+      segments
+    };
+  }, [startTime, endTime, isBreak, existingEntries, isExplicitOt, isHolidayDate, date]);
+
+  // Handle Updates
+  const handleSave = () => {
+    if (!log || !holding || !role || !projectType || !projectName || !actionName || preview.duration <= 0) {
+      showToast('โปรดกรอกข้อมูลให้ครบทุกช่องก่อนบันทึก', 'warning');
+      return;
+    }
+    
+    if (preview.isOverlap) {
+      showToast(`ไม่สามารถบันทึกได้เนื่องจากเวลาคาบเกี่ยวกับรายการอื่น (${preview.overlappingEvent})`, 'error');
+      return;
+    }
+
+    setShowConfirmModal(true);
+  };
+
+  const executeSave = async () => {
+    if (!log) return;
+    setShowConfirmModal(false);
+    setIsSubmitting(true);
+    try {
+      if (preview.segments.length > 1) {
+        // We need to SPLIT this entry!
+        // 1. Update the first segment onto the current entry
+        const segment0 = preview.segments[0];
+        const segment0Prefix = segment0.is_ot ? '[OT]' : '[Normal]';
+
+        const { error: errorNormal } = await supabase
+          .from('col_worklog')
+          .update({
+            work_date: segment0.work_date,
+            start_time: segment0.start_time + ':00',
+            end_time: segment0.end_time + ':00',
+            break_time: !segment0.is_ot ? isBreak : false,
+            total_hours: segment0.hours,
+            holding,
+            department_operator: role,
+            project_type: projectType,
+            project_name: projectName,
+            module: module || null,
+            bu,
+            department,
+            action_name: actionName,
+            action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+            description: description ? `${segment0Prefix} ${description}` : `${segment0.is_ot ? 'OT' : 'Normal'} portion`,
+            is_ot: segment0.is_ot,
+            is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt
+          })
+          .eq('id', log.id);
+
+        if (errorNormal) throw errorNormal;
+        
+        // Sync first updated segment
+        syncWorklogToGCal(log.id, 'update');
+
+        // 2. Insert remaining segments as new entries
+        for (let i = 1; i < preview.segments.length; i++) {
+          const segment = preview.segments[i];
+          const segmentPrefix = segment.is_ot ? '[OT]' : '[Normal]';
+
+          const { data: dataNew, error: errorNew } = await supabase.from('col_worklog').insert({
+            user_id: log.user_id,
+            work_date: segment.work_date,
+            start_time: segment.start_time + ':00',
+            end_time: segment.end_time + ':00',
+            break_time: !segment.is_ot ? isBreak : false,
+            total_hours: segment.hours,
+            holding,
+            department_operator: role,
+            project_type: projectType,
+            project_name: projectName,
+            module: module || null,
+            bu,
+            department,
+            action_name: actionName,
+            action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+            description: description ? `${segmentPrefix} ${description}` : `${segment.is_ot ? 'OT' : 'Normal'} portion`,
+            channel: log.channel || 'Web App',
+            is_ot: segment.is_ot,
+            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+          }).select('id').maybeSingle();
+
+          if (errorNew) throw errorNew;
+          if (dataNew) {
+            syncWorklogToGCal(dataNew.id, 'insert');
+          }
+        }
+      } else {
+        // Standard single entry update
+        const segment = preview.segments[0] || {
+          work_date: date,
+          hours: preview.duration,
+          start_time: startTime,
+          end_time: endTime,
+          is_ot: isExplicitOt || isHolidayDate
+        };
+
+        const { error } = await supabase
+          .from('col_worklog')
+          .update({
+            work_date: segment.work_date,
+            start_time: segment.start_time + ':00',
+            end_time: segment.end_time + ':00',
+            break_time: isBreak,
+            total_hours: segment.hours,
+            holding,
+            department_operator: role,
+            project_type: projectType,
+            project_name: projectName,
+            module: module || null,
+            bu,
+            department,
+            action_name: actionName,
+            action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+            description,
+            is_ot: segment.is_ot,
+            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+          })
+          .eq('id', log.id);
+
+        if (error) throw error;
+        
+        // Sync updated log
+        syncWorklogToGCal(log.id, 'update');
+      }
+
+      showToast('Worklog updated successfully!', 'success');
+      onSaveSuccess();
+      onClose();
+    } catch (err: any) {
+      console.error(err);
+      showToast('Error saving updates: ' + err.message, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen || !log) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="w-full max-w-4xl bg-[#1E293B] border border-slate-700/80 rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+        
+        {/* Modal Header */}
+        <div className="p-6 border-b border-slate-700/50 flex justify-between items-center bg-[#0F172A]/40 shrink-0">
+          <div>
+            <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+              <Zap className="text-indigo-400" size={20} />
+              <span>แก้ไขใบงานบันทึกการทำงาน</span>
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">แก้ไขรายละเอียดใบงานรหัส {log.id.slice(0, 8)}...</p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 p-2 rounded-xl transition-all"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Modal Content */}
+        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-300">
+          
+          {/* Section 1: Time range */}
+          <div className="bg-[#0F172A]/30 border border-slate-700/40 p-5 rounded-2xl space-y-4">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-1">
+              <Clock size={14} className="text-indigo-400" />
+              <span>ข้อมูลวันและเวลาปฏิบัติงาน</span>
+            </h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">วันที่ทำงาน</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                    <CalendarIcon size={16} />
+                  </div>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 pl-10 pr-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">เวลาเริ่มงาน</label>
+                <select
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                >
+                  {timeOptions.map((opt) => (
+                    <option key={`start-${opt.value}`} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">เวลาเลิกงาน</label>
+                <select
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                >
+                  {timeOptions.map((opt) => (
+                    <option key={`end-${opt.value}`} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Overlap & duration summary alerts */}
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-800">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isBreak}
+                    onChange={(e) => setIsBreak(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-indigo-500 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-slate-400 font-semibold">หักชั่วโมงพัก 1 ชม. (กรณีงาน &gt; 4 ชม.)</span>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-4 text-xs font-semibold">
+                {isHolidayDate && (
+                  <span className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] uppercase font-bold tracking-wider">
+                    🎉 {holidayName || 'Holiday / Weekend'}
+                  </span>
+                )}
+                <div className="text-right">
+                  <span className="text-slate-400">สรุปชั่วโมงงาน: </span>
+                  <span className="text-indigo-400 font-black font-mono text-sm">{preview.duration.toFixed(1)} ชม.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Warn Alert block */}
+            {preview.isOverlap && (
+              <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-3 text-rose-400 text-xs animate-pulse">
+                <AlertTriangle size={18} className="shrink-0" />
+                <span>มีชั่วโมงทำงานคาบเกี่ยวกับรายการเดิมในระบบ: <strong>{preview.overlappingEvent}</strong></span>
+              </div>
+            )}
+            
+            {preview.otHours > 0 && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-3 text-amber-400 text-xs">
+                <Zap size={18} className="shrink-0 animate-bounce" />
+                <span>
+                  จะคำนวณเข้าสู่ระบบเป็น <strong>Normal {preview.normalHours.toFixed(1)}h</strong> และ <strong>OT {preview.otHours.toFixed(1)}h</strong> ({isHolidayDate ? 'วันหยุดปฏิบัติงาน' : 'ชั่วโมงส่วนที่เกิน 8h ในหนึ่งวัน'})
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Cascading Select fields */}
+          <div className="bg-[#0F172A]/30 border border-slate-700/40 p-5 rounded-2xl space-y-4">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+              <Zap size={14} className="text-indigo-400" />
+              <span>ข้อมูลโครงการและการวิเคราะห์ (Cascading Dropdowns)</span>
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">1. Holding BU</label>
+                <select
+                  value={holding}
+                  onChange={(e) => handleHoldingChange(e.target.value)}
+                  className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                >
+                  <option value="">-- เลือก Holding --</option>
+                  {availableHoldings.map((h) => (
+                    <option key={`h-${h}`} value={h}>{h}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">2. Role Operator</label>
+                <select
+                  value={role}
+                  disabled={!holding}
+                  onChange={(e) => handleRoleChange(e.target.value)}
+                  className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
+                >
+                  <option value="">-- เลือก Role --</option>
+                  {availableRoles.map((r) => (
+                    <option key={`r-${r}`} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">3. Project Type</label>
+                <select
+                  value={projectType}
+                  disabled={!role}
+                  onChange={(e) => handleProjectTypeChange(e.target.value)}
+                  className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
+                >
+                  <option value="">-- เลือกประเภทงาน --</option>
+                  {availableProjectTypes.map((t) => (
+                    <option key={`t-${t}`} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">4. Project Name</label>
+                <select
+                  value={projectName}
+                  disabled={!projectType}
+                  onChange={(e) => handleProjectNameChange(e.target.value)}
+                  className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
+                >
+                  <option value="">-- เลือกโครงการ --</option>
+                  {availableProjects.map((p) => (
+                    <option key={`p-${p}`} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">5. Module (ถ้ามี)</label>
+                <select
+                  value={module}
+                  disabled={!projectName || availableModules.length === 0}
+                  onChange={(e) => setModule(e.target.value)}
+                  className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
+                >
+                  <option value="">-- ไม่มีโมดูล / ทั้งโครงการ --</option>
+                  {availableModules.map((m) => (
+                    <option key={`m-${m}`} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">6. Action Name</label>
+                <select
+                  value={actionName}
+                  disabled={!projectType}
+                  onChange={(e) => setActionName(e.target.value)}
+                  className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
+                >
+                  <option value="">-- เลือกการกระทำ --</option>
+                  {availableActions.map((a) => (
+                    <option key={`a-${a}`} value={a}>{a}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Read-only derived values */}
+            {projectName && (
+              <div className="grid grid-cols-2 gap-4 p-3 bg-slate-800/40 rounded-xl border border-slate-700/50 text-[11px] font-semibold text-slate-400">
+                <div>7. Business Unit: <span className="text-white font-mono">{bu || '-'}</span></div>
+                <div>8. Target Department: <span className="text-white font-mono">{department || '-'}</span></div>
+              </div>
+            )}
+
+            {/* Optional Action Channels as Clickable Tag Chips */}
+            <div className="space-y-2 mt-4 pt-2 border-t border-slate-700/30">
+              <label className="block text-[10px] uppercase font-bold text-slate-500 ml-1">ช่องทางการสื่อสาร (Action Channels - Optional)</label>
+              <div className="flex flex-wrap gap-2">
+                {['Meeting', 'Discuss via phone', 'On site'].map((channelOption) => {
+                  const isSelected = selectedActionChannels.includes(channelOption);
+                  return (
+                    <button
+                      key={channelOption}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedActionChannels(selectedActionChannels.filter(c => c !== channelOption));
+                        } else {
+                          setSelectedActionChannels([...selectedActionChannels, channelOption]);
+                        }
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-bold rounded-full transition-all duration-200 border flex items-center gap-1.5 active:scale-95 shadow-sm",
+                        isSelected
+                          ? "bg-gradient-to-r from-indigo-500 to-indigo-600 border-indigo-400/30 text-white hover:from-indigo-600 hover:to-indigo-700 shadow-indigo-500/10 animate-in zoom-in-95 duration-100"
+                          : "bg-[#0F172A]/70 border-slate-700/80 text-slate-400 hover:text-slate-200 hover:bg-[#0F172A]"
+                      )}
+                    >
+                      {channelOption === 'Meeting' && <span className="text-xs">👥</span>}
+                      {channelOption === 'Discuss via phone' && <span className="text-xs">📞</span>}
+                      {channelOption === 'On site' && <span className="text-xs">📍</span>}
+                      <span>{channelOption}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Description input */}
+          <div className="space-y-2">
+            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1 ml-1">รายละเอียดงาน (Work Description)</label>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="กรอกรายละเอียดงานที่ปฏิบัติ..."
+              className="w-full bg-[#0F172A]/80 border border-slate-700 rounded-2xl py-3 px-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all leading-relaxed"
+            />
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="p-6 border-t border-slate-700/50 bg-[#0F172A]/40 flex justify-end gap-3 shrink-0">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all active:scale-[0.98]"
+          >
+            ยกเลิก
+          </button>
+          
+          <button
+            onClick={handleSave}
+            disabled={isSubmitting || preview.isOverlap || preview.duration <= 0 || !holding || !role || !projectType || !projectName || !actionName}
+            className={cn(
+              "px-5 py-2.5 text-white text-xs font-bold rounded-xl transition-all active:scale-[0.98] shadow-md",
+              "bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            )}
+          >
+            {isSubmitting ? (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            ) : (
+              'บันทึกการแก้ไข'
+            )}
+          </button>
+        </div>
+
+      </div>
+
+      {/* Premium Confirmation Dialog */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-[#1E293B] border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-indigo-400">
+              <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                <Zap size={22} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white tracking-tight">ยืนยันการบันทึกการแก้ไข?</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5 font-medium">โปรดยืนยันการเปลี่ยนแปลงข้อมูลใบงานนี้</p>
+              </div>
+            </div>
+
+            {/* Time Split Summary */}
+            <div className="bg-[#0F172A]/50 border border-slate-800/80 p-4 rounded-2xl space-y-2">
+              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">สรุปการบันทึกชั่วโมงปฏิบัติงาน</span>
+              
+              {preview.segments.map((seg, idx) => (
+                <div key={idx} className="flex justify-between items-center text-xs border-b border-slate-800/40 pb-2 last:border-none last:pb-0">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "px-1.5 py-0.5 rounded text-[8px] font-extrabold border uppercase tracking-wider",
+                      seg.is_ot
+                        ? "bg-amber-500/10 border-amber-500/25 text-amber-400"
+                        : "bg-indigo-500/10 border-indigo-500/25 text-indigo-400"
+                    )}>
+                      {seg.is_ot ? 'OT Portion' : 'Normal Portion'}
+                    </span>
+                    <span className="text-slate-400 font-mono text-[10px]">{seg.start_time.slice(0, 5)} - {seg.end_time.slice(0, 5)}</span>
+                  </div>
+                  <span className="font-extrabold text-white font-mono">{seg.hours.toFixed(1)} ชั่วโมง</span>
+                </div>
+              ))}
+
+              <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-700/30">
+                <span className="font-bold text-slate-300">ชั่วโมงรวมทั้งหมด (Total):</span>
+                <span className="font-black text-indigo-400 font-mono text-sm">{preview.duration.toFixed(1)} ชั่วโมง</span>
+              </div>
+            </div>
+
+            {preview.segments.length > 1 && (
+              <div className="bg-amber-500/5 border border-amber-500/10 p-3.5 rounded-xl text-[10px] text-amber-300 leading-relaxed font-medium">
+                ⚠️ **ระบบทำการแบ่งใบงาน (Automatic OT Split):** เนื่องจากเวลาการทำงานคาบเกี่ยวระหว่างเวลาทำงานปกติและล่วงเวลา (OT) ใบงานจะถูกบันทึกแยกออกเป็น **{preview.segments.length} รายการ** โดยอัตโนมัติตามนโยบายบริษัท
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-700/60 text-slate-300 text-[11px] font-bold rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={executeSave}
+                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-[11px] font-bold rounded-xl transition-all active:scale-[0.98] shadow-md shadow-indigo-500/10 cursor-pointer"
+              >
+                ยืนยันและบันทึก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

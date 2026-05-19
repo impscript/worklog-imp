@@ -1,0 +1,324 @@
+นี่คือข้อมูล `project_structure` ทั้งหมดที่ดึงมาจากฐานข้อมูล (ชีท `all_project_relation`) โดยจัดให้อยู่ในรูปแบบ CSV และทำการ Normalization แยกคอลัมน์ `Module`, `BU`, `Department` ตามคอนเซปต์เดียวกันกับรอบที่แล้ว เพื่อให้นำไปคัดลอกและ Import เข้าฐานข้อมูลได้ทันทีครับ
+
+**ชื่อไฟล์:** `tb_map_project_structure_full.csv`
+
+```csv
+Holding,department_operator,Project_Type,Project_Name,Module,BU,Department
+Real Estate,IT,Management,Policy,,Corporate,IT
+Real Estate,IMP,Management,Policy,,Corporate,IMP
+Real Estate,IMP&IT,Management,Policy,,Corporate,IMP&IT
+Double A,IT,Management,Policy,,Corporate,IT
+Double A,IMP,Management,Policy,,Corporate,IMP
+Double A,IMP&IT,Management,Policy,,Corporate,IMP&IT
+Real Estate,IT,Management,TeamOps,,Corporate,IT
+Real Estate,IMP,Management,TeamOps,,Corporate,IMP
+Real Estate,IMP&IT,Management,TeamOps,,Corporate,IMP&IT
+Double A,IT,Management,TeamOps,,Corporate,IT
+Double A,IMP,Management,TeamOps,,Corporate,IMP
+Double A,IMP&IT,Management,TeamOps,,Corporate,IMP&IT
+Double A,IT,Project,Web Marketing,AA Affiliate,Sale - Domestic,Sale&Marketing
+Double A,IT,Project,Web Marketing,AA Delivery,Sale - Domestic,Sale&Marketing
+Double A,IT,Project,ERP - Netsuite,Integration Item ShipTo Country,Sale - Export,Sale
+Double A,IT,Project,ERP - Netsuite,Log Record,MFG,All
+Double A,IT,Project,ERP - Netsuite,Transfer Raw Material from WH to Production,Production,Planner Production
+Double A,IT,Project,ERP - Netsuite,UOM Master,Master Data,IT
+Double A,IMP,Support Go-Live,ERP - Netsuite,Item Master,Master Data,IT
+Double A,IMP,Project,ERP - Netsuite,FX Currency - Integration ERP,Fin - All,Financial
+Double A,IMP,Project,ERP - Netsuite,FX Currency - Scraping data,Fin - All,Financial
+Double A,IMP,Project,ERP - Netsuite,FX Currency - Web app monitor,Fin - All,Financial
+Double A,IMP,Project,WMS,Warehouse DDS,Double A Stationary,Warehouse
+Double A,IMP,Project,WMS,Warehouse Double A,Double A,Warehouse
+Double A,IT,Project,ERP - Netsuite,Function Readiness - O2C,O2C - Export,Sale
+Double A,IT,Project,ERP - Netsuite,Function Readiness - O2C,Sale - Domestic,Sale
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MRP,Production,Winder
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MRP,Production,Converting
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MRP,Production,DAPK
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MRP,Production,Book Plant
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MPS,Production,Paper
+Double A,IT,Project,ERP - Netsuite,Function Readiness - ABB,Production,Winder
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MFG,Production,Wood
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MFG,Production,Pulp
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MFG,Production,Paper
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MFG,Production,Winder
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MFG,Production,Converting
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MFG,Production,DAPK
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MFG,Production,Book Plant
+Double A,IT,Project,ERP - Netsuite,Function Readiness - MFG,Production,All Department
+Double A,IT,Project,ERP - Netsuite,Function Readiness - WMS,Factory OH,Warehouse
+Double A,IT,Project,ERP - Netsuite,Function Readiness - P2P,Production,All Department
+Double A,IMP,Project,WMS,ระบบตรวจนับทรัพย์สิน DA Pack,DAPK,Accounting
+Double A,IT,Project,ERP - Netsuite,ERP/Accouting System for TSS,,,
+Double A,IMP,Project,Print Service,,DACP,Planner
+Double A,IMP,Project,Print Service,,DACP,Technician
+Double A,IMP,Project,Print Service,,DACP,Sales
+Double A,IMP,Project,Print Service,,DACP,Marketing
+Double A,IMP,Project,Print Service,,DACP,Sale&Marketing
+All Holding,IMP,Support MA,Application form - Website,Appscript,Corporate,HR Recruit
+All Holding,IMP,Project,Application form - Website,Antigravity,Corporate,HR Recruit
+All Holding,IMP,Support MA,Application form - Website,Antigravity,Corporate,HR Recruit
+Double A,IMP,Support MA,Application form - Website,Appscript,Corporate,HR Recruit
+Double A,IMP,Support MA,Application form - Website,Antigravity,Corporate,HR Recruit
+Double A,IMP,Project,Application form - Website,Antigravity,Corporate,HR Recruit
+Real Estate,IMP,Project,304 CRM,,IP,CRM
+Real Estate,IMP,Support MA,304 CRM,,IP,CRM
+Real Estate,IMP,Project,Contractor Grading System (CGS) ระบบประเมินเกรด ผู้รับเหมา,,Housing,CCP
+Real Estate,IMP,Project,Contractor Grading System (CGS) ระบบประเมินเกรด ผู้รับเหมา,,Housing,Construction
+Real Estate,IMP,Project,AI Chatbot,,Housing,Juristic
+Real Estate,IMP,Support MA,Application form - Website,Appscript,Corporate,HR Recruit
+Real Estate,IMP,Support MA,Application form - Website,Antigravity,Corporate,HR Recruit
+Real Estate,IMP,Project,Application form - Website,Antigravity,Corporate,HR Recruit
+Real Estate,IMP,Support MA,Daily task project IP,บันทึกการทำงานพนักงานกวาดถนน,Housing,Juristic
+Real Estate,IMP,Support MA,Daily task project IP,บันทึกการทำงานพนักงานทำความสะอาด,Housing,Juristic
+Real Estate,IMP,Support MA,Daily task project IP,บันทึกการทำงานรปภ,Housing,Juristic
+Real Estate,IMP,Support MA,Daily task project IP,บันทึกรถเข้าออกโครงการ,Housing,Juristic
+Real Estate,IMP,Support MA,Daily task project IP,บันทึกการออกตรวจพื้นที่หัวหน้าชุด,Housing,Juristic
+Real Estate,IMP,Upgrade,Daily task project DAP,บันทึกการทำงานนิติบุคคล,Housing,Juristic
+Real Estate,IMP,Upgrade,Daily task project DAP,บันทึกการทำงานพนักงานกวาดถนน,Housing,Juristic
+Real Estate,IMP,Upgrade,Daily task project DAP,บันทึกการทำงานพนักงานทำความสะอาด,Housing,Juristic
+Real Estate,IMP,Upgrade,Daily task project DAP,บันทึกการทำงานรปภ,Housing,Juristic
+Real Estate,IMP,Upgrade,Daily task project DAP,บันทึกรถเข้าออกโครงการ,Housing,Juristic
+Real Estate,IMP,Upgrade,Daily task project DAP,บันทึกการออกตรวจพื้นที่หัวหน้าชุด,Housing,Juristic
+Real Estate,IMP,Project,DashBoard QC,,Housing,Construction
+Real Estate,IMP,Project,Dashboard Manpower,,Corporate,HRBP
+Real Estate,IMP,Project,Dashboard สถิติอาการเสียแผ่น,,Housing,Operation
+Real Estate,IMP,Project,Dashboard สถิติอาการเสียแผ่น,,Precast,Operation
+Real Estate,IMP,Support MA,IMP Worklog,,IMP,IMP
+Real Estate,IMP,Support MA,Job value,,Com&Res,Maintenance
+Real Estate,IMP,Project,JobValue on Maximo Std,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,MS team notify,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,On duty,,Com&Res,Maintenance
+Real Estate,IMP,Project,Precast Work Stamp,,Precast,Operation
+Real Estate,IMP,Support MA,Precast management,Production / QC,Precast,Operation
+Real Estate,IMP,Support MA,Precast management,Installation,Precast,Operation
+Real Estate,IMP,Project,QC milestone report,,Housing,Accounting
+Real Estate,IMP,Project,QC milestone report,,Housing,QC
+Real Estate,IMP,Support MA,QC milestone report,,Housing,Accounting
+Real Estate,IMP,Support MA,QC milestone report,,Housing,QC
+Real Estate,IMP,Support MA,Report Manhours,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,Report สถิติการแจ้งซ่อม,,Com&Res,Maintenance
+Real Estate,IMP,Project,Stock Inventory,,Housing,After sale
+Real Estate,IMP,Support MA,Stock voucher - บัตรกำนัลมอบลูกค้า,,Housing,Sale
+Real Estate,IMP,Support MA,Stock voucher - บัตรกำนัลมอบลูกค้า,,Housing,Marketing
+Real Estate,IMP,Support MA,Stock Voucher- Smart home,ลูกค้ารับ Smart home,Housing,Marketing
+Real Estate,IMP,Project,Stock แผ่น,,Precast,Operation
+Real Estate,IMP,Support MA,Store DAP,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,Store IP,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,Ticket ลูกบ้านร้องเรียน,,Housing,Call center
+Real Estate,IMP,Support MA,งานแจ้งซ่อม com&res,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,บันทึกการเก็บค่าส่วนกลาง IP,,Housing,Juristic
+Real Estate,IMP,Project,ผลิตแผ่นชิ้นรั้ว QC1,2 and Print Sticker,,Precast,Operation
+Real Estate,IMP,Project,ระบบคำนวณจ่าย On duty,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,ระบบตรวจนับทรัพย์สิน Store DAP & IP,,Com&Res,Accounting
+Real Estate,IMP,Support MA,ระบบติดตามงานซ่อมที่ต้องใช้ผู้รับเหมา,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,ระบบติดตามสถานะกล้องวงจรปิด,,Housing,Juristic
+Real Estate,IMP,Project,ระบบติดตามสถานะการส่งฟ้อง IP,,Housing,Juristic
+Real Estate,IMP,Project,ระบบติดตามอุปกรณ์ซ่อมทีมช่าง,,Com&Res,Accounting
+Real Estate,IMP,Project,ระบบติดตามอุปกรณ์ซ่อมทีมช่าง,,Com&Res,Maintenance
+Real Estate,IMP,Project,ระบบบริหารจัดการทรัพย์สิน (FA_IMP),,IP,Accounting
+Real Estate,IMP,Project,ระบบบริหารจัดการทรัพย์สิน (FA_IMP),,IP,Operation
+Real Estate,IMP,Support MA,ระบบบริหารจัดการทรัพย์สิน (FA_IMP),,IP,Accounting
+Real Estate,IMP,Support MA,ระบบบริหารจัดการทรัพย์สิน (FA_IMP),,IP,Operation
+Real Estate,IMP,Support MA,ระบบบริหารจัดการทรัพย์สิน (FA_IMP),,Com&Res,Accounting
+Real Estate,IMP,Project,ระบบสร้างแบบประเมิน HR,,Corporate,HRD
+Real Estate,IMP,Project,ระบบสั่งคอนกรีต,,Precast,Operation
+Real Estate,IMP,Project,ระบบอนุมัติการจ้างพนักงาน on MS team,,Corporate,HR Recruit
+Real Estate,IMP,Project,เว็บไซต์ค่าส่วนกลาง IP,,Housing,Juristic
+Real Estate,IMP,Support MA,เว็บไซต์ค่าส่วนกลาง IP,,Housing,Juristic
+Real Estate,IT,Project,Web Corporate,Audit Management System,Corporate,Internal Audit
+Real Estate,IT,Project,Web Operation,ตลาดถนนคนเดิน,Com&Res,Operation
+Real Estate,IT,Project,Web Operation,สัญญาเช่า,Com&Res,Operation
+Real Estate,IT,Project,Line OA,แจ้งหนี้ ตลาด 304 พลาซ่า,Com&Res,Operation
+Real Estate,IT,Project,Website Official - Housing,Template Platform,Housing,Sale&Marketing
+Real Estate,IT,Project,Website Official - Housing,Home Page,Housing,Sale&Marketing
+Real Estate,IT,Project,Website Official - Housing,Promotion,Housing,Sale&Marketing
+Real Estate,IT,Project,Website Official - Housing,Content,Housing,Sale&Marketing
+Real Estate,IT,Project,Website Official - Housing,About Us,Housing,Sale&Marketing
+Real Estate,IT,Project,Web Operation,สัญญาก่อสร้าง,Housing,Construction
+Real Estate,IT,Project,RPA,Vendor,Housing,Purchase
+Real Estate,IT,Project,Web Operation,จัดการเก็บขยะในนิคม,304IP,Operation
+Real Estate,IT,Project,Web Corporate,เบิกเงินสดย่อย,All BU,All Department
+Real Estate,IT,Project,Web Corporate,จ่ายเงินบัตรเครดิต,All BU,All Department
+Real Estate,IT,Project,Web Corporate,Vender Payment,All BU,All Department
+Logistic,IT,Project,Web Corporate,Vender Payment,All BU,All Department
+Power,IT,Project,Web Operation,แจ้งเตือนต่อใบอนุญาติ NPS,Permit,Legel
+Logistic,IMP,Project,บันทึกมิเตอร์น้ำมัน,,Logistic,CR
+Logistic,IMP,Support MA,บันทึกมิเตอร์น้ำมัน,,Logistic,CR
+Power,IMP,Support MA,Application form - Website,Appscript,Corporate,HR Recruit
+Power,IMP,Support MA,Application form - Website,Antigravity,Corporate,HR Recruit
+Power,IMP,Project,Application form - Website,Antigravity,Corporate,HR Recruit
+Real Estate,IT,Upgrade,ERP - Netsuite,การ Close PR,Com&Res,Operation
+Real Estate,IT,Upgrade,ERP - Netsuite,การ Close PO NetSuite,Com&Res,Purchase
+Real Estate,IT,Upgrade,ERP - Mango,Implement Rollout - IC Module,Housing,Construction
+Real Estate,IMP,Upgrade,CSAT,,Housing,Call center
+Real Estate,IMP,Upgrade,Function ยืน - คืน Store DAP,,Com&Res,Accounting
+Real Estate,IMP,Upgrade,Function ยืน - คืน Store DAP,,Com&Res,Maintenance
+Real Estate,IMP,Upgrade,Function ยืน - คืน Store IP,,Com&Res,Accounting
+Real Estate,IMP,Upgrade,Function ยืน - คืน Store IP,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,Tracking signboard,Vendor RKP Media,Housing,Marketing
+Real Estate,IMP,Support MA,Tracking signboard,Vendor TNK 28,Housing,Marketing
+Real Estate,IMP,Support MA,Tracking signboard,XP Inklet,Housing,Marketing
+Real Estate,IMP,Project,Tracking การเตรียมห้องพร้อมขาย,,Com&Res,Maintenance
+Real Estate,IMP,Project,Tracking การเตรียมห้องพร้อมขาย,,Com&Res,Operation
+Real Estate,IMP,Support MA,Tracking การเตรียมห้องพร้อมขาย,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,Tracking การเตรียมห้องพร้อมขาย,,Com&Res,Operation
+Real Estate,IMP,Upgrade,บันทึกการเก็บค่าส่วนกลาง DAP,,Housing,Juristic
+Real Estate,IMP,Upgrade,ระบบตรวจนับทรัพย์สิน สวนมะพร้าว,,Coconut,Accounting
+Real Estate,IMP,Upgrade,ระบบตรวจนับทรัพย์สิน สวนมะพร้าว,,Coconut,Operation
+Real Estate,IMP,Upgrade,ระบบติดตามสถานะการส่งฟ้อง DAP,,Housing,Juristic
+Real Estate,IMP,Upgrade,เว็บไซต์ค่าส่วนกลาง DAP,,Housing,Juristic
+Logistic,IMP,Upgrade,Stock Inventory FTP,Part report,Logistic,Accounting
+Logistic,IMP,Upgrade,Stock Inventory FTP,Part report,Logistic,Operation
+Real Estate,IMP,Support MA,Other - BG Residential,,Com&Res,Maintenance
+Real Estate,IT,Support MA,Web Operation,โปรแกรมเช่า - Master Data,Com&Res,Operation
+Real Estate,IT,Support MA,Web Operation,โปรแกรมเช่า - Accounting,Com&Res,Operation
+Real Estate,IT,Support MA,Web Operation,โปรแกรมเช่า - Report,Com&Res,Operation
+Real Estate,IT,Support MA,Web Operation,โปรแกรมเช่า - Garuantee,Com&Res,Operation
+Real Estate,IT,Support MA,Web Operation,โปรแกรมเช่า - ERP Integration,Com&Res,Accounting
+Real Estate,IT,Support MA,ERP - Mango,Master Data,Housing,All Department
+Real Estate,IT,Support MA,ERP - Mango,BD,Housing,All Department
+Real Estate,IT,Support MA,ERP - Mango,OF,Housing,All Department
+Real Estate,IT,Support MA,ERP - Mango,PO,Housing,All Department
+Real Estate,IT,Support MA,ERP - Mango,AP,Housing,All Department
+Real Estate,IT,Support MA,ERP - Mango,AR,Housing,All Department
+Real Estate,IT,Support MA,ERP - Mango,GL,Housing,Accounting
+Real Estate,IT,Support MA,ERP - Mango,FA,Housing,Accounting
+Real Estate,IT,Support MA,ERP - Mango,PM,Housing,All Department
+Real Estate,IT,Support MA,ERP - Mango,User&Authorize,Housing,All Department
+Real Estate,IT,Support MA,ERP - Mango,IC,Housing,All Department
+Real Estate,IT,Support MA,ERP - Mango (RE),Sale Process (จอง/สัญญา),Housing,Sale&Marketing
+Real Estate,IT,Support MA,ERP - Mango (RE),Finance Process (ทำรับเงินต่างๆ),Housing,Accouting&Finance
+Real Estate,IT,Support MA,ERP - Mango (RE),ทีมโอน,Housing,GRM
+Real Estate,IT,Support MA,ERP - Mango (RE),Master Data / Document Template,Housing,All Department
+Real Estate,IT,Project,ERP - Mango,Implement - Twice Condo,Holding,Accounting
+Real Estate,IT,Support MA,ERP - Mac5,Data&Report,Com&Res,All Department
+Real Estate,IT,Support MA,ERP - Mac5,Data&Report,Housing,All Department
+Real Estate,IT,Support MA,ERP - Mac5,Data&Report,304IP,All Department
+Real Estate,IT,Support MA,ERP - Mac5,Data&Report,Holding,All Department
+Real Estate,IT,Support MA,ERP - Netsuite,Master Data,All BU,All Department
+Real Estate,IT,Support MA,ERP - Netsuite,Budget Control,Com&Res,All Department
+Real Estate,IT,Support MA,ERP - Netsuite,Budget Control,304IP,
+Real Estate,IT,Support MA,ERP - Netsuite,Budget Control,Holding,
+Real Estate,IT,Support MA,ERP - Netsuite,P2P - PR,Com&Res,Operation
+Real Estate,IT,Support MA,ERP - Netsuite,P2P - PO (Lock Price),Com&Res,Operation
+Real Estate,IT,Support MA,ERP - Netsuite,P2P - PO (จัดซื้อ),Com&Res,Purchase
+Real Estate,IT,Support MA,ERP - Netsuite,P2P - Vendor Bill,Com&Res,Accounting
+Real Estate,IT,Support MA,ERP - Netsuite,P2P - Bill Payment,Com&Res,Financial
+Real Estate,IT,Support MA,ERP - Netsuite,O2C,Com&Res,Accounting
+Real Estate,IT,Support MA,ERP - Netsuite,Accouting,Com&Res,Accounting
+Real Estate,IMP,Support MA,Jawis- font web/back web,,Coconut,Operation
+Real Estate,IMP,Support MA,Jawis- font web/back web,,Com&Res,Maintenance
+Real Estate,IMP,Support MA,Jawis- font web/back web,,Com&Res,Operation
+Real Estate,IMP,Support MA,Jawis- font web/back web,,Corporate,Internal Audit
+Real Estate,IMP,Support MA,Jawis- font web/back web,,Housing,After sale
+Real Estate,IMP,Support MA,Jawis- font web/back web,,Housing,Construction
+Real Estate,IMP,Support MA,Jawis- font web/back web,,Housing,Juristic
+Real Estate,IMP,Support MA,Jawis- font web/back web,,Housing,Marketing
+Real Estate,IMP,Support MA,Jawis- font web/back web,,Housing,Sale
+Real Estate,IMP,Support MA,Jawis- font web/back web,,IP,Maintenance
+Real Estate,IMP,Support MA,Salesforce,,Housing,Call center
+Real Estate,IMP,Support MA,Salesforce,,Housing,Marketing
+Real Estate,IMP,Support MA,Salesforce,,Housing,Sale
+Real Estate,IT,Support MA,ERP - Netsuite,Fix Asset,Com&Res,Accounting
+Real Estate,IT,Support MA,ERP - Netsuite,P2P - PR,304IP,Operation
+Real Estate,IT,Support MA,ERP - Netsuite,P2P - PO (Lock Price),304IP,Operation
+Real Estate,IT,Support MA,ERP - Netsuite,P2P - PO (จัดซื้อ),304IP,Purchase
+Real Estate,IT,Support MA,ERP - Netsuite,P2P - Vendor Bill,304IP,Accounting
+Real Estate,IT,Support MA,ERP - Netsuite,P2P - Bill Payment,304IP,Financial
+Real Estate,IT,Support MA,ERP - Netsuite,O2C,304IP,Accounting
+Real Estate,IT,Support MA,ERP - Netsuite,Accouting,304IP,Accounting
+Real Estate,IT,Support MA,ERP - Netsuite,Fix Asset,304IP,Accounting
+Real Estate,IT,Support MA,ERP - Netsuite,P2P,Holding,All Department
+Real Estate,IT,Support MA,ERP - Netsuite,O2C,Holding,All Department
+Real Estate,IT,Support MA,ERP - Netsuite,Integration,Holding,All Department
+Real Estate,IT,Support MA,ERP - Netsuite,Master Data,Holding,All Department
+Real Estate,IT,Support MA,ERP - Netsuite,Accouting,Holding,All Department
+Real Estate,IT,Support MA,ERP - Netsuite,Fix Asset,Holding,All Department
+Logistic,IT,Support MA,ERP - Winspeed,Master Data,Logistic,Accounting
+Logistic,IT,Support MA,ERP - Winspeed,AP,,,
+Logistic,IT,Support MA,ERP - Winspeed,AR,,,
+Logistic,IT,Support MA,ERP - Winspeed,GL,,,
+Logistic,IT,Support MA,ERP - Winspeed,PO,,,
+Logistic,IT,Support MA,ERP - Winspeed,SO,,,
+Logistic,IT,Support MA,ERP - Winspeed,E-Tax,,,
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Production,Wood
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Production,Pulp
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Production,Paper
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Production,Winder
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Production,Converting
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Production,DAPK
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Production,DASP
+Double A,IT,Support Go-Live,ERP - Netsuite,WMS,Factory OH,Warehouse
+Double A,IT,Support Go-Live,ERP - Netsuite,P2P,CCP,Purchase
+Double A,IT,Support Go-Live,ERP - Netsuite,P2P,Admin,CR-AP
+Double A,IT,Support Go-Live,ERP - Netsuite,P2P,Production,Wood
+Double A,IT,Support Go-Live,ERP - Netsuite,P2P,Production,Pulp
+Double A,IT,Support Go-Live,ERP - Netsuite,P2P,Production,Paper
+Double A,IT,Support Go-Live,ERP - Netsuite,P2P,Production,Winder
+Double A,IT,Support Go-Live,ERP - Netsuite,P2P,Production,Converting
+Double A,IT,Support Go-Live,ERP - Netsuite,P2P,Production,DAPK
+Double A,IT,Support Go-Live,ERP - Netsuite,P2P,Production,Book Plant
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Accounting,Wood
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Accounting,Pulp
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Accounting,Paper
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Accounting,Winder
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Accounting,Converting
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Accounting,DAPK
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Accounting,DASP
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Accounting,Warehouse
+Double A,IT,Support Go-Live,ERP - Netsuite,MFG,Accounting,All
+Double A,IT,Support Go-Live,ERP - Netsuite,Warehouse : WMS,Factory OH,Warehouse
+Double A,IT,Support Go-Live,ERP - Netsuite,Warehouse : Netsuite,Factory OH,Warehouse
+Double A,IT,Support Go-Live,ERP - Netsuite,Master Data,Production,Wood
+Double A,IT,Support Go-Live,ERP - Netsuite,Master Data,Production,Pulp
+Double A,IT,Support Go-Live,ERP - Netsuite,Master Data,Production,Paper
+Double A,IT,Support Go-Live,ERP - Netsuite,Master Data,Production,Winder
+Double A,IT,Support Go-Live,ERP - Netsuite,Master Data,Production,Converting
+Double A,IT,Support Go-Live,ERP - Netsuite,Master Data,Production,DAPK
+Double A,IT,Support Go-Live,ERP - Netsuite,Master Data,Production,DASP
+Double A,IT,Support Go-Live,ERP - Netsuite,Master Data,Production,DAOS
+Double A,IT,Support Go-Live,ERP - Netsuite,Master Data,Production,Service
+Double A,IT,Support Go-Live,ERP - Netsuite,O2C,O2C - Domestic,Sale
+Double A,IT,Support Go-Live,ERP - Netsuite,O2C,O2C - Domestic,Marketing
+Double A,IT,Support Go-Live,ERP - Netsuite,O2C,O2C - Export,Sale
+Double A,IT,Support Go-Live,ERP - Netsuite,O2C,O2C - Export,Marketing
+Double A,IT,Support MA,ERP - Netsuite,MFG,Production,Wood
+Double A,IT,Support MA,ERP - Netsuite,MFG,Production,Pulp
+Double A,IT,Support MA,ERP - Netsuite,MFG,Production,Paper
+Double A,IT,Support MA,ERP - Netsuite,MFG,Production,Winder
+Double A,IT,Support MA,ERP - Netsuite,MFG,Production,Converting
+Double A,IT,Support MA,ERP - Netsuite,MFG,Production,DAPK
+Double A,IT,Support MA,ERP - Netsuite,MFG,Production,DASP
+Double A,IT,Support MA,ERP - Netsuite,Warehouse : WMS,Factory OH,Warehouse
+Double A,IT,Support MA,ERP - Netsuite,Warehouse : Netsuite,Factory OH,Warehouse
+Double A,IT,Support MA,ERP - Netsuite,P2P,CCP,Purchase
+Double A,IT,Support MA,ERP - Netsuite,P2P,Admin,CR-AP
+Double A,IT,Support MA,ERP - Netsuite,P2P,Production,Wood
+Double A,IT,Support MA,ERP - Netsuite,P2P,Production,Pulp
+Double A,IT,Support MA,ERP - Netsuite,P2P,Production,Paper
+Double A,IT,Support MA,ERP - Netsuite,P2P,Production,Winder
+Double A,IT,Support MA,ERP - Netsuite,P2P,Production,Converting
+Double A,IT,Support MA,ERP - Netsuite,P2P,Production,DAPK
+Double A,IT,Support MA,ERP - Netsuite,P2P,Production,Book Plant
+Double A,IT,Support MA,ERP - Netsuite,MFG,Accounting,Wood
+Double A,IT,Support MA,ERP - Netsuite,MFG,Accounting,Pulp
+Double A,IT,Support MA,ERP - Netsuite,MFG,Accounting,Paper
+Double A,IT,Support MA,ERP - Netsuite,MFG,Accounting,Winder
+Double A,IT,Support MA,ERP - Netsuite,MFG,Accounting,Converting
+Double A,IT,Support MA,ERP - Netsuite,MFG,Accounting,DAPK
+Double A,IT,Support MA,ERP - Netsuite,MFG,Accounting,DASP
+Double A,IT,Support MA,ERP - Netsuite,MFG,Accounting,Warehouse
+Double A,IT,Support MA,ERP - Netsuite,MFG,Accounting,All
+Double A,IT,Support MA,ERP - Netsuite,Master Data,Production,Wood
+Double A,IT,Support MA,ERP - Netsuite,Master Data,Production,Pulp
+Double A,IT,Support MA,ERP - Netsuite,Master Data,Production,Paper
+Double A,IT,Support MA,ERP - Netsuite,Master Data,Production,Winder
+Double A,IT,Support MA,ERP - Netsuite,Master Data,Production,Converting
+Double A,IT,Support MA,ERP - Netsuite,Master Data,Production,DAPK
+Double A,IT,Support MA,ERP - Netsuite,Master Data,Production,DASP
+Double A,IT,Support MA,ERP - Netsuite,Master Data,Production,DAOS
+Double A,IT,Support MA,ERP - Netsuite,Master Data,Production,Service
+Double A,IT,Support MA,ERP - Netsuite,O2C,O2C - Domestic,Sale
+Double A,IT,Support MA,ERP - Netsuite,O2C,O2C - Domestic,Marketing
+Double A,IT,Support MA,ERP - Netsuite,O2C,O2C - Export,Sale
+Double A,IT,Support MA,ERP - Netsuite,O2C,O2C - Export,Marketing
+```
