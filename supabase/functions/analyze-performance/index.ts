@@ -130,26 +130,19 @@ serve(async (req) => {
     // 2.1 Description Enhancement branch
     if (action === 'enhance_description') {
       const { description, project_name, action_name, duration } = body;
-      
-      const customPromptOverride = configs.ai_enhancement_prompt || '';
 
-      const systemPrompt = `You are a professional HR assistant specialized in refining work logs.
-Your task is to rephrase the given work description to highlight business impact, process improvements, cost savings, time saved, and overall value added for executives and managers.
-Keep it highly professional, positive, clear, and action-oriented.
-Return ONLY the rephrased text. Do not add intro/outro text, conversational remarks, or markdown code blocks.
-${customPromptOverride ? `\nFollow these custom guidelines: ${customPromptOverride}` : ''}`;
+      // Load prompts from DB (with fallback defaults)
+      const systemPrompt = configs.prompt_enhance_system ||
+        `You are an expert HR Coach and Technical Writer helper. Your job is to rewrite raw employee work logs into professional, business-oriented descriptions.`;
 
-      const userPrompt = `
-[CONTEXT]
-Project: ${project_name || 'N/A'}
-Action Category: ${action_name || 'N/A'}
-Duration: ${duration ? `${duration} hours` : 'N/A'}
+      const rawUserTemplate = configs.prompt_enhance_user ||
+        `Context details:\n- Project Name: {project_name}\n- Category/Action: {action_name}\n- Duration of task: {duration} hours\n\nRAW WORK LOG DESCRIPTION TO REPHRASE:\n{description}\n\nINSTRUCTION:\nPolitely rephrase this work log in the same language it was written (Thai or English) to sound extremely professional, emphasizing business impact, cost-saving, time efficiency, and strategic execution. Keep it concise (1-3 sentences). Only return the final refined description text.`;
 
-[ORIGINAL WORK DESCRIPTION]
-${description || '(Empty)'}
-
-INSTRUCTION:
-Politely rephrase this work log in the same language it was written (Thai or English) to sound extremely professional, emphasizing business impact, cost-saving, time efficiency, and strategic execution. Keep it concise (1-3 sentences). Only return the final refined description text.`;
+      const userPrompt = rawUserTemplate
+        .replace('{project_name}', project_name || 'N/A')
+        .replace('{action_name}', action_name || 'N/A')
+        .replace('{duration}', duration ? String(duration) : 'N/A')
+        .replace('{description}', description || '(Empty)');
 
       const response = await callLlmWithFallback(
         endpoint,
@@ -229,11 +222,31 @@ Politely rephrase this work log in the same language it was written (Thai or Eng
     const durationDays = (new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 3600 * 24) + 1;
     const avgHoursPerDay = (totalHours / durationDays).toFixed(2);
 
-    // 6. Call LLM API
-    const systemPrompt = `You are a professional HR diagnostic agent analyzing employee performance and workload.
-You must STRICTLY return a JSON object containing the exact keys requested. Do not return markdown wrapped JSON blocks.`;
+    // 6. Call LLM API — load prompts from DB with fallback
+    const systemPrompt = configs.prompt_audit_system ||
+      `You are a professional HR diagnostic agent analyzing employee performance and workload. You must STRICTLY return a JSON object containing the exact keys requested. Do not return markdown wrapped JSON blocks.`;
 
-    const userPrompt = `
+    const rawAuditTemplate = configs.prompt_audit_user || '';
+
+    let userPrompt: string;
+    if (rawAuditTemplate) {
+      // Use the custom DB template with variable substitution
+      const weightSummary = keyResponsibilities.length > 0
+        ? keyResponsibilities.map((r: any) => `- ${r.category}: ${r.weight}% target`).join('\n')
+        : 'Not specified';
+      userPrompt = rawAuditTemplate
+        .replace('{employee_name}', userProfile?.full_name || 'Unknown')
+        .replace('{position}', userJd?.position_name || userProfile?.position || 'General Staff')
+        .replace('{role}', userProfile?.role || 'Unknown')
+        .replace('{department}', userProfile?.department || 'Unknown')
+        .replace('{job_description}', jdText)
+        .replace('{duration_days}', String(durationDays))
+        .replace('{total_hours}', String(totalHours))
+        .replace('{avg_hours_per_day}', String(avgHoursPerDay))
+        .replace('{worklog_summary}', aggregatedLogs);
+    } else {
+      // Fallback: built-in prompt
+      userPrompt = `
 [EMPLOYEE PROFILE]
 Name: ${userProfile?.full_name || 'Unknown'}
 Position: ${userJd?.position_name || userProfile?.position || 'General Staff'}
@@ -271,7 +284,7 @@ Strictly return a raw JSON object (no markdown wrapping) matching this schema:
   "markdown_executive_summary": "string (formatted markdown)"
 }
 `;
-
+    }
     const response = await callLlmWithFallback(
       endpoint,
       llmHeaders,

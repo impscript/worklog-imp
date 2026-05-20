@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Eye, EyeOff, Save, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Eye, EyeOff, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
 
-type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings';
+type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings' | 'ai_prompt';
 
 export default function AdminPage() {
   const { showToast, showConfirm } = useNotification();
@@ -342,7 +342,8 @@ export default function AdminPage() {
     { key: 'map_user', label: 'User Mappings' },
     { key: 'map_project', label: 'Project Structures' },
     { key: 'users', label: 'System Users' },
-    { key: 'ai_settings', label: 'AI Settings' }
+    { key: 'ai_settings', label: 'AI Settings' },
+    { key: 'ai_prompt', label: 'AI Prompts' }
   ];
 
   const filteredData = getFilteredData();
@@ -365,7 +366,7 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {activeTab !== 'ai_settings' && (
+            {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
               <button 
                 onClick={loadAllData}
                 className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all border border-slate-700/50"
@@ -374,7 +375,7 @@ export default function AdminPage() {
                 <RefreshCw size={18} className={cn(isLoading && "animate-spin")} />
               </button>
             )}
-            {activeTab !== 'ai_settings' && (
+            {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
               <button 
                 onClick={() => openModal()}
                 className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg active:scale-95 text-sm"
@@ -405,7 +406,7 @@ export default function AdminPage() {
         </div>
 
         {/* Search Bar */}
-        {activeTab !== 'ai_settings' && (
+        {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
           <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-4 shadow-lg flex items-center">
             <div className="relative w-full md:w-1/3">
               <input 
@@ -421,7 +422,7 @@ export default function AdminPage() {
         )}
 
         {/* Table Content Card */}
-        {activeTab !== 'ai_settings' ? (
+        {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' ? (
           <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-xl overflow-hidden">
             {isLoading ? (
               <div className="p-16 text-center animate-pulse flex flex-col gap-4">
@@ -662,8 +663,10 @@ export default function AdminPage() {
               </div>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'ai_settings' ? (
           <AISettingsManager />
+        ) : (
+          <AIPromptsManager />
         )}
 
       </div>
@@ -1547,6 +1550,346 @@ function AISettingsManager() {
         </form>
       </div>
 
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// AI PROMPT TEMPLATES MANAGER
+// ─────────────────────────────────────────────────────────────
+
+const PROMPT_DEFAULTS = {
+  prompt_enhance_system: `You are an expert HR Coach and Technical Writer helper. Your job is to rewrite raw employee work logs into professional, business-oriented descriptions.`,
+
+  prompt_enhance_user: `Context details:
+- Project Name: {project_name}
+- Category/Action: {action_name}
+- Duration of task: {duration} hours
+
+RAW WORK LOG DESCRIPTION TO REPHRASE:
+{description}
+
+INSTRUCTION:
+Politely rephrase this work log in the same language it was written (Thai or English) to sound extremely professional, emphasizing business impact, cost-saving, time efficiency, and strategic execution. Keep it concise (1-3 sentences). Only return the final refined description text. Do not include prefix comments like "Here is the rephrased text:" or similar.`,
+
+  prompt_audit_system: `You are a professional HR diagnostic agent analyzing employee performance and workload. You must STRICTLY return a JSON object containing the exact keys requested. Do not return markdown wrapped JSON blocks.`,
+
+  prompt_audit_user: `[EMPLOYEE PROFILE]
+Name: {employee_name}
+Position: {position}
+Role: {role}
+Department: {department}
+
+[TARGET JOB DESCRIPTION]
+{job_description}
+
+[ACTUAL LOGGED WORK DATA (Past {duration_days} Days)]
+Total effort hours logged: {total_hours} hours
+Average hours per day: {avg_hours_per_day} hours
+Key tasks done:
+{worklog_summary}
+
+INSTRUCTION:
+Compare the actual logged work data against the employee's Job Description (JD). Assess how aligned their activities are to their core responsibilities, and analyze if they show signs of workload overloading or underutilization.
+
+Strictly return a raw JSON object (no markdown wrapping) matching this schema:
+{
+  "jd_alignment_score": integer (0 to 100),
+  "burnout_risk_score": integer (0 to 100),
+  "workload_allocation": [
+    {
+      "category": "string",
+      "target_weight_pct": number,
+      "actual_weight_pct": number,
+      "evaluation": "Aligned | Overloaded | Underutilized"
+    }
+  ],
+  "strengths": ["string"],
+  "improvements": ["string"],
+  "development_plan": {
+    "short_term_90_days": "string",
+    "long_term_goals": "string"
+  },
+  "markdown_executive_summary": "string (beautifully formatted markdown summary)"
+}`,
+};
+
+const PROMPT_SECTIONS = [
+  {
+    id: 'enhance',
+    label: '✍️ Worklog Enhancement',
+    description: 'ปรับปรุงการเขียนใบงานให้เป็นมืออาชีพ — AI Polish feature',
+    color: 'indigo',
+    fields: [
+      {
+        key: 'prompt_enhance_system',
+        label: 'System Prompt',
+        hint: 'กำหนดบทบาทของ AI (ห้ามลบ {variables})',
+        rows: 3,
+      },
+      {
+        key: 'prompt_enhance_user',
+        label: 'User Prompt Template',
+        hint: 'Variables: {project_name}, {action_name}, {duration}, {description}',
+        rows: 10,
+      },
+    ],
+  },
+  {
+    id: 'audit',
+    label: '📊 Individual Performance Analysis',
+    description: 'วิเคราะห์พนักงานรายบุคคล เทียบกับ JD — หน้า Reports Individual',
+    color: 'violet',
+    fields: [
+      {
+        key: 'prompt_audit_system',
+        label: 'System Prompt',
+        hint: 'กำหนดบทบาทของ AI — ควรให้ return JSON เสมอ',
+        rows: 3,
+      },
+      {
+        key: 'prompt_audit_user',
+        label: 'User Prompt Template',
+        hint: 'Variables: {employee_name}, {position}, {role}, {department}, {job_description}, {duration_days}, {total_hours}, {avg_hours_per_day}, {worklog_summary}',
+        rows: 14,
+      },
+    ],
+  },
+];
+
+function AIPromptsManager() {
+  const { showToast, showConfirm } = useNotification();
+  const [prompts, setPrompts] = useState<{ [key: string]: string }>(
+    Object.fromEntries(Object.keys(PROMPT_DEFAULTS).map((k) => [k, '']))
+  );
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [collapsed, setCollapsed] = useState<{ [id: string]: boolean }>({});
+  const [dbError, setDbError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchPrompts();
+  }, []);
+
+  const fetchPrompts = async () => {
+    try {
+      setLoading(true);
+      setDbError(null);
+      const keys = Object.keys(PROMPT_DEFAULTS);
+      const { data, error } = await supabase
+        .from('tb_system_config')
+        .select('config_key, config_value')
+        .in('config_key', keys);
+      if (error) throw error;
+
+      const map: { [key: string]: string } = { ...PROMPT_DEFAULTS };
+      (data || []).forEach((row) => {
+        if (row.config_value) map[row.config_key] = row.config_value;
+      });
+      setPrompts(map);
+    } catch (err: any) {
+      setDbError('ไม่สามารถโหลด prompt templates ได้: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const rows = Object.entries(prompts).map(([key, val]) => ({
+        config_key: key,
+        config_value: val,
+      }));
+      const { error } = await supabase.from('tb_system_config').upsert(rows);
+      if (error) throw error;
+      showToast('บันทึก Prompt Templates สำเร็จ!', 'success');
+    } catch (err: any) {
+      showToast('บันทึกไม่สำเร็จ: ' + err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = (sectionId: string) => {
+    const section = PROMPT_SECTIONS.find((s) => s.id === sectionId);
+    if (!section) return;
+    showConfirm({
+      title: `รีเซ็ต "${section.label}" กลับค่าเริ่มต้น?`,
+      message: 'การเปลี่ยนแปลงปัจจุบันจะหายไป',
+      confirmText: 'รีเซ็ต',
+      cancelText: 'ยกเลิก',
+      type: 'danger',
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      const reset: { [key: string]: string } = { ...prompts };
+      section.fields.forEach((f) => {
+        reset[f.key] = PROMPT_DEFAULTS[f.key as keyof typeof PROMPT_DEFAULTS];
+      });
+      setPrompts(reset);
+      showToast(`รีเซ็ต "${section.label}" เป็นค่าเริ่มต้นแล้ว`, 'info');
+    });
+  };
+
+  const toggleCollapse = (id: string) =>
+    setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-slate-400">
+        <RefreshCw className="animate-spin" size={32} />
+        <p className="text-sm">กำลังโหลด Prompt Templates...</p>
+      </div>
+    );
+  }
+
+  if (dbError) {
+    return (
+      <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-8 flex gap-4 items-start">
+        <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={22} />
+        <div>
+          <p className="text-red-300 font-semibold mb-1">เกิดข้อผิดพลาด</p>
+          <p className="text-red-400 text-sm">{dbError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-violet-500/10 to-indigo-500/10 border border-violet-500/20 rounded-2xl p-6">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center shrink-0">
+            <MessageSquare className="text-violet-400" size={22} />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">AI Prompt Templates</h2>
+            <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+              ตั้งค่า prompt ที่ใช้ใน AI features ทั้งหมด — การเปลี่ยนแปลงจะมีผลกับการวิเคราะห์ครั้งถัดไปทันที
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <span className="inline-flex items-center gap-1.5 text-xs bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 rounded-full px-3 py-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                ✍️ Worklog Enhancement
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-xs bg-violet-500/15 text-violet-300 border border-violet-500/25 rounded-full px-3 py-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+                📊 Performance Analysis
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Prompt Sections */}
+      {PROMPT_SECTIONS.map((section) => {
+        const isCollapsed = collapsed[section.id];
+        const colorMap: { [c: string]: string } = {
+          indigo: 'from-indigo-500/10 to-indigo-500/5 border-indigo-500/25',
+          violet: 'from-violet-500/10 to-violet-500/5 border-violet-500/25',
+        };
+        const accentMap: { [c: string]: string } = {
+          indigo: 'text-indigo-400 bg-indigo-500/15 border-indigo-500/25',
+          violet: 'text-violet-400 bg-violet-500/15 border-violet-500/25',
+        };
+        const btnMap: { [c: string]: string } = {
+          indigo: 'border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/15',
+          violet: 'border-violet-500/40 text-violet-300 hover:bg-violet-500/15',
+        };
+        const ringMap: { [c: string]: string } = {
+          indigo: 'focus:ring-indigo-500',
+          violet: 'focus:ring-violet-500',
+        };
+        return (
+          <div
+            key={section.id}
+            className={`bg-gradient-to-br ${colorMap[section.color]} border rounded-2xl overflow-hidden transition-all`}
+          >
+            {/* Section Header */}
+            <button
+              onClick={() => toggleCollapse(section.id)}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/5 transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${accentMap[section.color]}`}>
+                  {section.label}
+                </span>
+                <span className="text-slate-400 text-sm hidden md:block">{section.description}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleReset(section.id); }}
+                  className={`hidden group-hover:inline-flex items-center gap-1.5 text-xs px-3 py-1.5 border rounded-lg transition-colors ${btnMap[section.color]}`}
+                  title="รีเซ็ตเป็นค่าเริ่มต้น"
+                >
+                  <RotateCcw size={12} />
+                  <span>Reset Default</span>
+                </button>
+                {isCollapsed ? (
+                  <ChevronDown size={18} className="text-slate-400" />
+                ) : (
+                  <ChevronUp size={18} className="text-slate-400" />
+                )}
+              </div>
+            </button>
+
+            {/* Section Fields */}
+            {!isCollapsed && (
+              <div className="px-6 pb-6 space-y-5">
+                {section.fields.map((field) => (
+                  <div key={field.key}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-sm font-semibold text-slate-200">
+                        {field.label}
+                      </label>
+                      <span className="text-xs text-slate-500 font-mono">{field.key}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-2">{field.hint}</p>
+                    <textarea
+                      value={prompts[field.key] || ''}
+                      onChange={(e) =>
+                        setPrompts((prev) => ({ ...prev, [field.key]: e.target.value }))
+                      }
+                      rows={field.rows}
+                      className={`w-full bg-[#0A1628] border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-sm font-mono leading-relaxed placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:border-transparent resize-y transition-all ${ringMap[section.color]}`}
+                      spellCheck={false}
+                    />
+                    <div className="flex justify-end mt-1">
+                      <span className="text-xs text-slate-600">
+                        {(prompts[field.key] || '').length} chars
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Save Button */}
+      <div className="flex justify-end gap-3 pt-2">
+        <button
+          onClick={fetchPrompts}
+          disabled={saving}
+          className="px-5 py-2.5 border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white rounded-xl font-semibold text-sm transition-all flex items-center gap-2 disabled:opacity-40"
+        >
+          <RefreshCw size={15} />
+          <span>โหลดใหม่</span>
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-violet-900/30 active:scale-95"
+        >
+          {saving ? (
+            <><RefreshCw className="animate-spin" size={15} /><span>กำลังบันทึก...</span></>
+          ) : (
+            <><Save size={15} /><span>บันทึก Templates</span></>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
