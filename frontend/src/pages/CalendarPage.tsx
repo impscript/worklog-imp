@@ -473,6 +473,9 @@ export default function CalendarPage() {
         isOpen={!!viewingLog}
         log={viewingLog}
         onClose={() => setViewingLog(null)}
+        onDeleteSuccess={() => {
+          setRefreshTrigger(prev => prev + 1);
+        }}
       />
     </AppLayout>
   );
