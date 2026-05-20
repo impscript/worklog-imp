@@ -88,9 +88,11 @@ export default function ReportsPage() {
   
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
-  const [activeAiSubTab, setActiveAiSubTab] = useState<'summary' | 'gaps' | 'coaching' | 'logs'>('summary');
+  const [activeAiSubTab, setActiveAiSubTab] = useState<'summary' | 'gaps' | 'coaching' | 'logs' | 'history'>('summary');
   const [aiStep, setAiStep] = useState<number>(0);
   const [aiStepLogs, setAiStepLogs] = useState<{ time: string; message: string; type: 'info' | 'success' | 'error' }[]>([]);
+  const [analysisHistory, setAnalysisHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Pagination State (for Personal Tab)
   const [currentPage, setCurrentPage] = useState(1);
@@ -573,6 +575,49 @@ export default function ReportsPage() {
     } finally {
       setIsAiAnalyzing(false);
     }
+  };
+
+  // Load analysis history for selected user
+  const loadAnalysisHistory = async () => {
+    if (!selectedUser) return;
+    try {
+      setIsLoadingHistory(true);
+      const { data, error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .select('*')
+        .eq('user_id', selectedUser)
+        .order('analysis_date', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      setAnalysisHistory(data || []);
+    } catch (err: any) {
+      showToast('\u0e42\u0e2b\u0e25\u0e14\u0e1b\u0e23\u0e30\u0e27\u0e31\u0e15\u0e34\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08: ' + err.message, 'error');
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Load a historical record into the current analysis view
+  const loadHistoryRecord = (record: any) => {
+    setAiAnalysis({
+      jd_alignment_score: record.jd_alignment_score,
+      burnout_risk_score: record.burnout_risk_score,
+      workload_allocation: record.actual_vs_target,
+      strengths: record.strengths,
+      improvements: record.improvements,
+      development_plan: record.development_plan,
+      markdown_executive_summary: record.raw_ai_report,
+      created_at: record.created_at,
+      isCached: true,
+      model: 'Historical Record',
+      start_date: record.start_date,
+      end_date: record.end_date,
+      total_hours: null,
+      logs_count: null,
+      weights: keyResponsibilities
+    });
+    setActiveAiSubTab('summary');
+    showToast('\u0e42\u0e2b\u0e25\u0e14\u0e1c\u0e25\u0e27\u0e34\u0e40\u0e04\u0e23\u0e32\u0e30\u0e2b\u0e4c\u0e22\u0e49\u0e2d\u0e19\u0e2b\u0e25\u0e31\u0e07\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08', 'success');
   };
 
   // Simple clean markdown parser for pure React
@@ -2889,6 +2934,18 @@ export default function ReportsPage() {
                                 <FileText size={14} />
                                 <span>Diagnostic Logs</span>
                               </button>
+                              <button
+                                onClick={() => { setActiveAiSubTab('history'); loadAnalysisHistory(); }}
+                                className={cn(
+                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                                  activeAiSubTab === 'history'
+                                    ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                                    : "text-slate-400 hover:text-slate-200"
+                                )}
+                              >
+                                <Clock size={14} />
+                                <span>ประวัติการวิเคราะห์</span>
+                              </button>
                             </div>
 
                             {/* Tab Content Display */}
@@ -2947,25 +3004,54 @@ export default function ReportsPage() {
 
                               {activeAiSubTab === 'coaching' && (
                                 <div className="space-y-4">
-                                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                    <Target size={16} /> Strategic Development & Action Plan
+                                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                                    <Target size={16} /> Strategic Development &amp; Action Plan
                                   </h4>
-                                  <div className="grid grid-cols-1 gap-3">
-                                    {(aiAnalysis.development_plan || []).length === 0 ? (
-                                      <div className="text-xs text-slate-500 italic font-mono">No actions scheduled.</div>
-                                    ) : (
-                                      aiAnalysis.development_plan.map((act: string, i: number) => (
-                                        <div key={i} className="flex items-start gap-3 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 shadow-sm text-xs text-slate-300">
-                                          <div className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-mono font-bold text-[10px]">
-                                            {i + 1}
-                                          </div>
-                                          <div className="flex-1 leading-relaxed">
-                                            {act}
-                                          </div>
+                                  {(() => {
+                                    const plan = aiAnalysis.development_plan;
+                                    if (!plan || (typeof plan === 'object' && !Array.isArray(plan) && Object.keys(plan).length === 0)) {
+                                      return <div className="text-xs text-slate-500 italic font-mono">No development plan generated.</div>;
+                                    }
+                                    // Handle object shape {short_term_90_days, long_term_goals}
+                                    if (typeof plan === 'object' && !Array.isArray(plan)) {
+                                      return (
+                                        <div className="space-y-4">
+                                          {plan.short_term_90_days && (
+                                            <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-2xl p-4">
+                                              <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                                                Short-Term Goals (90 Days)
+                                              </div>
+                                              <p className="text-xs text-slate-300 leading-relaxed">{plan.short_term_90_days}</p>
+                                            </div>
+                                          )}
+                                          {plan.long_term_goals && (
+                                            <div className="bg-violet-500/5 border border-violet-500/15 rounded-2xl p-4">
+                                              <div className="text-[10px] font-bold text-violet-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-violet-400"></span>
+                                                Long-Term Career Goals
+                                              </div>
+                                              <p className="text-xs text-slate-300 leading-relaxed">{plan.long_term_goals}</p>
+                                            </div>
+                                          )}
                                         </div>
-                                      ))
-                                    )}
-                                  </div>
+                                      );
+                                    }
+                                    // Handle legacy array shape
+                                    if (Array.isArray(plan)) {
+                                      return (
+                                        <div className="grid grid-cols-1 gap-3">
+                                          {plan.map((act: string, i: number) => (
+                                            <div key={i} className="flex items-start gap-3 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 shadow-sm text-xs text-slate-300">
+                                              <div className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-mono font-bold text-[10px]">{i + 1}</div>
+                                              <div className="flex-1 leading-relaxed">{act}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                                 </div>
                               )}
 
@@ -3067,6 +3153,59 @@ export default function ReportsPage() {
                                       </>
                                     )}
                                   </div>
+                                </div>
+                              )}
+
+                              {activeAiSubTab === 'history' && (
+                                <div className="space-y-3 animate-in fade-in duration-300">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Clock size={14} /> ประวัติผลการวิเคราะห์
+                                    </h4>
+                                    <button
+                                      onClick={loadAnalysisHistory}
+                                      disabled={isLoadingHistory}
+                                      className="text-[10px] font-mono text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors"
+                                    >
+                                      <RefreshCw size={10} className={isLoadingHistory ? 'animate-spin' : ''} />
+                                      {isLoadingHistory ? 'กำลังโหลด...' : 'รีเฟรช'}
+                                    </button>
+                                  </div>
+                                  {isLoadingHistory ? (
+                                    <div className="text-xs text-slate-500 italic text-center py-8">กำลังโหลดประวัติ...</div>
+                                  ) : analysisHistory.length === 0 ? (
+                                    <div className="text-xs text-slate-500 italic text-center py-8 border border-dashed border-slate-700/50 rounded-2xl">
+                                      ยังไม่มีประวัติการวิเคราะห์สำหรับพนักงานคนนี้
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                                      {analysisHistory.map((record: any, idx: number) => (
+                                        <div
+                                          key={record.id || idx}
+                                          className="flex items-center justify-between bg-[#0F172A]/60 border border-slate-700/40 hover:border-emerald-500/30 rounded-2xl px-4 py-3 transition-all group"
+                                        >
+                                          <div className="flex flex-col gap-0.5">
+                                            <div className="text-xs font-semibold text-slate-200">
+                                              📅 {record.start_date} → {record.end_date}
+                                            </div>
+                                            <div className="text-[10px] font-mono text-slate-500">
+                                              วิเคราะห์เมื่อ: {new Date(record.created_at).toLocaleString('th-TH')}
+                                            </div>
+                                            <div className="flex gap-3 mt-1">
+                                              <span className="text-[10px] text-indigo-400 font-mono">JD Align: <strong>{record.jd_alignment_score}%</strong></span>
+                                              <span className="text-[10px] text-amber-400 font-mono">Burnout: <strong>{record.burnout_risk_score}%</strong></span>
+                                            </div>
+                                          </div>
+                                          <button
+                                            onClick={() => loadHistoryRecord(record)}
+                                            className="px-3 py-1.5 rounded-xl text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all opacity-0 group-hover:opacity-100"
+                                          >
+                                            โหลดผล
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
