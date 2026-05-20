@@ -20,6 +20,8 @@ test_db.js
 insert_ronnachai.js
 analyze_csv.js
 read_csv_sample.js
+migrate_pound_data.js
+test_tables.js
 
 # Raw CSV data files (sensitive / working data)
 *.csv

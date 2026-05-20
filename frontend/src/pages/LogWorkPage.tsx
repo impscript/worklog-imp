@@ -266,7 +266,7 @@ function findSmartTimeSlot(hoursNeeded: number, existingEntries: any[]): { start
 
 export default function LogWorkPage() {
   const { showToast } = useNotification();
-  const [session] = useState(() => JSON.parse(sessionStorage.getItem('worklog_session') || '{}'));
+  const [session] = useState(() => JSON.parse(localStorage.getItem('worklog_session') || '{}'));
   const [editingLog, setEditingLog] = useState<any | null>(null);
   const [viewingLog, setViewingLog] = useState<any | null>(null);
   
@@ -1286,4 +1286,3 @@ function DropdownField({ label, value, onChange, options, disabled, placeholder 
     </div>
   )
 }
-

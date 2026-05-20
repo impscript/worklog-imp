@@ -69,7 +69,7 @@ export default function DashboardPage() {
   const endOfWeek = formatDateToYMD(weekDays[6]);
 
   useEffect(() => {
-    const sessionStr = sessionStorage.getItem('worklog_session');
+    const sessionStr = localStorage.getItem('worklog_session');
     if (!sessionStr) {
       navigate('/login');
       return;
