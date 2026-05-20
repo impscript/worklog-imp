@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
@@ -860,13 +860,13 @@ export default function LogWorkPage() {
                 options={availableProjectTypes} 
                 placeholder="Select Type"
               />
-              <DropdownField 
-                label="Project Name" 
-                value={selectedProjectKey} 
-                onChange={setSelectedProjectKey} 
-                options={availableProjects} 
+              <SearchableCombobox
+                label="Project Name"
+                value={selectedProjectKey}
+                onChange={setSelectedProjectKey}
+                options={availableProjects}
                 disabled={!projectType}
-                placeholder="Select Project"
+                placeholder="Search project..."
               />
             </div>
 
@@ -880,13 +880,13 @@ export default function LogWorkPage() {
                 disabled={!selectedProjectKey || availableModules.length === 0}
                 placeholder={availableModules.length === 0 && selectedProjectKey ? "No Module (Auto-skip)" : "Select Module"}
               />
-              <DropdownField 
-                label="Action" 
-                value={actionName} 
-                onChange={setActionName} 
-                options={availableActions} 
+              <SearchableCombobox
+                label="Action"
+                value={actionName}
+                onChange={setActionName}
+                options={availableActions}
                 disabled={!projectType}
-                placeholder="Select Action"
+                placeholder="Search action..."
               />
             </div>
 
@@ -1285,4 +1285,163 @@ function DropdownField({ label, value, onChange, options, disabled, placeholder 
       </div>
     </div>
   )
+}
+
+// ─── Searchable Combobox ──────────────────────────────────────────────────
+// Replaces plain <select> for fields with many options (Project Name, Action).
+// Supports type-to-filter, click-to-select, and click-outside-to-close.
+function SearchableCombobox({
+  label,
+  value,
+  onChange,
+  options,
+  disabled,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: (string | DropdownOption)[];
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Display label for the currently selected value
+  const selectedLabel = useMemo(() => {
+    if (!value) return '';
+    const opt = options.find((o) =>
+      (typeof o === 'string' ? o : o.value) === value
+    );
+    return opt ? (typeof opt === 'string' ? opt : opt.label) : value;
+  }, [value, options]);
+
+  // Filter options by search query
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return options;
+    return options.filter((o) => {
+      const lbl = typeof o === 'string' ? o : o.label;
+      return lbl.toLowerCase().includes(q);
+    });
+  }, [options, query]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setQuery('');
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelect = (optVal: string) => {
+    onChange(optVal);
+    setIsOpen(false);
+    setQuery('');
+  };
+
+  // When open: show typed query; when closed: show selected label
+  const displayValue = isOpen ? query : selectedLabel;
+
+  return (
+    <div ref={containerRef}>
+      <label
+        className={cn(
+          'block text-sm font-medium mb-1.5 transition-colors',
+          disabled ? 'text-slate-500' : 'text-slate-300'
+        )}
+      >
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          type="text"
+          value={displayValue}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (!isOpen) setIsOpen(true);
+          }}
+          onFocus={() => {
+            if (!disabled) {
+              setIsOpen(true);
+              setQuery('');
+            }
+          }}
+          disabled={disabled}
+          placeholder={selectedLabel || placeholder}
+          autoComplete="off"
+          className={cn(
+            'w-full border rounded-lg py-2.5 px-4 pr-10 focus:outline-none focus:ring-2 transition-all text-sm',
+            disabled
+              ? 'bg-[#0F172A]/50 border-slate-700/50 text-slate-500 cursor-not-allowed'
+              : 'bg-[#0F172A] border-slate-600 text-slate-200 focus:ring-indigo-500 focus:border-transparent cursor-text hover:border-slate-500'
+          )}
+        />
+        <ChevronDown
+          size={16}
+          className={cn(
+            'absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-200',
+            disabled ? 'text-slate-600' : 'text-slate-400',
+            isOpen && 'rotate-180'
+          )}
+        />
+
+        {/* Dropdown list */}
+        {isOpen && !disabled && (
+          <div className="absolute z-50 mt-1 w-full bg-[#1E293B] border border-slate-700 rounded-xl shadow-2xl shadow-black/40 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+            {/* Result count hint */}
+            {query && (
+              <div className="px-4 pt-2.5 pb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                {filtered.length} result{filtered.length !== 1 ? 's' : ''} for &ldquo;{query}&rdquo;
+              </div>
+            )}
+            <div className="max-h-60 overflow-y-auto">
+              {filtered.length === 0 ? (
+                <div className="px-4 py-5 text-sm text-slate-500 text-center flex flex-col items-center gap-1">
+                  <span className="text-2xl">🔍</span>
+                  <span>No matches found</span>
+                </div>
+              ) : (
+                filtered.map((opt) => {
+                  const optVal = typeof opt === 'string' ? opt : opt.value;
+                  const optLabel = typeof opt === 'string' ? opt : opt.label;
+                  const isSelected = optVal === value;
+                  return (
+                    <button
+                      key={optVal}
+                      type="button"
+                      // Use onMouseDown to fire before onBlur closes the dropdown
+                      onMouseDown={(e) => { e.preventDefault(); handleSelect(optVal); }}
+                      className={cn(
+                        'w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-2.5 group',
+                        isSelected
+                          ? 'bg-indigo-500/20 text-indigo-300 font-semibold'
+                          : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'flex items-center justify-center w-4 h-4 shrink-0',
+                          isSelected ? 'opacity-100' : 'opacity-0'
+                        )}
+                      >
+                        <Check size={13} className="text-indigo-400" />
+                      </span>
+                      <span className="leading-snug">{optLabel}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

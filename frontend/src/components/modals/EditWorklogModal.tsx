@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { X, Clock, AlertTriangle, Calendar as CalendarIcon, Zap } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { X, Clock, AlertTriangle, Calendar as CalendarIcon, Zap, ChevronDown, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 import { cn } from '../../lib/utils';
@@ -908,17 +908,13 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
 
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">4. Project Name</label>
-                <select
+                <SearchableCombobox
                   value={projectName}
+                  onChange={handleProjectNameChange}
+                  options={availableProjects}
                   disabled={!projectType}
-                  onChange={(e) => handleProjectNameChange(e.target.value)}
-                  className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
-                >
-                  <option value="">-- เลือกโครงการ --</option>
-                  {availableProjects.map((p) => (
-                    <option key={`p-${p}`} value={p}>{p}</option>
-                  ))}
-                </select>
+                  placeholder="Search project..."
+                />
               </div>
 
               <div>
@@ -938,17 +934,13 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
 
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">6. Action Name</label>
-                <select
+                <SearchableCombobox
                   value={actionName}
+                  onChange={setActionName}
+                  options={availableActions}
                   disabled={!projectType}
-                  onChange={(e) => setActionName(e.target.value)}
-                  className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
-                >
-                  <option value="">-- เลือกการกระทำ --</option>
-                  {availableActions.map((a) => (
-                    <option key={`a-${a}`} value={a}>{a}</option>
-                  ))}
-                </select>
+                  placeholder="Search action..."
+                />
               </div>
             </div>
 
@@ -1127,6 +1119,107 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                 ยืนยันและบันทึก
               </button>
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Searchable Combobox (local to EditWorklogModal) ──────────────────────────
+function SearchableCombobox({
+  value,
+  onChange,
+  options,
+  disabled,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return options;
+    return options.filter((o) => o.toLowerCase().includes(q));
+  }, [options, query]);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setQuery('');
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleSelect = (v: string) => {
+    onChange(v);
+    setIsOpen(false);
+    setQuery('');
+  };
+
+  const displayValue = isOpen ? query : value;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        type="text"
+        value={displayValue}
+        onChange={(e) => { setQuery(e.target.value); if (!isOpen) setIsOpen(true); }}
+        onFocus={() => { if (!disabled) { setIsOpen(true); setQuery(''); } }}
+        disabled={disabled}
+        placeholder={value || placeholder}
+        autoComplete="off"
+        className={`w-full border rounded-xl py-2.5 px-3 pr-9 text-xs focus:outline-none focus:ring-2 transition-all ${
+          disabled
+            ? 'bg-[#0F172A]/50 border-slate-700/50 text-slate-500 cursor-not-allowed opacity-40'
+            : 'bg-[#0F172A]/90 border-slate-700 text-slate-200 focus:ring-indigo-500 focus:border-transparent cursor-text'
+        }`}
+      />
+      <ChevronDown
+        size={14}
+        className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-200 ${
+          disabled ? 'text-slate-600' : 'text-slate-400'
+        } ${isOpen ? 'rotate-180' : ''}`}
+      />
+      {isOpen && !disabled && (
+        <div className="absolute z-[60] mt-1 w-full bg-[#1E293B] border border-slate-700 rounded-xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+          {query && (
+            <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+              {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+            </div>
+          )}
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-slate-500 text-center">🔍 No matches</div>
+            ) : (
+              filtered.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); handleSelect(opt); }}
+                  className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 transition-colors ${
+                    opt === value
+                      ? 'bg-indigo-500/20 text-indigo-300 font-semibold'
+                      : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                  }`}
+                >
+                  <span className={`flex items-center w-3.5 h-3.5 shrink-0 ${opt === value ? 'opacity-100' : 'opacity-0'}`}>
+                    <Check size={12} className="text-indigo-400" />
+                  </span>
+                  {opt}
+                </button>
+              ))
+            )}
           </div>
         </div>
       )}
