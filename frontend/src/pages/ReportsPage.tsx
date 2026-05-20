@@ -312,6 +312,9 @@ export default function ReportsPage() {
         } else {
           setAiAnalysis(null);
         }
+
+        // Always pull fresh history for the sidebar/list as well!
+        loadAnalysisHistory();
       } catch (err) {
         console.error('Error fetching JD or analysis cache:', err);
       }
@@ -565,6 +568,8 @@ export default function ReportsPage() {
       
       setAiStep(6);
       showToast('Performance diagnostics complete!', 'success');
+      // Update history logs in background
+      loadAnalysisHistory();
     } catch (err: any) {
       console.error('Error running performance diagnostics:', err);
       setAiStepLogs(prev => [
@@ -2735,40 +2740,111 @@ export default function ReportsPage() {
                           </div>
                         </div>
                       ) : !aiAnalysis ? (
-                        /* EMPTY STATE: RUN DIAGNOSTICS */
-                        <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-12 shadow-xl flex flex-col items-center justify-center text-center relative overflow-hidden h-full min-h-[500px]">
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
-                          
-                          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-6 shadow-inner animate-pulse">
-                            <Brain size={32} />
+                        /* EMPTY STATE: RUN DIAGNOSTICS WITH PREMIUM DUAL-PANEL */
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                          {/* LEFT PANEL: EXECUTION */}
+                          <div className="lg:col-span-7 bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-8 sm:p-10 shadow-xl flex flex-col items-center justify-center text-center relative overflow-hidden min-h-[460px]">
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+                            
+                            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-5 shadow-inner animate-pulse">
+                              <Brain size={28} />
+                            </div>
+                            
+                            <h3 className="text-lg font-black text-white tracking-tight uppercase mb-2">AI Performance Diagnostics</h3>
+                            <p className="text-xs text-slate-400 max-w-sm leading-relaxed mb-6">
+                              วิเคราะห์ใบงานย้อนหลัง เทียบกับเกณฑ์น้ำหนักความรับผิดชอบ (Job Description) เพื่อประเมินความสอดคล้อง ดัชนีภาวะหมดไฟ และสร้างแผนการโค้ชพนักงานระดับพรีเมียม
+                            </p>
+
+                            <button
+                              onClick={() => handleRunAiAnalysis()}
+                              className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:via-indigo-400 hover:to-purple-500 text-white font-black py-3.5 px-8 rounded-2xl text-xs tracking-wider uppercase transition-all shadow-xl shadow-indigo-600/20 flex items-center gap-2.5 active:scale-[0.98]"
+                            >
+                              <Sparkles className="w-4 h-4 animate-bounce" />
+                              <span>Execute Performance Audit</span>
+                            </button>
+
+                            <div className="grid grid-cols-3 gap-4 max-w-sm mt-8 w-full pt-6 border-t border-slate-700/40">
+                              <div className="text-center">
+                                <span className="text-sm font-black text-indigo-400 block mb-0.5">🎯 Alignment</span>
+                                <span className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">JD vs Worklogs</span>
+                              </div>
+                              <div className="text-center border-x border-slate-700/40">
+                                <span className="text-sm font-black text-indigo-400 block mb-0.5">🔥 Burnout</span>
+                                <span className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Risk Level</span>
+                              </div>
+                              <div className="text-center">
+                                <span className="text-sm font-black text-indigo-400 block mb-0.5">🚀 Coaching</span>
+                                <span className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">Action Plans</span>
+                              </div>
+                            </div>
                           </div>
-                          
-                          <h3 className="text-xl font-black text-white tracking-tight uppercase mb-2">AI Performance Diagnostics</h3>
-                          <p className="text-xs text-slate-400 max-w-sm leading-relaxed mb-8">
-                            Synthesize historical daily worklogs and category target weights to detect JD alignment gaps, evaluate burnout risk levels, and generate premium coaching plans.
-                          </p>
 
-                          <button
-                            onClick={() => handleRunAiAnalysis()}
-                            className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:via-indigo-400 hover:to-purple-500 text-white font-black py-3.5 px-8 rounded-2xl text-xs tracking-wider uppercase transition-all shadow-xl shadow-indigo-600/20 flex items-center gap-2.5 active:scale-[0.98]"
-                          >
-                            <Sparkles className="w-4 h-4" />
-                            <span>Execute Performance Audit</span>
-                          </button>
+                          {/* RIGHT PANEL: HISTORICAL ARCHIVES */}
+                          <div className="lg:col-span-5 bg-[#1E293B]/60 backdrop-blur-xl border border-slate-700/40 rounded-3xl p-6 shadow-xl flex flex-col min-h-[460px]">
+                            <div className="flex items-center justify-between mb-4 border-b border-slate-700/40 pb-3">
+                              <div className="flex items-center gap-2">
+                                <Clock className="text-emerald-400" size={16} />
+                                <span className="text-xs font-extrabold text-slate-200 uppercase tracking-wider">ประวัติผลวิเคราะห์</span>
+                              </div>
+                              <button
+                                onClick={loadAnalysisHistory}
+                                disabled={isLoadingHistory}
+                                className="text-[10px] font-mono text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors"
+                              >
+                                <RefreshCw size={10} className={isLoadingHistory ? 'animate-spin' : ''} />
+                                {isLoadingHistory ? 'กำลังโหลด...' : 'รีเฟรช'}
+                              </button>
+                            </div>
 
-                          <div className="grid grid-cols-3 gap-6 max-w-lg mt-12 w-full pt-8 border-t border-slate-700/40">
-                            <div className="text-center">
-                              <span className="text-lg font-black text-indigo-400 block mb-0.5">🎯 Alignment</span>
-                              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">JD vs Worklogs</span>
-                            </div>
-                            <div className="text-center border-x border-slate-700/40">
-                              <span className="text-lg font-black text-indigo-400 block mb-0.5">🔥 Burnout</span>
-                              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Risk Assessment</span>
-                            </div>
-                            <div className="text-center">
-                              <span className="text-lg font-black text-indigo-400 block mb-0.5">🚀 Coaching</span>
-                              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Action Plans</span>
-                            </div>
+                            {isLoadingHistory ? (
+                              <div className="flex-1 flex flex-col items-center justify-center text-xs text-slate-500 italic py-8">
+                                <Loader2 className="animate-spin text-emerald-400 mb-2" size={18} />
+                                กำลังดึงข้อมูลประวัติย้อนหลัง...
+                              </div>
+                            ) : analysisHistory.length === 0 ? (
+                              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-700/30 rounded-2xl">
+                                <Clock className="text-slate-600 mb-3" size={28} />
+                                <p className="text-xs text-slate-400 font-bold mb-1">ไม่พบประวัติการวิเคราะห์</p>
+                                <p className="text-[10px] text-slate-500 leading-relaxed max-w-[200px]">
+                                  เริ่มการวิเคราะห์ครั้งแรกเพื่อบันทึกประวัติผลงานเก็บไว้ในระบบ
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="flex-1 flex flex-col">
+                                <p className="text-[10px] text-slate-400 mb-3">
+                                  เลือกดูรายงานและแผนพัฒนาที่ AI เคยทำการวิเคราะห์และบันทึกไว้:
+                                </p>
+                                <div className="space-y-2.5 overflow-y-auto max-h-[310px] pr-1 flex-1">
+                                  {analysisHistory.map((record: any, idx: number) => (
+                                    <div
+                                      key={record.id || idx}
+                                      className="bg-[#0F172A]/70 border border-slate-700/50 hover:border-emerald-500/30 rounded-2xl px-4 py-3.5 transition-all group flex flex-col gap-2 relative"
+                                    >
+                                      <div className="flex justify-between items-start gap-1">
+                                        <div className="flex flex-col gap-0.5">
+                                          <div className="text-[11px] font-bold text-slate-200 flex items-center gap-1">
+                                            📅 {record.start_date} ~ {record.end_date}
+                                          </div>
+                                          <div className="text-[9px] text-slate-500 font-mono">
+                                            วิเคราะห์เมื่อ: {new Date(record.created_at).toLocaleDateString('th-TH')}
+                                          </div>
+                                        </div>
+                                        <button
+                                          onClick={() => loadHistoryRecord(record)}
+                                          className="shrink-0 px-2.5 py-1.5 rounded-xl text-[9px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all opacity-90 lg:opacity-0 lg:group-hover:opacity-100"
+                                        >
+                                          ดูรายงานนี้
+                                        </button>
+                                      </div>
+                                      <div className="flex gap-4 border-t border-slate-700/30 pt-2">
+                                        <span className="text-[9px] text-indigo-400 font-mono">JD Align: <strong>{record.jd_alignment_score}%</strong></span>
+                                        <span className="text-[9px] text-amber-400 font-mono">Burnout: <strong>{record.burnout_risk_score}%</strong></span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ) : (
