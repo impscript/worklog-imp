@@ -6,6 +6,7 @@
 CREATE TABLE IF NOT EXISTS public.tb_user_jd (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  position_name TEXT,                             -- ชื่อตำแหน่งงาน (สำหรับ Manual Override / Sync กับ JD)
   jd_source TEXT NOT NULL CHECK (jd_source IN ('uploaded', 'ai_recommended', 'manual_entry')),
   jd_text TEXT NOT NULL,                          -- ข้อความ JD เต็มรูปแบบ
   key_responsibilities JSONB,                     -- โครงสร้างเป้าหมายสัดส่วนน้ำหนัก เช่น [{"category": "Coding", "weight": 60}]

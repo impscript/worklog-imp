@@ -12,11 +12,8 @@ serve(async (req) => {
   }
 
   try {
-    const { user_id, start_date, end_date, force_refresh } = await req.json();
-    
-    if (!user_id || !start_date || !end_date) {
-      throw new Error('Missing required fields (user_id, start_date, end_date)');
-    }
+    const body = await req.json();
+    const { action } = body;
 
     // 1. Initialize Supabase Client with Service Role Key for Admin Access
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
@@ -44,18 +41,86 @@ serve(async (req) => {
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
     } else if (provider === 'gemini') {
       apiKey = configs.gemini_api_key;
-      // Gemini expects a different endpoint structure typically, but we use the OpenAI compat endpoint if possible
       endpoint = `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`; 
     } else if (provider === 'openai') {
       apiKey = configs.openai_api_key;
       endpoint = 'https://api.openai.com/v1/chat/completions';
     } else if (provider === 'opencode') {
       apiKey = configs.opencode_api_key;
-      endpoint = 'https://api.opencode.so/v1/chat/completions'; // Example custom endpoint
+      endpoint = 'https://api.opencode.so/v1/chat/completions';
     }
 
     if (!apiKey) {
       throw new Error(`API Key for ${provider} is not configured.`);
+    }
+
+    // 2.1 Description Enhancement branch
+    if (action === 'enhance_description') {
+      const { description, project_name, action_name, duration } = body;
+      
+      const customPromptOverride = configs.ai_enhancement_prompt || '';
+
+      const systemPrompt = `You are a professional HR assistant specialized in refining work logs.
+Your task is to rephrase the given work description to highlight business impact, process improvements, cost savings, time saved, and overall value added for executives and managers.
+Keep it highly professional, positive, clear, and action-oriented.
+Return ONLY the rephrased text. Do not add intro/outro text, conversational remarks, or markdown code blocks.
+${customPromptOverride ? `\nFollow these custom guidelines: ${customPromptOverride}` : ''}`;
+
+      const userPrompt = `
+[CONTEXT]
+Project: ${project_name || 'N/A'}
+Action Category: ${action_name || 'N/A'}
+Duration: ${duration ? `${duration} hours` : 'N/A'}
+
+[ORIGINAL WORK DESCRIPTION]
+${description || '(Empty)'}
+
+INSTRUCTION:
+Politely rephrase this work log in the same language it was written (Thai or English) to sound extremely professional, emphasizing business impact, cost-saving, time efficiency, and strategic execution. Keep it concise (1-3 sentences). Only return the final refined description text.`;
+
+      const llmHeaders: Record<string, string> = {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      };
+
+      if (provider === 'openrouter') {
+        llmHeaders["HTTP-Referer"] = "https://vibecode.net"; 
+        llmHeaders["X-Title"] = "Worklog HRBP";
+      }
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: llmHeaders,
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`AI API failed: ${response.status} ${errorText}`);
+      }
+
+      const aiResult = await response.json();
+      let enhancedText = aiResult.choices?.[0]?.message?.content || '';
+      
+      // Clean up any markdown blocks if the LLM returned it wrapped
+      enhancedText = enhancedText.replace(/^```[a-zA-Z]*/, '').replace(/```$/, '').trim();
+
+      return new Response(JSON.stringify({ enhanced_text: enhancedText }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // Default performance diagnostics logic
+    const { user_id, start_date, end_date, force_refresh } = body;
+    
+    if (!user_id || !start_date || !end_date) {
+      throw new Error('Missing required fields (user_id, start_date, end_date)');
     }
 
     // 3. Check Cache
@@ -115,6 +180,7 @@ You must STRICTLY return a JSON object containing the exact keys requested. Do n
     const userPrompt = `
 [EMPLOYEE PROFILE]
 Name: ${userProfile?.full_name || 'Unknown'}
+Position: ${userJd?.position_name || userProfile?.position || 'General Staff'}
 Role: ${userProfile?.role || 'Unknown'}
 Department: ${userProfile?.department || 'Unknown'}
 

@@ -81,6 +81,7 @@ export default function ReportsPage() {
   const [jdText, setJdText] = useState('');
   const [keyResponsibilities, setKeyResponsibilities] = useState<{ category: string; weight: number }[]>([]);
   const [jdSource, setJdSource] = useState<'uploaded' | 'ai_recommended' | 'manual_entry'>('manual_entry');
+  const [customPosition, setCustomPosition] = useState('');
   const [isJdEditing, setIsJdEditing] = useState(false);
   const [isSavingJd, setIsSavingJd] = useState(false);
   
@@ -235,10 +236,13 @@ export default function ReportsPage() {
           setJdText(jdData.jd_text);
           setKeyResponsibilities(jdData.key_responsibilities || []);
           setJdSource(jdData.jd_source);
+          setCustomPosition(jdData.position_name || '');
         } else {
           setJdText('');
           setKeyResponsibilities([]);
           setJdSource('manual_entry');
+          const userObj = usersList.find(u => u.id === selectedUser);
+          setCustomPosition(userObj?.position || '');
         }
 
         // Fetch Cached AI Analysis (within last 24h)
@@ -275,12 +279,12 @@ export default function ReportsPage() {
     };
 
     loadJdAndAnalysis();
-  }, [selectedUser, dateFilter, customStart, customEnd, dateBoundaries]);
+  }, [selectedUser, dateFilter, customStart, customEnd, dateBoundaries, usersList]);
 
   // Recommend standard JD based on employee position
   const recommendJd = () => {
-    if (!individualData?.user) return;
-    const pos = (individualData.user.position || '').toLowerCase();
+    const targetPos = customPosition || individualData?.user?.position || '';
+    const pos = targetPos.toLowerCase();
     let text = '';
     let responsibilities: { category: string; weight: number }[] = [];
     
@@ -321,7 +325,7 @@ export default function ReportsPage() {
     setJdText(text);
     setKeyResponsibilities(responsibilities);
     setJdSource('ai_recommended');
-    showToast('Recommended Job Description loaded for ' + (individualData.user.position || 'General Staff'), 'success');
+    showToast('Recommended Job Description loaded for ' + (targetPos || 'General Staff'), 'success');
   };
 
   // Save Job Description to Database
@@ -342,11 +346,31 @@ export default function ReportsPage() {
           user_id: selectedUser,
           jd_text: jdText,
           jd_source: jdSource,
+          position_name: customPosition,
           key_responsibilities: keyResponsibilities,
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' });
 
       if (error) throw error;
+
+      // Sync position back to user profile so that HRMS overrides display correctly across system
+      if (customPosition.trim()) {
+        const { error: userError } = await supabase
+          .from('users')
+          .update({
+            position: customPosition,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', selectedUser);
+        
+        if (userError) {
+          console.error('Error updating user position:', userError);
+        } else {
+          // Update the local usersList state so the UI reflects the change immediately
+          setUsersList(prev => prev.map(u => u.id === selectedUser ? { ...u, position: customPosition } : u));
+        }
+      }
+
       showToast('Job Description saved successfully', 'success');
       setIsJdEditing(false);
     } catch (err: any) {
@@ -1821,6 +1845,10 @@ export default function ReportsPage() {
                         <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest block">Email Address</span>
                         <span className="text-xs font-bold text-slate-300 truncate block max-w-[120px] font-mono">{individualData.user?.email || 'N/A'}</span>
                       </div>
+                      <div className="col-span-2 border-t border-slate-800/60 pt-3 mt-1">
+                        <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest block">Job Position</span>
+                        <span className="text-xs font-bold text-indigo-300 truncate block">{individualData.user?.position || 'General Staff'}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -2272,6 +2300,34 @@ export default function ReportsPage() {
 
                       {/* JD Text Viewer or Editor */}
                       <div className="space-y-4">
+                        {/* Position Field Override */}
+                        {!isJdEditing ? (
+                          <div className="mb-1 bg-[#0F172A]/40 border border-slate-700/30 rounded-2xl p-4 flex items-center justify-between shadow-inner animate-in fade-in duration-200">
+                            <div className="truncate pr-2">
+                              <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest block mb-1">Target Position</span>
+                              <span className="text-xs font-bold text-slate-200 truncate block">
+                                {customPosition || individualData?.user?.position || 'General Staff'}
+                              </span>
+                            </div>
+                            <div className="text-[9px] text-slate-500 italic bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-700/40 font-semibold shrink-0">
+                              {individualData?.user?.position && customPosition && customPosition !== individualData.user.position ? 'Override Active' : 'HRMS Synced'}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mb-1 bg-[#0F172A]/80 border border-slate-700/60 rounded-2xl p-4 focus-within:ring-2 focus-within:ring-indigo-500/40 transition-all shadow-inner animate-in fade-in duration-200">
+                            <label className="text-[10px] text-indigo-400 uppercase font-black tracking-widest block mb-1.5">
+                              Position / Job Title
+                            </label>
+                            <input
+                              type="text"
+                              value={customPosition}
+                              onChange={(e) => setCustomPosition(e.target.value)}
+                              placeholder="e.g. Senior Software Developer"
+                              className="w-full bg-transparent border-0 p-0 text-xs font-bold text-white focus:outline-none focus:ring-0 placeholder-slate-600"
+                            />
+                          </div>
+                        )}
+
                         {!isJdEditing ? (
                           <div className="bg-[#0F172A]/50 border border-slate-700/30 rounded-2xl p-4 shadow-inner max-h-48 overflow-y-auto">
                             {jdText ? (

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye } from 'lucide-react';
+import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
@@ -284,6 +284,7 @@ export default function LogWorkPage() {
   const [description, setDescription] = useState('');
   const [isExplicitOt, setIsExplicitOt] = useState(false);
   const [isTimeCustomized, setIsTimeCustomized] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
 
   // Time Mode State
   const [timeMode, setTimeMode] = useState<'range' | 'duration'>('range');
@@ -641,6 +642,41 @@ export default function LogWorkPage() {
       segments
     };
   }, [startTime, endTime, isBreak, existingEntries, isExplicitOt, isHolidayDate, date, timeMode, durationHours]);
+
+  // Call AI to rephrase and enhance work description for executives
+  const handleEnhanceDescription = async () => {
+    if (!description.trim()) {
+      showToast('กรุณากรอกรายละเอียดงานบางส่วนก่อนเพื่อให้ AI ช่วยปรับปรุง / Please enter some details first', 'warning');
+      return;
+    }
+
+    setIsEnhancing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-performance', {
+        body: {
+          action: 'enhance_description',
+          description: description,
+          project_name: projectName,
+          action_name: actionName,
+          duration: preview.normalHours + preview.otHours
+        }
+      });
+
+      if (error) throw error;
+      
+      if (data?.enhanced_text) {
+        setDescription(data.enhanced_text);
+        showToast('รายละเอียดงานได้รับการขัดเกลาด้วย AI เรียบร้อย! / Work description successfully polished by AI', 'success');
+      } else {
+        showToast('ไม่สามารถขัดเกลาคำได้ กรุณาลองอีกครั้ง / Failed to rephrase description, please try again', 'error');
+      }
+    } catch (err: any) {
+      console.error('Error enhancing description:', err);
+      showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ AI: ' + (err.message || err), 'error');
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -1121,8 +1157,44 @@ export default function LogWorkPage() {
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="What did you work on today?"
-              className="w-full bg-[#0F172A] border border-slate-600 rounded-lg p-4 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
+              className="w-full bg-[#0F172A] border border-slate-600 rounded-lg p-4 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none mb-3"
             ></textarea>
+            
+            {/* AI Enhancement Container */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 gap-3 shadow-inner">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl shrink-0">
+                  <Sparkles size={16} className={cn("animate-pulse", isEnhancing && "animate-spin")} />
+                </div>
+                <div>
+                  <span className="text-[10px] text-indigo-400 uppercase font-black tracking-widest block mb-0.5">ขัดเกลาคำด้วย AI / AI Sparkle</span>
+                  <span className="text-xs text-slate-400 leading-normal block">
+                    ช่วยเกลาคำอธิบายงานให้ออกมาในแง่บวก เห็นภาพความสำเร็จ ประหยัดเวลา และประหยัดต้นทุนสำหรับผู้บริหาร
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleEnhanceDescription}
+                disabled={isEnhancing}
+                className={cn(
+                  "px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:border-slate-700/50 text-white text-xs font-bold rounded-xl border border-indigo-500/30 shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95 transition-all",
+                  isEnhancing && "cursor-not-allowed"
+                )}
+              >
+                {isEnhancing ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>กำลังขัดเกลา...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={13} />
+                    <span>ยกระดับด้วย AI / AI Polish</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Actions */}

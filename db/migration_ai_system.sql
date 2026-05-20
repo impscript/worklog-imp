@@ -17,7 +17,8 @@ VALUES
   ('ai_model', 'google/gemini-2.0-flash-exp:free', 'Active LLM Model ID'),
   ('openai_api_key', '', 'OpenAI API Key (sk-...)'),
   ('gemini_api_key', '', 'Google Gemini API Key (AIzaSy...)'),
-  ('openrouter_api_key', '', 'OpenRouter API Key (sk-or-...)')
+  ('openrouter_api_key', '', 'OpenRouter API Key (sk-or-...)'),
+  ('ai_enhancement_prompt', '', 'Custom prompt guidelines for AI Worklog Description Enhancement')
 ON CONFLICT (config_key) DO NOTHING;
 
 
@@ -113,6 +114,7 @@ CREATE POLICY "Allow full control to ai_team_insights for dev" ON public.tb_ai_t
 CREATE TABLE IF NOT EXISTS public.tb_user_jd (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  position_name TEXT,             -- ชื่อตำแหน่งงาน (สำหรับ Manual Override / Sync กับ JD)
   jd_source TEXT NOT NULL CHECK (jd_source IN ('uploaded', 'ai_recommended', 'manual_entry')),
   jd_text TEXT NOT NULL,          
   key_responsibilities JSONB,     
