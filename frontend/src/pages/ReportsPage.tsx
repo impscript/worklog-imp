@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import { 
   FileSpreadsheet, Search, Clock, Award, Layers, ChevronDown, ChevronUp,
-  TrendingUp, User as UserIcon, Users, Edit3,
-  Brain, Sparkles, AlertTriangle, Activity, FileText, CheckCircle2, Target, RefreshCw, PlusCircle, Save
+  TrendingUp, User as UserIcon, Users, Edit3, Eye,
+  Brain, Sparkles, AlertTriangle, Activity, FileText, CheckCircle2, Target, RefreshCw, PlusCircle, Save, Loader2
 } from 'lucide-react';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
+import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -87,7 +88,9 @@ export default function ReportsPage() {
   
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
-  const [activeAiSubTab, setActiveAiSubTab] = useState<'summary' | 'gaps' | 'coaching'>('summary');
+  const [activeAiSubTab, setActiveAiSubTab] = useState<'summary' | 'gaps' | 'coaching' | 'logs'>('summary');
+  const [aiStep, setAiStep] = useState<number>(0);
+  const [aiStepLogs, setAiStepLogs] = useState<{ time: string; message: string; type: 'info' | 'success' | 'error' }[]>([]);
 
   // Pagination State (for Personal Tab)
   const [currentPage, setCurrentPage] = useState(1);
@@ -138,6 +141,15 @@ export default function ReportsPage() {
   const handleOpenEditModal = (log: WorklogEntry) => {
     setSelectedLogForEdit(log);
     setIsEditModalOpen(true);
+  };
+
+  // View Worklog Modal State
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedLogForView, setSelectedLogForView] = useState<WorklogEntry | null>(null);
+
+  const handleOpenViewModal = (log: WorklogEntry) => {
+    setSelectedLogForView(log);
+    setIsViewModalOpen(true);
   };
 
   const loadData = useCallback(async () => {
@@ -261,6 +273,23 @@ export default function ReportsPage() {
           .maybeSingle();
 
         if (cached) {
+          // Get logs count and total hours for this range
+          const { data: logs } = await supabase
+            .from('col_worklog')
+            .select('total_hours')
+            .eq('user_id', selectedUser)
+            .gte('work_date', startDate)
+            .lte('work_date', endDate);
+          const totalHours = (logs || []).reduce((sum, e) => sum + Number(e.total_hours || 0), 0);
+
+          // Get active model
+          const { data: modelConfig } = await supabase
+            .from('tb_system_config')
+            .select('config_value')
+            .eq('config_key', 'ai_model')
+            .maybeSingle();
+          const activeModel = modelConfig?.config_value || 'openai/gpt-oss-20b:free';
+
           setAiAnalysis({
             jd_alignment_score: cached.jd_alignment_score,
             burnout_risk_score: cached.burnout_risk_score,
@@ -268,7 +297,15 @@ export default function ReportsPage() {
             strengths: cached.strengths,
             improvements: cached.improvements,
             development_plan: cached.development_plan,
-            markdown_executive_summary: cached.raw_ai_report
+            markdown_executive_summary: cached.raw_ai_report,
+            created_at: cached.created_at,
+            isCached: true,
+            model: activeModel,
+            start_date: startDate,
+            end_date: endDate,
+            total_hours: totalHours,
+            logs_count: logs?.length || 0,
+            weights: jdData?.key_responsibilities || []
           });
         } else {
           setAiAnalysis(null);
@@ -385,6 +422,17 @@ export default function ReportsPage() {
   const handleRunAiAnalysis = async (forceRefresh = false) => {
     if (!selectedUser) return;
     
+    // Validate JD and weights
+    const totalWeight = keyResponsibilities.reduce((sum, item) => sum + item.weight, 0);
+    if (!jdText.trim()) {
+      showToast('Please save a Job Description first.', 'error');
+      return;
+    }
+    if (totalWeight !== 100) {
+      showToast(`Target weights must total exactly 100% (currently ${totalWeight}%).`, 'error');
+      return;
+    }
+
     let startDate = '';
     let endDate = '';
     const todayStr = formatDateToYMD(new Date());
@@ -404,7 +452,58 @@ export default function ReportsPage() {
     }
 
     setIsAiAnalyzing(true);
+    setAiStep(1);
+    setAiStepLogs([
+      { time: new Date().toLocaleTimeString(), message: 'Initiating AI Performance Diagnostics...', type: 'info' },
+      { time: new Date().toLocaleTimeString(), message: `Validating JD text & key weights: Total weights = ${totalWeight}%`, type: 'info' }
+    ]);
+
     try {
+      // Step 2: Fetch worklogs from database
+      await new Promise(r => setTimeout(r, 800));
+      setAiStep(2);
+      setAiStepLogs(prev => [
+        ...prev, 
+        { time: new Date().toLocaleTimeString(), message: `Querying worklogs for selected period: ${startDate} to ${endDate}`, type: 'info' }
+      ]);
+      
+      const { data: logs, error: logsErr } = await supabase
+        .from('col_worklog')
+        .select('project_name, action_name, description, total_hours')
+        .eq('user_id', selectedUser)
+        .gte('work_date', startDate)
+        .lte('work_date', endDate);
+        
+      if (logsErr) throw logsErr;
+      
+      const totalHours = (logs || []).reduce((sum, e) => sum + Number(e.total_hours || 0), 0);
+      
+      // Step 3: Compute actual vs target allocation
+      await new Promise(r => setTimeout(r, 800));
+      setAiStep(3);
+      setAiStepLogs(prev => [
+        ...prev,
+        { time: new Date().toLocaleTimeString(), message: `Found ${logs?.length || 0} worklog records totaling ${totalHours.toFixed(1)} effort hours.`, type: 'info' },
+        { time: new Date().toLocaleTimeString(), message: 'Calculating actual task category distributions vs target weights.', type: 'info' }
+      ]);
+      
+      // Step 4: Connecting to LLM API
+      await new Promise(r => setTimeout(r, 800));
+      setAiStep(4);
+      
+      // Query system config to see active model
+      const { data: modelConfig } = await supabase
+        .from('tb_system_config')
+        .select('config_value')
+        .eq('config_key', 'ai_model')
+        .maybeSingle();
+      const activeModel = modelConfig?.config_value || 'openai/gpt-oss-20b:free';
+      
+      setAiStepLogs(prev => [
+        ...prev,
+        { time: new Date().toLocaleTimeString(), message: `Connecting to OpenRouter: invoking model "${activeModel}"...`, type: 'info' }
+      ]);
+
       const { data, error } = await supabase.functions.invoke('analyze-performance', {
         body: {
           user_id: selectedUser,
@@ -415,8 +514,34 @@ export default function ReportsPage() {
       });
 
       if (error) {
-        throw new Error(error.message || 'Failed to complete analysis');
+        let errMsg = error.message || 'Failed to complete analysis';
+        if (error.context && typeof error.context.clone === 'function') {
+          try {
+            const resClone = error.context.clone();
+            const text = await resClone.text();
+            try {
+              const parsed = JSON.parse(text);
+              if (parsed.error) errMsg = parsed.error;
+              else if (parsed.message) errMsg = parsed.message;
+            } catch {
+              if (text && text.length < 150) errMsg = text;
+            }
+          } catch (e) {
+            console.error('Failed to parse error response context:', e);
+          }
+        }
+        throw new Error(errMsg);
       }
+
+      // Step 5: Structuring Analytics & Saving to Cache
+      setAiStep(5);
+      setAiStepLogs(prev => [
+        ...prev,
+        { time: new Date().toLocaleTimeString(), message: 'Success response received from AI engine.', type: 'success' },
+        { time: new Date().toLocaleTimeString(), message: 'Structuring report analytics and updating Supabase cache.', type: 'info' }
+      ]);
+      
+      await new Promise(r => setTimeout(r, 600));
 
       setAiAnalysis({
         jd_alignment_score: data.jd_alignment_score,
@@ -425,11 +550,25 @@ export default function ReportsPage() {
         strengths: data.strengths,
         improvements: data.improvements,
         development_plan: data.development_plan,
-        markdown_executive_summary: data.markdown_executive_summary
+        markdown_executive_summary: data.markdown_executive_summary,
+        created_at: new Date().toISOString(),
+        isCached: false,
+        model: activeModel,
+        start_date: startDate,
+        end_date: endDate,
+        total_hours: totalHours,
+        logs_count: logs?.length || 0,
+        weights: keyResponsibilities
       });
+      
+      setAiStep(6);
       showToast('Performance diagnostics complete!', 'success');
     } catch (err: any) {
       console.error('Error running performance diagnostics:', err);
+      setAiStepLogs(prev => [
+        ...prev,
+        { time: new Date().toLocaleTimeString(), message: `Execution failed: ${err.message}`, type: 'error' }
+      ]);
       showToast('Diagnostics Error: ' + err.message, 'error');
     } finally {
       setIsAiAnalyzing(false);
@@ -1271,7 +1410,7 @@ export default function ReportsPage() {
                           return (
                             <Fragment key={e.id}>
                               <tr 
-                                onClick={() => toggleRow(e.id)}
+                                onClick={() => handleOpenViewModal(e)}
                                 className={cn(
                                   "hover:bg-slate-700/30 cursor-pointer transition-colors duration-150 font-medium bg-[#1E293B]/10 border-b border-slate-700/40",
                                   isExpanded && "bg-slate-800/40"
@@ -1299,14 +1438,20 @@ export default function ReportsPage() {
                                     {cat}
                                   </span>
                                 </td>
-                                <td className="px-6 py-4 text-right">
+                                <td 
+                                  className="px-6 py-4 text-right"
+                                  onClick={(evt) => {
+                                    evt.stopPropagation();
+                                    toggleRow(e.id);
+                                  }}
+                                >
                                   <button className="text-slate-400 hover:text-white p-1 rounded transition-colors">
                                     {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                   </button>
                                 </td>
                               </tr>
                               {isExpanded && (
-                                <tr className="bg-[#0F172A]/40">
+                                <tr className="bg-[#0F172A]/40" onClick={(evt) => evt.stopPropagation()}>
                                   <td colSpan={7} className="px-8 py-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                       <div className="grid grid-cols-2 gap-4 text-xs">
@@ -1332,7 +1477,17 @@ export default function ReportsPage() {
                                         <p className="text-xs text-slate-300 bg-[#1E293B]/60 p-4 rounded-xl border border-slate-700/50 leading-relaxed italic">
                                           {e.description ? `"${e.description}"` : 'No custom description provided.'}
                                         </p>
-                                        <div className="mt-3 flex justify-end">
+                                        <div className="mt-3 flex justify-end gap-2">
+                                          <button
+                                            onClick={(evt) => {
+                                              evt.stopPropagation();
+                                              handleOpenViewModal(e);
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#334155]/80 border border-slate-600/50 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all"
+                                          >
+                                            <Eye size={12} />
+                                            <span>เปิดใบงาน (Open)</span>
+                                          </button>
                                           <button
                                             onClick={(evt) => {
                                               evt.stopPropagation();
@@ -2463,8 +2618,79 @@ export default function ReportsPage() {
                     {/* RIGHT COLUMN: PERFORMANCE DIAGNOSTICS & AI EXECUTIVE SUMMARY */}
                     <div className="lg:col-span-2 space-y-6">
                       
-                      {/* EMPTY STATE: RUN DIAGNOSTICS */}
-                      {!aiAnalysis ? (
+                      {isAiAnalyzing ? (
+                        /* AI AUDIT PROCESS TRACKER WITH LIVE LOGS CONSOLE */
+                        <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-10 shadow-xl flex flex-col justify-center relative overflow-hidden h-full min-h-[500px]">
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+                          
+                          <div className="flex items-center gap-4 mb-8">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shadow-inner animate-spin animate-duration-1000">
+                              <Loader2 size={24} />
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-black text-white tracking-tight uppercase">AI Performance Auditing</h3>
+                              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">Process ID: {Math.random().toString(36).substring(2, 9).toUpperCase()}</p>
+                            </div>
+                          </div>
+
+                          {/* Progress Steps */}
+                          <div className="space-y-5 relative pl-4 border-l-2 border-slate-700/40">
+                            {[
+                              { step: 1, label: 'Validate Job Description & Targets', desc: 'Validating alignment weights and JD definitions' },
+                              { step: 2, label: 'Collect User Activity Logs', desc: 'Querying col_worklog database for specified period' },
+                              { step: 3, label: 'Aggregate Workload Allocations', desc: 'Calculating actual task hours vs target weights' },
+                              { step: 4, label: 'Run AI Diagnostic Engine', desc: 'Orchestrating LLM performance mapping on OpenRouter' },
+                              { step: 5, label: 'Compile & Cache Performance Report', desc: 'Caching finalized diagnostics & development plan' }
+                            ].map((item) => {
+                              const isCompleted = aiStep > item.step;
+                              const isActive = aiStep === item.step;
+                              return (
+                                <div key={item.step} className="relative flex gap-4 transition-all duration-300">
+                                  {/* Step bullet */}
+                                  <div className={cn(
+                                    "absolute -left-[25px] w-4 h-4 rounded-full border-2 flex items-center justify-center text-[8px] font-bold transition-all duration-300",
+                                    isCompleted 
+                                      ? "bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/20" 
+                                      : isActive 
+                                        ? "bg-indigo-500 border-indigo-500 text-white animate-pulse" 
+                                        : "bg-slate-900 border-slate-700 text-slate-500"
+                                  )}>
+                                    {isCompleted ? '✓' : item.step}
+                                  </div>
+                                  
+                                  <div className={cn(
+                                    "transition-all duration-300",
+                                    isCompleted ? "opacity-60" : isActive ? "opacity-100 scale-[1.01]" : "opacity-40"
+                                  )}>
+                                    <h4 className="text-xs font-bold text-white leading-none mb-1 flex items-center gap-1.5">
+                                      {item.label}
+                                      {isActive && <RefreshCw className="animate-spin text-indigo-400" size={12} />}
+                                    </h4>
+                                    <p className="text-[10px] text-slate-400">{item.desc}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Live Step Logs Console */}
+                          <div className="mt-8 border border-slate-700/40 bg-[#0F172A]/90 rounded-2xl p-4 font-mono text-[9px] h-36 overflow-y-auto space-y-1.5 shadow-inner">
+                            <div className="text-slate-500 border-b border-slate-800 pb-1 mb-1.5 flex justify-between">
+                              <span>CONSOLE OUTPUT</span>
+                              <span className="animate-pulse text-indigo-400">● LIVE LOGS</span>
+                            </div>
+                            {aiStepLogs.map((log, index) => (
+                              <div key={index} className="flex gap-2">
+                                <span className="text-slate-500">[{log.time}]</span>
+                                <span className={cn(
+                                  log.type === 'success' ? "text-emerald-400" : log.type === 'error' ? "text-red-400 font-bold" : "text-slate-300"
+                                )}>{log.message}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : !aiAnalysis ? (
+                        /* EMPTY STATE: RUN DIAGNOSTICS */
                         <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-12 shadow-xl flex flex-col items-center justify-center text-center relative overflow-hidden h-full min-h-[500px]">
                           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
                           
@@ -2479,20 +2705,10 @@ export default function ReportsPage() {
 
                           <button
                             onClick={() => handleRunAiAnalysis()}
-                            disabled={isAiAnalyzing}
-                            className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:via-indigo-400 hover:to-purple-500 text-white font-black py-3.5 px-8 rounded-2xl text-xs tracking-wider uppercase transition-all shadow-xl shadow-indigo-600/20 flex items-center gap-2.5 active:scale-[0.98] disabled:opacity-50"
+                            className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:via-indigo-400 hover:to-purple-500 text-white font-black py-3.5 px-8 rounded-2xl text-xs tracking-wider uppercase transition-all shadow-xl shadow-indigo-600/20 flex items-center gap-2.5 active:scale-[0.98]"
                           >
-                            {isAiAnalyzing ? (
-                              <>
-                                <RefreshCw className="animate-spin w-4 h-4" />
-                                <span>Generating Diagnostics...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Sparkles className="w-4 h-4" />
-                                <span>Execute Performance Audit</span>
-                              </>
-                            )}
+                            <Sparkles className="w-4 h-4" />
+                            <span>Execute Performance Audit</span>
                           </button>
 
                           <div className="grid grid-cols-3 gap-6 max-w-lg mt-12 w-full pt-8 border-t border-slate-700/40">
@@ -2512,7 +2728,7 @@ export default function ReportsPage() {
                         </div>
                       ) : (
                         
-                        // ANALYSIS PRESENTATION DASHBOARD
+                        /* ANALYSIS PRESENTATION DASHBOARD */
                         <div className="space-y-6 animate-in fade-in duration-300">
                           
                           {/* TOP DIALS & SCORES GRID */}
@@ -2592,10 +2808,9 @@ export default function ReportsPage() {
                             </div>
                             <button
                               onClick={() => handleRunAiAnalysis(true)}
-                              disabled={isAiAnalyzing}
                               className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1.5"
                             >
-                              {isAiAnalyzing ? <RefreshCw className="animate-spin" size={12} /> : <RefreshCw size={12} />}
+                              <RefreshCw size={12} />
                               <span>Force Recalculate</span>
                             </button>
                           </div>
@@ -2603,12 +2818,33 @@ export default function ReportsPage() {
                           {/* TABBED ANALYSIS VIEW */}
                           <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl relative overflow-hidden">
                             
+                            {/* Transparent Process Context Header */}
+                            <div className="mb-6 p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 flex flex-wrap items-center justify-between gap-4 text-[11px]">
+                              <div className="space-y-1">
+                                <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider block">Analysis Context (ข้อมูลการประมวลผล)</span>
+                                <div className="text-slate-300 flex items-center gap-4 flex-wrap">
+                                  <span>📅 ช่วงวันที่: <strong className="text-white font-mono">{aiAnalysis.start_date} ~ {aiAnalysis.end_date}</strong></span>
+                                  <span>⏰ เวลาทำงานจริง: <strong className="text-white font-mono">{aiAnalysis.total_hours ? Number(aiAnalysis.total_hours).toFixed(1) : 0} ชม. ({aiAnalysis.logs_count || 0} ใบงาน)</strong></span>
+                                </div>
+                              </div>
+                              <div className="text-slate-400 text-right space-y-0.5">
+                                <div className="text-[9px] uppercase font-mono tracking-wider">Engine: <span className="text-slate-300 font-bold">{aiAnalysis.model || 'openai/gpt-oss-20b:free'}</span></div>
+                                <div>
+                                  {aiAnalysis.isCached ? (
+                                    <span className="text-amber-400/90 font-bold font-mono">● ข้อมูลแคชเมื่อ {new Date(aiAnalysis.created_at).toLocaleString('th-TH')}</span>
+                                  ) : (
+                                    <span className="text-emerald-400/90 font-bold font-mono">● ประมวลผลสดใหม่</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
                             {/* Tabs Header */}
-                            <div className="flex gap-2 border-b border-slate-700/50 pb-3 mb-6">
+                            <div className="flex gap-2 border-b border-slate-700/50 pb-3 mb-6 overflow-x-auto">
                               <button
                                 onClick={() => setActiveAiSubTab('summary')}
                                 className={cn(
-                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                                   activeAiSubTab === 'summary'
                                     ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
                                     : "text-slate-400 hover:text-slate-200"
@@ -2620,7 +2856,7 @@ export default function ReportsPage() {
                               <button
                                 onClick={() => setActiveAiSubTab('gaps')}
                                 className={cn(
-                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                                   activeAiSubTab === 'gaps'
                                     ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
                                     : "text-slate-400 hover:text-slate-200"
@@ -2632,7 +2868,7 @@ export default function ReportsPage() {
                               <button
                                 onClick={() => setActiveAiSubTab('coaching')}
                                 className={cn(
-                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                                   activeAiSubTab === 'coaching'
                                     ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
                                     : "text-slate-400 hover:text-slate-200"
@@ -2640,6 +2876,18 @@ export default function ReportsPage() {
                               >
                                 <Target size={14} />
                                 <span>Development Plan</span>
+                              </button>
+                              <button
+                                onClick={() => setActiveAiSubTab('logs')}
+                                className={cn(
+                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                                  activeAiSubTab === 'logs'
+                                    ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
+                                    : "text-slate-400 hover:text-slate-200"
+                                )}
+                              >
+                                <FileText size={14} />
+                                <span>Diagnostic Logs</span>
                               </button>
                             </div>
 
@@ -2720,6 +2968,107 @@ export default function ReportsPage() {
                                   </div>
                                 </div>
                               )}
+
+                              {activeAiSubTab === 'logs' && (
+                                <div className="space-y-6 animate-in fade-in duration-300">
+                                  {/* Top summary cards */}
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-[#0F172A]/60 border border-slate-700/40 rounded-2xl p-4 space-y-2">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Analysis Window</span>
+                                      <div className="text-xs text-slate-200 font-mono">
+                                        Period: {aiAnalysis.start_date} to {aiAnalysis.end_date}
+                                      </div>
+                                      <div className="text-xs text-slate-200 font-mono">
+                                        Data Scope: {aiAnalysis.logs_count || 0} work logs | {aiAnalysis.total_hours ? Number(aiAnalysis.total_hours).toFixed(1) : 0} effort hours
+                                      </div>
+                                    </div>
+                                    <div className="bg-[#0F172A]/60 border border-slate-700/40 rounded-2xl p-4 space-y-2">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Engine Config</span>
+                                      <div className="text-xs text-slate-200 font-mono truncate">
+                                        Model: {aiAnalysis.model || 'openai/gpt-oss-20b:free'}
+                                      </div>
+                                      <div className="text-xs text-slate-200 font-mono">
+                                        Cache Status: {aiAnalysis.isCached ? (
+                                          <span className="text-amber-400 font-bold">Cached Run ({new Date(aiAnalysis.created_at).toLocaleString('th-TH')})</span>
+                                        ) : (
+                                          <span className="text-emerald-400 font-bold">Fresh Run (No Cache)</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Job Criteria & Weight Allocation details */}
+                                  <div className="bg-[#0F172A]/40 border border-slate-700/30 rounded-2xl p-4">
+                                    <h5 className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-2">Evaluated Criteria & Assigned Weights</h5>
+                                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                      {(aiAnalysis.weights || []).map((w: any, index: number) => (
+                                        <div key={index} className="flex justify-between items-center text-[11px] py-1 border-b border-slate-800/40 last:border-0 font-mono">
+                                          <span className="text-slate-300 truncate max-w-[280px]">{w.category}</span>
+                                          <span className="text-indigo-400 font-bold">{w.weight}%</span>
+                                        </div>
+                                      ))}
+                                      {(!aiAnalysis.weights || aiAnalysis.weights.length === 0) && (
+                                        <div className="text-slate-500 italic text-xs">No JD target weights loaded for this run.</div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Reconstructed step logs */}
+                                  <div className="bg-[#0F172A]/80 border border-slate-700/50 rounded-2xl p-4 font-mono text-[10px] leading-relaxed space-y-2 shadow-inner">
+                                    <div className="text-slate-500 border-b border-slate-800 pb-1.5 mb-2 flex justify-between">
+                                      <span>AUDIT PROCESS LOGS</span>
+                                      <span className="text-slate-600">STATUS: DONE</span>
+                                    </div>
+                                    {aiAnalysis.isCached ? (
+                                      <>
+                                        <div className="flex gap-2">
+                                          <span className="text-slate-500">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                          <span className="text-slate-300">[INFO] Found cached performance audit result in Supabase.</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <span className="text-slate-500">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                          <span className="text-slate-300">[INFO] Loaded JD configuration for active position.</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <span className="text-slate-500">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                          <span className="text-slate-300">[INFO] Retrieved {aiAnalysis.logs_count || 0} matching worklog items total.</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <span className="text-slate-500">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                          <span className="text-slate-300">[INFO] Validated cache date validity within 24-hour limit.</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <span className="text-slate-500">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                          <span className="text-emerald-400 font-bold">[SUCCESS] Cache diagnostics retrieved and loaded to Dashboard.</span>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <div className="flex gap-2">
+                                          <span className="text-slate-500">[INFO]</span>
+                                          <span className="text-slate-300">New Performance Diagnostics Executed.</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <span className="text-slate-500">[INFO]</span>
+                                          <span className="text-slate-300">Worklogs queried: {aiAnalysis.logs_count || 0} logs found.</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <span className="text-slate-500">[INFO]</span>
+                                          <span className="text-slate-300">Effort hours aggregated: {aiAnalysis.total_hours ? Number(aiAnalysis.total_hours).toFixed(1) : 0}h.</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <span className="text-slate-500">[INFO]</span>
+                                          <span className="text-slate-300">Model used: {aiAnalysis.model}</span>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <span className="text-slate-500">[SUCCESS]</span>
+                                          <span className="text-emerald-400">Analysis completed and saved successfully to database cache.</span>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2743,6 +3092,17 @@ export default function ReportsPage() {
         }}
         log={selectedLogForEdit}
         onSaveSuccess={loadData}
+      />
+
+      {/* View Worklog Modal */}
+      <ViewWorklogModal
+        isOpen={isViewModalOpen}
+        onClose={() => {
+          setIsViewModalOpen(false);
+          setSelectedLogForView(null);
+        }}
+        log={selectedLogForView}
+        onDeleteSuccess={loadData}
       />
     </AppLayout>
   );

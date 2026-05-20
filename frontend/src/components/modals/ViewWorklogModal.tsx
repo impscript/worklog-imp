@@ -16,6 +16,11 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
   const [isDeleting, setIsDeleting] = useState(false);
   const { showToast } = useNotification();
 
+  // Get current logged-in user from localStorage to verify ownership
+  const sessionStr = localStorage.getItem('worklog_session');
+  const session = sessionStr ? JSON.parse(sessionStr) : null;
+  const isOwner = session && session.id === log?.user_id;
+
   if (!isOpen || !log) return null;
 
   const handlePrint = () => {
@@ -23,6 +28,11 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
   };
 
   const handleDelete = async () => {
+    if (!isOwner) {
+      showToast('คุณไม่มีสิทธิ์ในการลบใบงานนี้ / You do not have permission to delete this worklog.', 'error');
+      return;
+    }
+
     setIsDeleting(true);
     try {
       const { error } = await supabase
@@ -331,13 +341,19 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
         {/* Modal Footer (hidden when printing) */}
         <div className="p-6 border-t border-slate-700/50 bg-[#0F172A]/40 flex justify-between items-center shrink-0 print:hidden">
           {/* Delete Button (Left) */}
-          <button
-            onClick={() => setShowConfirm(true)}
-            className="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/25 text-xs font-black rounded-xl transition-all active:scale-[0.98] flex items-center gap-1.5"
-          >
-            <Trash2 size={14} />
-            <span>ลบใบงานนี้ (Delete)</span>
-          </button>
+          {isOwner ? (
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/25 text-xs font-black rounded-xl transition-all active:scale-[0.98] flex items-center gap-1.5"
+            >
+              <Trash2 size={14} />
+              <span>ลบใบงานนี้ (Delete)</span>
+            </button>
+          ) : (
+            <div className="text-[10px] text-slate-500 font-bold bg-slate-800/40 border border-slate-700/30 px-3 py-1.5 rounded-xl font-mono">
+              🔒 Read-Only (ผู้ใช้อื่น)
+            </div>
+          )}
 
           {/* Close Button (Right) */}
           <button

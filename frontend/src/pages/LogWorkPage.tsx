@@ -672,7 +672,23 @@ export default function LogWorkPage() {
       }
     } catch (err: any) {
       console.error('Error enhancing description:', err);
-      showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ AI: ' + (err.message || err), 'error');
+      let errMsg = err.message || err;
+      if (err.context && typeof err.context.clone === 'function') {
+        try {
+          const resClone = err.context.clone();
+          const text = await resClone.text();
+          try {
+            const parsed = JSON.parse(text);
+            if (parsed.error) errMsg = parsed.error;
+            else if (parsed.message) errMsg = parsed.message;
+          } catch {
+            if (text && text.length < 150) errMsg = text;
+          }
+        } catch (e) {
+          console.error('Failed to parse error response context:', e);
+        }
+      }
+      showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ AI: ' + errMsg, 'error');
     } finally {
       setIsEnhancing(false);
     }

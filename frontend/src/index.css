@@ -261,19 +261,46 @@ html.light {
     color: #0f172a !important;
   }
 
-  /* Keep white text on filled buttons and badges in light mode */
+  /* Keep white text on filled buttons, badges, and elements with dark backgrounds in light mode */
   button.text-white,
   button.text-white *,
   a.text-white,
   a.text-white *,
-  .bg-indigo-600 .text-white,
-  .bg-indigo-500 .text-white,
-  .bg-rose-600 .text-white,
-  .bg-rose-500 .text-white,
-  .bg-red-600 .text-white,
-  .bg-emerald-600 .text-white,
-  .bg-emerald-500 .text-white {
+  .bg-indigo-700,
+  .bg-indigo-600,
+  .bg-indigo-500,
+  .bg-blue-600,
+  .bg-blue-500,
+  .bg-rose-600,
+  .bg-rose-500,
+  .bg-red-600,
+  .bg-emerald-600,
+  .bg-emerald-500,
+  .bg-purple-600,
+  .bg-purple-500,
+  .bg-gradient-to-r,
+  .bg-gradient-to-br,
+  .bg-gradient-to-tr {
     color: #ffffff !important;
+  }
+
+  /* Ensure text-white children within these containers inherit white */
+  .bg-indigo-700 *,
+  .bg-indigo-600 *,
+  .bg-indigo-500 *,
+  .bg-blue-600 *,
+  .bg-blue-500 *,
+  .bg-rose-600 *,
+  .bg-rose-500 *,
+  .bg-red-600 *,
+  .bg-emerald-600 *,
+  .bg-emerald-500 *,
+  .bg-purple-600 *,
+  .bg-purple-500 *,
+  .bg-gradient-to-r *,
+  .bg-gradient-to-br *,
+  .bg-gradient-to-tr * {
+    color: inherit !important;
   }
   .text-slate-200 {
     color: #1e293b !important;

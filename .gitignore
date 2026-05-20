@@ -25,3 +25,5 @@ test_tables.js
 
 # Raw CSV data files (sensitive / working data)
 *.csv
+scratch/
+/scratch/

@@ -6,6 +6,69 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function callLlmWithFallback(
+  endpoint: string,
+  headers: Record<string, string>,
+  provider: string,
+  configuredModel: string,
+  systemPrompt: string,
+  userPrompt: string,
+  isJson: boolean = false
+): Promise<Response> {
+  const modelsToTry = [configuredModel];
+  if (provider === 'openrouter') {
+    // List of fallback free models on OpenRouter
+    const fallbacks = [
+      'google/gemini-2.0-flash-exp:free',
+      'google/gemini-2.0-pro-exp:free',
+      'openrouter/free',
+      'meta-llama/llama-3-8b-instruct:free'
+    ];
+    for (const fb of fallbacks) {
+      if (fb !== configuredModel) {
+        modelsToTry.push(fb);
+      }
+    }
+  }
+
+  let lastError: Error | null = null;
+  for (let i = 0; i < modelsToTry.length; i++) {
+    const currentModel = modelsToTry[i];
+    try {
+      console.log(`[AI Request] Trying model: ${currentModel} (${i + 1}/${modelsToTry.length})`);
+      const bodyPayload: any = {
+        model: currentModel,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ]
+      };
+      if (isJson) {
+        bodyPayload.response_format = { type: "json_object" };
+      }
+      
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(bodyPayload)
+      });
+
+      if (response.ok) {
+        console.log(`[AI Request] Successfully got response from model: ${currentModel}`);
+        return response;
+      }
+      
+      const errorText = await response.text();
+      console.warn(`[AI Request] Model ${currentModel} failed with status ${response.status}: ${errorText}`);
+      lastError = new Error(`AI API (${currentModel}) failed: ${response.status} ${errorText}`);
+    } catch (err: any) {
+      console.warn(`[AI Request] Network or fetch error for model ${currentModel}:`, err.message);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("All models failed to respond.");
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -54,6 +117,16 @@ serve(async (req) => {
       throw new Error(`API Key for ${provider} is not configured.`);
     }
 
+    const llmHeaders: Record<string, string> = {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    };
+
+    if (provider === 'openrouter') {
+      llmHeaders["HTTP-Referer"] = "https://vibecode.net"; 
+      llmHeaders["X-Title"] = "Worklog HRBP";
+    }
+
     // 2.1 Description Enhancement branch
     if (action === 'enhance_description') {
       const { description, project_name, action_name, duration } = body;
@@ -78,32 +151,15 @@ ${description || '(Empty)'}
 INSTRUCTION:
 Politely rephrase this work log in the same language it was written (Thai or English) to sound extremely professional, emphasizing business impact, cost-saving, time efficiency, and strategic execution. Keep it concise (1-3 sentences). Only return the final refined description text.`;
 
-      const llmHeaders: Record<string, string> = {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      };
-
-      if (provider === 'openrouter') {
-        llmHeaders["HTTP-Referer"] = "https://vibecode.net"; 
-        llmHeaders["X-Title"] = "Worklog HRBP";
-      }
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: llmHeaders,
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`AI API failed: ${response.status} ${errorText}`);
-      }
+      const response = await callLlmWithFallback(
+        endpoint,
+        llmHeaders,
+        provider,
+        model,
+        systemPrompt,
+        userPrompt,
+        false
+      );
 
       const aiResult = await response.json();
       let enhancedText = aiResult.choices?.[0]?.message?.content || '';
@@ -216,34 +272,15 @@ Strictly return a raw JSON object (no markdown wrapping) matching this schema:
 }
 `;
 
-    // Make the standard OpenAI-compatible API call
-    const llmHeaders: Record<string, string> = {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    };
-
-    if (provider === 'openrouter') {
-      llmHeaders["HTTP-Referer"] = "https://vibecode.net"; 
-      llmHeaders["X-Title"] = "Worklog HRBP";
-    }
-
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: llmHeaders,
-      body: JSON.stringify({
-        model: model,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ]
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`AI API failed: ${response.status} ${errorText}`);
-    }
+    const response = await callLlmWithFallback(
+      endpoint,
+      llmHeaders,
+      provider,
+      model,
+      systemPrompt,
+      userPrompt,
+      true
+    );
 
     const aiResult = await response.json();
     let content = aiResult.choices?.[0]?.message?.content;
