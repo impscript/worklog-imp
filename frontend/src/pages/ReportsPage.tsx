@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import { 
   FileSpreadsheet, Search, Clock, Award, Layers, ChevronDown, ChevronUp,
-  TrendingUp, User as UserIcon, Users, Edit3
+  TrendingUp, User as UserIcon, Users, Edit3,
+  Brain, Sparkles, AlertTriangle, Activity, FileText, CheckCircle2, Target, RefreshCw, PlusCircle, Save
 } from 'lucide-react';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import AppLayout from '../components/layout/AppLayout';
@@ -59,6 +60,7 @@ interface UserProfile {
   email: string | null;
   role: string;
   department: string;
+  position?: string;
 }
 
 export default function ReportsPage() {
@@ -73,6 +75,18 @@ export default function ReportsPage() {
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // --- AI DIAGNOSTICS STATES ---
+  const [individualSubTab, setIndividualSubTab] = useState<'charts' | 'ai'>('charts');
+  const [jdText, setJdText] = useState('');
+  const [keyResponsibilities, setKeyResponsibilities] = useState<{ category: string; weight: number }[]>([]);
+  const [jdSource, setJdSource] = useState<'uploaded' | 'ai_recommended' | 'manual_entry'>('manual_entry');
+  const [isJdEditing, setIsJdEditing] = useState(false);
+  const [isSavingJd, setIsSavingJd] = useState(false);
+  
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+  const [activeAiSubTab, setActiveAiSubTab] = useState<'summary' | 'gaps' | 'coaching'>('summary');
 
   // Pagination State (for Personal Tab)
   const [currentPage, setCurrentPage] = useState(1);
@@ -126,7 +140,7 @@ export default function ReportsPage() {
   };
 
   const loadData = useCallback(async () => {
-    const sessionStr = sessionStorage.getItem('worklog_session');
+    const sessionStr = localStorage.getItem('worklog_session');
     if (!sessionStr) {
       navigate('/login');
       return;
@@ -185,6 +199,269 @@ export default function ReportsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [dateFilter, customStart, customEnd, typeFilter, projectSearch]);
+
+  // Load JD and Cached AI Analysis on selectedUser / Date Range change
+  useEffect(() => {
+    const loadJdAndAnalysis = async () => {
+      if (!selectedUser) return;
+      
+      let startDate = '';
+      let endDate = '';
+      const todayStr = formatDateToYMD(new Date());
+      
+      if (dateFilter === 'this-week') {
+        startDate = dateBoundaries.week.start;
+        endDate = dateBoundaries.week.end;
+      } else if (dateFilter === 'this-month') {
+        startDate = dateBoundaries.month.start;
+        endDate = dateBoundaries.month.end;
+      } else if (dateFilter === 'custom') {
+        startDate = customStart || dateBoundaries.month.start;
+        endDate = customEnd || dateBoundaries.month.end;
+      } else {
+        startDate = '2020-01-01';
+        endDate = todayStr;
+      }
+
+      try {
+        // Fetch JD
+        const { data: jdData } = await supabase
+          .from('tb_user_jd')
+          .select('*')
+          .eq('user_id', selectedUser)
+          .maybeSingle();
+
+        if (jdData) {
+          setJdText(jdData.jd_text);
+          setKeyResponsibilities(jdData.key_responsibilities || []);
+          setJdSource(jdData.jd_source);
+        } else {
+          setJdText('');
+          setKeyResponsibilities([]);
+          setJdSource('manual_entry');
+        }
+
+        // Fetch Cached AI Analysis (within last 24h)
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        const { data: cached } = await supabase
+          .from('tb_ai_individual_analysis')
+          .select('*')
+          .eq('user_id', selectedUser)
+          .eq('start_date', startDate)
+          .eq('end_date', endDate)
+          .gte('created_at', yesterday.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (cached) {
+          setAiAnalysis({
+            jd_alignment_score: cached.jd_alignment_score,
+            burnout_risk_score: cached.burnout_risk_score,
+            workload_allocation: cached.actual_vs_target,
+            strengths: cached.strengths,
+            improvements: cached.improvements,
+            development_plan: cached.development_plan,
+            markdown_executive_summary: cached.raw_ai_report
+          });
+        } else {
+          setAiAnalysis(null);
+        }
+      } catch (err) {
+        console.error('Error fetching JD or analysis cache:', err);
+      }
+    };
+
+    loadJdAndAnalysis();
+  }, [selectedUser, dateFilter, customStart, customEnd, dateBoundaries]);
+
+  // Recommend standard JD based on employee position
+  const recommendJd = () => {
+    if (!individualData?.user) return;
+    const pos = (individualData.user.position || '').toLowerCase();
+    let text = '';
+    let responsibilities: { category: string; weight: number }[] = [];
+    
+    if (pos.includes('developer') || pos.includes('programmer') || pos.includes('coder') || pos.includes('software')) {
+      text = `Software Developer / Engineer:\n- Write high-quality, clean, testable code for web applications.\n- Design database schemas, optimize database queries, and maintain data integrity.\n- Collaborate with project managers and designers to implement robust solutions.\n- Debug system issues, write automated tests, and conduct peer code reviews.\n- Document software specifications, system architectures, and API endpoints.`;
+      responsibilities = [
+        { category: 'Software Coding & Implementation', weight: 60 },
+        { category: 'System Architecture & DB Design', weight: 20 },
+        { category: 'Testing, Debugging & QA', weight: 10 },
+        { category: 'Meetings, Code Reviews & Syncs', weight: 10 }
+      ];
+    } else if (pos.includes('project') || pos.includes('pm') || pos.includes('scrum') || pos.includes('coordinator')) {
+      text = `Project Manager / Coordinator:\n- Plan, coordinate, and execute project deliverables across cross-functional teams.\n- Manage timeline budgets, scope requirements, and mitigate potential project risks.\n- Communicate regular status updates to client departments and management sponsors.\n- Standardize agile scrum ceremonies including daily stand-ups and retrospectives.\n- Document meetings minutes, strategic task plans, and project resources.`;
+      responsibilities = [
+        { category: 'Project Planning & Strategy', weight: 40 },
+        { category: 'Team Coordination & Scrum', weight: 35 },
+        { category: 'Reporting & Client Alignment', weight: 15 },
+        { category: 'Administrative Documentation', weight: 10 }
+      ];
+    } else if (pos.includes('support') || pos.includes('service') || pos.includes('helpdesk') || pos.includes('operation')) {
+      text = `Support Specialist / Operations Engineer:\n- Monitor and resolve client-reported tickets and system issues.\n- Maintain application uptime, execute standard patches, and troubleshoot services.\n- Standardize support runbooks and client self-help guides.\n- Conduct onboarding and software training for corporate users.\n- Report bug requests to software engineering product teams.`;
+      responsibilities = [
+        { category: 'Support Tickets & Helpdesk', weight: 55 },
+        { category: 'System Maintenance & Patches', weight: 20 },
+        { category: 'Training & Documentation', weight: 15 },
+        { category: 'Product Team Alignment', weight: 10 }
+      ];
+    } else {
+      text = `Professional General Staff / Specialist:\n- Execute core operational deliverables aligned with departmental objectives.\n- Troubleshoot day-to-day workflow bottlenecks and report progress.\n- Collaborate with team members to optimize operational efficiency.\n- Document daily tasks, logs, and procedural guidelines.\n- Participate in regular performance alignment syncs.`;
+      responsibilities = [
+        { category: 'Core Deliverables & Execution', weight: 60 },
+        { category: 'Process Optimization', weight: 20 },
+        { category: 'Meetings & Collaborative Syncs', weight: 10 },
+        { category: 'Operational Documentation', weight: 10 }
+      ];
+    }
+    
+    setJdText(text);
+    setKeyResponsibilities(responsibilities);
+    setJdSource('ai_recommended');
+    showToast('Recommended Job Description loaded for ' + (individualData.user.position || 'General Staff'), 'success');
+  };
+
+  // Save Job Description to Database
+  const handleSaveJd = async () => {
+    if (!selectedUser) return;
+    setIsSavingJd(true);
+    try {
+      const totalWeight = keyResponsibilities.reduce((sum, item) => sum + item.weight, 0);
+      if (keyResponsibilities.length > 0 && totalWeight !== 100) {
+        showToast('Total responsibilities weight must equal exactly 100% (currently ' + totalWeight + '%)', 'warning');
+        setIsSavingJd(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('tb_user_jd')
+        .upsert({
+          user_id: selectedUser,
+          jd_text: jdText,
+          jd_source: jdSource,
+          key_responsibilities: keyResponsibilities,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+
+      if (error) throw error;
+      showToast('Job Description saved successfully', 'success');
+      setIsJdEditing(false);
+    } catch (err: any) {
+      console.error('Error saving JD:', err);
+      showToast('Failed to save Job Description: ' + err.message, 'error');
+    } finally {
+      setIsSavingJd(false);
+    }
+  };
+
+  // Execute AI performance diagnostics endpoint
+  const handleRunAiAnalysis = async (forceRefresh = false) => {
+    if (!selectedUser) return;
+    
+    let startDate = '';
+    let endDate = '';
+    const todayStr = formatDateToYMD(new Date());
+    
+    if (dateFilter === 'this-week') {
+      startDate = dateBoundaries.week.start;
+      endDate = dateBoundaries.week.end;
+    } else if (dateFilter === 'this-month') {
+      startDate = dateBoundaries.month.start;
+      endDate = dateBoundaries.month.end;
+    } else if (dateFilter === 'custom') {
+      startDate = customStart || dateBoundaries.month.start;
+      endDate = customEnd || dateBoundaries.month.end;
+    } else {
+      startDate = '2020-01-01';
+      endDate = todayStr;
+    }
+
+    setIsAiAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-performance', {
+        body: {
+          user_id: selectedUser,
+          start_date: startDate,
+          end_date: endDate,
+          force_refresh: forceRefresh
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to complete analysis');
+      }
+
+      setAiAnalysis({
+        jd_alignment_score: data.jd_alignment_score,
+        burnout_risk_score: data.burnout_risk_score,
+        workload_allocation: data.workload_allocation,
+        strengths: data.strengths,
+        improvements: data.improvements,
+        development_plan: data.development_plan,
+        markdown_executive_summary: data.markdown_executive_summary
+      });
+      showToast('Performance diagnostics complete!', 'success');
+    } catch (err: any) {
+      console.error('Error running performance diagnostics:', err);
+      showToast('Diagnostics Error: ' + err.message, 'error');
+    } finally {
+      setIsAiAnalyzing(false);
+    }
+  };
+
+  // Simple clean markdown parser for pure React
+  const renderMarkdown = (text: string) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    return (
+      <div className="space-y-4 text-slate-300 text-xs sm:text-sm leading-relaxed font-sans">
+        {lines.map((line, idx) => {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('###')) {
+            return (
+              <h4 key={idx} className="text-sm font-extrabold text-indigo-400 mt-5 mb-2 border-b border-slate-700/50 pb-1 uppercase tracking-wider">
+                {trimmed.replace('###', '').trim()}
+              </h4>
+            );
+          }
+          if (trimmed.startsWith('##')) {
+            return (
+              <h3 key={idx} className="text-base font-black text-white mt-6 mb-3 uppercase tracking-wide flex items-center gap-2">
+                <Sparkles className="text-indigo-400" size={16} /> {trimmed.replace('##', '').trim()}
+              </h3>
+            );
+          }
+          if (trimmed.startsWith('#')) {
+            return (
+              <h2 key={idx} className="text-lg font-black text-white mt-8 mb-4 uppercase tracking-widest border-b-2 border-indigo-500 pb-2">
+                {trimmed.replace('#', '').trim()}
+              </h2>
+            );
+          }
+          if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+            return (
+              <div key={idx} className="flex items-start gap-2.5 pl-3 py-0.5 hover:bg-slate-800/10 rounded transition-colors">
+                <span className="text-indigo-400 mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-md shadow-indigo-500/50"></span>
+                <span>{trimmed.substring(1).trim()}</span>
+              </div>
+            );
+          }
+          if (trimmed.startsWith('>')) {
+            return (
+              <blockquote key={idx} className="border-l-4 border-indigo-500 bg-indigo-500/5 pl-4 py-3 rounded-r-xl my-3 text-slate-300 italic font-medium shadow-inner">
+                {trimmed.substring(1).trim()}
+              </blockquote>
+            );
+          }
+          if (!trimmed) return <div key={idx} className="h-1.5"></div>;
+          return <p key={idx} className="indent-2 py-0.5">{trimmed}</p>;
+        })}
+      </div>
+    );
+  };
 
   // General filter logic used across logs / graphs
   const applyFilters = (entriesToFilter: WorklogEntry[]) => {
@@ -1477,10 +1754,43 @@ export default function ReportsPage() {
               </select>
             </div>
 
+            {/* Sub-tab selection bar */}
+            <div className="flex border-b border-slate-700/50 mt-6 mb-8">
+              <button
+                onClick={() => setIndividualSubTab('charts')}
+                className={cn(
+                  "px-6 py-3 text-xs font-bold border-b-2 transition-all duration-200 flex items-center gap-2",
+                  individualSubTab === 'charts'
+                    ? "border-indigo-500 text-indigo-400 bg-indigo-500/5"
+                    : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/20"
+                )}
+              >
+                <TrendingUp size={16} />
+                <span>Performance Metrics & Charts</span>
+              </button>
+              <button
+                onClick={() => setIndividualSubTab('ai')}
+                className={cn(
+                  "px-6 py-3 text-xs font-bold border-b-2 transition-all duration-200 flex items-center gap-2",
+                  individualSubTab === 'ai'
+                    ? "border-indigo-500 text-indigo-400 bg-indigo-500/5"
+                    : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/20"
+                )}
+              >
+                <Brain size={16} />
+                <span className="flex items-center gap-1.5">
+                  AI Diagnostics & Coaching
+                  <span className="px-1.5 py-0.5 text-[8px] bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 rounded-full font-black uppercase tracking-wider animate-pulse">Core</span>
+                </span>
+              </button>
+            </div>
+
             {/* Individual Profile & KPIs Grid */}
             {individualData && (
               <>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {individualSubTab === 'charts' && (
+                  <>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   {/* Left Column Profile Card */}
                   <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between items-center text-center relative overflow-hidden group">
                     <div className="absolute top-[-10%] right-[-10%] w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
@@ -1918,6 +2228,449 @@ export default function ReportsPage() {
                     </div>
                   </div>
                 </div>
+              </>
+            )}
+
+                {/* SUB-TAB 2: AI DIAGNOSTICS */}
+                {individualSubTab === 'ai' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-3 duration-300">
+                    
+                    {/* LEFT COLUMN: JOB DESCRIPTION (JD) & TARGET WEIGHTS */}
+                    <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl relative overflow-hidden flex flex-col h-fit">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                      
+                      <div className="flex items-center justify-between border-b border-slate-700/50 pb-4 mb-4">
+                        <div className="flex items-center gap-2">
+                          <FileText className="text-indigo-400" size={18} />
+                          <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Job Description (JD)</h3>
+                        </div>
+                        {!isJdEditing ? (
+                          <button
+                            onClick={() => setIsJdEditing(true)}
+                            className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-lg"
+                          >
+                            <Edit3 size={12} />
+                            <span>Edit JD</span>
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={recommendJd}
+                              className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg"
+                            >
+                              <Sparkles size={11} className="inline mr-1" /> Recommend
+                            </button>
+                            <button
+                              onClick={() => setIsJdEditing(false)}
+                              className="text-[10px] font-bold text-slate-400 hover:text-slate-300 transition-colors bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* JD Text Viewer or Editor */}
+                      <div className="space-y-4">
+                        {!isJdEditing ? (
+                          <div className="bg-[#0F172A]/50 border border-slate-700/30 rounded-2xl p-4 shadow-inner max-h-48 overflow-y-auto">
+                            {jdText ? (
+                              <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap leading-relaxed">{jdText}</pre>
+                            ) : (
+                              <div className="text-xs text-slate-500 italic text-center py-6">
+                                No job description configured. Click "Edit JD" to define key responsibilities.
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <textarea
+                              value={jdText}
+                              onChange={(e) => setJdText(e.target.value)}
+                              placeholder="Enter the full employee job description, requirements, or core responsibilities here..."
+                              className="w-full h-44 bg-[#0F172A] border border-slate-700/80 rounded-2xl p-4 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 font-sans placeholder-slate-600 resize-none transition-all shadow-inner"
+                            />
+                          </div>
+                        )}
+
+                        {/* KEY RESPONSIBILITIES & TARGET WEIGHTS */}
+                        <div className="mt-6 border-t border-slate-700/50 pt-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-1.5">
+                              <Target className="text-indigo-400" size={16} />
+                              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Target Weights</h4>
+                            </div>
+                            {isJdEditing && (
+                              <button
+                                onClick={() => setKeyResponsibilities([...keyResponsibilities, { category: '', weight: 0 }])}
+                                className="text-[9px] font-black text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5"
+                              >
+                                <PlusCircle size={12} />
+                                <span>Add Category</span>
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                            {keyResponsibilities.length === 0 ? (
+                              <div className="text-[11px] text-slate-500 italic py-3 text-center">
+                                No responsibility categories defined.
+                              </div>
+                            ) : (
+                              keyResponsibilities.map((item, index) => (
+                                <div key={index} className="flex items-center gap-2 bg-[#0F172A]/30 border border-slate-700/20 rounded-xl p-2">
+                                  {isJdEditing ? (
+                                    <>
+                                      <input
+                                        type="text"
+                                        value={item.category}
+                                        onChange={(e) => {
+                                          const newWeights = [...keyResponsibilities];
+                                          newWeights[index].category = e.target.value;
+                                          setKeyResponsibilities(newWeights);
+                                        }}
+                                        placeholder="Category name"
+                                        className="bg-[#0F172A] border border-slate-700/80 rounded-lg py-1 px-2.5 text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 flex-1"
+                                      />
+                                      <div className="flex items-center gap-1 w-16">
+                                        <input
+                                          type="number"
+                                          value={item.weight || ''}
+                                          onChange={(e) => {
+                                            const newWeights = [...keyResponsibilities];
+                                            newWeights[index].weight = parseInt(e.target.value) || 0;
+                                            setKeyResponsibilities(newWeights);
+                                          }}
+                                          placeholder="%"
+                                          className="bg-[#0F172A] border border-slate-700/80 rounded-lg py-1 px-1 text-center text-xs text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-full font-mono font-bold"
+                                        />
+                                        <span className="text-slate-500 text-[10px]">%</span>
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          const newWeights = keyResponsibilities.filter((_, idx) => idx !== index);
+                                          setKeyResponsibilities(newWeights);
+                                        }}
+                                        className="text-red-400 hover:text-red-300 p-1 transition-colors"
+                                      >
+                                        &times;
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <div className="flex justify-between items-center w-full px-2 text-xs">
+                                      <span className="text-slate-300 font-medium truncate max-w-[180px]">{item.category}</span>
+                                      <span className="text-indigo-400 font-bold font-mono bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/15">{item.weight}%</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          {/* Total Weights Validation */}
+                          <div className="flex items-center justify-between border-t border-slate-700/50 pt-3 mt-3">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase">Total Target weight:</span>
+                            <span className={cn(
+                              "text-xs font-mono font-black px-2.5 py-0.5 rounded-full border shadow-sm",
+                              keyResponsibilities.reduce((sum, item) => sum + item.weight, 0) === 100
+                                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                                : "bg-red-500/15 border-red-500/30 text-red-400"
+                            )}>
+                              {keyResponsibilities.reduce((sum, item) => sum + item.weight, 0)}% / 100%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Save JD Button */}
+                        {isJdEditing && (
+                          <button
+                            onClick={handleSaveJd}
+                            disabled={isSavingJd}
+                            className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all shadow-md shadow-indigo-600/10 flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
+                          >
+                            {isSavingJd ? (
+                              <>
+                                <RefreshCw className="animate-spin" size={14} />
+                                <span>Saving to Supabase...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Save size={14} />
+                                <span>Save Changes & Sync</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* RIGHT COLUMN: PERFORMANCE DIAGNOSTICS & AI EXECUTIVE SUMMARY */}
+                    <div className="lg:col-span-2 space-y-6">
+                      
+                      {/* EMPTY STATE: RUN DIAGNOSTICS */}
+                      {!aiAnalysis ? (
+                        <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-12 shadow-xl flex flex-col items-center justify-center text-center relative overflow-hidden h-full min-h-[500px]">
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+                          
+                          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-6 shadow-inner animate-pulse">
+                            <Brain size={32} />
+                          </div>
+                          
+                          <h3 className="text-xl font-black text-white tracking-tight uppercase mb-2">AI Performance Diagnostics</h3>
+                          <p className="text-xs text-slate-400 max-w-sm leading-relaxed mb-8">
+                            Synthesize historical daily worklogs and category target weights to detect JD alignment gaps, evaluate burnout risk levels, and generate premium coaching plans.
+                          </p>
+
+                          <button
+                            onClick={() => handleRunAiAnalysis()}
+                            disabled={isAiAnalyzing}
+                            className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:via-indigo-400 hover:to-purple-500 text-white font-black py-3.5 px-8 rounded-2xl text-xs tracking-wider uppercase transition-all shadow-xl shadow-indigo-600/20 flex items-center gap-2.5 active:scale-[0.98] disabled:opacity-50"
+                          >
+                            {isAiAnalyzing ? (
+                              <>
+                                <RefreshCw className="animate-spin w-4 h-4" />
+                                <span>Generating Diagnostics...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-4 h-4" />
+                                <span>Execute Performance Audit</span>
+                              </>
+                            )}
+                          </button>
+
+                          <div className="grid grid-cols-3 gap-6 max-w-lg mt-12 w-full pt-8 border-t border-slate-700/40">
+                            <div className="text-center">
+                              <span className="text-lg font-black text-indigo-400 block mb-0.5">🎯 Alignment</span>
+                              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">JD vs Worklogs</span>
+                            </div>
+                            <div className="text-center border-x border-slate-700/40">
+                              <span className="text-lg font-black text-indigo-400 block mb-0.5">🔥 Burnout</span>
+                              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Risk Assessment</span>
+                            </div>
+                            <div className="text-center">
+                              <span className="text-lg font-black text-indigo-400 block mb-0.5">🚀 Coaching</span>
+                              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Action Plans</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        
+                        // ANALYSIS PRESENTATION DASHBOARD
+                        <div className="space-y-6 animate-in fade-in duration-300">
+                          
+                          {/* TOP DIALS & SCORES GRID */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            
+                            {/* Dial: JD Alignment */}
+                            <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl relative overflow-hidden flex items-center justify-between group">
+                              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">JD Alignment Index</span>
+                                <h4 className="text-3xl font-black text-white tracking-tight">{aiAnalysis.jd_alignment_score || 0}%</h4>
+                                <p className="text-[10px] text-slate-400 leading-normal max-w-[160px]">
+                                  Consistency score of actual logs relative to target JD allocation.
+                                </p>
+                              </div>
+                              <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
+                                <svg className="w-full h-full transform -rotate-90">
+                                  <circle cx="40" cy="40" r="32" className="stroke-slate-700/40 fill-none" strokeWidth="6" />
+                                  <circle 
+                                    cx="40" 
+                                    cy="40" 
+                                    r="32" 
+                                    className="stroke-indigo-500 fill-none transition-all duration-1000 ease-out" 
+                                    strokeWidth="6" 
+                                    strokeDasharray={`${2 * Math.PI * 32}`} 
+                                    strokeDashoffset={`${2 * Math.PI * 32 * (1 - (aiAnalysis.jd_alignment_score || 0) / 100)}`}
+                                    strokeLinecap="round" 
+                                  />
+                                </svg>
+                                <span className="absolute text-xs font-mono font-black text-indigo-400">{aiAnalysis.jd_alignment_score || 0}%</span>
+                              </div>
+                            </div>
+
+                            {/* Burnout Risk Assessment */}
+                            <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl relative overflow-hidden flex items-center justify-between group">
+                              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-full blur-2xl pointer-events-none"></div>
+                              <div className="space-y-1 w-full">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Burnout Risk Status</span>
+                                  <span className={cn(
+                                    "text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border shadow-sm",
+                                    (aiAnalysis.burnout_risk_score || 0) > 70
+                                      ? "bg-rose-500/20 border-rose-500/30 text-rose-400 animate-pulse"
+                                      : (aiAnalysis.burnout_risk_score || 0) > 40
+                                        ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
+                                        : "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
+                                  )}>
+                                    {(aiAnalysis.burnout_risk_score || 0) > 70 ? 'High Risk' : (aiAnalysis.burnout_risk_score || 0) > 40 ? 'Moderate' : 'Low Risk'}
+                                  </span>
+                                </div>
+                                <h4 className="text-3xl font-black text-white tracking-tight">{aiAnalysis.burnout_risk_score || 0}%</h4>
+                                <div className="w-full bg-slate-800/80 rounded-full h-2 mt-2 border border-slate-700/30 shadow-inner overflow-hidden">
+                                  <div 
+                                    className={cn(
+                                      "h-full rounded-full transition-all duration-1000 ease-out",
+                                      (aiAnalysis.burnout_risk_score || 0) > 70
+                                        ? "bg-rose-500"
+                                        : (aiAnalysis.burnout_risk_score || 0) > 40
+                                          ? "bg-amber-500"
+                                          : "bg-emerald-500"
+                                    )} 
+                                    style={{ width: `${aiAnalysis.burnout_risk_score || 0}%` }}
+                                  />
+                                </div>
+                                <p className="text-[9px] text-slate-400 leading-normal mt-1 block">
+                                  Computed based on work hours volatility, overtime frequency, and task density.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* REFRESH / FORCE GENERATE CONTROLS */}
+                          <div className="flex justify-between items-center bg-[#1E293B]/40 border border-slate-700/30 rounded-2xl px-5 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <Activity className="text-indigo-400 animate-pulse" size={16} />
+                              <span className="text-[11px] text-slate-400">Cached Diagnostic Report active</span>
+                            </div>
+                            <button
+                              onClick={() => handleRunAiAnalysis(true)}
+                              disabled={isAiAnalyzing}
+                              className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1.5"
+                            >
+                              {isAiAnalyzing ? <RefreshCw className="animate-spin" size={12} /> : <RefreshCw size={12} />}
+                              <span>Force Recalculate</span>
+                            </button>
+                          </div>
+
+                          {/* TABBED ANALYSIS VIEW */}
+                          <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+                            
+                            {/* Tabs Header */}
+                            <div className="flex gap-2 border-b border-slate-700/50 pb-3 mb-6">
+                              <button
+                                onClick={() => setActiveAiSubTab('summary')}
+                                className={cn(
+                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                  activeAiSubTab === 'summary'
+                                    ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
+                                    : "text-slate-400 hover:text-slate-200"
+                                )}
+                              >
+                                <Sparkles size={14} />
+                                <span>Executive Summary</span>
+                              </button>
+                              <button
+                                onClick={() => setActiveAiSubTab('gaps')}
+                                className={cn(
+                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                  activeAiSubTab === 'gaps'
+                                    ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
+                                    : "text-slate-400 hover:text-slate-200"
+                                )}
+                              >
+                                <AlertTriangle size={14} />
+                                <span>Strengths & Gaps</span>
+                              </button>
+                              <button
+                                onClick={() => setActiveAiSubTab('coaching')}
+                                className={cn(
+                                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                  activeAiSubTab === 'coaching'
+                                    ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
+                                    : "text-slate-400 hover:text-slate-200"
+                                )}
+                              >
+                                <Target size={14} />
+                                <span>Development Plan</span>
+                              </button>
+                            </div>
+
+                            {/* Tab Content Display */}
+                            <div className="min-h-[250px]">
+                              {activeAiSubTab === 'summary' && (
+                                <div className="space-y-4">
+                                  {aiAnalysis.markdown_executive_summary ? (
+                                    renderMarkdown(aiAnalysis.markdown_executive_summary)
+                                  ) : (
+                                    <div className="text-slate-400 text-xs sm:text-sm leading-relaxed">
+                                      No executive summary generated.
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {activeAiSubTab === 'gaps' && (
+                                <div className="space-y-6">
+                                  <div>
+                                    <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                      <CheckCircle2 size={16} /> Key Strengths Identified
+                                    </h4>
+                                    <div className="grid grid-cols-1 gap-2.5">
+                                      {(aiAnalysis.strengths || []).length === 0 ? (
+                                        <div className="text-xs text-slate-500 italic">No direct strength logs computed.</div>
+                                      ) : (
+                                        aiAnalysis.strengths.map((str: string, i: number) => (
+                                          <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 shadow-sm text-xs text-slate-300">
+                                            <span className="text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                            <span>{str}</span>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="border-t border-slate-700/40 pt-6">
+                                    <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                      <AlertTriangle size={16} /> Key Execution Gaps & Redundancies
+                                    </h4>
+                                    <div className="grid grid-cols-1 gap-2.5">
+                                      {(aiAnalysis.improvements || []).length === 0 ? (
+                                        <div className="text-xs text-slate-500 italic">No specific gap metrics recorded.</div>
+                                      ) : (
+                                        aiAnalysis.improvements.map((imp: string, i: number) => (
+                                          <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 shadow-sm text-xs text-slate-300">
+                                            <span className="text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                            <span>{imp}</span>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {activeAiSubTab === 'coaching' && (
+                                <div className="space-y-4">
+                                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                    <Target size={16} /> Strategic Development & Action Plan
+                                  </h4>
+                                  <div className="grid grid-cols-1 gap-3">
+                                    {(aiAnalysis.development_plan || []).length === 0 ? (
+                                      <div className="text-xs text-slate-500 italic font-mono">No actions scheduled.</div>
+                                    ) : (
+                                      aiAnalysis.development_plan.map((act: string, i: number) => (
+                                        <div key={i} className="flex items-start gap-3 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 shadow-sm text-xs text-slate-300">
+                                          <div className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-mono font-bold text-[10px]">
+                                            {i + 1}
+                                          </div>
+                                          <div className="flex-1 leading-relaxed">
+                                            {act}
+                                          </div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>

@@ -253,7 +253,7 @@ interface EditWorklogModalProps {
 
 export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }: EditWorklogModalProps) {
   const { showToast } = useNotification();
-  const [session] = useState(() => JSON.parse(sessionStorage.getItem('worklog_session') || '{}'));
+  const [session] = useState(() => JSON.parse(localStorage.getItem('worklog_session') || '{}'));
 
   // Form State
   const [date, setDate] = useState('');

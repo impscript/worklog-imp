@@ -34,7 +34,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const session = sessionStorage.getItem('worklog_session');
+    const session = localStorage.getItem('worklog_session');
     if (session) {
       setUser(JSON.parse(session));
     }
@@ -51,7 +51,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('worklog_session');
+    localStorage.removeItem('worklog_session');
     navigate('/login');
   };
 

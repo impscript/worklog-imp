@@ -24,7 +24,7 @@ export default function ProfilePage() {
   const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
-    const sessionStr = sessionStorage.getItem('worklog_session');
+    const sessionStr = localStorage.getItem('worklog_session');
     if (!sessionStr) {
       navigate('/login');
       return;
@@ -104,13 +104,8 @@ export default function ProfilePage() {
           setGcalEmail(dbUser.gcal_email || '');
           setGcalCalendarId(dbUser.gcal_calendar_id || 'primary');
           
-          // Verify if actual token is active in local storage
-          const activeToken = googleCalendar.getAccessToken();
-          if (activeToken) {
-            setGcalConnected(true);
-          } else {
-            setGcalConnected(false);
-          }
+          // Keep connected state true if user enabled sync, even if session token temporarily expired
+          setGcalConnected(dbUser.gcal_sync_enabled || false);
         }
       } catch (err) {
         console.error('Error loading profile data:', err);
@@ -123,7 +118,7 @@ export default function ProfilePage() {
   }, [navigate]);
 
   const handleLogout = () => {
-    sessionStorage.removeItem('worklog_session');
+    localStorage.removeItem('worklog_session');
     navigate('/login');
   };
 
@@ -182,6 +177,8 @@ export default function ProfilePage() {
       setTimeout(() => setToastMessage(null), 4000);
     }
   };
+
+  const isTokenExpired = gcalConnected && !googleCalendar.getAccessToken();
 
   return (
     <AppLayout>
@@ -327,13 +324,19 @@ export default function ProfilePage() {
               {/* Status Indicator */}
               <div className="flex items-center gap-2">
                 {gcalConnected ? (
-                  <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold px-3 py-1.5 rounded-full">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span>Connected</span>
-                  </span>
+                  isTokenExpired ? (
+                    <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-bold px-3 py-1.5 rounded-full shadow-sm shadow-amber-500/10">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                      <span>Linked (Auth Expired)</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold px-3 py-1.5 rounded-full shadow-sm shadow-emerald-500/10">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>Connected & Active</span>
+                    </span>
+                  )
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-bold px-3 py-1.5 rounded-full">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                  <span className="inline-flex items-center gap-1.5 bg-slate-500/10 text-slate-400 border border-slate-500/20 text-xs font-bold px-3 py-1.5 rounded-full">
                     <span>Not Connected</span>
                   </span>
                 )}
@@ -399,7 +402,9 @@ export default function ProfilePage() {
                     <div>
                       <span className="text-base font-bold text-white block">{gcalEmail}</span>
                       <span className="text-xs text-slate-400 mt-1 block">
-                        Work logs synced using this account will appear directly on your calendar timeline.
+                        {isTokenExpired 
+                          ? "Your Google session has expired. Please click below to refresh it for continuous background sync." 
+                          : "Work logs synced using this account will appear directly on your calendar timeline."}
                       </span>
                     </div>
                   ) : (
@@ -413,13 +418,24 @@ export default function ProfilePage() {
 
                 <div>
                   {gcalConnected ? (
-                    <button
-                      onClick={handleDisconnectGCal}
-                      className="w-full inline-flex items-center justify-center gap-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95"
-                    >
-                      <XCircle size={16} />
-                      <span>Disconnect Google Account</span>
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      {isTokenExpired && (
+                        <button
+                          onClick={handleConnectGCal}
+                          className="flex-1 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/25"
+                        >
+                          <RefreshCw size={16} />
+                          <span>Re-authorize Session</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={handleDisconnectGCal}
+                        className={`inline-flex items-center justify-center gap-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 ${isTokenExpired ? "w-auto" : "w-full"}`}
+                      >
+                        <XCircle size={16} />
+                        <span>{isTokenExpired ? "Disconnect" : "Disconnect Google Account"}</span>
+                      </button>
+                    </div>
                   ) : (
                     <button
                       onClick={handleConnectGCal}

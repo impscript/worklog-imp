@@ -18,13 +18,13 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const sessionStr = sessionStorage.getItem('worklog_session');
+    const sessionStr = localStorage.getItem('worklog_session');
     if (sessionStr) {
       try {
         setUser(JSON.parse(sessionStr));
       } catch (e) {
         console.error('Failed to parse active session:', e);
-        sessionStorage.removeItem('worklog_session');
+        localStorage.removeItem('worklog_session');
       }
     }
     setIsLoading(false);
@@ -198,7 +198,7 @@ export function useAuth() {
         email: userRecord.email
       };
 
-      sessionStorage.setItem('worklog_session', JSON.stringify(sessionObj));
+      localStorage.setItem('worklog_session', JSON.stringify(sessionObj));
       setUser(sessionObj);
       return sessionObj;
 
@@ -211,7 +211,7 @@ export function useAuth() {
   };
 
   const logout = () => {
-    sessionStorage.removeItem('worklog_session');
+    localStorage.removeItem('worklog_session');
     setUser(null);
   };
 

@@ -46,7 +46,7 @@ export default function CalendarPage() {
   };
 
   useEffect(() => {
-    const sessionStr = sessionStorage.getItem('worklog_session');
+    const sessionStr = localStorage.getItem('worklog_session');
     if (!sessionStr) {
       navigate('/login');
       return;
