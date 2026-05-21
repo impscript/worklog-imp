@@ -216,6 +216,13 @@ ${weightsText}
 
       if (existingReport) {
         return new Response(JSON.stringify({
+          id: existingReport.id,
+          created_at: existingReport.created_at,
+          share_token: existingReport.share_token,
+          is_public: existingReport.is_public,
+          expires_at: existingReport.expires_at,
+          acknowledged_at: existingReport.acknowledged_at,
+          acknowledged_by: existingReport.acknowledged_by,
           jd_alignment_score: existingReport.jd_alignment_score,
           burnout_risk_score: existingReport.burnout_risk_score,
           workload_allocation: existingReport.actual_vs_target,
@@ -331,24 +338,39 @@ ${aggregatedLogs}
 
     const parsedReport = JSON.parse(content);
 
-    // Save to cache (record actualModel for display)
-    await supabase.from('tb_ai_individual_analysis').insert({
-      user_id,
-      analysis_date: new Date().toISOString().split('T')[0],
-      start_date,
-      end_date,
-      jd_alignment_score: parsedReport.jd_alignment_score || 0,
-      burnout_risk_score: parsedReport.burnout_risk_score || 0,
-      actual_vs_target: parsedReport.workload_allocation || [],
-      strengths: parsedReport.strengths || [],
-      improvements: parsedReport.improvements || [],
-      development_plan: parsedReport.development_plan || {},
-      raw_ai_report: parsedReport.markdown_executive_summary || 'ไม่มีสรุปผล',
-      engine_model: actualModel,
-    });
+    // Save to cache (record actualModel for display) and fetch the inserted row with ID/Tokens
+    const { data: insertedRow, error: insertError } = await supabase
+      .from('tb_ai_individual_analysis')
+      .insert({
+        user_id,
+        analysis_date: new Date().toISOString().split('T')[0],
+        start_date,
+        end_date,
+        jd_alignment_score: parsedReport.jd_alignment_score || 0,
+        burnout_risk_score: parsedReport.burnout_risk_score || 0,
+        actual_vs_target: parsedReport.workload_allocation || [],
+        strengths: parsedReport.strengths || [],
+        improvements: parsedReport.improvements || [],
+        development_plan: parsedReport.development_plan || {},
+        raw_ai_report: parsedReport.markdown_executive_summary || 'ไม่มีสรุปผล',
+        engine_model: actualModel,
+      })
+      .select('*')
+      .single();
+
+    if (insertError) {
+      console.error('Failed to insert analysis history:', insertError.message);
+    }
 
     return new Response(JSON.stringify({
       ...parsedReport,
+      id: insertedRow?.id,
+      created_at: insertedRow?.created_at,
+      share_token: insertedRow?.share_token,
+      is_public: insertedRow?.is_public,
+      expires_at: insertedRow?.expires_at,
+      acknowledged_at: insertedRow?.acknowledged_at,
+      acknowledged_by: insertedRow?.acknowledged_by,
       cached: false,
       actualModel,
       provider,

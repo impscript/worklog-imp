@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { UploadCloud, CheckCircle2, AlertCircle, Download, Database, Sparkles, Settings, Eye, Play, Check, Users, User } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { UploadCloud, CheckCircle2, AlertCircle, Download, Database, Sparkles, Settings, Eye, Play, Check, Users, User, ChevronUp, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
@@ -91,6 +91,10 @@ export default function MigratePage() {
 
   // Preview & Processing states
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
+  const [expandedRowIdx, setExpandedRowIdx] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [rowsPerPage, setRowsPerPage] = useState<number>(20);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'warning' | 'error'>('all');
   const [newProjectsList, setNewProjectsList] = useState<any[]>([]);
   const [holidaysList, setHolidaysList] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -121,6 +125,7 @@ export default function MigratePage() {
       return;
     }
     const user = JSON.parse(sessionStr);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentUser(user);
     setSelectedImportUserId(user.id);
     setSelectedExportUserId(user.id);
@@ -146,6 +151,7 @@ export default function MigratePage() {
 
   useEffect(() => {
     if (!selectedImportUserId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setExistingImportUserIds(new Set());
       return;
     }
@@ -283,6 +289,7 @@ export default function MigratePage() {
   // Run validation and build Preview Table whenever mappings, csvData, or settings change
   useEffect(() => {
     if (csvData.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPreviewRows([]);
       return;
     }
@@ -606,6 +613,99 @@ export default function MigratePage() {
     setPreviewRows(compiledRows);
   }, [csvData, mappings, fallbackHolding, fallbackOperator, fallbackAction, fallbackStartTime, autoSplitOT, existingImportUserIds, holidaysList, newProjectsList]);
 
+  // Memoize unique project names from registry for the dropdown
+  const uniqueProjects = useMemo(() => {
+    return Array.from(new Set(newProjectsList.map(p => p.project_name))).sort();
+  }, [newProjectsList]);
+
+  // Reset page and selection states when active CSV is cleared
+  const resetFileState = () => {
+    setCsvData([]);
+    setFileName('');
+    setExpandedRowIdx(null);
+    setCurrentPage(1);
+    setStatusFilter('all');
+    setImportStats(null);
+    setImportProgress(0);
+  };
+
+  // Multi-field update with live validation and auto structural mappings
+  const handleUpdateRow = (idx: number, updatedFields: Partial<PreviewRow>) => {
+    setPreviewRows(prev => {
+      const next = [...prev];
+      const row = { ...next[idx], ...updatedFields };
+
+      // Auto-calculate total hours if start_time or end_time is modified
+      if (updatedFields.start_time !== undefined || updatedFields.end_time !== undefined) {
+        const start = updatedFields.start_time !== undefined ? updatedFields.start_time : row.start_time;
+        const end = updatedFields.end_time !== undefined ? updatedFields.end_time : row.end_time;
+        if (start && end) {
+          const [sH, sM] = start.split(':').map(Number);
+          const [eH, eM] = end.split(':').map(Number);
+          if (!isNaN(sH) && !isNaN(eH)) {
+            const diff = (eH * 60 + eM) - (sH * 60 + sM);
+            row.total_hours = diff > 0 ? diff / 60 : (diff + 24 * 60) / 60;
+          }
+        }
+      }
+
+      // Check project match to update structural fields if project_name changed
+      if (updatedFields.project_name !== undefined) {
+        const norm = (str: string) => str.toLowerCase().replace(/\s+/g, '');
+        const normName = norm(row.project_name);
+        const match = newProjectsList.find(p => norm(p.project_name) === normName);
+        if (match) {
+          row.holding = match.holding;
+          row.department_operator = match.department_operator;
+          row.project_type = match.project_type || 'Management';
+          row.module = match.module || '';
+          row.bu = match.bu || '';
+          row.department = match.department || '';
+        }
+      }
+
+      // Re-run validation on this row
+      let status: 'ready' | 'warning' | 'error' = 'ready';
+      let message = row.actionType === 'update' ? 'Will update existing worklog' : 'Ready to import';
+
+      // 1. Validate date
+      if (!row.work_date || isNaN(Date.parse(row.work_date))) {
+        status = 'error';
+        message = 'Invalid or missing work date';
+      } else {
+        // 2. Validate start/end times or hours
+        if (!row.start_time || !row.end_time) {
+          if (row.total_hours <= 0) {
+            status = 'error';
+            message = 'Missing start/end times and valid total hours';
+          }
+        }
+      }
+
+      // Validate required structural fields
+      if (status !== 'error') {
+        if (!row.holding || !row.department_operator || !row.bu || !row.department) {
+          status = 'error';
+          message = 'Missing required structural fields (Holding, Operator, BU, Department)';
+        } else {
+          // Check if project name matches
+          const norm = (str: string) => str.toLowerCase().replace(/\s+/g, '');
+          const normName = norm(row.project_name);
+          const match = newProjectsList.find(p => norm(p.project_name) === normName);
+          if (!match) {
+            status = 'warning';
+            message = `Project mismatch. Will map via explicit columns [${row.holding} > ${row.bu} > ${row.department}]`;
+          }
+        }
+      }
+
+      row.status = status;
+      row.message = message;
+      next[idx] = row;
+      return next;
+    });
+  };
+
   // Handle CSV Import
   const handleImport = async () => {
     if (previewRows.length === 0 || isProcessing) return;
@@ -690,7 +790,11 @@ export default function MigratePage() {
 
   // Preview export count when params change
   useEffect(() => {
-    if (!selectedExportUserId) { setExportRecordCount(null); return; }
+    if (!selectedExportUserId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setExportRecordCount(null);
+      return;
+    }
     async function countExport() {
       const { count } = await supabase
         .from('col_worklog')
@@ -786,6 +890,30 @@ export default function MigratePage() {
     }
   };
 
+  // Derived state: Filtered and Paginated rows for preview table
+  const filteredRows = useMemo(() => {
+    return previewRows.map((row, index) => ({ ...row, originalIndex: index }))
+      .filter(row => {
+        if (statusFilter === 'all') return true;
+        return row.status === statusFilter;
+      });
+  }, [previewRows, statusFilter]);
+
+  const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
+  
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredRows.slice(start, start + rowsPerPage);
+  }, [filteredRows, currentPage, rowsPerPage]);
+
+  // Adjust page if it exceeds total pages
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-8">
@@ -875,10 +1003,7 @@ export default function MigratePage() {
                     <h3 className="text-lg font-bold text-white font-mono">{fileName}</h3>
                   </div>
                   <button 
-                    onClick={() => {
-                      setCsvData([]);
-                      setFileName('');
-                    }}
+                    onClick={resetFileState}
                     className="px-3 py-1.5 rounded-xl border border-slate-700 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
                   >
                     Reset File
@@ -886,86 +1011,494 @@ export default function MigratePage() {
                 </div>
 
                 {/* Live Validation & Preview Table */}
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <div className="space-y-4">
+                  {/* Summary & Filters Header */}
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between bg-[#0F172A]/30 p-3 rounded-xl border border-slate-800/60">
+                    <div className="flex items-center gap-2">
                       <Eye size={16} className="text-indigo-400" />
-                      <span>Data Preview & Validation ({previewRows.length} Rows)</span>
-                    </h3>
-                    <div className="flex items-center gap-3 text-xs font-semibold">
-                      <span className="text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 size={12} />
-                        <span>Ready: {previewRows.filter(r => r.status === 'ready').length}</span>
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">
+                        Validation Preview ({previewRows.length} Rows)
                       </span>
-                      <span className="text-amber-400 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        <span>Warnings: {previewRows.filter(r => r.status === 'warning').length}</span>
-                      </span>
-                      <span className="text-rose-400 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        <span>Errors: {previewRows.filter(r => r.status === 'error').length}</span>
-                      </span>
+                    </div>
+
+                    {/* Interactive Filter Tabs */}
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        onClick={() => { setStatusFilter('all'); setCurrentPage(1); }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border flex items-center gap-1 cursor-pointer",
+                          statusFilter === 'all'
+                            ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
+                            : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300"
+                        )}
+                      >
+                        All ({previewRows.length})
+                      </button>
+                      <button
+                        onClick={() => { setStatusFilter('ready'); setCurrentPage(1); }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border flex items-center gap-1 cursor-pointer",
+                          statusFilter === 'ready'
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                            : "bg-slate-900 border-slate-800 text-slate-400 hover:text-emerald-400"
+                        )}
+                      >
+                        <CheckCircle2 size={10} />
+                        Ready ({previewRows.filter(r => r.status === 'ready').length})
+                      </button>
+                      <button
+                        onClick={() => { setStatusFilter('warning'); setCurrentPage(1); }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border flex items-center gap-1 cursor-pointer",
+                          statusFilter === 'warning'
+                            ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                            : "bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-400"
+                        )}
+                      >
+                        <AlertCircle size={10} />
+                        Warnings ({previewRows.filter(r => r.status === 'warning').length})
+                      </button>
+                      <button
+                        onClick={() => { setStatusFilter('error'); setCurrentPage(1); }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border flex items-center gap-1 cursor-pointer",
+                          statusFilter === 'error'
+                            ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
+                            : "bg-slate-900 border-slate-800 text-slate-400 hover:text-rose-400"
+                        )}
+                      >
+                        <AlertCircle size={10} />
+                        Errors ({previewRows.filter(r => r.status === 'error').length})
+                      </button>
                     </div>
                   </div>
 
+                  {/* Main Table */}
                   <div className="overflow-x-auto border border-slate-800 rounded-xl bg-[#0F172A]/40">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-900/80 border-b border-slate-800/60 font-semibold text-slate-300">
-                          <th className="p-3">Status</th>
-                          <th className="p-3">Work Date</th>
-                          <th className="p-3">Times / Hours</th>
+                          <th className="p-3 w-[100px]">Status</th>
+                          <th className="p-3 w-[120px]">Work Date</th>
+                          <th className="p-3 w-[140px]">Times / Hours</th>
                           <th className="p-3">Project Name</th>
                           <th className="p-3">Action Name</th>
                           <th className="p-3">Description</th>
+                          <th className="p-3 w-[60px] text-center">Correct</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/40">
-                        {previewRows.slice(0, 5).map((row, idx) => (
-                          <tr key={idx} className="hover:bg-slate-950/20 text-slate-300">
-                            <td className="p-3">
-                              <div className="flex flex-col gap-1">
-                                <span className={cn(
-                                  "inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded font-bold uppercase text-[9px] tracking-wide border w-fit",
-                                  row.status === 'ready' && "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-                                  row.status === 'warning' && "text-amber-400 bg-amber-500/10 border-amber-500/20",
-                                  row.status === 'error' && "text-rose-400 bg-rose-500/10 border-rose-500/20"
-                                )}>
-                                  {row.status}
-                                </span>
-                                {row.status !== 'error' && (
-                                  <span className={cn(
-                                    "inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded font-bold uppercase text-[8px] tracking-wider w-fit border",
-                                    row.actionType === 'update' 
-                                      ? "text-sky-400 bg-sky-500/10 border-sky-500/20" 
-                                      : "text-violet-400 bg-violet-500/10 border-violet-500/20"
-                                  )}>
-                                    {row.actionType === 'update' ? 'Update' : 'Insert'}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-3 font-mono font-bold text-white">{row.work_date}</td>
-                            <td className="p-3">
-                              <div className="font-mono font-semibold">
-                                {row.start_time ? `${row.start_time} - ${row.end_time}` : '-'}
-                              </div>
-                              <div className="text-[10px] text-slate-400 font-mono">({row.total_hours.toFixed(1)} hrs)</div>
-                            </td>
-                            <td className="p-3">
-                              <span className="font-semibold text-white">{row.project_name}</span>
-                            </td>
-                            <td className="p-3 text-slate-400">{row.action_name}</td>
-                            <td className="p-3 italic truncate max-w-[150px]" title={row.description}>
-                              {row.description || '-'}
+                        {paginatedRows.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="p-8 text-center text-slate-500 italic">
+                              No logs found matching filter "{statusFilter}"
                             </td>
                           </tr>
-                        ))}
+                        ) : (
+                          paginatedRows.map((row) => {
+                            const isExpanded = expandedRowIdx === row.originalIndex;
+                            const isWorkDateInvalid = !row.work_date || isNaN(Date.parse(row.work_date));
+                            const isTimeInvalid = (!row.start_time || !row.end_time) && row.total_hours <= 0;
+                            const isProjMismatch = !newProjectsList.some(
+                              p => p.project_name.toLowerCase().replace(/\s+/g, '') === row.project_name.toLowerCase().replace(/\s+/g, '')
+                            );
+                            const isStructInvalid = !row.holding || !row.department_operator || !row.bu || !row.department;
+
+                            return (
+                              <React.Fragment key={row.originalIndex}>
+                                <tr 
+                                  onClick={() => setExpandedRowIdx(isExpanded ? null : row.originalIndex)}
+                                  className={cn(
+                                    "hover:bg-slate-950/30 text-slate-300 transition-all cursor-pointer",
+                                    isExpanded && "bg-slate-900/40 border-l-2 border-indigo-500",
+                                    row.status === 'error' && "hover:bg-rose-500/5",
+                                    row.status === 'warning' && "hover:bg-amber-500/5"
+                                  )}
+                                >
+                                  {/* Status Column */}
+                                  <td className="p-3">
+                                    <div className="flex flex-col gap-1">
+                                      <span className={cn(
+                                        "inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded font-bold uppercase text-[9px] tracking-wide border w-fit",
+                                        row.status === 'ready' && "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+                                        row.status === 'warning' && "text-amber-400 bg-amber-500/10 border-amber-500/20",
+                                        row.status === 'error' && "text-rose-400 bg-rose-500/10 border-rose-500/20"
+                                      )}>
+                                        {row.status}
+                                      </span>
+                                      {row.status !== 'error' && (
+                                        <span className={cn(
+                                          "inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded font-bold uppercase text-[8px] tracking-wider w-fit border",
+                                          row.actionType === 'update' 
+                                            ? "text-sky-400 bg-sky-500/10 border-sky-500/20" 
+                                            : "text-violet-400 bg-violet-500/10 border-violet-500/20"
+                                        )}>
+                                          {row.actionType === 'update' ? 'Update' : 'Insert'}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  {/* Work Date */}
+                                  <td className={cn(
+                                    "p-3 font-mono font-bold text-white",
+                                    isWorkDateInvalid && "text-rose-400 underline decoration-rose-500/40"
+                                  )}>
+                                    {row.work_date || 'Missing Date'}
+                                  </td>
+
+                                  {/* Times / Hours */}
+                                  <td className={cn(
+                                    "p-3 font-mono",
+                                    isTimeInvalid && "text-rose-400"
+                                  )}>
+                                    <div className="font-semibold text-white">
+                                      {row.start_time ? `${row.start_time} - ${row.end_time}` : '-'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-mono">({row.total_hours.toFixed(1)} hrs)</div>
+                                  </td>
+
+                                  {/* Project Name */}
+                                  <td className="p-3">
+                                    <span className={cn(
+                                      "font-semibold text-white",
+                                      isProjMismatch && "text-amber-400 underline decoration-amber-500/40"
+                                    )}>
+                                      {row.project_name || 'Missing Project'}
+                                    </span>
+                                  </td>
+
+                                  {/* Action Name */}
+                                  <td className="p-3 text-slate-400">{row.action_name}</td>
+
+                                  {/* Description */}
+                                  <td className="p-3 italic truncate max-w-[150px]" title={row.description}>
+                                    {row.description || '-'}
+                                  </td>
+
+                                  {/* Expand / Correct Trigger */}
+                                  <td className="p-3 text-center">
+                                    <button 
+                                      className={cn(
+                                        "p-1.5 rounded-lg border transition-all hover:scale-105 active:scale-95",
+                                        row.status === 'error' && "border-rose-500/30 text-rose-400 bg-rose-500/10",
+                                        row.status === 'warning' && "border-amber-500/30 text-amber-400 bg-amber-500/10",
+                                        row.status === 'ready' && "border-slate-800 text-slate-400 hover:text-white"
+                                      )}
+                                      title="Fix row inline"
+                                    >
+                                      {isExpanded ? <ChevronUp size={14} /> : <Pencil size={14} />}
+                                    </button>
+                                  </td>
+                                </tr>
+
+                                {/* Interactive Editor Expansion Panel */}
+                                {isExpanded && (
+                                  <tr className="bg-slate-900/60 border-b border-slate-800/80">
+                                    <td colSpan={7} className="p-4" onClick={(e) => e.stopPropagation()}>
+                                      <div className="bg-[#0F172A]/95 border border-indigo-500/30 rounded-xl p-5 shadow-2xl space-y-4 text-xs">
+                                        <div className="flex flex-col gap-1 border-b border-slate-800/80 pb-3">
+                                          <div className="flex items-center justify-between">
+                                            <h4 className="font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 text-[11px]">
+                                              <Pencil size={12} />
+                                              <span>Inline Data Editor — Row #{row.originalIndex + 1}</span>
+                                            </h4>
+                                            <span className={cn(
+                                              "inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded font-bold uppercase text-[9px] tracking-wide border w-fit",
+                                              row.status === 'ready' && "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+                                              row.status === 'warning' && "text-amber-400 bg-amber-500/10 border-amber-500/20",
+                                              row.status === 'error' && "text-rose-400 bg-rose-500/10 border-rose-500/20"
+                                            )}>
+                                              {row.status}
+                                            </span>
+                                          </div>
+                                          {row.message && (
+                                            <p className={cn(
+                                              "text-[10px] font-semibold mt-1",
+                                              row.status === 'error' && "text-rose-400",
+                                              row.status === 'warning' && "text-amber-400",
+                                              row.status === 'ready' && "text-emerald-400"
+                                            )}>
+                                              💡 {row.message}
+                                            </p>
+                                          )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                          {/* Col 1: Date & Time */}
+                                          <div className="space-y-3">
+                                            <h5 className="font-bold text-slate-300 uppercase tracking-widest text-[9px] border-b border-slate-800/60 pb-1">Date & Time</h5>
+                                            
+                                            <div className="flex flex-col gap-1">
+                                              <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                <span>Work Date</span>
+                                                {isWorkDateInvalid && <span className="text-rose-400 text-[8px] uppercase">Required</span>}
+                                              </label>
+                                              <input
+                                                type="date"
+                                                value={row.work_date}
+                                                onChange={(e) => handleUpdateRow(row.originalIndex, { work_date: e.target.value })}
+                                                className={cn(
+                                                  "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-indigo-500 transition-all",
+                                                  isWorkDateInvalid ? "border-rose-500/60 focus:ring-1 focus:ring-rose-500/20" : "border-slate-800"
+                                                )}
+                                              />
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2">
+                                              <div className="flex flex-col gap-1">
+                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                  <span>Start Time</span>
+                                                  {isTimeInvalid && <span className="text-rose-400 text-[8px] uppercase">Req</span>}
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  placeholder="08:30"
+                                                  value={row.start_time}
+                                                  onChange={(e) => handleUpdateRow(row.originalIndex, { start_time: e.target.value })}
+                                                  className={cn(
+                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-indigo-500 transition-all",
+                                                    isTimeInvalid ? "border-rose-500/60 focus:ring-1 focus:ring-rose-500/20" : "border-slate-800"
+                                                  )}
+                                                />
+                                              </div>
+                                              <div className="flex flex-col gap-1">
+                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                  <span>End Time</span>
+                                                  {isTimeInvalid && <span className="text-rose-400 text-[8px] uppercase">Req</span>}
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  placeholder="17:30"
+                                                  value={row.end_time}
+                                                  onChange={(e) => handleUpdateRow(row.originalIndex, { end_time: e.target.value })}
+                                                  className={cn(
+                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-indigo-500 transition-all",
+                                                    isTimeInvalid ? "border-rose-500/60 focus:ring-1 focus:ring-rose-500/20" : "border-slate-800"
+                                                  )}
+                                                />
+                                              </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-1">
+                                              <label className="text-[10px] font-bold text-slate-400">Total Hours</label>
+                                              <input
+                                                type="number"
+                                                step="0.1"
+                                                value={row.total_hours}
+                                                onChange={(e) => handleUpdateRow(row.originalIndex, { total_hours: parseFloat(e.target.value) || 0 })}
+                                                className="bg-[#090D16] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-indigo-500 transition-all"
+                                              />
+                                            </div>
+                                          </div>
+
+                                          {/* Col 2: Project Registry Mappings */}
+                                          <div className="space-y-3">
+                                            <h5 className="font-bold text-slate-300 uppercase tracking-widest text-[9px] border-b border-slate-800/60 pb-1">Project Alignment</h5>
+
+                                            <div className="flex flex-col gap-1">
+                                              <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                <span>Registered Project</span>
+                                                {isProjMismatch && <span className="text-amber-400 text-[8px] uppercase">Mismatch</span>}
+                                              </label>
+                                              <select
+                                                value={row.project_name}
+                                                onChange={(e) => handleUpdateRow(row.originalIndex, { project_name: e.target.value })}
+                                                className={cn(
+                                                  "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all",
+                                                  isProjMismatch ? "border-amber-500/60 focus:ring-1 focus:ring-amber-500/20 bg-amber-500/5" : "border-slate-800"
+                                                )}
+                                              >
+                                                <option value="">-- Select Project to Auto-map --</option>
+                                                {!uniqueProjects.includes(row.project_name) && row.project_name && (
+                                                  <option value={row.project_name}>{row.project_name} (Imported / Unregistered)</option>
+                                                )}
+                                                {uniqueProjects.map(p => (
+                                                  <option key={p} value={p}>{p}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+
+                                            <div className="flex flex-col gap-1">
+                                              <label className="text-[10px] font-bold text-slate-400">Action / Task</label>
+                                              <input
+                                                type="text"
+                                                value={row.action_name}
+                                                onChange={(e) => handleUpdateRow(row.originalIndex, { action_name: e.target.value })}
+                                                className="bg-[#090D16] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all"
+                                              />
+                                            </div>
+
+                                            <div className="flex flex-col gap-1">
+                                              <label className="text-[10px] font-bold text-slate-400">Description</label>
+                                              <textarea
+                                                value={row.description}
+                                                rows={2}
+                                                onChange={(e) => handleUpdateRow(row.originalIndex, { description: e.target.value })}
+                                                className="bg-[#090D16] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all resize-none"
+                                              />
+                                            </div>
+                                          </div>
+
+                                          {/* Col 3: Hierarchy Structures */}
+                                          <div className="space-y-3">
+                                            <h5 className="font-bold text-slate-300 uppercase tracking-widest text-[9px] border-b border-slate-800/60 pb-1">Structural Hierarchy</h5>
+
+                                            <div className="grid grid-cols-2 gap-2">
+                                              <div className="flex flex-col gap-1">
+                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                  <span>Holding</span>
+                                                  {isStructInvalid && !row.holding && <span className="text-rose-400 text-[7px] uppercase">*</span>}
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  value={row.holding}
+                                                  onChange={(e) => handleUpdateRow(row.originalIndex, { holding: e.target.value })}
+                                                  className={cn(
+                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all font-semibold",
+                                                    isStructInvalid && !row.holding ? "border-rose-500/60" : "border-slate-800"
+                                                  )}
+                                                />
+                                              </div>
+                                              <div className="flex flex-col gap-1">
+                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                  <span>Operator</span>
+                                                  {isStructInvalid && !row.department_operator && <span className="text-rose-400 text-[7px] uppercase">*</span>}
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  value={row.department_operator}
+                                                  onChange={(e) => handleUpdateRow(row.originalIndex, { department_operator: e.target.value })}
+                                                  className={cn(
+                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all font-semibold",
+                                                    isStructInvalid && !row.department_operator ? "border-rose-500/60" : "border-slate-800"
+                                                  )}
+                                                />
+                                              </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2">
+                                              <div className="flex flex-col gap-1">
+                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                  <span>BU</span>
+                                                  {isStructInvalid && !row.bu && <span className="text-rose-400 text-[7px] uppercase">*</span>}
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  value={row.bu}
+                                                  onChange={(e) => handleUpdateRow(row.originalIndex, { bu: e.target.value })}
+                                                  className={cn(
+                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all font-semibold",
+                                                    isStructInvalid && !row.bu ? "border-rose-500/60" : "border-slate-800"
+                                                  )}
+                                                />
+                                              </div>
+                                              <div className="flex flex-col gap-1">
+                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                  <span>Department</span>
+                                                  {isStructInvalid && !row.department && <span className="text-rose-400 text-[7px] uppercase">*</span>}
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  value={row.department}
+                                                  onChange={(e) => handleUpdateRow(row.originalIndex, { department: e.target.value })}
+                                                  className={cn(
+                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all font-semibold",
+                                                    isStructInvalid && !row.department ? "border-rose-500/60" : "border-slate-800"
+                                                  )}
+                                                />
+                                              </div>
+                                            </div>
+
+                                            <div className="flex gap-4 pt-3 border-t border-slate-800/50">
+                                              <label className="flex items-center gap-2 text-[10px] font-bold text-slate-300 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={row.is_ot}
+                                                  onChange={(e) => handleUpdateRow(row.originalIndex, { is_ot: e.target.checked })}
+                                                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-[#090D16] border-slate-800"
+                                                />
+                                                <span>Overtime (OT)</span>
+                                              </label>
+
+                                              <label className="flex items-center gap-2 text-[10px] font-bold text-slate-300 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={row.break_time}
+                                                  onChange={(e) => handleUpdateRow(row.originalIndex, { break_time: e.target.checked })}
+                                                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-[#090D16] border-slate-800"
+                                                />
+                                                <span>Break (1 hr)</span>
+                                              </label>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex justify-end pt-3 border-t border-slate-800/80 gap-3">
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedRowIdx(null)}
+                                            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+                                          >
+                                            Done
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>
-                  {previewRows.length > 5 && (
-                    <p className="text-[11px] text-slate-500 text-right italic">Showing first 5 rows for verification.</p>
+
+                  {/* Pagination Controls */}
+                  {filteredRows.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 text-xs font-semibold text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <span>Show</span>
+                        <select
+                          value={rowsPerPage}
+                          onChange={(e) => {
+                            setRowsPerPage(Number(e.target.value));
+                            setCurrentPage(1);
+                          }}
+                          className="bg-[#0F172A] border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:border-indigo-500"
+                        >
+                          <option value={10}>10 rows</option>
+                          <option value={20}>20 rows</option>
+                          <option value={50}>50 rows</option>
+                          <option value={100}>100 rows</option>
+                          <option value={filteredRows.length}>All ({filteredRows.length})</option>
+                        </select>
+                        <span>per page</span>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={currentPage === 1}
+                          className="p-2 rounded-lg border border-slate-800 bg-slate-900/60 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-40 disabled:hover:bg-slate-900/60 disabled:hover:text-slate-400 cursor-pointer"
+                        >
+                          <ChevronLeft size={14} />
+                        </button>
+                        
+                        <span className="font-mono text-white">
+                          Page {currentPage} of {totalPages || 1}
+                        </span>
+
+                        <button
+                          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                          disabled={currentPage === totalPages || totalPages === 0}
+                          className="p-2 rounded-lg border border-slate-800 bg-slate-900/60 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-40 disabled:hover:bg-slate-900/60 disabled:hover:text-slate-400 cursor-pointer"
+                        >
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
 

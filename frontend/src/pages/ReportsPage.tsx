@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import { 
   FileSpreadsheet, Search, Clock, Award, Layers, ChevronDown, ChevronUp,
   TrendingUp, User as UserIcon, Users, Edit3, Eye,
-  Brain, Sparkles, AlertTriangle, Activity, FileText, CheckCircle2, Target, RefreshCw, PlusCircle, Save, Loader2
+  Brain, Sparkles, AlertTriangle, Activity, FileText, CheckCircle2, Target, RefreshCw, PlusCircle, Save, Loader2,
+  Globe, Lock, Printer, Copy, ExternalLink, Share2, X, UserCheck
 } from 'lucide-react';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
@@ -95,6 +96,15 @@ export default function ReportsPage() {
   const [analysisHistory, setAnalysisHistory] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // --- Acknowledge, Share & Print Preview State ---
+  const [isAcknowledging, setIsAcknowledging] = useState(false);
+  const [isAckConfirmOpen, setIsAckConfirmOpen] = useState(false);
+  const [isTogglingShare, setIsTogglingShare] = useState(false);
+  const [isShareSettingsOpen, setIsShareSettingsOpen] = useState(false);
+  const [isSharedView, setIsSharedView] = useState(false);
+  const [sharedUser, setSharedUser] = useState<any>(null);
+  const [sharedReport, setSharedReport] = useState<any>(null);
+
   // Pagination State (for Personal Tab)
   const [currentPage, setCurrentPage] = useState(1);
   const entriesPerPage = 10;
@@ -156,8 +166,15 @@ export default function ReportsPage() {
   };
 
   const loadData = useCallback(async () => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const token = queryParams.get('share');
+
     const sessionStr = localStorage.getItem('worklog_session');
     if (!sessionStr) {
+      if (token) {
+        // Bypass redirect for public shared view
+        return;
+      }
       navigate('/login');
       return;
     }
@@ -534,14 +551,19 @@ export default function ReportsPage() {
       // Use actualModel from response (reflects real model used including fallback)
       const resolvedModel = data.actualModel || activeModel;
       setAiAnalysis({
+        id: data.id,
+        share_token: data.share_token,
+        is_public: data.is_public,
+        acknowledged_at: data.acknowledged_at,
+        acknowledged_by: data.acknowledged_by,
         jd_alignment_score: data.jd_alignment_score,
         burnout_risk_score: data.burnout_risk_score,
         workload_allocation: data.workload_allocation,
         strengths: data.strengths,
         improvements: data.improvements,
         development_plan: data.development_plan,
-        markdown_executive_summary: data.markdown_executive_summary,
-        created_at: new Date().toISOString(),
+        markdown_executive_summary: data.markdown_executive_summary || data.raw_ai_report,
+        created_at: data.created_at || new Date().toISOString(),
         isCached: false,
         model: resolvedModel,
         provider: data.provider || 'unknown',
@@ -591,6 +613,11 @@ export default function ReportsPage() {
   // Load a historical record into the current analysis view
   const loadHistoryRecord = (record: any) => {
     setAiAnalysis({
+      id: record.id,
+      share_token: record.share_token,
+      is_public: record.is_public,
+      acknowledged_at: record.acknowledged_at,
+      acknowledged_by: record.acknowledged_by,
       jd_alignment_score: record.jd_alignment_score,
       burnout_risk_score: record.burnout_risk_score,
       workload_allocation: record.actual_vs_target,
@@ -600,7 +627,7 @@ export default function ReportsPage() {
       markdown_executive_summary: record.raw_ai_report,
       created_at: record.created_at,
       isCached: true,
-      model: 'Historical Record',
+      model: record.engine_model || 'Historical Record',
       start_date: record.start_date,
       end_date: record.end_date,
       total_hours: null,
@@ -608,7 +635,183 @@ export default function ReportsPage() {
       weights: keyResponsibilities
     });
     setActiveAiSubTab('summary');
-    showToast('\u0e42\u0e2b\u0e25\u0e14\u0e1c\u0e25\u0e27\u0e34\u0e40\u0e04\u0e23\u0e32\u0e30\u0e2b\u0e4c\u0e22\u0e49\u0e2d\u0e19\u0e2b\u0e25\u0e31\u0e07\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08', 'success');
+    showToast('โหลดผลวิเคราะห์ย้อนหลังสำเร็จ', 'success');
+  };
+
+  // Load public shared report
+  const loadSharedReport = async (token: string) => {
+    try {
+      setIsLoading(true);
+      // Fetch report by share_token
+      const { data: report, error: reportErr } = await supabase
+        .from('tb_ai_individual_analysis')
+        .select('*')
+        .eq('share_token', token)
+        .maybeSingle();
+
+      if (reportErr) throw reportErr;
+      if (!report) {
+        showToast('ไม่พบรายงานที่แชร์ หรือรายงานหมดอายุแล้ว / Shared report not found or expired', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // Check expiry
+      if (report.expires_at && new Date(report.expires_at) < new Date()) {
+        showToast('รายงานที่แชร์หมดอายุการใช้งานแล้ว / Shared report has expired', 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // Fetch user details associated with the report
+      const { data: userData } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', report.user_id)
+        .maybeSingle();
+
+      setSharedReport(report);
+      setSharedUser(userData);
+
+      // Populate aiAnalysis state so we reuse the exact same sub-components!
+      setAiAnalysis({
+        id: report.id,
+        share_token: report.share_token,
+        is_public: report.is_public,
+        acknowledged_at: report.acknowledged_at,
+        acknowledged_by: report.acknowledged_by,
+        jd_alignment_score: report.jd_alignment_score,
+        burnout_risk_score: report.burnout_risk_score,
+        workload_allocation: report.actual_vs_target,
+        strengths: report.strengths,
+        improvements: report.improvements,
+        development_plan: report.development_plan,
+        markdown_executive_summary: report.raw_ai_report,
+        created_at: report.created_at,
+        isCached: true,
+        model: report.engine_model || 'Historical Record',
+        start_date: report.start_date,
+        end_date: report.end_date,
+        total_hours: null,
+        logs_count: null,
+        weights: []
+      });
+
+      // Switch sub-tabs automatically to show AI report
+      setIndividualSubTab('ai');
+      setActiveAiSubTab('summary');
+    } catch (err: any) {
+      console.error('Error loading shared report:', err);
+      showToast('ไม่สามารถดึงข้อมูลรายงานที่แชร์ได้: ' + err.message, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const token = queryParams.get('share');
+    if (token) {
+      setIsSharedView(true);
+      loadSharedReport(token);
+    }
+  }, []);
+
+  // Handle Acknowledge analysis
+  const handleAcknowledgeAnalysis = async () => {
+    if (!aiAnalysis || !aiAnalysis.id) {
+      showToast('ไม่พบข้อมูลการวิเคราะห์ที่จะลงนาม', 'error');
+      return;
+    }
+    try {
+      setIsAcknowledging(true);
+      const ackTime = new Date().toISOString();
+      const ackUser = sessionUser?.id;
+
+      if (!ackUser) {
+        showToast('เซสชันผู้ใช้หมดอายุ กรุณาเข้าสู่ระบบใหม่', 'error');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .update({
+          acknowledged_at: ackTime,
+          acknowledged_by: ackUser
+        })
+        .eq('id', aiAnalysis.id)
+        .select('*')
+        .single();
+      
+      if (error) throw error;
+      
+      // Update local state
+      setAiAnalysis((prev: any) => ({
+        ...prev,
+        acknowledged_at: data.acknowledged_at,
+        acknowledged_by: data.acknowledged_by
+      }));
+      
+      showToast('ลงนามรับทราบผลการวิเคราะห์เรียบร้อยแล้ว!', 'success');
+      // Refresh history to update indicators
+      loadAnalysisHistory();
+    } catch (err: any) {
+      console.error('Error acknowledging analysis:', err);
+      showToast('การลงนามล้มเหลว: ' + err.message, 'error');
+    } finally {
+      setIsAcknowledging(false);
+      setIsAckConfirmOpen(false);
+    }
+  };
+
+  // Toggle Share visibility
+  const handleToggleShareAnalysis = async () => {
+    if (!aiAnalysis || !aiAnalysis.id) {
+      showToast('ไม่พบข้อมูลการวิเคราะห์ที่จะแชร์', 'error');
+      return;
+    }
+    try {
+      setIsTogglingShare(true);
+      const newIsPublic = !aiAnalysis.is_public;
+      
+      const { data, error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .update({
+          is_public: newIsPublic
+        })
+        .eq('id', aiAnalysis.id)
+        .select('*')
+        .single();
+        
+      if (error) throw error;
+      
+      // Update local state
+      setAiAnalysis((prev: any) => ({
+        ...prev,
+        is_public: data.is_public
+      }));
+      
+      const action = data.is_public 
+        ? 'เปิดการแชร์รายงานนี้สู่สาธารณะเรียบร้อย!' 
+        : 'ปิดการแชร์รายงานนี้สู่สาธารณะเรียบร้อย!';
+      showToast(action, 'success');
+      
+      // Refresh history
+      loadAnalysisHistory();
+    } catch (err: any) {
+      console.error('Error toggling share status:', err);
+      showToast('แชร์รายงานล้มเหลว: ' + err.message, 'error');
+    } finally {
+      setIsTogglingShare(false);
+    }
+  };
+
+  // Copy share URL to clipboard
+  const handleCopyShareLink = () => {
+    if (!aiAnalysis || !aiAnalysis.share_token) return;
+    const shareUrl = `${window.location.origin}/reports?share=${aiAnalysis.share_token}`;
+    navigator.clipboard.writeText(shareUrl);
+    showToast('คัดลอกลิงก์แชร์ไปยังคลิปบอร์ดแล้ว / Copied share link to clipboard!', 'success');
   };
 
   // Simple clean markdown parser for pure React
@@ -1223,6 +1426,265 @@ export default function ReportsPage() {
     'from-teal-500 to-cyan-500 shadow-teal-500/20',
     'from-violet-500 to-indigo-500 shadow-violet-500/20'
   ];
+
+  if (isSharedView) {
+    return (
+      <div className="min-h-screen bg-[#030712] text-slate-200 font-sans relative flex flex-col p-6 sm:p-12 items-center justify-center">
+        {/* Dynamic Background Glowing Blobs */}
+        <div className="absolute top-0 left-1/4 w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-12 right-1/4 w-[350px] h-[350px] bg-violet-600/5 rounded-full blur-[100px] pointer-events-none" />
+        
+        {/* Stylesheet for Printing */}
+        <style>{`
+          @media print {
+            body, html {
+              background: white !important;
+              color: black !important;
+            }
+            .no-print, button, header, nav, .print\\:hidden {
+              display: none !important;
+            }
+            main, .print-container {
+              padding: 0 !important;
+              margin: 0 !important;
+              background: white !important;
+              box-shadow: none !important;
+              border: none !important;
+              width: 100% !important;
+              max-width: 100% !important;
+            }
+            .print-only {
+              display: block !important;
+            }
+            @page {
+              size: A4;
+              margin: 20mm;
+            }
+          }
+        `}</style>
+
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <Loader2 className="animate-spin text-indigo-400" size={32} />
+            <p className="text-sm font-bold text-slate-400">กำลังโหลดรายงานการวิเคราะห์... / Loading analysis report...</p>
+          </div>
+        ) : !sharedReport ? (
+          /* Lockout Screen: Expired / Invalid */
+          <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 rounded-3xl p-8 text-center backdrop-blur-xl shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-500 to-orange-500" />
+            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <AlertTriangle size={32} />
+            </div>
+            <h2 className="text-xl font-extrabold text-white tracking-tight mb-2">ลิงก์แชร์รายงานหมดอายุหรือไม่มีอยู่จริง</h2>
+            <p className="text-xs text-slate-400 leading-relaxed mb-6">
+              Shared Report has expired or is invalid. The sharing token might have been deactivated, deleted, or has passed its 30-day validity period.
+            </p>
+            <div className="text-[10px] text-slate-500 font-mono bg-slate-950/40 py-2.5 px-4 rounded-xl border border-slate-800/80 inline-block font-sans">
+              Code: ERR_SHARE_EXPIRED_OR_INVALID
+            </div>
+          </div>
+        ) : (
+          /* Valid Shared Report Presentation */
+          <div className="w-full max-w-4xl space-y-6 print-container animate-in fade-in duration-300">
+            {/* Action Bar for Shared View */}
+            <div className="flex flex-wrap items-center justify-between gap-4 no-print bg-[#1E293B]/80 border border-slate-700/50 rounded-2xl p-4 shadow-xl backdrop-blur-md">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                  <Sparkles size={16} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">AI Individual Audit Report</h3>
+                  <span className="text-[9px] text-slate-400 font-mono">Shared publicly via token</span>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="bg-slate-800 hover:bg-slate-750 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 border border-slate-700 transition-all cursor-pointer"
+                >
+                  <Printer size={14} />
+                  <span>Print Report</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Standard Dashboard for Shared View */}
+            <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-8 shadow-xl relative overflow-hidden space-y-8 no-print">
+              {/* Header inside the container */}
+              <div className="flex items-center justify-between border-b border-slate-700/50 pb-6">
+                <div>
+                  <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest block mb-1">AI Diagnostics Report</span>
+                  <h2 className="text-2xl font-black text-white tracking-tight">
+                    {sharedUser?.full_name || 'Employee'} ({sharedUser?.nickname || 'N/A'})
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Position: <span className="text-slate-200 font-bold">{sharedUser?.position || 'N/A'}</span> | Department: <span className="text-slate-200 font-bold">{sharedUser?.department || 'N/A'}</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Analysis Window</span>
+                  <span className="text-xs font-mono text-slate-300 font-bold block">{sharedReport.start_date} ~ {sharedReport.end_date}</span>
+                </div>
+              </div>
+
+              {/* The Score Dials */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Dial: JD Alignment */}
+                <div className="bg-[#0F172A]/40 border border-slate-800 rounded-2xl p-6 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">JD Alignment Index</span>
+                    <h4 className="text-3xl font-black text-white tracking-tight">{sharedReport.jd_alignment_score || 0}%</h4>
+                    <p className="text-[10px] text-slate-500 leading-normal max-w-[160px]">
+                      Consistency score of actual logs relative to target JD allocation.
+                    </p>
+                  </div>
+                  <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle cx="40" cy="40" r="32" className="stroke-slate-700/40 fill-none" strokeWidth="6" />
+                      <circle 
+                        cx="40" 
+                        cy="40" 
+                        r="32" 
+                        className="stroke-indigo-500 fill-none" 
+                        strokeWidth="6" 
+                        strokeDasharray={`${2 * Math.PI * 32}`} 
+                        strokeDashoffset={`${2 * Math.PI * 32 * (1 - (sharedReport.jd_alignment_score || 0) / 100)}`}
+                        strokeLinecap="round" 
+                      />
+                    </svg>
+                    <span className="absolute text-xs font-mono font-black text-indigo-400">{sharedReport.jd_alignment_score || 0}%</span>
+                  </div>
+                </div>
+
+                {/* Dial: Burnout Risk */}
+                <div className="bg-[#0F172A]/40 border border-slate-800 rounded-2xl p-6 flex items-center justify-between">
+                  <div className="space-y-1 w-full">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Burnout Risk Status</span>
+                      <span className={cn(
+                        "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+                        (sharedReport.burnout_risk_score || 0) > 70
+                          ? "bg-rose-500/20 border-rose-500/30 text-rose-400"
+                          : (sharedReport.burnout_risk_score || 0) > 40
+                            ? "bg-amber-500/20 border-amber-500/30 text-amber-400"
+                            : "bg-emerald-500/20 border-emerald-500/30 text-emerald-400"
+                      )}>
+                        {(sharedReport.burnout_risk_score || 0) > 70 ? 'High Risk' : (sharedReport.burnout_risk_score || 0) > 40 ? 'Moderate' : 'Low Risk'}
+                      </span>
+                    </div>
+                    <h4 className="text-3xl font-black text-white tracking-tight">{sharedReport.burnout_risk_score || 0}%</h4>
+                    <div className="w-full bg-slate-800 rounded-full h-2 mt-2 overflow-hidden">
+                      <div 
+                        className={cn(
+                          "h-full rounded-full",
+                          (sharedReport.burnout_risk_score || 0) > 70
+                            ? "bg-rose-500"
+                            : (sharedReport.burnout_risk_score || 0) > 40
+                              ? "bg-amber-500"
+                              : "bg-emerald-500"
+                        )} 
+                        style={{ width: `${sharedReport.burnout_risk_score || 0}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* MD Executive Summary Block */}
+              <div className="border-t border-slate-700/50 pt-6 space-y-4">
+                <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Sparkles size={14} /> Executive Summary
+                </h3>
+                <div className="bg-[#0F172A]/40 border border-slate-800 rounded-2xl p-6">
+                  {sharedReport.raw_ai_report ? (
+                    renderMarkdown(sharedReport.raw_ai_report)
+                  ) : (
+                    <div className="text-slate-500 text-xs italic">No executive summary found.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Strengths & Improvements */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-700/50 pt-6">
+                <div>
+                  <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <CheckCircle2 size={16} /> Key Strengths
+                  </h4>
+                  <div className="space-y-2">
+                    {(sharedReport.strengths || []).map((str: string, i: number) => (
+                      <div key={i} className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3 text-xs text-slate-300">
+                        <span className="text-emerald-400 font-bold font-mono mr-1.5">{i + 1}.</span>
+                        {str}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <AlertTriangle size={16} /> Execution Gaps
+                  </h4>
+                  <div className="space-y-2">
+                    {(sharedReport.improvements || []).map((imp: string, i: number) => (
+                      <div key={i} className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 text-xs text-slate-300">
+                        <span className="text-amber-400 font-bold font-mono mr-1.5">{i + 1}.</span>
+                        {imp}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Development Coaching Plan */}
+              {sharedReport.development_plan && (
+                <div className="border-t border-slate-700/50 pt-6 space-y-4">
+                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Target size={16} /> Strategic Development Plan
+                  </h4>
+                  <div className="space-y-3">
+                    {sharedReport.development_plan.short_term_90_days && (
+                      <div className="bg-[#0F172A]/40 border border-slate-800 rounded-2xl p-5">
+                        <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1.5">Short-Term Goals (90 Days)</div>
+                        <p className="text-xs text-slate-300 leading-relaxed">{sharedReport.development_plan.short_term_90_days}</p>
+                      </div>
+                    )}
+                    {sharedReport.development_plan.long_term_goals && (
+                      <div className="bg-[#0F172A]/40 border border-slate-800 rounded-2xl p-5">
+                        <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1.5">Long-Term Career Goals</div>
+                        <p className="text-xs text-slate-300 leading-relaxed">{sharedReport.development_plan.long_term_goals}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Audit Sign-off info */}
+              <div className="border-t border-slate-700/50 pt-6 flex flex-wrap justify-between items-center gap-4 text-xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="text-emerald-400" size={16} />
+                  <span className="text-slate-400">
+                    Status: <strong className="text-white">Audit-Ready / Verified</strong>
+                  </span>
+                </div>
+                {sharedReport.acknowledged_at && (
+                  <div className="text-slate-400 font-mono text-[10px]">
+                    ✓ Acknowledged on {new Date(sharedReport.acknowledged_at).toLocaleString('th-TH')}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Print Only component for shared view */}
+            <PrintReportView 
+              user={sharedUser} 
+              report={sharedReport} 
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <AppLayout>
@@ -2908,6 +3370,68 @@ export default function ReportsPage() {
                               </div>
                             </div>
                           </div>
+                          
+                          {/* ACTIONS & AUDIT SIGN-OFF PANEL */}
+                          <div className="flex flex-wrap items-center justify-between gap-4 bg-[#1E293B]/60 backdrop-blur-xl border border-slate-700/40 rounded-3xl p-5 shadow-xl relative overflow-hidden">
+                            <div className="flex items-center gap-3">
+                              <div className={cn(
+                                "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border",
+                                aiAnalysis.acknowledged_at
+                                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                                  : "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                              )}>
+                                <UserCheck size={20} />
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-bold text-white uppercase tracking-wider">HRBP Audit Sign-off</h4>
+                                <span className="text-[10px] text-slate-400 block">
+                                  {aiAnalysis.acknowledged_at ? (
+                                    <>
+                                      ลงนามรับทราบแล้วโดย <span className="text-emerald-400 font-bold">HRBP Administrator</span> เมื่อ {new Date(aiAnalysis.acknowledged_at).toLocaleString('th-TH')}
+                                    </>
+                                  ) : (
+                                    "รอยืนยันและลงนามรับทราบเพื่อบันทึกประวัติการตรวจสอบ / Awaiting signature"
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Print Button */}
+                              <button
+                                onClick={() => window.print()}
+                                className="bg-slate-800 hover:bg-slate-750 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 border border-slate-700 transition-all cursor-pointer shadow-sm active:scale-[0.98]"
+                              >
+                                <Printer size={13} />
+                                <span>Print Executive Report</span>
+                              </button>
+
+                              {/* Share Settings Button */}
+                              <button
+                                onClick={() => setIsShareSettingsOpen(true)}
+                                className={cn(
+                                  "font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-2 border transition-all cursor-pointer shadow-sm active:scale-[0.98]",
+                                  aiAnalysis.is_public
+                                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                                    : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750"
+                                )}
+                              >
+                                <Share2 size={13} />
+                                <span>{aiAnalysis.is_public ? "Shared Publicly" : "Private / Share Link"}</span>
+                              </button>
+
+                              {/* Acknowledge Button */}
+                              {!aiAnalysis.acknowledged_at && (
+                                <button
+                                  onClick={() => setIsAckConfirmOpen(true)}
+                                  className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 font-black py-2 px-5 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer active:scale-[0.98]"
+                                >
+                                  <UserCheck size={14} />
+                                  <span>Confirm Acknowledge</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
 
                           {/* REFRESH / FORCE GENERATE CONTROLS */}
                           <div className="flex justify-between items-center bg-[#1E293B]/40 border border-slate-700/30 rounded-2xl px-5 py-3.5">
@@ -3307,7 +3831,273 @@ export default function ReportsPage() {
         log={selectedLogForView}
         onDeleteSuccess={loadData}
       />
+
+      {/* Acknowledge Confirmation Modal */}
+      {isAckConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" 
+            onClick={() => setIsAckConfirmOpen(false)}
+          />
+          <div className="relative w-full max-w-md bg-[#1E293B] border border-slate-700/60 rounded-3xl p-6 shadow-2xl overflow-hidden text-center animate-in zoom-in-95 duration-200">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500" />
+            <button 
+              onClick={() => setIsAckConfirmOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-200 p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <X size={16} />
+            </button>
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-4 shadow-inner">
+              <UserCheck size={24} />
+            </div>
+            <h3 className="text-base font-bold text-white tracking-tight mb-2">ยืนยันการลงนามรับทราบผลการวิเคราะห์</h3>
+            <p className="text-xs text-slate-400 leading-relaxed mb-6">
+              การลงนามรับทราบหมายถึงท่านได้ตรวจสอบผลการประมวลผลของพนักงานคนนี้ และพร้อมที่จะบันทึกประวัติเพื่อเป็นหลักฐานการทำ Audit ยืนยันที่จะดำเนินการต่อหรือไม่?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsAckConfirmOpen(false)}
+                className="flex-1 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold py-2.5 px-4 rounded-xl text-xs border border-slate-700 transition-all cursor-pointer"
+              >
+                ยกเลิก / Cancel
+              </button>
+              <button
+                onClick={handleAcknowledgeAnalysis}
+                disabled={isAcknowledging}
+                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-emerald-800 disabled:to-teal-800 text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {isAcknowledging ? (
+                  <>
+                    <Loader2 className="animate-spin" size={13} />
+                    <span>กำลังบันทึก...</span>
+                  </>
+                ) : (
+                  <span>ลงนามรับทราบ / Confirm</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Settings Modal */}
+      {isShareSettingsOpen && aiAnalysis && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" 
+            onClick={() => setIsShareSettingsOpen(false)}
+          />
+          <div className="relative w-full max-w-lg bg-[#1E293B] border border-slate-700/60 rounded-3xl p-6 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
+            <button 
+              onClick={() => setIsShareSettingsOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-200 p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <X size={16} />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shadow-inner">
+                <Share2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Public Share Settings</h3>
+                <span className="text-[10px] text-slate-400 block">ควบคุมสิทธิ์การเข้าถึงรายงานการวิเคราะห์นี้</span>
+              </div>
+            </div>
+            <div className="bg-[#0F172A]/40 border border-slate-800 rounded-2xl p-4 mb-4 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-200 block mb-0.5 font-sans">การแชร์สาธารณะ (Public Sharing)</span>
+                <span className="text-[10px] text-slate-500 leading-normal block max-w-[320px] font-sans">
+                  เมื่อเปิดใช้งาน ลิงก์ภายนอกจะสามารถเข้าถึงหน้ารายงานสรุปผลได้โดยตรงโดยไม่ต้องทำการล็อกอินเข้าสู่ระบบ
+                </span>
+              </div>
+              <button
+                onClick={handleToggleShareAnalysis}
+                disabled={isTogglingShare}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2",
+                  aiAnalysis.is_public ? "bg-indigo-600" : "bg-slate-700"
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                    aiAnalysis.is_public ? "translate-x-5" : "translate-x-0"
+                  )}
+                />
+              </button>
+            </div>
+            {aiAnalysis.is_public ? (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Public Shared Link</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={`${window.location.origin}/reports?share=${aiAnalysis.share_token}`}
+                      className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 font-mono flex-1 focus:outline-none focus:border-indigo-500/50"
+                    />
+                    <button
+                      onClick={handleCopyShareLink}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold p-2.5 rounded-xl text-xs flex items-center justify-center transition-all cursor-pointer shrink-0"
+                      title="Copy URL"
+                    >
+                      <Copy size={14} />
+                    </button>
+                    <a
+                      href={`/reports?share=${aiAnalysis.share_token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold p-2.5 rounded-xl text-xs flex items-center justify-center transition-all cursor-pointer shrink-0"
+                      title="Open in new window"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
+                  </div>
+                </div>
+                <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl text-[10px] text-slate-400 leading-normal flex items-start gap-2">
+                  <Globe className="text-indigo-400 shrink-0 mt-0.5" size={12} />
+                  <div>
+                    <span className="font-bold text-slate-300 block mb-0.5">ลิงก์แชร์ใช้งานได้ 30 วัน</span>
+                    สิทธิ์การเข้าถึงจะหมดอายุโดยอัตโนมัติในวันที่ {aiAnalysis.expires_at ? new Date(aiAnalysis.expires_at).toLocaleDateString('th-TH') : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('th-TH')} หรือท่านสามารถกดปิดปุ่มการแชร์ข้างต้นเพื่อเพิกถอนสิทธิ์ได้ทันที
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-slate-950 border border-slate-900 rounded-2xl text-center py-6 animate-in fade-in duration-200">
+                <Lock className="text-slate-650 mx-auto mb-2" size={24} />
+                <h4 className="text-xs font-bold text-slate-300 mb-1 font-sans">รายงานนี้ได้รับการคุ้มครองสิทธิ์ (Private Mode)</h4>
+                <p className="text-[10px] text-slate-500 leading-normal max-w-sm mx-auto font-sans">
+                  ขณะนี้การแชร์สาธารณะถูกปิดอยู่ ผู้ใช้งานภายนอกไม่สามารถเข้าถึงรายงานได้ หากต้องการส่งรายงานให้ผู้เกี่ยวข้อง กรุณาเปิดสวิตช์เปิดใช้งานลิงก์สาธารณะด้านบน
+                </p>
+              </div>
+            )}
+            <div className="flex gap-2 justify-end mt-6 pt-4 border-t border-slate-800">
+              <button
+                onClick={() => setIsShareSettingsOpen(false)}
+                className="bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold py-2 px-5 rounded-xl text-xs border border-slate-700 transition-all cursor-pointer"
+              >
+                ปิดหน้าต่าง / Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Print Only component for the standard view */}
+      {aiAnalysis && (
+        <PrintReportView 
+          user={usersList.find(u => u.id === selectedUser)} 
+          report={aiAnalysis} 
+        />
+      )}
+
     </AppLayout>
+  );
+}
+
+function PrintReportView({ user, report }: { user: any, report: any }) {
+  if (!report) return null;
+  return (
+    <div className="hidden print:block print-only w-full bg-white text-slate-900 p-8 font-sans" style={{ color: '#000' }}>
+      <div className="border-b-2 border-slate-900 pb-4 mb-6">
+        <h1 className="text-2xl font-black uppercase tracking-tight">AI Employee Diagnostics Audit Report</h1>
+        <p className="text-sm text-slate-600">CONFIDENTIAL — HUMAN RESOURCES AUDIT TRAIL</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-6 text-xs bg-slate-50 p-4 border border-slate-200 rounded-lg">
+        <div>
+          <span className="font-bold block text-slate-500 uppercase tracking-wider text-[9px]">Employee Target</span>
+          <span className="font-black text-sm text-slate-850">{user?.full_name || 'N/A'} ({user?.nickname || 'N/A'})</span>
+          <span className="block text-slate-600 mt-1">Position: {user?.position || 'N/A'} | Department: {user?.department || 'N/A'}</span>
+        </div>
+        <div className="text-right">
+          <span className="font-bold block text-slate-500 uppercase tracking-wider text-[9px]">Audit Period</span>
+          <span className="font-bold text-slate-800">{report.start_date} ~ {report.end_date}</span>
+          <span className="block text-slate-600 mt-1">Generated: {new Date(report.created_at).toLocaleString('th-TH')}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6 mb-8">
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center">
+          <span className="font-bold block text-slate-500 uppercase tracking-wider text-[9px] mb-1">JD Alignment Score</span>
+          <span className="text-3xl font-black text-slate-900">{report.jd_alignment_score || 0}%</span>
+        </div>
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center">
+          <span className="font-bold block text-slate-500 uppercase tracking-wider text-[9px] mb-1">Burnout Risk Score</span>
+          <span className="text-3xl font-black text-slate-900">{report.burnout_risk_score || 0}%</span>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest border-b border-slate-300 pb-1 mb-3">Executive Summary</h3>
+        <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
+          {report.markdown_executive_summary || report.raw_ai_report || 'No executive summary available.'}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6 mb-8">
+        <div>
+          <h3 className="text-xs font-bold text-emerald-800 uppercase tracking-widest border-b border-slate-300 pb-1 mb-3">Key Strengths</h3>
+          <ul className="list-disc pl-4 space-y-1.5 text-xs text-slate-700">
+            {(report.strengths || []).map((str: string, i: number) => (
+              <li key={i}>{str}</li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h3 className="text-xs font-bold text-amber-800 uppercase tracking-widest border-b border-slate-300 pb-1 mb-3">Execution Gaps</h3>
+          <ul className="list-disc pl-4 space-y-1.5 text-xs text-slate-700">
+            {(report.improvements || []).map((imp: string, i: number) => (
+              <li key={i}>{imp}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {report.development_plan && (
+        <div className="mb-8">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest border-b border-slate-300 pb-1 mb-3">Strategic Development Plan</h3>
+          <div className="space-y-3 text-xs text-slate-700">
+            {report.development_plan.short_term_90_days && (
+              <div>
+                <strong className="block text-slate-800">Short-Term Goals (90 Days):</strong>
+                <p>{report.development_plan.short_term_90_days}</p>
+              </div>
+            )}
+            {report.development_plan.long_term_goals && (
+              <div className="mt-2">
+                <strong className="block text-slate-800">Long-Term Career Goals:</strong>
+                <p>{report.development_plan.long_term_goals}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sign-off section at the bottom */}
+      <div className="mt-12 border-t border-slate-300 pt-6">
+        <div className="grid grid-cols-2 gap-6 text-xs text-slate-600">
+          <div>
+            <span className="block font-bold text-slate-800">HRBP Signature Sign-off</span>
+            <span className="block mt-4 border-b border-slate-400 w-48 h-6" />
+            <span className="block mt-1">Date: ________________________</span>
+          </div>
+          <div className="text-right">
+            <span className="block font-bold text-slate-800">Audit Status</span>
+            <span className="block mt-1 font-bold text-slate-900">
+              {report.acknowledged_at ? '✓ ACKNOWLEDGED' : 'AWAITING SIGNATURE'}
+            </span>
+            {report.acknowledged_at && (
+              <span className="block mt-1 text-[10px] text-slate-500 font-mono">
+                Signed on: {new Date(report.acknowledged_at).toLocaleString('th-TH')}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
