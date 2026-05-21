@@ -291,6 +291,7 @@ export default function LogWorkPage() {
   const [durationHours, setDurationHours] = useState<number>(2);
 
   // Cascading State
+  const [selectedHolding, setSelectedHolding] = useState<string>('');
   const [holding, setHolding] = useState<string>('');
   const [role, setRole] = useState<string>('');
   const [projectType, setProjectType] = useState<string>('');
@@ -397,14 +398,21 @@ export default function LogWorkPage() {
     );
   }, [mapProjectStructure, mapUserRole]);
 
-  const availableProjectTypes = useMemo(() => {
-    return Array.from(new Set(allowedProjects.map(p => p.project_type))).sort();
+  const availableHoldings = useMemo(() => {
+    return Array.from(new Set(allowedProjects.map(p => p.holding).filter(Boolean))).sort() as string[];
   }, [allowedProjects]);
+
+  const availableProjectTypes = useMemo(() => {
+    const filtered = selectedHolding
+      ? allowedProjects.filter(p => p.holding === selectedHolding)
+      : allowedProjects;
+    return Array.from(new Set(filtered.map(p => p.project_type))).sort();
+  }, [allowedProjects, selectedHolding]);
 
   const availableProjects = useMemo(() => {
     if (!projectType) return [];
     
-    const typeProjs = allowedProjects.filter(p => p.project_type === projectType);
+    const typeProjs = allowedProjects.filter(p => p.project_type === projectType && (!selectedHolding || p.holding === selectedHolding));
     const seen = new Set<string>();
     const options: { label: string; value: string }[] = [];
     
@@ -527,6 +535,11 @@ export default function LogWorkPage() {
 
   // Resets
   useEffect(() => {
+    setProjectType('');
+    setSelectedProjectKey('');
+  }, [selectedHolding]);
+
+  useEffect(() => {
     setSelectedProjectKey('');
   }, [projectType]);
 
@@ -538,6 +551,12 @@ export default function LogWorkPage() {
   }, [selectedProjectKey]);
 
   // Auto-select if only 1 option available
+  useEffect(() => {
+    if (availableHoldings.length === 1 && !selectedHolding) {
+      setSelectedHolding(availableHoldings[0]);
+    }
+  }, [availableHoldings, selectedHolding]);
+
   useEffect(() => {
     if (availableProjectTypes.length === 1 && !projectType) {
       setProjectType(availableProjectTypes[0]);
@@ -903,13 +922,25 @@ export default function LogWorkPage() {
           {/* Cascading Logic Area */}
           <div className="space-y-6 mb-8">
             
-            {/* Row 1: Project Type & Project Name */}
+            {/* Row 1: Holding */}
+            <div className="grid grid-cols-1 gap-6">
+              <DropdownField
+                label="Holding"
+                value={selectedHolding}
+                onChange={setSelectedHolding}
+                options={availableHoldings}
+                placeholder="Select Holding"
+              />
+            </div>
+
+            {/* Row 2: Project Type & Project Name */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <DropdownField 
                 label="Project Type" 
                 value={projectType} 
                 onChange={setProjectType} 
-                options={availableProjectTypes} 
+                options={availableProjectTypes}
+                disabled={!selectedHolding}
                 placeholder="Select Type"
               />
               <SearchableCombobox
