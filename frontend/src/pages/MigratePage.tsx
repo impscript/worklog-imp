@@ -447,7 +447,7 @@ export default function MigratePage() {
         department = getCsvMetadata(row, ['department', 'dept'], '');
       }
 
-      const csvChannel = getCsvMetadata(row, ['action_channel', 'channel'], null);
+      const csvChannel = getCsvMetadata(row, ['action_channel', 'channel'], '');
       if (csvChannel) action_channel = csvChannel;
 
       const csvBreakTime = getCsvMetadata(row, ['break_time', 'breaktime'], '');
