@@ -211,6 +211,20 @@ class GoogleCalendarService {
   // Payload Builder
   // ==========================================
 
+  /**
+   * Normalizes end_time=24:00:00 → next day 00:00:00
+   * Google Calendar API does NOT accept T24:00:00 — it must be T00:00:00 of the following day
+   */
+  private _normalizeEndDateTime(date: string, endTime: string): { date: string; time: string } {
+    const t = endTime.slice(0, 8);
+    if (t.startsWith('24:')) {
+      const d = new Date(date + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      return { date: d.toISOString().split('T')[0], time: '00:00:00' };
+    }
+    return { date, time: t };
+  }
+
   buildEventPayload(entry: any, projectTitle: string, actionName: string) {
     const isOT = entry.is_ot === true || entry.is_ot === 'true';
     const projectType = entry.project_type || 'Task';
@@ -235,10 +249,13 @@ class GoogleCalendarService {
       entry.description ? `📝 ${entry.description}` : '📝 No description',
       '━━━━━━━━━━━━━━━━━━━━━━━━',
       `📌 Synced from Worklog NewGen Web App`
-    ].filter(Boolean); // Filter out nulls
+    ].filter(Boolean);
 
     const description = lines.join('\n');
     const timeZone = 'Asia/Bangkok';
+
+    // Fix: end_time="24:00:00" is rejected by Google API → convert to next-day midnight
+    const endNormalized = this._normalizeEndDateTime(entry.work_date, entry.end_time);
 
     const event: any = {
       summary,
@@ -248,7 +265,7 @@ class GoogleCalendarService {
         timeZone
       },
       end: {
-        dateTime: `${entry.work_date}T${entry.end_time.slice(0, 8)}`,
+        dateTime: `${endNormalized.date}T${endNormalized.time}`,
         timeZone
       }
     };
@@ -257,7 +274,7 @@ class GoogleCalendarService {
     if (isOT) {
       event.colorId = '11';
     } else {
-      event.colorId = '5'; // Banana yellow or slate
+      event.colorId = '5';
     }
 
     return event;
@@ -300,8 +317,8 @@ export async function syncWorklogToGCal(logId: string, action: 'insert' | 'updat
     // 3. Verify client-side token exists and is valid
     const token = googleCalendar.getAccessToken();
     if (!token) {
-      console.warn('[GCal Sync] Google Calendar access token is missing or expired.');
-      return;
+      // Re-throw so callers can show a toast to reconnect Google Calendar
+      throw new Error('Google Calendar session expired. Please reconnect in Profile settings.');
     }
 
     const calendarId = user.gcal_calendar_id || 'primary';

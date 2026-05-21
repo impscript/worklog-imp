@@ -649,7 +649,9 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         if (errorNormal) throw errorNormal;
         
         // Sync first updated segment
-        syncWorklogToGCal(log.id, 'update');
+        syncWorklogToGCal(log.id, 'update').catch((syncErr: any) => {
+          showToast('Google Calendar sync failed: ' + syncErr.message, 'error');
+        });
 
         // 2. Insert remaining segments as new entries
         for (let i = 1; i < preview.segments.length; i++) {
@@ -680,7 +682,9 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
 
           if (errorNew) throw errorNew;
           if (dataNew) {
-            syncWorklogToGCal(dataNew.id, 'insert');
+            syncWorklogToGCal(dataNew.id, 'insert').catch((syncErr: any) => {
+              showToast('Google Calendar sync failed: ' + syncErr.message, 'error');
+            });
           }
         }
       } else {
@@ -719,7 +723,9 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         if (error) throw error;
         
         // Sync updated log
-        syncWorklogToGCal(log.id, 'update');
+        syncWorklogToGCal(log.id, 'update').catch((syncErr: any) => {
+          showToast('Google Calendar sync failed: ' + syncErr.message, 'error');
+        });
       }
 
       showToast('Worklog updated successfully!', 'success');
