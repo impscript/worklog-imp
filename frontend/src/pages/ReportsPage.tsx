@@ -313,6 +313,11 @@ export default function ReportsPage() {
           const activeModel = modelConfig?.config_value || 'openai/gpt-oss-20b:free';
 
           setAiAnalysis({
+            id: cached.id,
+            share_token: cached.share_token,
+            is_public: cached.is_public,
+            acknowledged_at: cached.acknowledged_at,
+            acknowledged_by: cached.acknowledged_by,
             jd_alignment_score: cached.jd_alignment_score,
             burnout_risk_score: cached.burnout_risk_score,
             workload_allocation: cached.actual_vs_target,
