@@ -4,6 +4,7 @@ import LogWorkPage from './pages/LogWorkPage';
 import LoginPage from './pages/LoginPage';
 import CalendarPage from './pages/CalendarPage';
 import ReportsPage from './pages/ReportsPage';
+import HrbpPage from './pages/HrbpPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MigratePage from './pages/MigratePage';
@@ -18,6 +19,7 @@ function App() {
         <Route path="/log" element={<LogWorkPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/hrbp" element={<HrbpPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/migrate" element={<MigratePage />} />

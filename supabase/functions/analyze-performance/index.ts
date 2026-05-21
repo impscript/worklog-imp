@@ -6,7 +6,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Returns both the Response AND the actual model that successfully responded
+interface FallbackResult {
+  response: Response;
+  actualModel: string;
+  modelsTried: string[];
+  fallbackOccurred: boolean;
+}
+
 async function callLlmWithFallback(
   endpoint: string,
   headers: Record<string, string>,
@@ -15,30 +21,42 @@ async function callLlmWithFallback(
   systemPrompt: string,
   userPrompt: string,
   isJson: boolean = false
-): Promise<{ response: Response; actualModel: string }> {
+): Promise<FallbackResult> {
   const modelsToTry = [configuredModel];
 
   if (provider === 'openrouter') {
     const fallbacks = [
-      'google/gemini-2.0-flash-exp:free',
-      'google/gemini-2.0-pro-exp:free',
-      'meta-llama/llama-3-8b-instruct:free',
+      'openrouter/free',
+      'google/gemma-4-31b-it:free',
+      'openai/gpt-oss-20b:free',
+      'z-ai/glm-4.5-air:free',
+      'deepseek/deepseek-v4-flash:free',
+      'meta-llama/llama-3.3-70b-instruct:free',
+      'meta-llama/llama-3.2-3b-instruct:free',
     ];
     for (const fb of fallbacks) { if (fb !== configuredModel) modelsToTry.push(fb); }
   } else if (provider === 'opencode') {
     const fallbacks = [
       'big-pickle',
       'deepseek-v4-flash-free',
-      'minimax-m2.5-free',
       'nemotron-3-super-free',
-      'qwen3.6-plus-free',
     ];
     for (const fb of fallbacks) { if (fb !== configuredModel) modelsToTry.push(fb); }
   }
 
+  const modelsTried: string[] = [];
   let lastError: Error | null = null;
+
   for (let i = 0; i < modelsToTry.length; i++) {
     const currentModel = modelsToTry[i];
+    modelsTried.push(currentModel);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.warn(`[AI] Model ${currentModel} timed out after 15 seconds. Aborting request.`);
+      controller.abort();
+    }, 15000);
+
     try {
       console.log(`[AI] Trying model: ${currentModel} (${i + 1}/${modelsToTry.length})`);
       const bodyPayload: any = {
@@ -53,20 +71,41 @@ async function callLlmWithFallback(
       const response = await fetch(endpoint, {
         method: "POST",
         headers,
-        body: JSON.stringify(bodyPayload)
+        body: JSON.stringify(bodyPayload),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (response.ok) {
-        console.log(`[AI] Success with model: ${currentModel}`);
-        return { response, actualModel: currentModel };
+        const fallbackOccurred = currentModel !== configuredModel;
+        if (fallbackOccurred) {
+          console.log(`[AI] ⚠️ Fallback! Primary model "${configuredModel}" failed. Using "${currentModel}" instead.`);
+        } else {
+          console.log(`[AI] ✅ Success with primary model: ${currentModel}`);
+        }
+        return { response, actualModel: currentModel, modelsTried, fallbackOccurred };
       }
 
       const errorText = await response.text();
-      console.warn(`[AI] Model ${currentModel} failed ${response.status}: ${errorText}`);
+      console.warn(`[AI] Model ${currentModel} failed ${response.status}: ${errorText.substring(0, 200)}`);
+      
+      // If we encounter a definitive credentials or authorization error (e.g. 401 Unauthorized or 403 Forbidden),
+      // we exit early and fail fast to avoid wasting resource quota on cascaded retries.
+      if (response.status === 401 || response.status === 403) {
+        console.error(`[AI] Definitive credentials/auth error (${response.status}) on model ${currentModel}. Exiting fallback chain early.`);
+        throw new Error(`Definitive AI API Auth error (${response.status}): ${errorText.substring(0, 200)}`);
+      }
+
       lastError = new Error(`AI API (${currentModel}) failed: ${response.status}`);
     } catch (err: any) {
+      clearTimeout(timeoutId);
       console.warn(`[AI] Fetch error for ${currentModel}:`, err.message);
       lastError = err;
+      
+      // If the error was explicitly thrown by the definitive auth early exit check, propagate it immediately.
+      if (err.message && err.message.includes("Definitive AI API Auth error")) {
+        throw err;
+      }
     }
   }
   throw lastError || new Error("All models failed to respond.");
@@ -77,7 +116,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { action } = body;
+    const { action, debug: includeDebug } = body;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
@@ -150,7 +189,9 @@ ${weightsText}
   ]
 }`;
 
-      const { response, actualModel } = await callLlmWithFallback(
+      console.log(`[PROMPT:recommend_jd] system="${systemPrompt.substring(0, 100)}..." user="${userPrompt.substring(0, 200)}..."`);
+
+      const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
         endpoint, llmHeaders, provider, model, systemPrompt, userPrompt, true
       );
 
@@ -164,6 +205,9 @@ ${weightsText}
         key_responsibilities: parsed.key_responsibilities || [],
         actualModel,
         provider,
+        fallbackOccurred,
+        modelsTried,
+        ...(includeDebug ? { debug_prompts: { system: systemPrompt, user: userPrompt } } : {}),
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -183,7 +227,7 @@ ${weightsText}
         .replace('{duration}', duration ? String(duration) : 'N/A')
         .replace('{description}', description || '(Empty)');
 
-      const { response, actualModel } = await callLlmWithFallback(
+      const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
         endpoint, llmHeaders, provider, model, systemPrompt, userPrompt, false
       );
 
@@ -191,7 +235,13 @@ ${weightsText}
       let enhancedText = aiResult.choices?.[0]?.message?.content || '';
       enhancedText = enhancedText.replace(/^```[a-zA-Z]*/, '').replace(/```$/, '').trim();
 
-      return new Response(JSON.stringify({ enhanced_text: enhancedText, actualModel, provider }), {
+      return new Response(JSON.stringify({
+        enhanced_text: enhancedText,
+        actualModel,
+        provider,
+        fallbackOccurred,
+        modelsTried,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
@@ -233,6 +283,8 @@ ${weightsText}
           cached: true,
           actualModel: existingReport.engine_model || model,
           provider,
+          fallbackOccurred: false,
+          modelsTried: [existingReport.engine_model || model],
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
@@ -261,12 +313,10 @@ ${weightsText}
     const durationDays = Math.round((new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 3600 * 24)) + 1;
     const avgHoursPerDay = (totalHours / durationDays).toFixed(2);
 
-    // Build weight summary (passed to prompt)
     const weightSummary = keyResponsibilities.length > 0
       ? keyResponsibilities.map((r: any) => `- ${r.category}: เป้าหมาย ${r.weight}%`).join('\n')
       : 'ไม่ได้กำหนด target weights';
 
-    // Build prompts (use DB overrides if available, else Thai built-in)
     const systemPrompt = configs.prompt_audit_system ||
       `คุณคือผู้เชี่ยวชาญ HR วิเคราะห์ผลการปฏิบัติงานพนักงานอย่างเป็นระบบ ตอบเป็น raw JSON เท่านั้น ห้ามครอบด้วย markdown`;
 
@@ -324,12 +374,20 @@ ${aggregatedLogs}
 }`;
     }
 
-    const { response, actualModel } = await callLlmWithFallback(
+    // Log prompts before calling
+    console.log(`[PROMPT:audit] employee=${userProfile?.full_name} period=${start_date}~${end_date} logs=${logs?.length} hours=${totalHours}`);
+    console.log(`[PROMPT:audit:system] ${systemPrompt.substring(0, 150)}`);
+    console.log(`[PROMPT:audit:user] ${userPrompt.substring(0, 300)}...`);
+
+    const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
       endpoint, llmHeaders, provider, model, systemPrompt, userPrompt, true
     );
 
+    console.log('[AI] callLlmWithFallback returned successfully.');
     const aiResult = await response.json();
+    console.log('[AI] Parsed response JSON successfully.');
     let content = aiResult.choices?.[0]?.message?.content || '';
+    console.log(`[AI] Content length: ${content.length}`);
     if (content.startsWith('```json')) {
       content = content.replace(/^```json/, '').replace(/```$/, '').trim();
     } else if (content.startsWith('```')) {
@@ -337,8 +395,9 @@ ${aggregatedLogs}
     }
 
     const parsedReport = JSON.parse(content);
+    console.log('[AI] Successfully parsed content JSON.');
 
-    // Save to cache (record actualModel for display) and fetch the inserted row with ID/Tokens
+    console.log('[AI] Inserting report into tb_ai_individual_analysis...');
     const { data: insertedRow, error: insertError } = await supabase
       .from('tb_ai_individual_analysis')
       .insert({
@@ -353,7 +412,6 @@ ${aggregatedLogs}
         improvements: parsedReport.improvements || [],
         development_plan: parsedReport.development_plan || {},
         raw_ai_report: parsedReport.markdown_executive_summary || 'ไม่มีสรุปผล',
-        engine_model: actualModel,
       })
       .select('*')
       .single();
@@ -374,6 +432,16 @@ ${aggregatedLogs}
       cached: false,
       actualModel,
       provider,
+      fallbackOccurred,
+      modelsTried,
+      logsCount: logs?.length || 0,
+      totalHours,
+      ...(includeDebug ? {
+        debug_prompts: {
+          system: systemPrompt,
+          user: userPrompt,
+        }
+      } : {}),
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (error: any) {

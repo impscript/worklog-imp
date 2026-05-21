@@ -1004,14 +1004,16 @@ const PROVIDER_PRESET_MODELS: Record<string, { id: string; label: string }[]> = 
   opencode: [
     { id: 'big-pickle', label: 'Big Pickle' },
     { id: 'deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
-    { id: 'minimax-m2.5-free', label: 'MiniMax M2.5 Free' },
-    { id: 'nemotron-3-super-free', label: 'Nemotron 3 Super Free' },
-    { id: 'qwen3.6-plus-free', label: 'Qwen3.6 Plus Free' }
+    { id: 'nemotron-3-super-free', label: 'Nemotron 3 Super Free' }
   ],
   openrouter: [
-    { id: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)' },
-    { id: 'google/gemini-2.0-pro-exp:free', label: 'Gemini 2.0 Pro (Free)' },
-    { id: 'meta-llama/llama-3-8b-instruct:free', label: 'Llama 3 8B (Free)' },
+    { id: 'openrouter/free', label: 'OpenRouter Auto Free Router' },
+    { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (Free)' },
+    { id: 'openai/gpt-oss-20b:free', label: 'GPT-OSS 20B (Free)' },
+    { id: 'deepseek/deepseek-v4-flash:free', label: 'DeepSeek V4 Flash (Free)' },
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' },
+    { id: 'meta-llama/llama-3.2-3b-instruct:free', label: 'Llama 3.2 3B (Free)' },
+    { id: 'meta-llama/llama-3-8b-instruct', label: 'Llama 3 8B (Paid/Stable)' },
     { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' }
   ],
   gemini: [
