@@ -93,6 +93,8 @@ export default function ReportsPage() {
   const [activeAiSubTab, setActiveAiSubTab] = useState<'summary' | 'gaps' | 'coaching' | 'logs' | 'history'>('summary');
   const [aiStep, setAiStep] = useState<number>(0);
   const [aiStepLogs, setAiStepLogs] = useState<{ time: string; message: string; type: 'info' | 'success' | 'error' }[]>([]);
+  const [aiProvider, setAiProvider] = useState<string>('openrouter');
+  const [aiModel, setAiModel] = useState<string>('');
   const [analysisHistory, setAnalysisHistory] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
@@ -496,17 +498,33 @@ export default function ReportsPage() {
       await new Promise(r => setTimeout(r, 800));
       setAiStep(4);
       
-      // Query system config to see active model
-      const { data: modelConfig } = await supabase
+      // Query system config to see active model and active provider dynamically
+      const { data: configsData } = await supabase
         .from('tb_system_config')
-        .select('config_value')
-        .eq('config_key', 'ai_model')
-        .maybeSingle();
-      const activeModel = modelConfig?.config_value || 'openai/gpt-oss-20b:free';
+        .select('config_key, config_value')
+        .in('config_key', ['ai_model', 'ai_provider']);
+        
+      const configs: Record<string, string> = {};
+      (configsData || []).forEach(row => { configs[row.config_key] = row.config_value; });
+
+      const activeProvider = configs.ai_provider || 'openrouter';
+      const activeModel = configs.ai_model || 'google/gemini-2.0-flash-exp:free';
+
+      setAiProvider(activeProvider);
+      setAiModel(activeModel);
+
+      const providerDisplayNames: Record<string, string> = {
+        openrouter: 'OpenRouter',
+        opencode: 'OpenCode AI Engine',
+        openai: 'OpenAI Cloud',
+        gemini: 'Google Gemini'
+      };
+
+      const providerName = providerDisplayNames[activeProvider] || activeProvider;
       
       setAiStepLogs(prev => [
         ...prev,
-        { time: new Date().toLocaleTimeString(), message: `Connecting to OpenRouter: invoking model "${activeModel}"...`, type: 'info' }
+        { time: new Date().toLocaleTimeString(), message: `Connecting to ${providerName}: invoking model "${activeModel}"...`, type: 'info' }
       ]);
 
       const { data, error } = await supabase.functions.invoke('analyze-performance', {
@@ -540,16 +558,41 @@ export default function ReportsPage() {
 
       // Step 5: Structuring Analytics & Saving to Cache
       setAiStep(5);
-      setAiStepLogs(prev => [
-        ...prev,
-        { time: new Date().toLocaleTimeString(), message: 'Success response received from AI engine.', type: 'success' },
-        { time: new Date().toLocaleTimeString(), message: 'Structuring report analytics and updating Supabase cache.', type: 'info' }
-      ]);
+      
+      const resolvedModel = data.actualModel || activeModel;
+      const resolvedProvider = data.provider || activeProvider;
+      
+      setAiStepLogs(prev => {
+        const logsList: { time: string; message: string; type: 'info' | 'success' | 'error' }[] = [
+          ...prev,
+          { time: new Date().toLocaleTimeString(), message: 'Success response received from AI engine.', type: 'success' }
+        ];
+        
+        // Premium Fallback Alert: Transparently inform when a fallback happens
+        if (data.actualModel && data.actualModel !== activeModel) {
+          logsList.push({
+            time: new Date().toLocaleTimeString(),
+            message: `⚠️ [Fallback Recovered] Primary model failed or timed out. Switched to "${data.actualModel}" on ${providerDisplayNames[resolvedProvider] || resolvedProvider} to ensure audit integrity.`,
+            type: 'error'
+          });
+        } else {
+          logsList.push({
+            time: new Date().toLocaleTimeString(),
+            message: `Processing successfully completed on "${resolvedModel}" via ${providerDisplayNames[resolvedProvider] || resolvedProvider}.`,
+            type: 'success'
+          });
+        }
+        
+        logsList.push({
+          time: new Date().toLocaleTimeString(),
+          message: 'Structuring report analytics and updating Supabase cache.',
+          type: 'info'
+        });
+        
+        return logsList;
+      });
       
       await new Promise(r => setTimeout(r, 600));
-
-      // Use actualModel from response (reflects real model used including fallback)
-      const resolvedModel = data.actualModel || activeModel;
       setAiAnalysis({
         id: data.id,
         share_token: data.share_token,
@@ -3139,7 +3182,7 @@ export default function ReportsPage() {
                               { step: 1, label: 'Validate Job Description & Targets', desc: 'Validating alignment weights and JD definitions' },
                               { step: 2, label: 'Collect User Activity Logs', desc: 'Querying col_worklog database for specified period' },
                               { step: 3, label: 'Aggregate Workload Allocations', desc: 'Calculating actual task hours vs target weights' },
-                              { step: 4, label: 'Run AI Diagnostic Engine', desc: 'Orchestrating LLM performance mapping on OpenRouter' },
+                              { step: 4, label: 'Run AI Diagnostic Engine', desc: `Orchestrating LLM performance mapping on ${aiProvider === 'opencode' ? 'OpenCode' : aiProvider === 'openai' ? 'OpenAI' : aiProvider === 'gemini' ? 'Gemini' : 'OpenRouter'}${aiModel ? ` (${aiModel.split('/').pop()})` : ''}` },
                               { step: 5, label: 'Compile & Cache Performance Report', desc: 'Caching finalized diagnostics & development plan' }
                             ].map((item) => {
                               const isCompleted = aiStep > item.step;
