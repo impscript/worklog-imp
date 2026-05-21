@@ -309,7 +309,22 @@ export default function MigratePage() {
 
     csvData.forEach((row) => {
       const raw_id = mappings.id ? row[mappings.id] || null : null;
-      const work_date = row[mappings.work_date] || '';
+
+      // Normalize date: supports YYYY-MM-DD, DD/MM/YYYY, D/M/YYYY, MM/DD/YYYY
+      const normalizeDate = (raw: string): string => {
+        if (!raw) return '';
+        // Already ISO format
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+        // DD/MM/YYYY or D/M/YYYY (day <= 12 is ambiguous but Thai CSVs always use this)
+        const dmyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (dmyMatch) {
+          const [, d, m, y] = dmyMatch;
+          return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+        }
+        return raw; // Return as-is, let Date.parse decide
+      };
+
+      const work_date = normalizeDate(row[mappings.work_date] || '');
       const raw_start = row[mappings.start_time] || '';
       const raw_end = row[mappings.end_time] || '';
       const raw_hours = parseFloat(row[mappings.total_hours] || '0');
