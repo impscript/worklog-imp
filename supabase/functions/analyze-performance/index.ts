@@ -108,7 +108,7 @@ serve(async (req) => {
       endpoint = 'https://api.openai.com/v1/chat/completions';
     } else if (provider === 'opencode') {
       apiKey = configs.opencode_api_key;
-      endpoint = 'https://api.opencode.so/v1/chat/completions';
+      endpoint = 'https://opencode.ai/zen/v1/chat/completions';
     }
 
     if (!apiKey) throw new Error(`API Key for provider "${provider}" is not configured.`);
