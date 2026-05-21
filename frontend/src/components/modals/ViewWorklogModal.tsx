@@ -3,6 +3,7 @@ import { cn } from '../../lib/utils';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
+import { googleCalendar } from '../../lib/google-calendar';
 
 interface ViewWorklogModalProps {
   isOpen: boolean;
@@ -35,6 +36,31 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
 
     setIsDeleting(true);
     try {
+      // 1. Delete from Google Calendar if event exists and calendar sync is configured
+      if (log.gcal_event_id) {
+        try {
+          const token = googleCalendar.getAccessToken();
+          if (token) {
+            // Fetch user calendar settings
+            const { data: user } = await supabase
+              .from('users')
+              .select('gcal_sync_enabled, gcal_calendar_id')
+              .eq('id', log.user_id)
+              .maybeSingle();
+
+            if (user?.gcal_sync_enabled) {
+              const calendarId = user.gcal_calendar_id || 'primary';
+              console.log('[GCal Sync] Deleting event from Google Calendar:', log.gcal_event_id);
+              await googleCalendar.deleteEvent(calendarId, log.gcal_event_id);
+              console.log('[GCal Sync] Google Calendar event deleted successfully');
+            }
+          }
+        } catch (gcalErr: any) {
+          console.warn('[GCal Sync] Failed to delete calendar event during worklog deletion:', gcalErr);
+        }
+      }
+
+      // 2. Delete from Supabase Database
       const { error } = await supabase
         .from('col_worklog')
         .delete()
