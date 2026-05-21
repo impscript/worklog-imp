@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { UploadCloud, CheckCircle2, AlertCircle, Download, Database, Sparkles, Settings, Eye, Play, Check } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertCircle, Download, Database, Sparkles, Settings, Eye, Play, Check, Users, User } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
@@ -10,6 +10,7 @@ interface CSVRow {
 }
 
 interface MappingConfig {
+  id: string;
   work_date: string;
   start_time: string;
   end_time: string;
@@ -21,6 +22,8 @@ interface MappingConfig {
 }
 
 interface PreviewRow {
+  id: string | null;
+  actionType: 'insert' | 'update';
   work_date: string;
   start_time: string;
   end_time: string;
@@ -42,10 +45,22 @@ interface PreviewRow {
   break_time: boolean;
 }
 
+interface UserRecord {
+  id: string;
+  full_name: string;
+  nickname: string;
+  department: string;
+}
+
 export default function MigratePage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // User selection states
+  const [usersList, setUsersList] = useState<UserRecord[]>([]);
+  const [selectedImportUserId, setSelectedImportUserId] = useState<string>('');
+  const [selectedExportUserId, setSelectedExportUserId] = useState<string>('');
 
   // CSV parsing states
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -55,6 +70,7 @@ export default function MigratePage() {
 
   // Mapping states
   const [mappings, setMappings] = useState<MappingConfig>({
+    id: '',
     work_date: '',
     start_time: '',
     end_time: '',
@@ -70,6 +86,8 @@ export default function MigratePage() {
   const [fallbackOperator, setFallbackOperator] = useState<string>('IMP');
   const [fallbackAction, setFallbackAction] = useState<string>('Others');
   const [fallbackStartTime, setFallbackStartTime] = useState<string>('08:30');
+  const [autoSplitOT, setAutoSplitOT] = useState<boolean>(true);
+  const [existingImportUserIds, setExistingImportUserIds] = useState<Set<string>>(new Set());
 
   // Preview & Processing states
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
@@ -94,6 +112,7 @@ export default function MigratePage() {
     return `${y}-${m}-${dateVal}`;
   });
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [exportRecordCount, setExportRecordCount] = useState<number | null>(null);
 
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
@@ -101,7 +120,10 @@ export default function MigratePage() {
       navigate('/login');
       return;
     }
-    setCurrentUser(JSON.parse(sessionStr));
+    const user = JSON.parse(sessionStr);
+    setCurrentUser(user);
+    setSelectedImportUserId(user.id);
+    setSelectedExportUserId(user.id);
 
     // Load project list to validate project names
     async function loadMasterData() {
@@ -113,9 +135,31 @@ export default function MigratePage() {
       if (holidayData) {
         setHolidaysList(holidayData.map(h => h.date));
       }
+      // Load all users for selection dropdowns
+      const { data: usersData } = await supabase.from('users').select('id, full_name, nickname, department').order('full_name');
+      if (usersData) {
+        setUsersList(usersData);
+      }
     }
     loadMasterData();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!selectedImportUserId) {
+      setExistingImportUserIds(new Set());
+      return;
+    }
+    async function fetchExistingIds() {
+      const { data } = await supabase
+        .from('col_worklog')
+        .select('id')
+        .eq('user_id', selectedImportUserId);
+      if (data) {
+        setExistingImportUserIds(new Set(data.map((r: any) => r.id)));
+      }
+    }
+    fetchExistingIds();
+  }, [selectedImportUserId]);
 
   // CSV Parsing function
   const parseCSV = (text: string) => {
@@ -181,6 +225,7 @@ export default function MigratePage() {
     const newMappings = { ...mappings };
     headers.forEach(h => {
       const norm = h.toLowerCase().replace(/[\s_-]/g, '');
+      if (norm === 'id' || norm === 'uuid' || norm === 'worklogid') newMappings.id = h;
       if (norm.includes('date') || norm === 'workdate') newMappings.work_date = h;
       if (norm.includes('start') || norm === 'starttime') newMappings.start_time = h;
       if (norm.includes('end') || norm === 'endtime') newMappings.end_time = h;
@@ -242,7 +287,28 @@ export default function MigratePage() {
       return;
     }
 
-    const preview = csvData.map((row): PreviewRow => {
+    const compiledRows: PreviewRow[] = [];
+
+    const findMatch = (projName: string) => {
+      if (!projName) return null;
+      const norm = (str: string) => str.toLowerCase().replace(/\s+/g, '');
+      const normName = norm(projName);
+      return newProjectsList.find(p => norm(p.project_name) === normName);
+    };
+
+    const getCsvMetadata = (row: CSVRow, keys: string[], fallback: string): string => {
+      for (const k of keys) {
+        if (row[k] !== undefined) return row[k];
+        const foundKey = Object.keys(row).find(
+          rk => rk.toLowerCase().replace(/[\s_-]/g, '') === k.toLowerCase().replace(/[\s_-]/g, '')
+        );
+        if (foundKey && row[foundKey] !== undefined) return row[foundKey];
+      }
+      return fallback;
+    };
+
+    csvData.forEach((row) => {
+      const raw_id = mappings.id ? row[mappings.id] || null : null;
       const work_date = row[mappings.work_date] || '';
       const raw_start = row[mappings.start_time] || '';
       const raw_end = row[mappings.end_time] || '';
@@ -254,31 +320,26 @@ export default function MigratePage() {
       let is_ot = is_ot_val.toLowerCase() === 'true' || is_ot_val === '1' || is_ot_val.toLowerCase() === 'yes';
 
       // Auto-detect OT if date is in holiday list or falls on a weekend
-      if (!is_ot && work_date && !isNaN(Date.parse(work_date))) {
+      let isWeekendOrHoliday = false;
+      if (work_date && !isNaN(Date.parse(work_date))) {
         const parsedDate = new Date(work_date);
         const day = parsedDate.getDay(); // 0 = Sunday, 6 = Saturday
         const isWeekend = day === 0 || day === 6;
         const isHoliday = holidaysList.includes(work_date);
-        if (isWeekend || isHoliday) {
+        isWeekendOrHoliday = isWeekend || isHoliday;
+        if (isWeekendOrHoliday) {
           is_ot = true;
         }
       }
 
-      let status: 'ready' | 'warning' | 'error' = 'ready';
-      let message = 'Ready to import';
-
-      let holding = fallbackHolding;
-      let department_operator = fallbackOperator;
-      let project_type = 'Management';
-      let module = '';
-      let bu = '';
-      let department = '';
-      let action_channel: string | null = null;
-      let break_time = true;
+      // Check actionType
+      const actionType: 'insert' | 'update' = (raw_id && existingImportUserIds.has(raw_id)) ? 'update' : 'insert';
 
       // 1. Validate date
       if (!work_date || isNaN(Date.parse(work_date))) {
-        return {
+        compiledRows.push({
+          id: raw_id,
+          actionType,
           work_date,
           start_time: '',
           end_time: '',
@@ -290,29 +351,54 @@ export default function MigratePage() {
           status: 'error',
           message: 'Invalid or missing work date',
           original: row,
-          holding,
-          department_operator,
-          project_type,
-          module,
-          bu,
-          department,
-          action_channel,
-          break_time,
-        };
+          holding: fallbackHolding,
+          department_operator: fallbackOperator,
+          project_type: 'Management',
+          module: '',
+          bu: '',
+          department: '',
+          action_channel: null,
+          break_time: true,
+        });
+        return;
       }
 
       // 2. Validate start & end times or hours
       let start_time = raw_start;
       let end_time = raw_end;
       let total_hours = raw_hours;
+      let timeWarning = false;
+      let warningMessage = '';
 
       if (!start_time || !end_time) {
         if (total_hours <= 0) {
-          status = 'error';
-          message = 'Missing start/end times and valid total hours';
+          compiledRows.push({
+            id: raw_id,
+            actionType,
+            work_date,
+            start_time: '',
+            end_time: '',
+            total_hours: 0,
+            project_name,
+            action_name,
+            description,
+            is_ot,
+            status: 'error',
+            message: 'Missing start/end times and valid total hours',
+            original: row,
+            holding: fallbackHolding,
+            department_operator: fallbackOperator,
+            project_type: 'Management',
+            module: '',
+            bu: '',
+            department: '',
+            action_channel: null,
+            break_time: true,
+          });
+          return;
         } else {
-          status = 'warning';
-          message = `Will reconstruct times starting from ${fallbackStartTime}`;
+          timeWarning = true;
+          warningMessage = `Will reconstruct times starting from ${fallbackStartTime}`;
           // Generate times
           start_time = `${fallbackStartTime}:00`;
           const [startH, startM] = fallbackStartTime.split(':').map(Number);
@@ -333,31 +419,133 @@ export default function MigratePage() {
         }
       }
 
-      // 3. Project structural matching
-      if (project_name) {
-        const norm = (str: string) => str.toLowerCase().replace(/\s+/g, '');
-        const normName = norm(project_name);
-        const match = newProjectsList.find(p => norm(p.project_name) === normName);
+      // Determine structural values: (1) matched project, (2) csv columns, (3) fallbacks
+      let holding = fallbackHolding;
+      let department_operator = fallbackOperator;
+      let project_type = 'Management';
+      let module = '';
+      let bu = '';
+      let department = '';
+      let action_channel: string | null = null;
+      let break_time = true;
 
-        if (match) {
-          holding = match.holding;
-          department_operator = match.department_operator;
-          project_type = match.project_type || 'Management';
-          module = match.module || '';
-          bu = match.bu || '';
-          department = match.department || '';
-        } else {
-          if (status !== 'error') {
-            status = 'warning';
-            message = `Project mismatch. Will map to fallback [${fallbackHolding} - ${fallbackOperator}]`;
-          }
-        }
+      const match = findMatch(project_name);
+      if (match) {
+        holding = match.holding;
+        department_operator = match.department_operator;
+        project_type = match.project_type || 'Management';
+        module = match.module || '';
+        bu = match.bu || '';
+        department = match.department || '';
       } else {
-        status = 'error';
-        message = 'Missing project name';
+        // Check CSV metadata fallback
+        holding = getCsvMetadata(row, ['holding'], fallbackHolding);
+        department_operator = getCsvMetadata(row, ['department_operator', 'operator', 'dept_operator'], fallbackOperator);
+        project_type = getCsvMetadata(row, ['project_type', 'projecttype', 'type'], 'Management');
+        module = getCsvMetadata(row, ['module'], '');
+        bu = getCsvMetadata(row, ['bu'], '');
+        department = getCsvMetadata(row, ['department', 'dept'], '');
       }
 
-      return {
+      const csvChannel = getCsvMetadata(row, ['action_channel', 'channel'], null);
+      if (csvChannel) action_channel = csvChannel;
+
+      const csvBreakTime = getCsvMetadata(row, ['break_time', 'breaktime'], '');
+      if (csvBreakTime) {
+        break_time = csvBreakTime.toLowerCase() === 'true' || csvBreakTime === '1' || csvBreakTime.toLowerCase() === 'yes';
+      }
+
+      let status: 'ready' | 'warning' | 'error' = 'ready';
+      let message = actionType === 'update' ? 'Will update existing worklog' : 'Ready to import';
+
+      if (!match) {
+        status = 'warning';
+        message = `Project mismatch. Will map to fallback [${holding} - ${department_operator}]`;
+      } else if (timeWarning) {
+        status = 'warning';
+        message = warningMessage;
+      }
+
+      // Check auto-split boundary
+      if (autoSplitOT && !raw_id && !isWeekendOrHoliday && start_time && end_time) {
+        const parsedDate = new Date(work_date);
+        const day = parsedDate.getDay(); // 1 = Mon, ..., 5 = Fri
+        const boundaryHour = (day === 5) ? 17 : 18; // Friday 17:00, Mon-Thu 18:00
+        
+        const [sH, sM] = start_time.split(':').map(Number);
+        const [eH, eM] = end_time.split(':').map(Number);
+        
+        if (!isNaN(sH) && !isNaN(eH)) {
+          const startMins = sH * 60 + sM;
+          let endMins = eH * 60 + eM;
+          if (endMins < startMins) endMins += 24 * 60; // Next day/midnight crossing
+          
+          const boundaryMins = boundaryHour * 60;
+          
+          if (startMins < boundaryMins && endMins > boundaryMins) {
+            // Split into Normal and OT
+            const normalHours = (boundaryMins - startMins) / 60;
+            const otHours = (endMins - boundaryMins) / 60;
+            
+            // 1. Normal Portion
+            compiledRows.push({
+              id: null,
+              actionType: 'insert',
+              work_date,
+              start_time,
+              end_time: `${String(boundaryHour).padStart(2, '0')}:00`,
+              total_hours: normalHours,
+              project_name,
+              action_name,
+              description: description ? `${description} (Normal)` : 'Normal portion',
+              is_ot: false,
+              status,
+              message: `${message} (Normal split portion)`,
+              original: row,
+              holding,
+              department_operator,
+              project_type,
+              module,
+              bu,
+              department,
+              action_channel,
+              break_time,
+            });
+            
+            // 2. OT Portion
+            compiledRows.push({
+              id: null,
+              actionType: 'insert',
+              work_date,
+              start_time: `${String(boundaryHour).padStart(2, '0')}:00`,
+              end_time,
+              total_hours: otHours,
+              project_name,
+              action_name,
+              description: description ? `${description} (OT Split)` : 'OT split portion',
+              is_ot: true,
+              status,
+              message: `${message} (OT split portion)`,
+              original: row,
+              holding,
+              department_operator,
+              project_type,
+              module,
+              bu,
+              department,
+              action_channel,
+              break_time,
+            });
+            
+            return; // We have split, skip adding the unsplit row
+          }
+        }
+      }
+
+      // Otherwise, add single row
+      compiledRows.push({
+        id: raw_id,
+        actionType,
         work_date,
         start_time,
         end_time,
@@ -377,11 +565,11 @@ export default function MigratePage() {
         department,
         action_channel,
         break_time,
-      };
+      });
     });
 
-    setPreviewRows(preview);
-  }, [csvData, mappings, fallbackHolding, fallbackOperator, fallbackAction, fallbackStartTime, newProjectsList]);
+    setPreviewRows(compiledRows);
+  }, [csvData, mappings, fallbackHolding, fallbackOperator, fallbackAction, fallbackStartTime, autoSplitOT, existingImportUserIds, holidaysList, newProjectsList]);
 
   // Handle CSV Import
   const handleImport = async () => {
@@ -399,46 +587,62 @@ export default function MigratePage() {
     let successCount = 0;
     let failedCount = 0;
 
-    const norm = (str: string) => str.toLowerCase().replace(/\s+/g, '');
-
     for (let i = 0; i < previewRows.length; i++) {
       const row = previewRows[i];
 
-      // Match details in project structures
-      const normName = norm(row.project_name);
-      const match = newProjectsList.find(p => norm(p.project_name) === normName);
-
-      const dbRecord = {
-        user_id: currentUser.id,
+      const dbRecord: any = {
+        user_id: selectedImportUserId || currentUser.id,
         work_date: row.work_date,
         start_time: row.start_time.includes(':') && row.start_time.split(':').length === 2 ? `${row.start_time}:00` : row.start_time,
         end_time: row.end_time.includes(':') && row.end_time.split(':').length === 2 ? `${row.end_time}:00` : row.end_time,
-        break_time: false,
+        break_time: row.break_time,
         total_hours: row.total_hours,
-        holding: match ? match.holding : fallbackHolding,
-        department_operator: match ? match.department_operator : fallbackOperator,
-        project_type: match ? match.project_type : 'Project',
-        project_name: match ? match.project_name : row.project_name,
-        module: null,
-        bu: match ? match.bu : '-',
-        department: match ? match.department : '-',
+        holding: row.holding,
+        department_operator: row.department_operator,
+        project_type: row.project_type,
+        project_name: row.project_name,
+        module: row.module || null,
+        bu: row.bu || '-',
+        department: row.department || '-',
         action_name: row.action_name || fallbackAction,
         description: row.description || '',
         is_ot: row.is_ot,
         is_implied_ot: false,
-        channel: 'CSV Import'
+        channel: row.action_channel || 'CSV Import'
       };
 
-      const { error } = await supabase.from('col_worklog').insert([dbRecord]);
+      if (row.id) {
+        dbRecord.id = row.id;
+      }
+
+      let query;
+      if (row.id) {
+        query = supabase.from('col_worklog').upsert([dbRecord], { onConflict: 'id' });
+      } else {
+        query = supabase.from('col_worklog').insert([dbRecord]);
+      }
+
+      const { error } = await query;
 
       if (error) {
-        console.error('Failed to import row:', error);
+        console.error('Failed to import/upsert row:', error, dbRecord);
         failedCount++;
       } else {
         successCount++;
       }
 
       setImportProgress(Math.round(((i + 1) / previewRows.length) * 100));
+    }
+
+    // Refresh existing import user IDs
+    if (selectedImportUserId) {
+      const { data } = await supabase
+        .from('col_worklog')
+        .select('id')
+        .eq('user_id', selectedImportUserId);
+      if (data) {
+        setExistingImportUserIds(new Set(data.map((r: any) => r.id)));
+      }
     }
 
     setImportStats({ success: successCount, failed: failedCount });
@@ -449,16 +653,31 @@ export default function MigratePage() {
     setFileName('');
   };
 
+  // Preview export count when params change
+  useEffect(() => {
+    if (!selectedExportUserId) { setExportRecordCount(null); return; }
+    async function countExport() {
+      const { count } = await supabase
+        .from('col_worklog')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', selectedExportUserId)
+        .gte('work_date', exportStartDate)
+        .lte('work_date', exportEndDate);
+      setExportRecordCount(count ?? 0);
+    }
+    countExport();
+  }, [selectedExportUserId, exportStartDate, exportEndDate]);
+
   // CSV Export function
   const handleExport = async () => {
-    if (!currentUser || isExporting) return;
+    if (!selectedExportUserId || isExporting) return;
     setIsExporting(true);
 
     try {
       const { data, error } = await supabase
         .from('col_worklog')
         .select('*')
-        .eq('user_id', currentUser.id)
+        .eq('user_id', selectedExportUserId)
         .gte('work_date', exportStartDate)
         .lte('work_date', exportEndDate)
         .order('work_date', { ascending: true });
@@ -476,19 +695,25 @@ export default function MigratePage() {
 
       // Construct CSV text
       const csvHeadersList = [
+        'id',
         'work_date',
         'start_time',
         'end_time',
         'total_hours',
+        'break_time',
         'holding',
         'department_operator',
         'project_type',
         'project_name',
+        'module',
         'bu',
         'department',
         'action_name',
+        'action_channel',
         'description',
-        'is_ot'
+        'is_ot',
+        'is_implied_ot',
+        'channel'
       ];
 
       const csvRows = [csvHeadersList.join(',')];
@@ -512,8 +737,10 @@ export default function MigratePage() {
       const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + csvRows.join('\n');
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
+      const selectedUser = usersList.find(u => u.id === selectedExportUserId);
+      const nameSlug = selectedUser ? selectedUser.nickname || selectedUser.full_name.replace(/\s+/g, '_') : 'unknown';
       link.setAttribute('href', encodedUri);
-      link.setAttribute('download', `worklog_export_${exportStartDate}_to_${exportEndDate}.csv`);
+      link.setAttribute('download', `worklog_${nameSlug}_${exportStartDate}_to_${exportEndDate}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -544,6 +771,29 @@ export default function MigratePage() {
           
           {/* Main Workspaces: CSV Importer & Preview */}
           <div className="lg:col-span-2 space-y-6">
+
+            {/* Import Target User Selector */}
+            {csvData.length === 0 && (
+              <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-5 shadow-xl">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-3">
+                  <User size={16} className="text-indigo-400" />
+                  <span>Import Target User</span>
+                </h3>
+                <p className="text-xs text-slate-400 mb-3">Select which employee this CSV data will be imported for.</p>
+                <select
+                  value={selectedImportUserId}
+                  onChange={(e) => setSelectedImportUserId(e.target.value)}
+                  className="w-full bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                >
+                  <option value="">-- Select Employee --</option>
+                  {usersList.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.nickname}) — {u.department}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             
             {csvData.length === 0 ? (
               /* Step 1: File Upload Box */
@@ -639,14 +889,26 @@ export default function MigratePage() {
                         {previewRows.slice(0, 5).map((row, idx) => (
                           <tr key={idx} className="hover:bg-slate-950/20 text-slate-300">
                             <td className="p-3">
-                              <span className={cn(
-                                "inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold uppercase text-[9px] tracking-wide border",
-                                row.status === 'ready' && "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-                                row.status === 'warning' && "text-amber-400 bg-amber-500/10 border-amber-500/20",
-                                row.status === 'error' && "text-rose-400 bg-rose-500/10 border-rose-500/20"
-                              )}>
-                                {row.status}
-                              </span>
+                              <div className="flex flex-col gap-1">
+                                <span className={cn(
+                                  "inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded font-bold uppercase text-[9px] tracking-wide border w-fit",
+                                  row.status === 'ready' && "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+                                  row.status === 'warning' && "text-amber-400 bg-amber-500/10 border-amber-500/20",
+                                  row.status === 'error' && "text-rose-400 bg-rose-500/10 border-rose-500/20"
+                                )}>
+                                  {row.status}
+                                </span>
+                                {row.status !== 'error' && (
+                                  <span className={cn(
+                                    "inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded font-bold uppercase text-[8px] tracking-wider w-fit border",
+                                    row.actionType === 'update' 
+                                      ? "text-sky-400 bg-sky-500/10 border-sky-500/20" 
+                                      : "text-violet-400 bg-violet-500/10 border-violet-500/20"
+                                  )}>
+                                    {row.actionType === 'update' ? 'Update' : 'Insert'}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-3 font-mono font-bold text-white">{row.work_date}</td>
                             <td className="p-3">
@@ -745,6 +1007,18 @@ export default function MigratePage() {
                 
                 <div className="space-y-3">
                   <div className="flex flex-col gap-1.5">
+                    <label className="text-[11px] font-bold text-slate-400">Worklog ID (Optional for Upserts)</label>
+                    <select 
+                      value={mappings.id}
+                      onChange={(e) => setMappings({ ...mappings, id: e.target.value })}
+                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                    >
+                      <option value="">-- Generate New (Insert) --</option>
+                      {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
                     <label className="text-[11px] font-bold text-slate-400">Work Date (Required)</label>
                     <select 
                       value={mappings.work_date}
@@ -842,6 +1116,31 @@ export default function MigratePage() {
                 </div>
 
                 <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                  <h4 className="text-[11px] font-bold text-indigo-300 uppercase tracking-widest flex items-center gap-1.5">
+                    <Settings size={12} />
+                    <span>Import Settings</span>
+                  </h4>
+                  
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0F172A]/50 border border-slate-800/60">
+                    <div className="space-y-0.5 pr-2">
+                      <label className="text-[11px] font-bold text-slate-200 cursor-pointer flex items-center gap-1.5" htmlFor="autoSplitOTToggle">
+                        Auto-Split Overtime (OT)
+                      </label>
+                      <p className="text-[9px] text-slate-400 leading-tight">
+                        Weekday logs crossing 18:00 (Mon-Thu) / 17:00 (Fri) will split into Normal & OT portions.
+                      </p>
+                    </div>
+                    <input 
+                      type="checkbox"
+                      id="autoSplitOTToggle"
+                      checked={autoSplitOT}
+                      onChange={(e) => setAutoSplitOT(e.target.checked)}
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-[#0F172A] border-slate-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-800/80 space-y-3">
                   <h4 className="text-[11px] font-bold text-indigo-300 uppercase tracking-widest">Fallback Values</h4>
                   
                   <div className="flex flex-col gap-1.5">
@@ -896,10 +1195,29 @@ export default function MigratePage() {
               </h3>
               
               <p className="text-xs text-slate-400">
-                Download a backup of your logged work hours in a standard CSV format compatible with this importer.
+                Download a backup of logged work hours in a standard CSV format compatible with this importer.
               </p>
 
               <div className="space-y-3">
+                {/* Employee Selector */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+                    <Users size={11} /> Select Employee
+                  </label>
+                  <select
+                    value={selectedExportUserId}
+                    onChange={(e) => setSelectedExportUserId(e.target.value)}
+                    className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-medium text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                  >
+                    <option value="">-- Select Employee --</option>
+                    {usersList.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name} ({u.nickname}) — {u.department}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[11px] font-bold text-slate-400">Start Date</label>
                   <input 
@@ -920,13 +1238,31 @@ export default function MigratePage() {
                   />
                 </div>
 
+                {/* Record count preview */}
+                {exportRecordCount !== null && selectedExportUserId && (
+                  <div className="text-xs font-medium text-slate-400 bg-[#0F172A]/50 border border-slate-800/60 rounded-lg px-3 py-2 flex items-center justify-between">
+                    <span>Records found:</span>
+                    <span className={cn(
+                      "font-bold font-mono",
+                      exportRecordCount > 0 ? "text-emerald-400" : "text-rose-400"
+                    )}>
+                      {exportRecordCount} rows
+                    </span>
+                  </div>
+                )}
+
                 <button
                   onClick={handleExport}
-                  disabled={isExporting}
-                  className="w-full inline-flex items-center justify-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-800 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-md active:scale-95 mt-2"
+                  disabled={isExporting || !selectedExportUserId || exportRecordCount === 0}
+                  className={cn(
+                    "w-full inline-flex items-center justify-center gap-1.5 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-md active:scale-95 mt-2",
+                    !selectedExportUserId || exportRecordCount === 0
+                      ? "bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed"
+                      : "bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-800"
+                  )}
                 >
                   <Download size={14} />
-                  <span>{isExporting ? 'Exporting...' : 'Export Work Logs'}</span>
+                  <span>{isExporting ? 'Exporting...' : `Export Work Logs${exportRecordCount ? ` (${exportRecordCount})` : ''}`}</span>
                 </button>
               </div>
 

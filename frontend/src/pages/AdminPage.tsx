@@ -999,11 +999,36 @@ export default function AdminPage() {
 // ==========================================
 // AI Dynamic Key & Engine Manager Component
 // ==========================================
+
+const PROVIDER_PRESET_MODELS: Record<string, { id: string; label: string }[]> = {
+  opencode: [
+    { id: 'big-pickle', label: 'Big Pickle' },
+    { id: 'deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
+    { id: 'minimax-m2.5-free', label: 'MiniMax M2.5 Free' },
+    { id: 'nemotron-3-super-free', label: 'Nemotron 3 Super Free' },
+    { id: 'qwen3.6-plus-free', label: 'Qwen3.6 Plus Free' }
+  ],
+  openrouter: [
+    { id: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)' },
+    { id: 'google/gemini-2.0-pro-exp:free', label: 'Gemini 2.0 Pro (Free)' },
+    { id: 'meta-llama/llama-3-8b-instruct:free', label: 'Llama 3 8B (Free)' },
+    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' }
+  ],
+  gemini: [
+    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }
+  ],
+  openai: [
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { id: 'gpt-4o', label: 'GPT-4o' }
+  ]
+};
+
 function AISettingsManager() {
   const { showToast } = useNotification();
   const [configs, setConfigs] = useState<{ [key: string]: string }>({
-    ai_provider: 'openrouter',
-    ai_model: 'google/gemini-2.0-flash-exp:free',
+    ai_provider: 'opencode',
+    ai_model: 'big-pickle',
     openai_api_key: '',
     gemini_api_key: '',
     openrouter_api_key: '',
@@ -1149,10 +1174,6 @@ function AISettingsManager() {
     }
   };
 
-  const handleQuickModelSelect = (modelName: string) => {
-    setConfigs(prev => ({ ...prev, ai_model: modelName }));
-  };
-
   if (loading) {
     return (
       <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-12 text-center shadow-xl animate-pulse space-y-4">
@@ -1245,133 +1266,53 @@ function AISettingsManager() {
             {/* Active LLM Model ID */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-2">Active LLM Model ID</label>
-              <input
-                type="text"
-                value={configs.ai_model}
-                onChange={(e) => setConfigs(prev => ({ ...prev, ai_model: e.target.value }))}
-                placeholder="e.g. google/gemini-2.0-flash-exp:free"
-                className="w-full bg-[#0F172A] border border-slate-600 rounded-xl py-2.5 px-3.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
-                required
-              />
-            </div>
-          </div>
+              <div className="flex gap-2 relative">
+                <select
+                  value={
+                    (PROVIDER_PRESET_MODELS[configs.ai_provider] || []).some(m => m.id === configs.ai_model)
+                      ? configs.ai_model
+                      : 'custom'
+                  }
+                  onChange={(e) => {
+                    if (e.target.value !== 'custom') {
+                      setConfigs(prev => ({ ...prev, ai_model: e.target.value }));
+                    } else {
+                      setConfigs(prev => ({ ...prev, ai_model: '' }));
+                    }
+                  }}
+                  className="bg-[#0F172A] border border-slate-600 rounded-xl py-2.5 px-3.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all flex-1 min-w-[150px]"
+                >
+                  {(PROVIDER_PRESET_MODELS[configs.ai_provider] || []).map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                  <option value="custom">กำหนดเอง (Custom)</option>
+                </select>
 
-          {/* Quick Model Select Presets */}
-          <div className="bg-[#0F172A]/40 border border-slate-800 rounded-xl p-3.5 space-y-2">
-            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">โมเดลแนะนำสำหรับการใช้งาน</span>
-            <div className="flex flex-wrap gap-2 pt-1">
-              {configs.ai_provider === 'openrouter' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickModelSelect('google/gemini-2.0-flash-exp:free')}
-                    className={cn(
-                      "px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all font-mono",
-                      configs.ai_model === 'google/gemini-2.0-flash-exp:free'
-                        ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
-                        : "bg-transparent text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
-                    )}
-                  >
-                    Gemini 2.0 Flash (Free)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickModelSelect('meta-llama/llama-3-8b-instruct:free')}
-                    className={cn(
-                      "px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all font-mono",
-                      configs.ai_model === 'meta-llama/llama-3-8b-instruct:free'
-                        ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
-                        : "bg-transparent text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
-                    )}
-                  >
-                    Llama 3 8B (Free)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickModelSelect('anthropic/claude-3.5-sonnet')}
-                    className={cn(
-                      "px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all font-mono",
-                      configs.ai_model === 'anthropic/claude-3.5-sonnet'
-                        ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
-                        : "bg-transparent text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
-                    )}
-                  >
-                    Claude 3.5 Sonnet
-                  </button>
-                </>
-              )}
-              {configs.ai_provider === 'gemini' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickModelSelect('gemini-2.0-flash')}
-                    className={cn(
-                      "px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all font-mono",
-                      configs.ai_model === 'gemini-2.0-flash'
-                        ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
-                        : "bg-transparent text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
-                    )}
-                  >
-                    gemini-2.0-flash
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickModelSelect('gemini-1.5-pro')}
-                    className={cn(
-                      "px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all font-mono",
-                      configs.ai_model === 'gemini-1.5-pro'
-                        ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
-                        : "bg-transparent text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
-                    )}
-                  >
-                    gemini-1.5-pro
-                  </button>
-                </>
-              )}
-              {configs.ai_provider === 'openai' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickModelSelect('gpt-4o-mini')}
-                    className={cn(
-                      "px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all font-mono",
-                      configs.ai_model === 'gpt-4o-mini'
-                        ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
-                        : "bg-transparent text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
-                    )}
-                  >
-                    gpt-4o-mini
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickModelSelect('gpt-4o')}
-                    className={cn(
-                      "px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all font-mono",
-                      configs.ai_model === 'gpt-4o'
-                        ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
-                        : "bg-transparent text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
-                    )}
-                  >
-                    gpt-4o
-                  </button>
-                </>
-              )}
-              {configs.ai_provider === 'opencode' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickModelSelect('opencode-default')}
-                    className={cn(
-                      "px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all font-mono",
-                      configs.ai_model === 'opencode-default'
-                        ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
-                        : "bg-transparent text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
-                    )}
-                  >
-                    opencode-default
-                  </button>
-                </>
-              )}
+                {(!PROVIDER_PRESET_MODELS[configs.ai_provider]?.some(m => m.id === configs.ai_model) || configs.ai_model === '') && (
+                  <div className="absolute inset-0 z-10 flex">
+                    <input
+                      type="text"
+                      value={configs.ai_model}
+                      onChange={(e) => setConfigs(prev => ({ ...prev, ai_model: e.target.value }))}
+                      placeholder="Enter custom model ID"
+                      className="flex-1 bg-[#0F172A] border border-slate-600 rounded-xl py-2.5 px-3.5 pr-10 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                      autoFocus
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const firstPreset = PROVIDER_PRESET_MODELS[configs.ai_provider]?.[0]?.id || 'gpt-4o-mini';
+                        setConfigs(prev => ({ ...prev, ai_model: firstPreset }));
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-indigo-400 transition-colors bg-[#0F172A] rounded-md"
+                      title="กลับไปเลือกจากรายการ (Back to presets)"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

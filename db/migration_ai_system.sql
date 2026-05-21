@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS public.tb_system_config (
 -- แทรกข้อมูลเริ่มต้นสำหรับการกำหนดค่า AI Engine
 INSERT INTO public.tb_system_config (config_key, config_value, description)
 VALUES 
-  ('ai_provider', 'openrouter', 'Active AI Provider (openai, gemini, openrouter)'),
-  ('ai_model', 'google/gemini-2.0-flash-exp:free', 'Active LLM Model ID'),
+  ('ai_provider', 'opencode', 'Active AI Provider (openai, gemini, openrouter, opencode)'),
+  ('ai_model', 'big-pickle', 'Active LLM Model ID'),
   ('openai_api_key', '', 'OpenAI API Key (sk-...)'),
   ('gemini_api_key', '', 'Google Gemini API Key (AIzaSy...)'),
   ('openrouter_api_key', '', 'OpenRouter API Key (sk-or-...)'),

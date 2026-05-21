@@ -29,6 +29,20 @@ async function callLlmWithFallback(
         modelsToTry.push(fb);
       }
     }
+  } else if (provider === 'opencode') {
+    // List of fallback free models on OpenCode
+    const fallbacks = [
+      'big-pickle',
+      'deepseek-v4-flash-free',
+      'minimax-m2.5-free',
+      'nemotron-3-super-free',
+      'qwen3.6-plus-free'
+    ];
+    for (const fb of fallbacks) {
+      if (fb !== configuredModel) {
+        modelsToTry.push(fb);
+      }
+    }
   }
 
   let lastError: Error | null = null;
