@@ -40,9 +40,7 @@
     "globals": "^17.6.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
-  },
-  "optionalDependencies": {
+    "vite": "^8.0.12",
     "@emnapi/core": "1.10.0",
     "@emnapi/runtime": "1.10.0"
   }
