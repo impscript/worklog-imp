@@ -419,33 +419,49 @@ export default function MigratePage() {
         }
       }
 
-      // Determine structural values: (1) matched project, (2) csv columns, (3) fallbacks
-      let holding = fallbackHolding;
-      let department_operator = fallbackOperator;
-      let project_type = 'Management';
-      let module = '';
-      let bu = '';
-      let department = '';
+      // Determine structural values with high intelligence:
+      // (1) Extract directly from CSV columns if they are not empty (respect user's cleaned data!)
+      let holding = getCsvMetadata(row, ['holding'], '').trim();
+      let department_operator = getCsvMetadata(row, ['department_operator', 'operator', 'dept_operator'], '').trim();
+      let project_type = getCsvMetadata(row, ['project_type', 'projecttype', 'type'], '').trim();
+      let module = getCsvMetadata(row, ['module'], '').trim();
+      let bu = getCsvMetadata(row, ['bu'], '').trim();
+      let department = getCsvMetadata(row, ['department', 'dept'], '').trim();
       let action_channel: string | null = null;
       let break_time = true;
 
+      // Handle split column "Module : BU : Department" if it is present and individual fields are empty
+      const splitCol = getCsvMetadata(row, ['Module : BU : Department', 'Module:BU:Department'], '').trim();
+      if (splitCol && (!bu || !department)) {
+        const parts = splitCol.split(':').map(p => p.trim());
+        if (parts.length === 3) {
+          if (!module) module = parts[0];
+          if (!bu) bu = parts[1];
+          if (!department) department = parts[2];
+        } else if (parts.length === 2) {
+          if (!module) module = '';
+          if (!bu) bu = parts[0];
+          if (!department) department = parts[1];
+        }
+      }
+
+      // (2) Fallback to matched project in database registry if fields are still empty
       const match = findMatch(project_name);
       if (match) {
-        holding = match.holding;
-        department_operator = match.department_operator;
-        project_type = match.project_type || 'Management';
-        module = match.module || '';
-        bu = match.bu || '';
-        department = match.department || '';
-      } else {
-        // Check CSV metadata fallback
-        holding = getCsvMetadata(row, ['holding'], fallbackHolding);
-        department_operator = getCsvMetadata(row, ['department_operator', 'operator', 'dept_operator'], fallbackOperator);
-        project_type = getCsvMetadata(row, ['project_type', 'projecttype', 'type'], 'Management');
-        module = getCsvMetadata(row, ['module'], '');
-        bu = getCsvMetadata(row, ['bu'], '');
-        department = getCsvMetadata(row, ['department', 'dept'], '');
+        if (!holding) holding = match.holding;
+        if (!department_operator) department_operator = match.department_operator;
+        if (!project_type) project_type = match.project_type || 'Management';
+        if (!module) module = match.module || '';
+        if (!bu) bu = match.bu || '';
+        if (!department) department = match.department || '';
       }
+
+      // (3) Apply ultimate default fallbacks if still empty
+      if (!holding) holding = fallbackHolding;
+      if (!department_operator) department_operator = fallbackOperator;
+      if (!project_type) project_type = 'Management';
+      if (!bu) bu = '';
+      if (!department) department = '';
 
       const csvChannel = getCsvMetadata(row, ['action_channel', 'channel'], '');
       if (csvChannel) action_channel = csvChannel;
@@ -458,9 +474,13 @@ export default function MigratePage() {
       let status: 'ready' | 'warning' | 'error' = 'ready';
       let message = actionType === 'update' ? 'Will update existing worklog' : 'Ready to import';
 
-      if (!match) {
+      // (4) Robust validation status and message
+      if (!holding || !department_operator || !bu || !department) {
+        status = 'error';
+        message = 'Missing required structural fields (Holding, Operator, BU, Department)';
+      } else if (!match) {
         status = 'warning';
-        message = `Project mismatch. Will map to fallback [${holding} - ${department_operator}]`;
+        message = `Project mismatch. Will map via explicit CSV columns [${holding} > ${bu} > ${department}]`;
       } else if (timeWarning) {
         status = 'warning';
         message = warningMessage;

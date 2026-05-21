@@ -85,6 +85,7 @@ export default function ReportsPage() {
   const [customPosition, setCustomPosition] = useState('');
   const [isJdEditing, setIsJdEditing] = useState(false);
   const [isSavingJd, setIsSavingJd] = useState(false);
+  const [isRecommendingJd, setIsRecommendingJd] = useState(false);
   
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
@@ -323,51 +324,33 @@ export default function ReportsPage() {
     loadJdAndAnalysis();
   }, [selectedUser, dateFilter, customStart, customEnd, dateBoundaries, usersList]);
 
-  // Recommend standard JD based on employee position
-  const recommendJd = () => {
-    const targetPos = customPosition || individualData?.user?.position || '';
-    const pos = targetPos.toLowerCase();
-    let text = '';
-    let responsibilities: { category: string; weight: number }[] = [];
-    
-    if (pos.includes('developer') || pos.includes('programmer') || pos.includes('coder') || pos.includes('software')) {
-      text = `Software Developer / Engineer:\n- Write high-quality, clean, testable code for web applications.\n- Design database schemas, optimize database queries, and maintain data integrity.\n- Collaborate with project managers and designers to implement robust solutions.\n- Debug system issues, write automated tests, and conduct peer code reviews.\n- Document software specifications, system architectures, and API endpoints.`;
-      responsibilities = [
-        { category: 'Software Coding & Implementation', weight: 60 },
-        { category: 'System Architecture & DB Design', weight: 20 },
-        { category: 'Testing, Debugging & QA', weight: 10 },
-        { category: 'Meetings, Code Reviews & Syncs', weight: 10 }
-      ];
-    } else if (pos.includes('project') || pos.includes('pm') || pos.includes('scrum') || pos.includes('coordinator')) {
-      text = `Project Manager / Coordinator:\n- Plan, coordinate, and execute project deliverables across cross-functional teams.\n- Manage timeline budgets, scope requirements, and mitigate potential project risks.\n- Communicate regular status updates to client departments and management sponsors.\n- Standardize agile scrum ceremonies including daily stand-ups and retrospectives.\n- Document meetings minutes, strategic task plans, and project resources.`;
-      responsibilities = [
-        { category: 'Project Planning & Strategy', weight: 40 },
-        { category: 'Team Coordination & Scrum', weight: 35 },
-        { category: 'Reporting & Client Alignment', weight: 15 },
-        { category: 'Administrative Documentation', weight: 10 }
-      ];
-    } else if (pos.includes('support') || pos.includes('service') || pos.includes('helpdesk') || pos.includes('operation')) {
-      text = `Support Specialist / Operations Engineer:\n- Monitor and resolve client-reported tickets and system issues.\n- Maintain application uptime, execute standard patches, and troubleshoot services.\n- Standardize support runbooks and client self-help guides.\n- Conduct onboarding and software training for corporate users.\n- Report bug requests to software engineering product teams.`;
-      responsibilities = [
-        { category: 'Support Tickets & Helpdesk', weight: 55 },
-        { category: 'System Maintenance & Patches', weight: 20 },
-        { category: 'Training & Documentation', weight: 15 },
-        { category: 'Product Team Alignment', weight: 10 }
-      ];
-    } else {
-      text = `Professional General Staff / Specialist:\n- Execute core operational deliverables aligned with departmental objectives.\n- Troubleshoot day-to-day workflow bottlenecks and report progress.\n- Collaborate with team members to optimize operational efficiency.\n- Document daily tasks, logs, and procedural guidelines.\n- Participate in regular performance alignment syncs.`;
-      responsibilities = [
-        { category: 'Core Deliverables & Execution', weight: 60 },
-        { category: 'Process Optimization', weight: 20 },
-        { category: 'Meetings & Collaborative Syncs', weight: 10 },
-        { category: 'Operational Documentation', weight: 10 }
-      ];
+  // Recommend JD by calling the real AI API with position + current target weights
+  const recommendJd = async () => {
+    const targetPos = customPosition || usersList.find(u => u.id === selectedUser)?.position || '';
+    setIsRecommendingJd(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-performance', {
+        body: {
+          action: 'recommend_jd',
+          position: targetPos || 'General Staff',
+          target_weights: keyResponsibilities,  // send current weights so AI respects them
+        }
+      });
+
+      if (error) throw new Error(error.message || 'AI recommendation failed');
+
+      if (data?.jd_text) setJdText(data.jd_text);
+      if (data?.key_responsibilities?.length > 0) setKeyResponsibilities(data.key_responsibilities);
+      setJdSource('ai_recommended');
+
+      const engineLabel = data?.actualModel ? ` (${data.actualModel})` : '';
+      showToast(`AI แนะนำ JD สำหรับตำแหน่ง "${targetPos || 'General Staff'}" เรียบร้อย${engineLabel}`, 'success');
+    } catch (err: any) {
+      console.error('JD recommend error:', err);
+      showToast('ไม่สามารถขอคำแนะนำ JD จาก AI ได้: ' + err.message, 'error');
+    } finally {
+      setIsRecommendingJd(false);
     }
-    
-    setJdText(text);
-    setKeyResponsibilities(responsibilities);
-    setJdSource('ai_recommended');
-    showToast('Recommended Job Description loaded for ' + (targetPos || 'General Staff'), 'success');
   };
 
   // Save Job Description to Database
@@ -548,6 +531,8 @@ export default function ReportsPage() {
       
       await new Promise(r => setTimeout(r, 600));
 
+      // Use actualModel from response (reflects real model used including fallback)
+      const resolvedModel = data.actualModel || activeModel;
       setAiAnalysis({
         jd_alignment_score: data.jd_alignment_score,
         burnout_risk_score: data.burnout_risk_score,
@@ -558,7 +543,8 @@ export default function ReportsPage() {
         markdown_executive_summary: data.markdown_executive_summary,
         created_at: new Date().toISOString(),
         isCached: false,
-        model: activeModel,
+        model: resolvedModel,
+        provider: data.provider || 'unknown',
         start_date: startDate,
         end_date: endDate,
         total_hours: totalHours,
@@ -2489,9 +2475,11 @@ export default function ReportsPage() {
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={recommendJd}
-                              className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg"
+                              disabled={isRecommendingJd}
+                              className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                             >
-                              <Sparkles size={11} className="inline mr-1" /> Recommend
+                              {isRecommendingJd ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                              {isRecommendingJd ? 'AI กำลังคิด...' : 'AI Recommend'}
                             </button>
                             <button
                               onClick={() => setIsJdEditing(false)}
@@ -2949,7 +2937,7 @@ export default function ReportsPage() {
                                 </div>
                               </div>
                               <div className="text-slate-400 text-right space-y-0.5">
-                                <div className="text-[9px] uppercase font-mono tracking-wider">Engine: <span className="text-slate-300 font-bold">{aiAnalysis.model || 'openai/gpt-oss-20b:free'}</span></div>
+                                <div className="text-[9px] uppercase font-mono tracking-wider">Engine: <span className="text-slate-300 font-bold">{aiAnalysis.model || aiAnalysis.actualModel || 'N/A'}</span>{aiAnalysis.provider ? <span className="ml-1 text-indigo-400/70">({aiAnalysis.provider})</span> : null}</div>
                                 <div>
                                   {aiAnalysis.isCached ? (
                                     <span className="text-amber-400/90 font-bold font-mono">● ข้อมูลแคชเมื่อ {new Date(aiAnalysis.created_at).toLocaleString('th-TH')}</span>
