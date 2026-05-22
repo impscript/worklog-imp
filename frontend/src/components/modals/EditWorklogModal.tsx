@@ -990,57 +990,57 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-4xl bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/80 rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+      <div className="w-full max-w-4xl bg-theme-surface-modal border border-theme-border dark:border-theme-border/80 rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
         
         {/* Modal Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-slate-700/50 flex justify-between items-center bg-slate-50 dark:bg-[#0F172A]/40 shrink-0">
+        <div className="p-6 border-b border-theme-border dark:border-theme-border/50 flex justify-between items-center bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 shrink-0">
           <div>
-            <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <h2 className="text-lg font-black text-theme-text tracking-tight flex items-center gap-2">
               <Zap className="text-indigo-400" size={20} />
               <span>แก้ไขใบงานบันทึกการทำงาน</span>
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">แก้ไขรายละเอียดใบงานรหัส {log.id.slice(0, 8)}...</p>
+            <p className="text-xs text-theme-text-secondary mt-0.5">แก้ไขรายละเอียดใบงานรหัส {log.id.slice(0, 8)}...</p>
           </div>
           <button 
             onClick={onClose}
-            className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-700 p-2 rounded-xl transition-all"
+            className="text-theme-text-secondary hover:text-theme-text bg-slate-100 dark:bg-slate-800 hover:bg-slate-700 p-2 rounded-xl transition-all"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Modal Content */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-600 dark:text-slate-300">
+        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-theme-text-secondary">
           
           {/* Section 1: Time range */}
-          <div className="bg-slate-50 dark:bg-[#0F172A]/30 border border-slate-200 dark:border-slate-700/40 p-5 rounded-2xl space-y-4">
-            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-1">
+          <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border dark:border-theme-border/40 p-5 rounded-2xl space-y-4">
+            <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-2 mb-1">
               <Clock size={14} className="text-indigo-400" />
               <span>ข้อมูลวันและเวลาปฏิบัติงาน</span>
             </h3>
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">วันที่ทำงาน</label>
+                <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">วันที่ทำงาน</label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-theme-text-muted">
                     <CalendarIcon size={16} />
                   </div>
                   <input
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 pl-10 pr-3 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 pl-10 pr-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">เวลาเริ่มงาน</label>
+                <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">เวลาเริ่มงาน</label>
                 <select
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 >
                   {timeOptions.map((opt) => (
                     <option key={`start-${opt.value}`} value={opt.value}>{opt.label}</option>
@@ -1049,11 +1049,11 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">เวลาเลิกงาน</label>
+                <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">เวลาเลิกงาน</label>
                 <select
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 >
                   {timeOptions.map((opt) => (
                     <option key={`end-${opt.value}`} value={opt.value}>{opt.label}</option>
@@ -1063,7 +1063,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             </div>
 
             {/* Overlap & duration summary alerts */}
-            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-theme-border dark:border-theme-border">
               <div className="flex items-center gap-3">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
@@ -1072,7 +1072,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                     onChange={(e) => setIsBreak(e.target.checked)}
                     className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-indigo-500 focus:ring-indigo-500"
                   />
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">หักชั่วโมงพัก 1 ชม. (กรณีงาน &gt; 4 ชม.)</span>
+                  <span className="text-xs text-theme-text-secondary font-semibold">หักชั่วโมงพัก 1 ชม. (กรณีงาน &gt; 4 ชม.)</span>
                 </label>
               </div>
 
@@ -1083,7 +1083,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                   </span>
                 )}
                 <div className="text-right">
-                  <span className="text-slate-500 dark:text-slate-400">สรุปชั่วโมงงาน: </span>
+                  <span className="text-theme-text-secondary">สรุปชั่วโมงงาน: </span>
                   <span className="text-indigo-400 font-black font-mono text-sm">{preview.duration.toFixed(1)} ชม.</span>
                 </div>
               </div>
@@ -1108,19 +1108,19 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
           </div>
 
           {/* Section 2: Cascading Select fields */}
-          <div className="bg-slate-50 dark:bg-[#0F172A]/30 border border-slate-200 dark:border-slate-700/40 p-5 rounded-2xl space-y-4">
-            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+          <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border dark:border-theme-border/40 p-5 rounded-2xl space-y-4">
+            <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-1 flex items-center gap-2">
               <Zap size={14} className="text-indigo-400" />
               <span>ข้อมูลโครงการและการวิเคราะห์ (Cascading Dropdowns)</span>
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">1. Holding BU</label>
+                <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">1. Holding BU</label>
                 <select
                   value={holding}
                   onChange={(e) => handleHoldingChange(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                 >
                   <option value="">-- เลือก Holding --</option>
                   {availableHoldings.map((h) => (
@@ -1130,12 +1130,12 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">2. Role Operator</label>
+                <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">2. Role Operator</label>
                 <select
                   value={role}
                   disabled={!holding}
                   onChange={(e) => handleRoleChange(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
                 >
                   <option value="">-- เลือก Role --</option>
                   {availableRoles.map((r) => (
@@ -1145,12 +1145,12 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">3. Project Type</label>
+                <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">3. Project Type</label>
                 <select
                   value={projectType}
                   disabled={!role}
                   onChange={(e) => handleProjectTypeChange(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
                 >
                   <option value="">-- เลือกประเภทงาน --</option>
                   {availableProjectTypes.map((t) => (
@@ -1160,7 +1160,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">4. Project Name</label>
+                <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">4. Project Name</label>
                 <SearchableCombobox
                   value={projectName}
                   onChange={handleProjectNameChange}
@@ -1171,12 +1171,12 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">5. Module (ถ้ามี)</label>
+                <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">5. Module (ถ้ามี)</label>
                 <select
                   value={module}
                   disabled={!projectName || availableModules.length === 0}
                   onChange={(e) => setModule(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
                 >
                   <option value="">-- ไม่มีโมดูล / ทั้งโครงการ --</option>
                   {availableModules.map((m) => (
@@ -1186,7 +1186,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">6. Action Name</label>
+                <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">6. Action Name</label>
                 <SearchableCombobox
                   value={actionName}
                   onChange={setActionName}
@@ -1210,23 +1210,23 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">Business Unit <span className="text-rose-400">*</span></label>
+                      <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">Business Unit <span className="text-rose-400">*</span></label>
                       <select
                         value={bu}
                         onChange={e => { setBu(e.target.value); setDepartment(''); }}
-                        className="w-full bg-slate-50 dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
                       >
                         <option value="">-- เลือก Business Unit --</option>
                         {buOpts.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">Target Department <span className="text-rose-400">*</span></label>
+                      <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">Target Department <span className="text-rose-400">*</span></label>
                       <select
                         value={department}
                         onChange={e => setDepartment(e.target.value)}
                         disabled={!bu}
-                        className="w-full bg-slate-50 dark:bg-[#0F172A]/90 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
                       >
                         <option value="">-- เลือก Target Department --</option>
                         {deptOpts.map(d => <option key={d} value={d}>{d}</option>)}
@@ -1236,17 +1236,17 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                 );
               } else {
                 return (
-                  <div className="grid grid-cols-2 gap-4 p-3 bg-slate-100 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/50 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                    <div>7. Business Unit: <span className="text-slate-900 dark:text-white font-mono">{bu || '-'}</span></div>
-                    <div>8. Target Department: <span className="text-slate-900 dark:text-white font-mono">{department || '-'}</span></div>
+                  <div className="grid grid-cols-2 gap-4 p-3 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/40 rounded-xl border border-theme-border dark:border-theme-border/50 text-[11px] font-semibold text-theme-text-secondary">
+                    <div>7. Business Unit: <span className="text-theme-text font-mono">{bu || '-'}</span></div>
+                    <div>8. Target Department: <span className="text-theme-text font-mono">{department || '-'}</span></div>
                   </div>
                 );
               }
             })()}
 
             {/* Optional Action Channels as Clickable Tag Chips */}
-            <div className="space-y-2 mt-4 pt-2 border-t border-slate-200 dark:border-slate-700/30">
-              <label className="block text-[10px] uppercase font-bold text-slate-500 ml-1">ช่องทางการสื่อสาร (Action Channels - Optional)</label>
+            <div className="space-y-2 mt-4 pt-2 border-t border-theme-border dark:border-theme-border/30">
+              <label className="block text-[10px] uppercase font-bold text-theme-text-muted ml-1">ช่องทางการสื่อสาร (Action Channels - Optional)</label>
               <div className="flex flex-wrap gap-2">
                 {['Meeting', 'Discuss via phone', 'On site'].map((channelOption) => {
                   const isSelected = selectedActionChannels.includes(channelOption);
@@ -1264,8 +1264,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                       className={cn(
                         "px-3 py-1.5 text-xs font-bold rounded-full transition-all duration-200 border flex items-center gap-1.5 active:scale-95 shadow-sm",
                         isSelected
-                          ? "bg-gradient-to-r from-indigo-500 to-indigo-600 border-indigo-400/30 text-slate-900 dark:text-white hover:from-indigo-600 hover:to-indigo-700 shadow-indigo-500/10 animate-in zoom-in-95 duration-100"
-                          : "bg-slate-50 dark:bg-[#0F172A]/70 border-slate-200 dark:border-slate-700/80 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#0F172A]"
+                          ? "bg-gradient-to-r from-indigo-500 to-indigo-600 border-indigo-400/30 text-theme-text hover:from-indigo-600 hover:to-indigo-700 shadow-indigo-500/10 animate-in zoom-in-95 duration-100"
+                          : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/70 border-theme-border dark:border-theme-border/80 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-secondary"
                       )}
                     >
                       {channelOption === 'Meeting' && <span className="text-xs">👥</span>}
@@ -1281,22 +1281,22 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
 
           {/* Section 3: Description input */}
           <div className="space-y-2">
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1 ml-1">รายละเอียดงาน (Work Description)</label>
+            <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1 ml-1">รายละเอียดงาน (Work Description)</label>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="กรอกรายละเอียดงานที่ปฏิบัติ..."
-              className="w-full bg-slate-50 dark:bg-[#0F172A]/80 border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all leading-relaxed"
+              className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 border border-theme-border dark:border-theme-border rounded-2xl py-3 px-4 text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all leading-relaxed"
             />
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="p-6 border-t border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-[#0F172A]/40 flex justify-end gap-3 shrink-0">
+        <div className="p-6 border-t border-theme-border dark:border-theme-border/50 bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 flex justify-end gap-3 shrink-0">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl transition-all active:scale-[0.98]"
+            className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-700 border border-theme-border dark:border-theme-border text-theme-text-secondary text-xs font-bold rounded-xl transition-all active:scale-[0.98]"
           >
             ยกเลิก
           </button>
@@ -1305,7 +1305,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             onClick={handleSave}
             disabled={isSubmitting || preview.isOverlap || preview.duration <= 0 || !holding || !role || !projectType || !projectName || !actionName}
             className={cn(
-              "px-5 py-2.5 text-slate-900 dark:text-white text-xs font-bold rounded-xl transition-all active:scale-[0.98] shadow-md",
+              "px-5 py-2.5 text-theme-text text-xs font-bold rounded-xl transition-all active:scale-[0.98] shadow-md",
               "bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"
             )}
           >
@@ -1322,23 +1322,23 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       {/* Premium Confirmation Dialog */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-md bg-theme-surface-modal border border-theme-border dark:border-theme-border/80 rounded-3xl p-6 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
             <div className="flex items-center gap-3 text-indigo-400">
               <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
                 <Zap size={22} />
               </div>
               <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">ยืนยันการบันทึกการแก้ไข?</h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">โปรดยืนยันการเปลี่ยนแปลงข้อมูลใบงานนี้</p>
+                <h3 className="text-base font-black text-theme-text tracking-tight">ยืนยันการบันทึกการแก้ไข?</h3>
+                <p className="text-[11px] text-theme-text-secondary mt-0.5 font-medium">โปรดยืนยันการเปลี่ยนแปลงข้อมูลใบงานนี้</p>
               </div>
             </div>
 
             {/* Time Split Summary */}
-            <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800/80 p-4 rounded-2xl space-y-2">
-              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">สรุปการบันทึกชั่วโมงปฏิบัติงาน</span>
+            <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border dark:border-theme-border/80 p-4 rounded-2xl space-y-2">
+              <span className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider block mb-1">สรุปการบันทึกชั่วโมงปฏิบัติงาน</span>
               
               {preview.segments.map((seg, idx) => (
-                <div key={idx} className="flex justify-between items-center text-xs border-b border-slate-200 dark:border-slate-800/40 pb-2 last:border-none last:pb-0">
+                <div key={idx} className="flex justify-between items-center text-xs border-b border-theme-border dark:border-theme-border/40 pb-2 last:border-none last:pb-0">
                   <div className="flex items-center gap-2">
                     <span className={cn(
                       "px-1.5 py-0.5 rounded text-[8px] font-extrabold border uppercase tracking-wider",
@@ -1348,14 +1348,14 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                     )}>
                       {seg.is_ot ? 'OT Portion' : 'Normal Portion'}
                     </span>
-                    <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">{seg.start_time.slice(0, 5)} - {seg.end_time.slice(0, 5)}</span>
+                    <span className="text-theme-text-secondary font-mono text-[10px]">{seg.start_time.slice(0, 5)} - {seg.end_time.slice(0, 5)}</span>
                   </div>
-                  <span className="font-extrabold text-slate-900 dark:text-white font-mono">{seg.hours.toFixed(1)} ชั่วโมง</span>
+                  <span className="font-extrabold text-theme-text font-mono">{seg.hours.toFixed(1)} ชั่วโมง</span>
                 </div>
               ))}
 
-              <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-200 dark:border-slate-700/30">
-                <span className="font-bold text-slate-600 dark:text-slate-300">ชั่วโมงรวมทั้งหมด (Total):</span>
+              <div className="flex justify-between items-center text-xs pt-2 border-t border-theme-border dark:border-theme-border/30">
+                <span className="font-bold text-theme-text-secondary">ชั่วโมงรวมทั้งหมด (Total):</span>
                 <span className="font-black text-indigo-400 font-mono text-sm">{preview.duration.toFixed(1)} ชั่วโมง</span>
               </div>
             </div>
@@ -1371,14 +1371,14 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               <button
                 type="button"
                 onClick={() => setShowConfirmModal(false)}
-                className="px-4 py-2 bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 text-[11px] font-bold rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+                className="px-4 py-2 bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 border border-theme-border dark:border-theme-border/60 text-theme-text-secondary text-[11px] font-bold rounded-xl transition-all active:scale-[0.98] cursor-pointer"
               >
                 ยกเลิก
               </button>
               <button
                 type="button"
                 onClick={executeSave}
-                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-slate-900 dark:text-white text-[11px] font-bold rounded-xl transition-all active:scale-[0.98] shadow-md shadow-indigo-500/10 cursor-pointer"
+                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-theme-text text-[11px] font-bold rounded-xl transition-all active:scale-[0.98] shadow-md shadow-indigo-500/10 cursor-pointer"
               >
                 ยืนยันและบันทึก
               </button>
@@ -1445,26 +1445,26 @@ function SearchableCombobox({
         autoComplete="off"
         className={`w-full border rounded-xl py-2.5 px-3 pr-9 text-xs focus:outline-none focus:ring-2 transition-all ${
           disabled
-            ? 'bg-slate-50 dark:bg-[#0F172A]/50 border-slate-200 dark:border-slate-700/50 text-slate-500 cursor-not-allowed opacity-40'
-            : 'bg-slate-50 dark:bg-[#0F172A]/90 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:ring-indigo-500 focus:border-transparent cursor-text'
+            ? 'bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border-theme-border dark:border-theme-border/50 text-theme-text-muted cursor-not-allowed opacity-40'
+            : 'bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border-theme-border dark:border-theme-border text-theme-text focus:ring-indigo-500 focus:border-transparent cursor-text'
         }`}
       />
       <ChevronDown
         size={14}
         className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-200 ${
-          disabled ? 'text-slate-600' : 'text-slate-500 dark:text-slate-400'
+          disabled ? 'text-slate-600' : 'text-theme-text-secondary'
         } ${isOpen ? 'rotate-180' : ''}`}
       />
       {isOpen && !disabled && (
-        <div className="absolute z-[60] mt-1 w-full bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute z-[60] mt-1 w-full bg-theme-surface-modal border border-theme-border dark:border-theme-border rounded-xl shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
           {query && (
-            <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-theme-text-muted uppercase tracking-wider">
               {filtered.length} result{filtered.length !== 1 ? 's' : ''}
             </div>
           )}
           <div className="max-h-52 overflow-y-auto">
             {filtered.length === 0 ? (
-              <div className="px-3 py-4 text-xs text-slate-500 text-center">🔍 No matches</div>
+              <div className="px-3 py-4 text-xs text-theme-text-muted text-center">🔍 No matches</div>
             ) : (
               filtered.map((opt) => (
                 <button
@@ -1474,7 +1474,7 @@ function SearchableCombobox({
                   className={`w-full text-left px-3 py-2.5 text-xs flex items-center gap-2 transition-colors ${
                     opt === value
                       ? 'bg-indigo-500/20 text-indigo-300 font-semibold'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-700/60 hover:text-slate-900 dark:text-white'
+                      : 'text-theme-text-secondary hover:bg-slate-700/60 hover:text-theme-text'
                   }`}
                 >
                   <span className={`flex items-center w-3.5 h-3.5 shrink-0 ${opt === value ? 'opacity-100' : 'opacity-0'}`}>

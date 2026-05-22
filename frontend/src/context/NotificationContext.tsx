@@ -84,10 +84,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           };
 
           const borders = {
-            success: "border-emerald-500/20 bg-emerald-500/5 text-emerald-200",
-            error: "border-rose-500/20 bg-rose-500/5 text-rose-200",
-            warning: "border-amber-500/20 bg-amber-500/5 text-amber-200",
-            info: "border-indigo-500/20 bg-indigo-500/5 text-indigo-200"
+            success: "border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/5 text-emerald-700 dark:text-emerald-200",
+            error: "border-rose-500/20 bg-rose-50 dark:bg-rose-500/5 text-rose-700 dark:text-rose-200",
+            warning: "border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 text-amber-700 dark:text-amber-200",
+            info: "border-indigo-500/20 bg-indigo-50 dark:bg-indigo-500/5 text-indigo-700 dark:text-indigo-200"
           };
 
           return (
@@ -104,7 +104,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
               </div>
               <button
                 onClick={() => removeToast(toast.id)}
-                className="text-slate-400 hover:text-white transition-colors shrink-0"
+                className="text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors shrink-0"
               >
                 <X size={14} />
               </button>
@@ -116,8 +116,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       {/* Asynchronous Confirm Modal Overlay */}
       {confirmState.isOpen && confirmState.options && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm bg-[#1E293B] border border-slate-700/80 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 text-slate-200">
-            <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2 mb-2">
+          <div className="w-full max-w-sm bg-theme-surface-modal border border-theme-border/80 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200 text-theme-text">
+            <h3 className="text-lg font-bold text-theme-text tracking-tight flex items-center gap-2 mb-2">
               {confirmState.options.type === 'danger' ? (
                 <AlertTriangle size={20} className="text-rose-500" />
               ) : (
@@ -126,14 +126,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
               <span>{confirmState.options.title}</span>
             </h3>
             
-            <p className="text-sm text-slate-300 leading-relaxed mb-6">
+            <p className="text-sm text-theme-text-secondary leading-relaxed mb-6">
               {confirmState.options.message}
             </p>
 
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => handleConfirmClose(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all"
+                className="px-4 py-2 bg-theme-surface-tertiary hover:bg-theme-surface-tertiary/80 border border-theme-border text-theme-text-secondary text-xs font-semibold rounded-xl transition-all"
               >
                 {confirmState.options.cancelText || 'Cancel'}
               </button>

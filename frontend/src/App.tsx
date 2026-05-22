@@ -9,9 +9,11 @@ import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MigratePage from './pages/MigratePage';
 import { NotificationProvider } from './context/NotificationContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 function App() {
   return (
+    <ThemeProvider>
     <NotificationProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -25,6 +27,7 @@ function App() {
         <Route path="/migrate" element={<MigratePage />} />
       </Routes>
     </NotificationProvider>
+    </ThemeProvider>
   );
 }
 

@@ -10,7 +10,11 @@ export function isTheme(value: unknown): value is Theme {
 export function getStoredTheme(): Theme {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    return isTheme(stored) ? stored : DEFAULT_THEME;
+    if (isTheme(stored)) return stored;
+    if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+      return 'light';
+    }
+    return DEFAULT_THEME;
   } catch {
     return DEFAULT_THEME;
   }

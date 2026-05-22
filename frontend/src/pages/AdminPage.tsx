@@ -357,11 +357,11 @@ export default function AdminPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight theme-heading-gradient flex items-center gap-2">
+            <h1 className="text-3xl font-extrabold text-theme-text tracking-tight theme-heading-gradient flex items-center gap-2">
               <Database className="text-indigo-400" />
               <span>Master Data Manager</span>
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-theme-text-secondary mt-1">
               Add, edit, or check your Supabase master tables and relationship cascading structures.
             </p>
           </div>
@@ -369,7 +369,7 @@ export default function AdminPage() {
             {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
               <button 
                 onClick={loadAllData}
-                className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-all border border-slate-200 dark:border-slate-700/50"
+                className="p-2.5 rounded-xl bg-theme-surface-tertiary dark:bg-theme-surface-tertiary hover:bg-slate-700 text-theme-text-secondary transition-all border border-theme-border/50"
                 title="Refresh database entries"
               >
                 <RefreshCw size={18} className={cn(isLoading && "animate-spin")} />
@@ -378,7 +378,7 @@ export default function AdminPage() {
             {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
               <button 
                 onClick={() => openModal()}
-                className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-slate-900 dark:text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg active:scale-95 text-sm"
+                className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-theme-text px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg active:scale-95 text-sm"
               >
                 <Plus size={16} />
                 <span>Add Record</span>
@@ -388,7 +388,7 @@ export default function AdminPage() {
         </div>
 
         {/* Tab Controls */}
-        <div className="flex overflow-x-auto pb-2 border-b border-slate-200 dark:border-slate-700/50 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none gap-2">
+        <div className="flex overflow-x-auto pb-2 border-b border-theme-border/50 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none gap-2">
           {tabs.map((tab) => (
             <button
               key={tab.key}
@@ -397,7 +397,7 @@ export default function AdminPage() {
                 "px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap border shrink-0",
                 activeTab === tab.key 
                   ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
-                  : "text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-800 dark:text-slate-200"
+                  : "text-theme-text-secondary border-transparent hover:text-theme-text"
               )}
             >
               {tab.label}
@@ -407,43 +407,43 @@ export default function AdminPage() {
 
         {/* Search Bar */}
         {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
-          <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4 shadow-lg flex items-center">
+          <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-4 shadow-lg flex items-center">
             <div className="relative w-full md:w-1/3">
               <input 
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={`Search in ${tabs.find(t => t.key === activeTab)?.label}...`}
-                className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2 pl-10 pr-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
+                className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2 pl-10 pr-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
               />
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-secondary" />
             </div>
           </div>
         )}
 
         {/* Table Content Card */}
         {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' ? (
-          <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl shadow-xl overflow-hidden">
+          <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
             {isLoading ? (
               <div className="p-16 text-center animate-pulse flex flex-col gap-4">
-                <div className="h-6 w-full bg-slate-100 dark:bg-slate-800 rounded"></div>
-                <div className="h-6 w-full bg-slate-100 dark:bg-slate-800 rounded"></div>
-                <div className="h-6 w-full bg-slate-100 dark:bg-slate-800 rounded"></div>
+                <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded"></div>
+                <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded"></div>
+                <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded"></div>
               </div>
             ) : filteredData.length === 0 ? (
               <div className="p-16 text-center flex flex-col items-center justify-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
+                <div className="w-16 h-16 rounded-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary flex items-center justify-center text-theme-text-secondary">
                   <Search size={28} />
                 </div>
-                <h3 className="text-slate-900 dark:text-white font-medium">No records found</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <h3 className="text-theme-text font-medium">No records found</h3>
+                <p className="text-sm text-theme-text-secondary">
                   Click "+ Add Record" above to populate this master collection.
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
-                  <thead className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-[#0F172A]/50 uppercase border-b border-slate-200 dark:border-slate-700/50">
+                  <thead className="text-xs text-theme-text-secondary bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 uppercase border-b border-theme-border/50">
                     {activeTab === 'holding' && (
                       <tr>
                         <th className="px-6 py-4 font-semibold">Holding Name</th>
@@ -501,12 +501,12 @@ export default function AdminPage() {
                       </tr>
                     )}
                   </thead>
-                  <tbody className="divide-y divide-slate-700/50">
+                  <tbody className="divide-y divide-theme-border/50">
                     {paginatedData.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-[#0F172A]/30 transition-colors">
+                      <tr key={idx} className="hover:bg-theme-surface-secondary dark:hover:bg-theme-surface-secondary/30 transition-colors">
                         {activeTab === 'holding' && (
                           <>
-                            <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{row.holding_name}</td>
+                            <td className="px-6 py-4 font-bold text-theme-text">{row.holding_name}</td>
                             <td className="px-6 py-4 text-right space-x-2">
                               <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
                                 <Trash2 size={16} />
@@ -516,7 +516,7 @@ export default function AdminPage() {
                         )}
                         {activeTab === 'role' && (
                           <>
-                            <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{row.role_name}</td>
+                            <td className="px-6 py-4 font-bold text-theme-text">{row.role_name}</td>
                             <td className="px-6 py-4 text-right space-x-2">
                               <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
                                 <Trash2 size={16} />
@@ -526,7 +526,7 @@ export default function AdminPage() {
                         )}
                         {activeTab === 'project_type' && (
                           <>
-                            <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{row.type_name}</td>
+                            <td className="px-6 py-4 font-bold text-theme-text">{row.type_name}</td>
                             <td className="px-6 py-4 text-right space-x-2">
                               <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
                                 <Trash2 size={16} />
@@ -536,8 +536,8 @@ export default function AdminPage() {
                         )}
                         {activeTab === 'action' && (
                           <>
-                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-semibold">{row.action_category}</td>
-                            <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{row.action_name}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary font-semibold">{row.action_category}</td>
+                            <td className="px-6 py-4 font-bold text-theme-text">{row.action_name}</td>
                             <td className="px-6 py-4 text-right space-x-2">
                               <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
                                 <Edit2 size={16} />
@@ -550,8 +550,8 @@ export default function AdminPage() {
                         )}
                         {activeTab === 'map_user' && (
                           <>
-                            <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{row.name}</td>
-                            <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{row.holding}</td>
+                            <td className="px-6 py-4 font-bold text-theme-text">{row.name}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary">{row.holding}</td>
                             <td className="px-6 py-4 text-indigo-400 font-semibold">{row.department_operator}</td>
                             <td className="px-6 py-4 text-right space-x-2">
                               <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
@@ -565,13 +565,13 @@ export default function AdminPage() {
                         )}
                         {activeTab === 'map_project' && (
                           <>
-                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">{row.holding}</td>
-                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">{row.department_operator}</td>
-                            <td className="px-6 py-4 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.project_type}</td>
-                            <td className="px-6 py-4 font-bold text-slate-900 dark:text-white whitespace-nowrap">{row.project_name}</td>
-                            <td className="px-6 py-4 text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap">{row.module || '-'}</td>
-                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">{row.bu}</td>
-                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 whitespace-nowrap">{row.department}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary whitespace-nowrap">{row.holding}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary whitespace-nowrap">{row.department_operator}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary whitespace-nowrap">{row.project_type}</td>
+                            <td className="px-6 py-4 font-bold text-theme-text whitespace-nowrap">{row.project_name}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary font-medium whitespace-nowrap">{row.module || '-'}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary whitespace-nowrap">{row.bu}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary whitespace-nowrap">{row.department}</td>
                             <td className="px-6 py-4 text-right space-x-2">
                               <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
                                 <Edit2 size={16} />
@@ -584,16 +584,16 @@ export default function AdminPage() {
                         )}
                         {activeTab === 'users' && (
                           <>
-                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-mono">{row.emp_id}</td>
-                            <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{row.full_name}</td>
-                            <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{row.nickname || '-'}</td>
-                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{row.email || '-'}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary font-mono">{row.emp_id}</td>
+                            <td className="px-6 py-4 font-bold text-theme-text">{row.full_name}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary">{row.nickname || '-'}</td>
+                            <td className="px-6 py-4 text-theme-text-secondary">{row.email || '-'}</td>
                             <td className="px-6 py-4">
                               <span className={cn(
                                 "px-2 py-0.5 text-xs font-semibold rounded-full border",
                                 row.role === 'admin' 
                                   ? "text-amber-400 bg-amber-400/10 border-amber-400/20"
-                                  : "text-slate-500 dark:text-slate-400 bg-slate-400/10 border-slate-400/20"
+                                  : "text-theme-text-secondary bg-slate-400/10 border-slate-400/20"
                               )}>
                                 {row.role}
                               </span>
@@ -618,23 +618,23 @@ export default function AdminPage() {
 
             {/* Pagination Bar */}
             {!isLoading && totalPages > 1 && (
-              <div className="px-6 py-4 bg-slate-50 dark:bg-[#0F172A]/40 border-t border-slate-200 dark:border-slate-700/50 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium font-mono">
+              <div className="px-6 py-4 bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 border-t border-theme-border/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <span className="text-xs text-theme-text-secondary font-medium font-mono">
                   Showing {((currentPage - 1) * entriesPerPage) + 1} - {Math.min(currentPage * entriesPerPage, filteredData.length)} of {filteredData.length} entries
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    className="px-3 py-1.5 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/50 hover:border-slate-300 dark:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-xs text-slate-600 dark:text-slate-300 font-bold rounded-lg transition-all"
+                    className="px-3 py-1.5 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 hover:border-theme-border disabled:opacity-40 disabled:cursor-not-allowed text-xs text-theme-text-secondary font-bold rounded-lg transition-all"
                   >
                     Previous
                   </button>
                   {Array.from({ length: totalPages }).map((_, i) => {
                     const page = i + 1;
                     if (totalPages > 6 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
-                      if (page === 2 && currentPage > 3) return <span key={page} className="text-slate-600 text-xs px-1 select-none font-mono">...</span>;
-                      if (page === totalPages - 1 && currentPage < totalPages - 2) return <span key={page} className="text-slate-600 text-xs px-1 select-none font-mono">...</span>;
+                      if (page === 2 && currentPage > 3) return <span key={page} className="text-theme-text-secondary text-xs px-1 select-none font-mono">...</span>;
+                      if (page === totalPages - 1 && currentPage < totalPages - 2) return <span key={page} className="text-theme-text-secondary text-xs px-1 select-none font-mono">...</span>;
                       return null;
                     }
                     return (
@@ -644,8 +644,8 @@ export default function AdminPage() {
                         className={cn(
                           "w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all font-mono border",
                           currentPage === page
-                            ? "bg-indigo-500 text-slate-900 dark:text-white border-transparent shadow-md shadow-indigo-500/10"
-                            : "bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                            ? "bg-indigo-500 text-theme-text border-transparent shadow-md shadow-indigo-500/10"
+                            : "bg-transparent text-theme-text-secondary border-transparent hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary"
                         )}
                       >
                         {page}
@@ -655,7 +655,7 @@ export default function AdminPage() {
                   <button
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    className="px-3 py-1.5 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/50 hover:border-slate-300 dark:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-xs text-slate-600 dark:text-slate-300 font-bold rounded-lg transition-all"
+                    className="px-3 py-1.5 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 hover:border-theme-border disabled:opacity-40 disabled:cursor-not-allowed text-xs text-theme-text-secondary font-bold rounded-lg transition-all"
                   >
                     Next
                   </button>
@@ -674,15 +674,15 @@ export default function AdminPage() {
       {/* CRUD Overlay Modal Drawer */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/80 rounded-2xl p-6 md:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 text-slate-800 dark:text-slate-200">
+          <div className="w-full max-w-lg bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/80 rounded-2xl p-6 md:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 text-theme-text">
             <button 
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-5 right-5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white"
+              className="absolute top-5 right-5 text-theme-text-secondary hover:text-theme-text"
             >
               <X size={20} />
             </button>
 
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight mb-6 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-theme-text tracking-tight mb-6 flex items-center gap-2">
               <Database size={20} className="text-indigo-400" />
               <span>{editRow ? 'Edit Record' : 'Add New Record'}</span>
             </h2>
@@ -692,13 +692,13 @@ export default function AdminPage() {
               {/* Tab 1: Holding Form */}
               {activeTab === 'holding' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Holding Name</label>
+                  <label className="block text-sm font-medium text-theme-text-secondary mb-2">Holding Name</label>
                   <input 
                     type="text" 
                     value={formHoldingName}
                     onChange={(e) => setFormHoldingName(e.target.value)}
                     placeholder="e.g. Double A"
-                    className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                     required
                     disabled={!!editRow}
                   />
@@ -709,13 +709,13 @@ export default function AdminPage() {
               {/* Tab 2: Role Form */}
               {activeTab === 'role' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Role/Department Name</label>
+                  <label className="block text-sm font-medium text-theme-text-secondary mb-2">Role/Department Name</label>
                   <input 
                     type="text" 
                     value={formRoleName}
                     onChange={(e) => setFormRoleName(e.target.value)}
                     placeholder="e.g. IMP"
-                    className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                     required
                     disabled={!!editRow}
                   />
@@ -726,13 +726,13 @@ export default function AdminPage() {
               {/* Tab 3: Project Type Form */}
               {activeTab === 'project_type' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Project Type Name</label>
+                  <label className="block text-sm font-medium text-theme-text-secondary mb-2">Project Type Name</label>
                   <input 
                     type="text" 
                     value={formTypeName}
                     onChange={(e) => setFormTypeName(e.target.value)}
                     placeholder="e.g. Support Go-Live"
-                    className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                     required
                     disabled={!!editRow}
                   />
@@ -744,11 +744,11 @@ export default function AdminPage() {
               {activeTab === 'action' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Category</label>
+                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Category</label>
                     <select
                       value={formActionCategory}
                       onChange={(e) => setFormActionCategory(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-4 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                     >
                       <option value="Project">Project</option>
                       <option value="Support">Support</option>
@@ -756,13 +756,13 @@ export default function AdminPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Action Name</label>
+                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Action Name</label>
                     <input 
                       type="text" 
                       value={formActionName}
                       onChange={(e) => setFormActionName(e.target.value)}
                       placeholder="e.g. User Requirement Gathering"
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                       required
                     />
                   </div>
@@ -773,22 +773,22 @@ export default function AdminPage() {
               {activeTab === 'map_user' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Employee/User Name</label>
+                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Employee/User Name</label>
                     <input 
                       type="text" 
                       value={formMapUserName}
                       onChange={(e) => setFormMapUserName(e.target.value)}
                       placeholder="e.g. Jintana"
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Holding</label>
+                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Holding</label>
                     <select
                       value={formMapHolding}
                       onChange={(e) => setFormMapHolding(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-4 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                       required
                     >
                       {holdings.map(h => (
@@ -797,11 +797,11 @@ export default function AdminPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Department Operator (Role)</label>
+                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Department Operator (Role)</label>
                     <select
                       value={formMapRole}
                       onChange={(e) => setFormMapRole(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-4 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                       required
                     >
                       {roles.map(r => (
@@ -816,11 +816,11 @@ export default function AdminPage() {
               {activeTab === 'map_project' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-2">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Holding</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Holding</label>
                     <select
                       value={formStructHolding}
                       onChange={(e) => setFormStructHolding(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                       required
                     >
                       {holdings.map(h => (
@@ -829,11 +829,11 @@ export default function AdminPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Role Operator</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Role Operator</label>
                     <select
                       value={formStructRole}
                       onChange={(e) => setFormStructRole(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                       required
                     >
                       {roles.map(r => (
@@ -842,11 +842,11 @@ export default function AdminPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Project Type</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Project Type</label>
                     <select
                       value={formStructType}
                       onChange={(e) => setFormStructType(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                       required
                     >
                       {projectTypes.map(t => (
@@ -855,45 +855,45 @@ export default function AdminPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Project Name</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Project Name</label>
                     <input 
                       type="text" 
                       value={formStructProjName}
                       onChange={(e) => setFormStructProjName(e.target.value)}
                       placeholder="e.g. ERP - Netsuite"
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Module (Optional)</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Module (Optional)</label>
                     <input 
                       type="text" 
                       value={formStructModule}
                       onChange={(e) => setFormStructModule(e.target.value)}
                       placeholder="e.g. Item Master"
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Business Unit (BU)</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Business Unit (BU)</label>
                     <input 
                       type="text" 
                       value={formStructBU}
                       onChange={(e) => setFormStructBU(e.target.value)}
                       placeholder="e.g. Master Data"
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       required
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Department Name</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Department Name</label>
                     <input 
                       type="text" 
                       value={formStructDept}
                       onChange={(e) => setFormStructDept(e.target.value)}
                       placeholder="e.g. IT"
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       required
                     />
                   </div>
@@ -904,65 +904,65 @@ export default function AdminPage() {
               {activeTab === 'users' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-2">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Employee ID</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Employee ID</label>
                     <input 
                       type="text" 
                       value={formUserEmpId}
                       onChange={(e) => setFormUserEmpId(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Full Name</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Full Name</label>
                     <input 
                       type="text" 
                       value={formUserFullName}
                       onChange={(e) => setFormUserFullName(e.target.value)}
                       placeholder="e.g. Chatchawan Dev"
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Nickname</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Nickname</label>
                     <input 
                       type="text" 
                       value={formUserNickname}
                       onChange={(e) => setFormUserNickname(e.target.value)}
                       placeholder="e.g. chatchawan"
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Email</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Email</label>
                     <input 
                       type="email" 
                       value={formUserEmail}
                       onChange={(e) => setFormUserEmail(e.target.value)}
                       placeholder="e.g. user@doublea1991.com"
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">System Role</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">System Role</label>
                     <select
                       value={formUserRole}
                       onChange={(e) => setFormUserRole(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text focus:outline-none cursor-pointer"
                     >
                       <option value="user">User</option>
                       <option value="admin">Admin</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Default Department</label>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Default Department</label>
                     <input 
                       type="text" 
                       value={formUserDept}
                       onChange={(e) => setFormUserDept(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2 px-3 text-xs text-slate-800 dark:text-slate-200 focus:outline-none"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text focus:outline-none"
                       required
                     />
                   </div>
@@ -970,18 +970,18 @@ export default function AdminPage() {
               )}
 
               {/* Submit Buttons */}
-              <div className="pt-4 border-t border-slate-200 dark:border-slate-700/50 flex justify-end gap-3">
+              <div className="pt-4 border-t border-theme-border/50 flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white transition-all text-sm font-semibold"
+                  className="px-5 py-2.5 rounded-xl border border-theme-border text-theme-text-secondary hover:text-theme-text transition-all text-sm font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 text-slate-900 dark:text-white transition-all text-sm font-bold shadow-lg shadow-indigo-500/10 flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 text-theme-text transition-all text-sm font-bold shadow-lg shadow-indigo-500/10 flex items-center gap-1.5"
                 >
                   <Check size={16} />
                   <span>Save Changes</span>
@@ -1178,10 +1178,10 @@ function AISettingsManager() {
 
   if (loading) {
     return (
-      <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-12 text-center shadow-xl animate-pulse space-y-4">
-        <div className="h-6 bg-slate-100 dark:bg-slate-800 rounded-lg w-1/3 mx-auto"></div>
-        <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-lg w-3/4 mx-auto"></div>
-        <div className="h-8 bg-slate-100 dark:bg-slate-800 rounded-lg w-1/2 mx-auto"></div>
+      <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-12 text-center shadow-xl animate-pulse space-y-4">
+        <div className="h-6 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded-lg w-1/3 mx-auto"></div>
+        <div className="h-10 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded-lg w-3/4 mx-auto"></div>
+        <div className="h-8 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded-lg w-1/2 mx-auto"></div>
       </div>
     );
   }
@@ -1191,48 +1191,48 @@ function AISettingsManager() {
       
       {/* Left panel: Info & Help */}
       <div className="space-y-6 lg:col-span-1">
-        <div className="bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-slate-200 dark:border-slate-700/50 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+        <div className="bg-gradient-to-br from-theme-surface-secondary to-theme-surface border border-theme-border/50 rounded-2xl p-6 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl -mr-5 -mt-5"></div>
           
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
               <Cpu size={20} />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 dark:text-white text-lg">AI Operations</h3>
-              <p className="text-xs text-indigo-400 font-medium font-mono">Dynamic Core Engine</p>
+              <h3 className="font-bold text-theme-text text-lg">AI Operations</h3>
+              <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium font-mono">Dynamic Core Engine</p>
             </div>
           </div>
           
-          <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed mb-4">
+          <p className="text-theme-text text-xs leading-relaxed mb-4">
             ระบบวิเคราะห์ประสิทธิภาพการทำงานรายบุคคลและรายงานระดับทีมของระบบ Worklog ขับเคลื่อนด้วยระบบ Generative AI อัจฉริยะ 
             คุณสามารถตั้งค่าคีย์ผู้ให้บริการระดับโลก (OpenRouter, Gemini, OpenAI) เพื่อความคุ้มค่าและมีความยืดหยุ่นสูงสุด
           </p>
 
-          <div className="space-y-3.5 pt-3 border-t border-slate-200 dark:border-slate-800">
+          <div className="space-y-3.5 pt-3 border-t border-theme-border">
             <div className="flex gap-3 text-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-1.5 animate-pulse"></span>
-              <p className="text-slate-500 dark:text-slate-400">
-                <strong className="text-slate-800 dark:text-slate-200">OpenRouter (แนะนำ):</strong> ยืดหยุ่นสูงสุด มีรุ่นฟรีให้ใช้จำนวนมาก เช่น <code className="text-indigo-400 text-[10px] bg-slate-50 dark:bg-[#0F172A] px-1 py-0.5 rounded font-mono">google/gemini-2.0-flash-exp:free</code>
+              <p className="text-theme-text-secondary">
+                <strong className="text-theme-text">OpenRouter (แนะนำ):</strong> ยืดหยุ่นสูงสุด มีรุ่นฟรีให้ใช้จำนวนมาก เช่น <code className="text-indigo-400 text-[10px] bg-theme-surface-secondary dark:bg-theme-surface-secondary px-1 py-0.5 rounded font-mono">google/gemini-2.0-flash-exp:free</code>
               </p>
             </div>
             <div className="flex gap-3 text-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0 mt-1.5"></span>
-              <p className="text-slate-500 dark:text-slate-400">
-                <strong className="text-slate-800 dark:text-slate-200">Google Gemini Direct:</strong> อัตราตอบสนองที่รวดเร็วสูง รองรับคีย์ฟรีสำหรับงานพัฒนาทั่วไป
+              <p className="text-theme-text-secondary">
+                <strong className="text-theme-text">Google Gemini Direct:</strong> อัตราตอบสนองที่รวดเร็วสูง รองรับคีย์ฟรีสำหรับงานพัฒนาทั่วไป
               </p>
             </div>
             <div className="flex gap-3 text-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-1.5"></span>
-              <p className="text-slate-500 dark:text-slate-400">
-                <strong className="text-slate-800 dark:text-slate-200">OpenAI Direct:</strong> ให้ผลวิเคราะห์มาตรฐานที่เสถียรและแม่นยำสูง (เช่น gpt-4o-mini)
+              <p className="text-theme-text-secondary">
+                <strong className="text-theme-text">OpenAI Direct:</strong> ให้ผลวิเคราะห์มาตรฐานที่เสถียรและแม่นยำสูง (เช่น gpt-4o-mini)
               </p>
             </div>
           </div>
         </div>
 
         {dbError && (
-          <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-5 shadow-lg flex gap-3 text-slate-600 dark:text-slate-300">
+          <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-5 shadow-lg flex gap-3 text-theme-text-secondary">
             <AlertTriangle className="text-rose-400 shrink-0 mt-0.5 animate-bounce" size={20} />
             <div className="space-y-1">
               <h4 className="font-bold text-rose-400 text-sm">ตรวจสอบฐานข้อมูล</h4>
@@ -1244,18 +1244,18 @@ function AISettingsManager() {
 
       {/* Right panel: Config Forms */}
       <div className="lg:col-span-2 space-y-6">
-        <form onSubmit={handleSave} className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-6 md:p-8 shadow-xl space-y-6">
+        <form onSubmit={handleSave} className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 md:p-8 shadow-xl space-y-6">
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* Active Provider */}
             <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Active AI Provider</label>
+              <label className="block text-xs font-semibold text-theme-text-secondary mb-2">Active AI Provider</label>
               <div className="relative">
                 <select
                   value={configs.ai_provider}
                   onChange={(e) => setConfigs(prev => ({ ...prev, ai_provider: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-3.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all"
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all"
                 >
                   <option value="openrouter">OpenRouter (Recommended)</option>
                   <option value="gemini">Google Gemini Direct</option>
@@ -1267,7 +1267,7 @@ function AISettingsManager() {
 
             {/* Active LLM Model ID */}
             <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Active LLM Model ID</label>
+              <label className="block text-xs font-semibold text-theme-text-secondary mb-2">Active LLM Model ID</label>
               <div className="flex gap-2 relative">
                 <select
                   value={
@@ -1282,7 +1282,7 @@ function AISettingsManager() {
                       setConfigs(prev => ({ ...prev, ai_model: '' }));
                     }
                   }}
-                  className="bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-3.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all flex-1 min-w-[150px]"
+                  className="bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all flex-1 min-w-[150px]"
                 >
                   {(PROVIDER_PRESET_MODELS[configs.ai_provider] || []).map(m => (
                     <option key={m.id} value={m.id}>{m.label}</option>
@@ -1297,7 +1297,7 @@ function AISettingsManager() {
                       value={configs.ai_model}
                       onChange={(e) => setConfigs(prev => ({ ...prev, ai_model: e.target.value }))}
                       placeholder="Enter custom model ID"
-                      className="flex-1 bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-3.5 pr-10 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                      className="flex-1 bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 pr-10 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                       autoFocus
                       required
                     />
@@ -1307,7 +1307,7 @@ function AISettingsManager() {
                         const firstPreset = PROVIDER_PRESET_MODELS[configs.ai_provider]?.[0]?.id || 'gpt-4o-mini';
                         setConfigs(prev => ({ ...prev, ai_model: firstPreset }));
                       }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-500 dark:text-slate-400 hover:text-indigo-400 transition-colors bg-slate-50 dark:bg-[#0F172A] rounded-md"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-indigo-400 transition-colors bg-theme-surface-secondary dark:bg-theme-surface-secondary rounded-md"
                       title="กลับไปเลือกจากรายการ (Back to presets)"
                     >
                       <X size={14} />
@@ -1319,8 +1319,8 @@ function AISettingsManager() {
           </div>
 
           {/* Secret Keys Inputs Panel */}
-          <div className="border-t border-slate-200 dark:border-slate-800 pt-6 space-y-4">
-            <h4 className="font-bold text-slate-900 dark:text-white text-xs tracking-wider uppercase flex items-center gap-1.5 text-indigo-400">
+          <div className="border-t border-theme-border pt-6 space-y-4">
+            <h4 className="font-bold text-theme-text text-xs tracking-wider uppercase flex items-center gap-1.5 text-indigo-400">
               <Key size={14} />
               <span>API Credentials & Secret Vault</span>
             </h4>
@@ -1329,11 +1329,11 @@ function AISettingsManager() {
               {/* OpenRouter Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'openrouter' && "opacity-30 pointer-events-none select-none")}>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">OpenRouter API Key</label>
+                  <label className="block text-xs font-semibold text-theme-text-secondary">OpenRouter API Key</label>
                   <button
                     type="button"
                     onClick={() => toggleShowKey('openrouter')}
-                    className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-400 transition-colors flex items-center gap-1"
+                    className="text-[10px] font-semibold text-theme-text-secondary hover:text-indigo-400 transition-colors flex items-center gap-1"
                   >
                     {showKeys.openrouter ? <EyeOff size={10} /> : <Eye size={10} />}
                     <span>{showKeys.openrouter ? 'Hide Key' : 'Reveal Key'}</span>
@@ -1345,7 +1345,7 @@ function AISettingsManager() {
                     value={configs.openrouter_api_key}
                     onChange={(e) => setConfigs(prev => ({ ...prev, openrouter_api_key: e.target.value }))}
                     placeholder="sk-or-..."
-                    className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-3.5 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                     required={configs.ai_provider === 'openrouter'}
                   />
                 </div>
@@ -1354,11 +1354,11 @@ function AISettingsManager() {
               {/* Gemini Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'gemini' && "opacity-30 pointer-events-none select-none")}>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">Gemini API Key</label>
+                  <label className="block text-xs font-semibold text-theme-text-secondary">Gemini API Key</label>
                   <button
                     type="button"
                     onClick={() => toggleShowKey('gemini')}
-                    className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-400 transition-colors flex items-center gap-1"
+                    className="text-[10px] font-semibold text-theme-text-secondary hover:text-indigo-400 transition-colors flex items-center gap-1"
                   >
                     {showKeys.gemini ? <EyeOff size={10} /> : <Eye size={10} />}
                     <span>{showKeys.gemini ? 'Hide Key' : 'Reveal Key'}</span>
@@ -1370,7 +1370,7 @@ function AISettingsManager() {
                     value={configs.gemini_api_key}
                     onChange={(e) => setConfigs(prev => ({ ...prev, gemini_api_key: e.target.value }))}
                     placeholder="AIzaSy..."
-                    className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-3.5 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                     required={configs.ai_provider === 'gemini'}
                   />
                 </div>
@@ -1379,11 +1379,11 @@ function AISettingsManager() {
               {/* OpenAI Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'openai' && "opacity-30 pointer-events-none select-none")}>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">OpenAI API Key</label>
+                  <label className="block text-xs font-semibold text-theme-text-secondary">OpenAI API Key</label>
                   <button
                     type="button"
                     onClick={() => toggleShowKey('openai')}
-                    className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-400 transition-colors flex items-center gap-1"
+                    className="text-[10px] font-semibold text-theme-text-secondary hover:text-indigo-400 transition-colors flex items-center gap-1"
                   >
                     {showKeys.openai ? <EyeOff size={10} /> : <Eye size={10} />}
                     <span>{showKeys.openai ? 'Hide Key' : 'Reveal Key'}</span>
@@ -1395,7 +1395,7 @@ function AISettingsManager() {
                     value={configs.openai_api_key}
                     onChange={(e) => setConfigs(prev => ({ ...prev, openai_api_key: e.target.value }))}
                     placeholder="sk-..."
-                    className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-3.5 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                     required={configs.ai_provider === 'openai'}
                   />
                 </div>
@@ -1404,11 +1404,11 @@ function AISettingsManager() {
               {/* OpenCode Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'opencode' && "opacity-30 pointer-events-none select-none")}>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">OpenCode API Key</label>
+                  <label className="block text-xs font-semibold text-theme-text-secondary">OpenCode API Key</label>
                   <button
                     type="button"
                     onClick={() => toggleShowKey('opencode')}
-                    className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-400 transition-colors flex items-center gap-1"
+                    className="text-[10px] font-semibold text-theme-text-secondary hover:text-indigo-400 transition-colors flex items-center gap-1"
                   >
                     {showKeys.opencode ? <EyeOff size={10} /> : <Eye size={10} />}
                     <span>{showKeys.opencode ? 'Hide Key' : 'Reveal Key'}</span>
@@ -1420,7 +1420,7 @@ function AISettingsManager() {
                     value={configs.opencode_api_key}
                     onChange={(e) => setConfigs(prev => ({ ...prev, opencode_api_key: e.target.value }))}
                     placeholder="sk-oc-..."
-                    className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-xl py-2.5 px-3.5 text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                     required={configs.ai_provider === 'opencode'}
                   />
                 </div>
@@ -1433,8 +1433,8 @@ function AISettingsManager() {
             <div className={cn(
               "p-4 border rounded-xl flex items-start gap-3 transition-all",
               testResult.success 
-                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300 animate-in fade-in slide-in-from-top-2 duration-200"
-                : "bg-rose-500/10 border-rose-500/20 text-rose-300 animate-in fade-in slide-in-from-top-2 duration-200"
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300 animate-in fade-in slide-in-from-top-2 duration-200"
+                : "bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-300 animate-in fade-in slide-in-from-top-2 duration-200"
             )}>
               {testResult.success ? (
                 <CheckCircle className="text-emerald-400 shrink-0 mt-0.5" size={18} />
@@ -1451,12 +1451,12 @@ function AISettingsManager() {
           )}
 
           {/* Form Actions */}
-          <div className="border-t border-slate-200 dark:border-slate-800 pt-6 flex justify-end gap-3.5">
+          <div className="border-t border-theme-border pt-6 flex justify-end gap-3.5">
             <button
               type="button"
               onClick={testConnection}
               disabled={testing || saving}
-              className="px-5 py-2.5 border border-slate-300 dark:border-slate-600 hover:border-slate-500 hover:text-slate-900 dark:text-white rounded-xl text-slate-600 dark:text-slate-300 font-semibold text-xs active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-5 py-2.5 border border-theme-border hover:border-theme-text-secondary hover:text-theme-text rounded-xl text-theme-text-secondary font-semibold text-xs active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {testing ? (
                 <>
@@ -1474,7 +1474,7 @@ function AISettingsManager() {
             <button
               type="submit"
               disabled={saving || testing}
-              className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-slate-900 dark:text-white rounded-xl font-bold text-xs active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-theme-text rounded-xl font-bold text-xs active:scale-95 transition-all flex items-center gap-1.5 disabled:opacity-50"
             >
               {saving ? (
                 <>
@@ -1679,7 +1679,7 @@ function AIPromptsManager() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4 text-slate-500 dark:text-slate-400">
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-theme-text-secondary">
         <RefreshCw className="animate-spin" size={32} />
         <p className="text-sm">กำลังโหลด Prompt Templates...</p>
       </div>
@@ -1707,17 +1707,17 @@ function AIPromptsManager() {
             <MessageSquare className="text-violet-400" size={22} />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">AI Prompt Templates</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+            <h2 className="text-lg font-bold text-theme-text">AI Prompt Templates</h2>
+            <p className="text-sm text-theme-text-secondary mt-1 leading-relaxed">
               ตั้งค่า prompt ที่ใช้ใน AI features ทั้งหมด — การเปลี่ยนแปลงจะมีผลกับการวิเคราะห์ครั้งถัดไปทันที
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
-              <span className="inline-flex items-center gap-1.5 text-xs bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 rounded-full px-3 py-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+              <span className="inline-flex items-center gap-1.5 text-xs bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25 rounded-full px-3 py-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400"></span>
                 ✍️ Worklog Enhancement
               </span>
-              <span className="inline-flex items-center gap-1.5 text-xs bg-violet-500/15 text-violet-300 border border-violet-500/25 rounded-full px-3 py-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+              <span className="inline-flex items-center gap-1.5 text-xs bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/25 rounded-full px-3 py-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 dark:bg-violet-400"></span>
                 📊 Performance Analysis
               </span>
             </div>
@@ -1737,8 +1737,8 @@ function AIPromptsManager() {
           violet: 'text-violet-400 bg-violet-500/15 border-violet-500/25',
         };
         const btnMap: { [c: string]: string } = {
-          indigo: 'border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/15',
-          violet: 'border-violet-500/40 text-violet-300 hover:bg-violet-500/15',
+          indigo: 'border-indigo-500/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/15',
+          violet: 'border-violet-500/40 text-violet-700 dark:text-violet-300 hover:bg-violet-500/15',
         };
         const ringMap: { [c: string]: string } = {
           indigo: 'focus:ring-indigo-500',
@@ -1752,13 +1752,13 @@ function AIPromptsManager() {
             {/* Section Header */}
             <button
               onClick={() => toggleCollapse(section.id)}
-              className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/5 transition-colors group"
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-theme-surface/5 transition-colors group"
             >
               <div className="flex items-center gap-3">
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${accentMap[section.color]}`}>
                   {section.label}
                 </span>
-                <span className="text-slate-500 dark:text-slate-400 text-sm hidden md:block">{section.description}</span>
+                <span className="text-theme-text-secondary text-sm hidden md:block">{section.description}</span>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1770,9 +1770,9 @@ function AIPromptsManager() {
                   <span>Reset Default</span>
                 </button>
                 {isCollapsed ? (
-                  <ChevronDown size={18} className="text-slate-500 dark:text-slate-400" />
+                  <ChevronDown size={18} className="text-theme-text-secondary" />
                 ) : (
-                  <ChevronUp size={18} className="text-slate-500 dark:text-slate-400" />
+                  <ChevronUp size={18} className="text-theme-text-secondary" />
                 )}
               </div>
             </button>
@@ -1783,23 +1783,23 @@ function AIPromptsManager() {
                 {section.fields.map((field) => (
                   <div key={field.key}>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                      <label className="text-sm font-semibold text-theme-text">
                         {field.label}
                       </label>
-                      <span className="text-xs text-slate-500 font-mono">{field.key}</span>
+                      <span className="text-xs text-theme-text-secondary font-mono">{field.key}</span>
                     </div>
-                    <p className="text-xs text-slate-500 mb-2">{field.hint}</p>
+                    <p className="text-xs text-theme-text-secondary mb-2">{field.hint}</p>
                     <textarea
                       value={prompts[field.key] || ''}
                       onChange={(e) =>
                         setPrompts((prev) => ({ ...prev, [field.key]: e.target.value }))
                       }
                       rows={field.rows}
-                      className={`w-full bg-[#0A1628] border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-slate-200 text-sm font-mono leading-relaxed placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:border-transparent resize-y transition-all ${ringMap[section.color]}`}
+                      className={`w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-sm font-mono leading-relaxed placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:border-transparent resize-y transition-all ${ringMap[section.color]}`}
                       spellCheck={false}
                     />
                     <div className="flex justify-end mt-1">
-                      <span className="text-xs text-slate-600">
+                      <span className="text-xs text-theme-text-secondary">
                         {(prompts[field.key] || '').length} chars
                       </span>
                     </div>
@@ -1816,7 +1816,7 @@ function AIPromptsManager() {
         <button
           onClick={fetchPrompts}
           disabled={saving}
-          className="px-5 py-2.5 border border-slate-300 dark:border-slate-600 hover:border-slate-500 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:text-white rounded-xl font-semibold text-sm transition-all flex items-center gap-2 disabled:opacity-40"
+          className="px-5 py-2.5 border border-theme-border hover:border-theme-text-secondary text-theme-text-secondary hover:text-theme-text rounded-xl font-semibold text-sm transition-all flex items-center gap-2 disabled:opacity-40"
         >
           <RefreshCw size={15} />
           <span>โหลดใหม่</span>
@@ -1824,7 +1824,7 @@ function AIPromptsManager() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-slate-900 dark:text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-violet-900/30 active:scale-95"
+          className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-theme-text rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-violet-900/30 active:scale-95"
         >
           {saving ? (
             <><RefreshCw className="animate-spin" size={15} /><span>กำลังบันทึก...</span></>

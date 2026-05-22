@@ -36,19 +36,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#030712] ai-cyber-grid flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-white dark:bg-theme-bg-page ai-cyber-grid flex items-center justify-center p-4 relative overflow-hidden">
       
       {/* Background decorations */}
       <div className="absolute top-[-10%] left-[-10%] w-[450px] h-[450px] rounded-full bg-indigo-600/10 blur-[120px] pointer-events-none animate-pulse-slow"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] rounded-full bg-violet-600/5 blur-[100px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md ai-glass rounded-3xl p-8 shadow-2xl relative z-10 border border-slate-200 dark:border-slate-800/80">
+      <div className="w-full max-w-md ai-glass rounded-3xl p-8 shadow-2xl relative z-10 border border-theme-border/80">
         
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center mb-4 shadow-lg shadow-indigo-500/25 border border-indigo-400/20">
-            <Sparkles className="w-8 h-8 text-slate-900 dark:text-white animate-pulse" />
+            <Sparkles className="w-8 h-8 text-theme-text dark:text-theme-text-invert animate-pulse" />
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-wider theme-heading-gradient">
+          <h1 className="text-2xl font-extrabold text-theme-text dark:text-theme-text-invert tracking-wider theme-heading-gradient">
             IMP WORKLOG
           </h1>
           <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-2 flex items-center gap-1.5 bg-indigo-500/5 border border-indigo-500/10 px-3 py-1 rounded-full">
@@ -65,7 +65,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 ml-1">Username</label>
+            <label className="block text-xs font-bold text-theme-text-muted dark:text-theme-text-secondary uppercase tracking-wider mb-2 ml-1">Username</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <UserIcon size={16} className="text-slate-500" />
@@ -75,14 +75,14 @@ export default function LoginPage() {
                 value={account}
                 onChange={(e) => setAccount(e.target.value)}
                 placeholder="HRMS Username"
-                className="w-full bg-white/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl py-3 pl-11 pr-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold text-sm"
+                className="w-full bg-theme-surface/80 dark:bg-theme-bg-page/60 border border-theme-border rounded-xl py-3 pl-11 pr-4 text-theme-text placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold text-sm"
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 ml-1">Password</label>
+            <label className="block text-xs font-bold text-theme-text-muted dark:text-theme-text-secondary uppercase tracking-wider mb-2 ml-1">Password</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <KeyRound size={16} className="text-slate-500" />
@@ -92,7 +92,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-white/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl py-3 pl-11 pr-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold text-sm"
+                className="w-full bg-theme-surface/80 dark:bg-theme-bg-page/60 border border-theme-border rounded-xl py-3 pl-11 pr-4 text-theme-text placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold text-sm"
                 required
               />
             </div>
@@ -101,7 +101,7 @@ export default function LoginPage() {
           <button 
             type="submit" 
             disabled={isLoading}
-            className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 disabled:cursor-not-allowed text-slate-900 dark:text-white font-extrabold uppercase tracking-wider text-xs rounded-xl py-3.5 shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all active:scale-[0.98] mt-6 flex items-center justify-center gap-2 border border-indigo-400/20"
+            className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 disabled:cursor-not-allowed text-theme-text dark:text-theme-text-invert font-extrabold uppercase tracking-wider text-xs rounded-xl py-3.5 shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all active:scale-[0.98] mt-6 flex items-center justify-center gap-2 border border-indigo-400/20"
           >
             {isLoading ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

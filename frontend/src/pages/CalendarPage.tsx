@@ -192,10 +192,10 @@ export default function CalendarPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight theme-heading-gradient">
+            <h1 className="text-3xl font-extrabold text-theme-text tracking-tight theme-heading-gradient">
               Work Calendar
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-theme-text-secondary mt-1">
               Visualize logged work hours and activities in a calendar dashboard.
             </p>
           </div>
@@ -205,31 +205,31 @@ export default function CalendarPage() {
                 <select
                   value={selectedUserId}
                   onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="w-full bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/50 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="w-full bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-4 py-2.5 text-sm font-semibold text-theme-text-secondary appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors"
                 >
                   {usersList.map((u) => (
                     <option key={u.id} value={u.id}>{u.full_name}</option>
                   ))}
                 </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 dark:text-slate-400">
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-theme-text-secondary">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                 </div>
               </div>
             )}
             <button 
               onClick={today}
-              className="px-4 py-2 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/50 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:text-white transition-all hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="px-4 py-2 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl text-sm font-semibold text-theme-text-secondary hover:text-theme-text transition-all hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary"
             >
               Today
             </button>
-            <div className="flex bg-slate-100 dark:bg-[#1E293B]/80 border border-slate-200 dark:border-slate-700/50 rounded-xl overflow-hidden shadow-md">
-              <button onClick={prevMonth} className="p-2.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <div className="flex bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 border border-theme-border/50 rounded-xl overflow-hidden shadow-md">
+              <button onClick={prevMonth} className="p-2.5 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors">
                 <ChevronLeft size={18} />
               </button>
-              <span className="px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-white min-w-[140px] text-center font-mono">
+              <span className="px-4 py-2.5 text-sm font-semibold text-theme-text min-w-[140px] text-center font-mono">
                 {monthNames[month]} {year}
               </span>
-              <button onClick={nextMonth} className="p-2.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <button onClick={nextMonth} className="p-2.5 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors">
                 <ChevronRight size={18} />
               </button>
             </div>
@@ -240,7 +240,7 @@ export default function CalendarPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
           {/* Calendar Grid Container */}
-          <div className="lg:col-span-2 bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-6 shadow-xl flex flex-col">
+          <div className="lg:col-span-2 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl flex flex-col">
             
             {/* Weekdays header */}
             <div className="grid grid-cols-7 gap-2 mb-4 text-center">
@@ -251,7 +251,7 @@ export default function CalendarPage() {
                     key={day} 
                     className={cn(
                       "text-xs font-bold tracking-wider uppercase py-2",
-                      isWeekendLabel ? "text-rose-400" : "text-slate-500 dark:text-slate-400"
+                      isWeekendLabel ? "text-rose-400" : "text-theme-text-secondary"
                     )}
                   >
                     {day}
@@ -264,7 +264,7 @@ export default function CalendarPage() {
             {isLoading ? (
               <div className="grid grid-cols-7 gap-2 animate-pulse flex-1 min-h-[350px]">
                 {Array.from({ length: 35 }).map((_, i) => (
-                  <div key={i} className="aspect-square bg-slate-50 dark:bg-[#0F172A]/30 border border-slate-200 dark:border-slate-800/50 rounded-xl"></div>
+                  <div key={i} className="aspect-square bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border/50 rounded-xl"></div>
                 ))}
               </div>
             ) : (
@@ -286,9 +286,9 @@ export default function CalendarPage() {
                   // Color intensities based on hours sum
                   let progressColor = "bg-indigo-500/20 text-indigo-400 border-indigo-500/30";
                   if (hoursSum >= 8) {
-                    progressColor = "bg-indigo-500 text-slate-900 dark:text-white shadow-md shadow-indigo-500/10";
+                    progressColor = "bg-indigo-500 text-theme-text shadow-md shadow-indigo-500/10";
                   } else if (hoursSum > 0) {
-                    progressColor = "bg-indigo-500/40 text-indigo-200 border-indigo-500/50";
+                    progressColor = "bg-indigo-500/40 text-indigo-600 dark:text-indigo-200 border-indigo-500/50";
                   }
 
                   return (
@@ -299,13 +299,13 @@ export default function CalendarPage() {
                         "aspect-square rounded-xl p-2 flex flex-col justify-between items-stretch border transition-all text-left relative overflow-hidden group",
                         cell.isCurrentMonth 
                           ? cn(
-                              "bg-slate-50 dark:bg-[#0F172A]/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:border-slate-600",
-                              isWeekend ? "bg-slate-50 dark:bg-slate-900/35 border-slate-850/60" : "",
+                              "bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 border-theme-border hover:border-theme-border",
+                              isWeekend ? "bg-theme-surface-secondary dark:bg-theme-surface-secondary/35 border-theme-border/60" : "",
                               holiday ? "bg-rose-950/20 border-rose-500/25 hover:border-rose-400" : ""
                             ) 
                           : "bg-transparent border-transparent opacity-10 cursor-default pointer-events-none",
                         isSelected 
-                          ? "ring-2 ring-indigo-500/80 border-transparent shadow-[0_0_15px_rgba(99,102,241,0.2)] bg-[#1e293b]/90 scale-95" 
+                          ? "ring-2 ring-indigo-500/80 border-transparent shadow-[0_0_15px_rgba(99,102,241,0.2)] bg-theme-surface-modal/90 scale-95" 
                           : "",
                         isToday && !isSelected ? "border-indigo-500/50" : ""
                       )}
@@ -314,12 +314,12 @@ export default function CalendarPage() {
                       <div className="flex justify-between items-start w-full">
                         <span className={cn(
                           "text-xs font-bold font-mono",
-                          isToday ? "text-indigo-400 font-extrabold" : (holiday ? "text-rose-400 font-extrabold" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:text-white transition-colors")
+                          isToday ? "text-indigo-400 font-extrabold" : (holiday ? "text-rose-400 font-extrabold" : "text-theme-text-secondary group-hover:text-theme-text transition-colors")
                         )}>
                           {cell.day}
                         </span>
                         {cell.isCurrentMonth && isWeekend && !holiday && (
-                          <span className="text-[8px] px-1 py-0.2 rounded font-bold text-slate-500 bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/20 font-mono tracking-wide scale-90 origin-top-right">
+                          <span className="text-[8px] px-1 py-0.2 rounded font-bold text-theme-text-secondary bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/40 border border-theme-border/20 font-mono tracking-wide scale-90 origin-top-right">
                             WE
                           </span>
                         )}
@@ -354,8 +354,8 @@ export default function CalendarPage() {
           </div>
 
           {/* Right Pane: Day Details */}
-          <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-6 shadow-xl flex flex-col max-h-[650px] lg:sticky lg:top-8">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+          <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl flex flex-col max-h-[650px] lg:sticky lg:top-8">
+            <h2 className="text-lg font-bold text-theme-text mb-4 flex items-center gap-2">
               <ClipboardList size={18} className="text-indigo-400" />
               <span>Details for {selectedDateStr ? new Date(selectedDateStr).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Selected Day'}</span>
             </h2>
@@ -366,18 +366,18 @@ export default function CalendarPage() {
               </div>
             ) : selectedDateEntries.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center py-12 text-center space-y-4">
-                <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
+                <div className="w-12 h-12 rounded-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary flex items-center justify-center text-theme-text-secondary">
                   <Clock size={20} />
                 </div>
                 <div>
-                  <h4 className="text-slate-600 dark:text-slate-300 font-medium">No hours logged</h4>
-                  <p className="text-xs text-slate-500 mt-1 max-w-[200px] mx-auto">
+                  <h4 className="text-theme-text-secondary font-medium">No hours logged</h4>
+                  <p className="text-xs text-theme-text-secondary mt-1 max-w-[200px] mx-auto">
                     You haven't recorded any tasks for this date.
                   </p>
                 </div>
                 <button
                   onClick={() => navigate('/log')}
-                  className="inline-flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 text-slate-900 dark:text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
+                  className="inline-flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 text-theme-text text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
                 >
                   <Plus size={14} />
                   <span>Log Work</span>
@@ -389,8 +389,8 @@ export default function CalendarPage() {
                   <div 
                     key={e.id}
                     className={cn(
-                      "p-4 bg-slate-50 dark:bg-[#0F172A]/50 border rounded-xl flex flex-col justify-between hover:border-slate-300 dark:border-slate-600/50 transition-all",
-                      e.is_ot || e.is_implied_ot ? "border-amber-500/20 shadow-sm shadow-amber-500/5" : "border-slate-200 dark:border-slate-700/30"
+                      "p-4 bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border rounded-xl flex flex-col justify-between hover:border-theme-border/50 transition-all",
+                      e.is_ot || e.is_implied_ot ? "border-amber-500/20 shadow-sm shadow-amber-500/5" : "border-theme-border/30"
                     )}
                   >
                     <div>
@@ -410,22 +410,22 @@ export default function CalendarPage() {
                             </span>
                           )}
                         </div>
-                        <span className="text-sm font-extrabold text-slate-900 dark:text-white font-mono flex items-center gap-1">
-                          <Clock size={12} className="text-slate-500 dark:text-slate-400" />
+                        <span className="text-sm font-extrabold text-theme-text font-mono flex items-center gap-1">
+                          <Clock size={12} className="text-theme-text-secondary" />
                           <span>{e.total_hours.toFixed(1)}h</span>
                         </span>
                       </div>
-                      <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{e.action_name}</h4>
+                      <h4 className="text-sm font-semibold text-theme-text">{e.action_name}</h4>
                       {e.description && (
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 bg-[#1e293b]/40 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 italic leading-relaxed">
+                        <p className="text-xs text-theme-text-secondary mt-2 bg-theme-surface-secondary/80 p-2.5 rounded-lg border border-theme-border italic leading-relaxed">
                           "{e.description}"
                         </p>
                       )}
                     </div>
-                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800/85 flex justify-end gap-3.5">
+                    <div className="mt-3 pt-3 border-t border-theme-border/85 flex justify-end gap-3.5">
                       <button
                         onClick={() => setViewingLog(e)}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 transition-colors uppercase tracking-wider cursor-pointer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-theme-text-secondary hover:text-theme-text transition-colors uppercase tracking-wider cursor-pointer"
                       >
                         <Eye size={12} />
                         <span>ดูใบงาน / View</span>

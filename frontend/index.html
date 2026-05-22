@@ -10,7 +10,11 @@
         var theme = 'dark';
         try {
           var stored = localStorage.getItem('theme');
-          theme = stored === 'light' || stored === 'dark' ? stored : theme;
+          if (stored === 'light' || stored === 'dark') {
+            theme = stored;
+          } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+            theme = 'light';
+          }
         } catch (error) {}
 
         var root = document.documentElement;

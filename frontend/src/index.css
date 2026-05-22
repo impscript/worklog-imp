@@ -4,13 +4,27 @@
 @theme {
   --color-primary: #818cf8;
   --color-primary-hover: #6366f1;
-  --color-surface: #0a0f1d;
-  --color-bg: #030712;
-  --color-border: rgba(30, 41, 59, 0.65);
-  --color-muted: #9ca3af;
+
+  --color-theme-bg-page: var(--theme-bg-page);
+  --color-theme-surface: var(--theme-surface);
+  --color-theme-surface-secondary: var(--theme-surface-secondary);
+  --color-theme-surface-tertiary: var(--theme-surface-tertiary);
+  --color-theme-surface-modal: var(--theme-surface-modal);
+  --color-theme-surface-invert: var(--theme-surface-invert);
+  --color-theme-border: var(--theme-border);
+  --color-theme-border-strong: var(--theme-border-strong);
+  --color-theme-text: var(--theme-text);
+  --color-theme-text-secondary: var(--theme-text-secondary);
+  --color-theme-text-muted: var(--theme-text-muted);
+  --color-theme-text-invert: var(--theme-text-invert);
+
+  --color-surface: var(--theme-surface);
+  --color-bg: var(--theme-bg-page);
+  --color-border: var(--theme-border);
+  --color-muted: var(--theme-text-muted);
+
   --color-success: #10B981;
   --color-warning: #F59E0B;
-  
   --color-neon-cyan: #06b6d4;
   --color-neon-indigo: #6366f1;
   --color-neon-violet: #a855f7;
@@ -30,24 +44,53 @@
   }
 }
 
+/* ── Theme CSS Custom Properties ── */
+:root, .light {
+  --theme-bg-page: #f1f5f9;
+  --theme-surface: #ffffff;
+  --theme-surface-secondary: #f8fafc;
+  --theme-surface-tertiary: #f1f5f9;
+  --theme-surface-modal: #ffffff;
+  --theme-surface-invert: #030712;
+  --theme-border: #e2e8f0;
+  --theme-border-strong: #cbd5e1;
+  --theme-text: #0f172a;
+  --theme-text-secondary: #475569;
+  --theme-text-muted: #64748b;
+  --theme-text-invert: #ffffff;
+}
+
+.dark {
+  --theme-bg-page: #030712;
+  --theme-surface: #0a0f1d;
+  --theme-surface-secondary: #0f172a;
+  --theme-surface-tertiary: #1e293b;
+  --theme-surface-modal: #1e293b;
+  --theme-surface-invert: #ffffff;
+  --theme-border: #1e293b;
+  --theme-border-strong: #334155;
+  --theme-text: #f1f5f9;
+  --theme-text-secondary: #94a3b8;
+  --theme-text-muted: #64748b;
+  --theme-text-invert: #0f172a;
+}
+
 /* ── Base: Light mode default, dark mode override ── */
 body {
-  background-color: #f1f5f9;
+  background-color: var(--theme-bg-page);
   background-image: 
     radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.04) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.04) 0px, transparent 50%),
     radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.02) 0px, transparent 60%);
-  color: #334155;
+  color: var(--theme-text);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 
   @variant dark {
-    background-color: #030712;
     background-image: 
       radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
       radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.08) 0px, transparent 50%),
       radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.04) 0px, transparent 60%);
-    color: #f1f5f9;
   }
 }
 
@@ -58,6 +101,17 @@ input, select, textarea {
   @variant dark {
     color-scheme: dark;
   }
+}
+
+/* Smooth theme transitions */
+*, *::before, *::after {
+  transition: background-color 0.2s ease, border-color 0.15s ease, color 0.15s ease;
+}
+/* Exclude animated elements from theme transitions to avoid jank */
+.animate-spin, .animate-ping, .animate-pulse, .animate-bounce,
+.ai-pulse-dot, .ai-pulse-dot::after,
+[data-no-transition], [data-no-transition]::before, [data-no-transition]::after {
+  transition: none !important;
 }
 
 /* AI Theme Cyber Grid Overlay */
@@ -141,32 +195,30 @@ input, select, textarea {
 }
 
 .theme-panel {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgb(226 232 240);
+  background: color-mix(in srgb, var(--theme-surface) 82%, transparent);
+  border-color: var(--theme-border);
 
   @variant dark {
-    background: rgba(30, 41, 59, 0.8);
-    border-color: rgb(51 65 85 / 0.5);
+    background: color-mix(in srgb, var(--theme-surface-tertiary) 80%, transparent);
   }
 }
 
 .theme-subpanel {
-  background: rgba(248, 250, 252, 0.82);
-  border-color: rgb(226 232 240);
+  background: color-mix(in srgb, var(--theme-surface-secondary) 82%, transparent);
+  border-color: var(--theme-border);
 
   @variant dark {
-    background: rgba(15, 23, 42, 0.52);
-    border-color: rgb(30 41 59 / 0.8);
+    background: color-mix(in srgb, var(--theme-surface-secondary) 52%, transparent);
   }
 }
 
 .theme-field {
-  background: rgba(248, 250, 252, 0.9);
-  border-color: rgb(203 213 225);
-  color: rgb(30 41 59);
+  background: color-mix(in srgb, var(--theme-surface-secondary) 90%, transparent);
+  border-color: var(--theme-border-strong);
+  color: var(--theme-text);
 
   @variant dark {
-    background: rgba(15, 23, 42, 0.86);
+    background: color-mix(in srgb, var(--theme-surface-secondary) 86%, transparent);
     border-color: rgb(71 85 105);
     color: rgb(226 232 240);
   }

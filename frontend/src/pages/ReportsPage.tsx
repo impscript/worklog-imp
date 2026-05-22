@@ -294,7 +294,7 @@ export default function ReportsPage() {
     Project: "text-indigo-400 bg-indigo-400/10 border-indigo-400/20",
     Support: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
     Management: "text-amber-400 bg-amber-400/10 border-amber-400/20",
-    Other: "text-slate-500 dark:text-slate-400 bg-slate-400/10 border-slate-400/20"
+    Other: "text-theme-text-secondary bg-slate-400/10 border-slate-400/20"
   };
 
   const toggleRow = (id: string) => {
@@ -781,10 +781,10 @@ export default function ReportsPage() {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight theme-heading-gradient">
+            <h1 className="text-4xl font-extrabold text-theme-text tracking-tight theme-heading-gradient">
               Performance & Work Reports
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+            <p className="text-sm text-theme-text-secondary mt-1.5 leading-relaxed">
               Explore aggregate organizational statistics, comparative team analytics, and personal logging sheets.
             </p>
           </div>
@@ -804,14 +804,14 @@ export default function ReportsPage() {
         </div>
 
         {/* Dynamic Zone Selector (Tabs) */}
-        <div className="flex bg-slate-100 dark:bg-[#1E293B]/60 p-1 border border-slate-200 dark:border-slate-700/50 rounded-2xl max-w-lg shadow-inner">
+        <div className="flex bg-theme-surface-tertiary/60 p-1 border border-theme-border/50 rounded-2xl max-w-lg shadow-inner">
           <button
             onClick={() => setActiveTab('personal')}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
               activeTab === 'personal'
                 ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20 border border-indigo-400/20"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:bg-[#1E293B]/40"
+                : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary/40"
             )}
           >
             <FileSpreadsheet size={15} />
@@ -824,7 +824,7 @@ export default function ReportsPage() {
               "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
               activeTab === 'overview'
                 ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20 border border-indigo-400/20"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:bg-[#1E293B]/40"
+                : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary/40"
             )}
           >
             <Users size={15} />
@@ -837,7 +837,7 @@ export default function ReportsPage() {
               "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
               activeTab === 'individual'
                 ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20 border border-indigo-400/20"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:bg-[#1E293B]/40"
+                : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary/40"
             )}
           >
             <UserIcon size={15} />
@@ -846,29 +846,29 @@ export default function ReportsPage() {
         </div>
 
         {/* Shared Filters Toolbar */}
-        <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-6 shadow-xl grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {/* Project Name Search (Disabled on Overview) */}
           <div className="flex flex-col">
-            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Project Name</label>
+            <label className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Project Name</label>
             <div className="relative">
               <input 
                 type="text" 
                 value={projectSearch}
                 onChange={(e) => setProjectSearch(e.target.value)}
                 placeholder="Search projects..."
-                className="w-full bg-[#0F172A] border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-xs font-semibold"
+                className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 pl-10 pr-4 text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-xs font-semibold"
               />
-              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
             </div>
           </div>
 
           {/* Date range filter */}
           <div className="flex flex-col">
-            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Date Range</label>
+            <label className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Date Range</label>
             <select
               value={dateFilter}
               onChange={(e: any) => setDateFilter(e.target.value)}
-              className="bg-[#0F172A] border border-slate-700 rounded-xl py-2.5 px-4 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-semibold"
+              className="bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-semibold"
             >
               <option value="this-week">This Week</option>
               <option value="this-month">This Month</option>
@@ -879,11 +879,11 @@ export default function ReportsPage() {
 
           {/* Type filter */}
           <div className="flex flex-col">
-            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Activity Type</label>
+            <label className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Activity Type</label>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="bg-[#0F172A] border border-slate-700 rounded-xl py-2.5 px-4 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-semibold"
+              className="bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-semibold"
             >
               <option value="all">All Types</option>
               <option value="Project">Project / Upgrade</option>
@@ -901,7 +901,7 @@ export default function ReportsPage() {
               <select
                 value={selectedUser}
                 onChange={(e) => setSelectedUser(e.target.value)}
-                className="bg-[#0F172A] border border-amber-700/50 rounded-xl py-2.5 px-4 text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer text-xs font-semibold"
+                className="bg-theme-surface-secondary border border-amber-700/50 rounded-xl py-2.5 px-4 text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer text-xs font-semibold"
               >
                 {usersList.map((u) => (
                   <option key={u.id} value={u.id}>{u.full_name} ({u.emp_id})</option>
@@ -914,27 +914,27 @@ export default function ReportsPage() {
           {dateFilter === 'custom' ? (
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Start</label>
+                <label className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1">Start</label>
                 <input 
                   type="date" 
                   value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
-                  className="bg-[#0F172A] border border-slate-700 rounded-lg py-1.5 px-2 text-[10px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                  className="bg-theme-surface-secondary border border-theme-border rounded-lg py-1.5 px-2 text-[10px] text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                 />
               </div>
               <div className="flex flex-col">
-                <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">End</label>
+                <label className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1">End</label>
                 <input 
                   type="date" 
                   value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}
-                  className="bg-[#0F172A] border border-slate-700 rounded-lg py-1.5 px-2 text-[10px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                  className="bg-theme-surface-secondary border border-theme-border rounded-lg py-1.5 px-2 text-[10px] text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
                 />
               </div>
             </div>
           ) : (
             <div className="flex flex-col justify-end">
-              <span className="text-[10px] text-slate-500 font-bold font-mono pb-2 text-center md:text-left">
+              <span className="text-[10px] text-theme-text-muted font-bold font-mono pb-2 text-center md:text-left">
                 Found {activeTab === 'personal' ? filteredPersonalEntries.length : filteredAllEntries.length} entries matching criteria
               </span>
             </div>
@@ -956,20 +956,20 @@ export default function ReportsPage() {
             </div>
 
             {/* Logs Table Card */}
-            <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl shadow-xl overflow-hidden">
+            <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
               {isLoading ? (
                 <div className="p-12 text-center animate-pulse flex flex-col gap-4">
-                  <div className="h-6 w-full bg-slate-100 dark:bg-slate-800 rounded"></div>
-                  <div className="h-6 w-full bg-slate-100 dark:bg-slate-800 rounded"></div>
-                  <div className="h-6 w-full bg-slate-100 dark:bg-slate-800 rounded"></div>
+                  <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-slate-800 rounded"></div>
+                  <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-slate-800 rounded"></div>
+                  <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-slate-800 rounded"></div>
                 </div>
               ) : filteredPersonalEntries.length === 0 ? (
                 <div className="p-12 text-center flex flex-col items-center justify-center space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-500 shadow-inner">
+                  <div className="w-16 h-16 rounded-full bg-theme-surface-tertiary dark:bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-500 shadow-inner">
                     <Search size={24} />
                   </div>
-                  <h3 className="text-slate-900 dark:text-white font-bold tracking-tight">No entries discovered</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs leading-relaxed">
+                  <h3 className="text-theme-text font-bold tracking-tight">No entries discovered</h3>
+                  <p className="text-xs text-theme-text-secondary max-w-xs leading-relaxed">
                     Try clearing search inputs or setting a broader date range boundary.
                   </p>
                 </div>
@@ -977,7 +977,7 @@ export default function ReportsPage() {
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left">
-                      <thead className="text-[10px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-[#0F172A]/50 uppercase tracking-widest border-b border-slate-200 dark:border-slate-700/50">
+                      <thead className="text-[10px] text-theme-text-secondary bg-theme-surface-secondary/50 uppercase tracking-widest border-b border-theme-border/50">
                         <tr>
                           <th className="px-6 py-4 font-bold">Date</th>
                           <th className="px-6 py-4 font-bold">Holding</th>
@@ -998,8 +998,8 @@ export default function ReportsPage() {
                               <tr 
                                 onClick={() => handleOpenViewModal(e)}
                                 className={cn(
-                                  "hover:bg-slate-700/30 cursor-pointer transition-colors duration-150 font-medium bg-slate-100 dark:bg-[#1E293B]/10 border-b border-slate-200 dark:border-slate-700/40",
-                                  isExpanded && "bg-slate-100 dark:bg-slate-800/40"
+                                  "hover:bg-slate-700/30 cursor-pointer transition-colors duration-150 font-medium bg-theme-surface-tertiary/10 border-b border-theme-border/40",
+                                  isExpanded && "bg-theme-surface-tertiary dark:bg-slate-800/40"
                                 )}
                               >
                                 <td className="px-6 py-4 font-mono text-indigo-300">
@@ -1010,9 +1010,9 @@ export default function ReportsPage() {
                                     </div>
                                   )}
                                 </td>
-                                <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{e.holding}</td>
-                                <td className="px-6 py-4 font-bold text-slate-900 dark:text-white max-w-[200px] truncate">{e.project_name}</td>
-                                <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{e.action_name}</td>
+                                <td className="px-6 py-4 text-theme-text-secondary">{e.holding}</td>
+                                <td className="px-6 py-4 font-bold text-theme-text max-w-[200px] truncate">{e.project_name}</td>
+                                <td className="px-6 py-4 text-theme-text-secondary">{e.action_name}</td>
                                 <td className="px-6 py-4 font-bold font-mono text-indigo-200">
                                   {e.total_hours.toFixed(1)}h
                                   {(e.is_ot || e.is_implied_ot) && (
@@ -1031,36 +1031,36 @@ export default function ReportsPage() {
                                     toggleRow(e.id);
                                   }}
                                 >
-                                  <button className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white p-1 rounded transition-colors">
+                                  <button className="text-theme-text-secondary hover:text-theme-text p-1 rounded transition-colors">
                                     {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                   </button>
                                 </td>
                               </tr>
                               {isExpanded && (
-                                <tr className="bg-slate-50 dark:bg-[#0F172A]/40" onClick={(evt) => evt.stopPropagation()}>
+                                <tr className="bg-theme-surface-secondary/40" onClick={(evt) => evt.stopPropagation()}>
                                   <td colSpan={7} className="px-8 py-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                       <div className="grid grid-cols-2 gap-4 text-xs">
                                         <div>
                                           <span className="text-slate-500 block uppercase font-bold text-[9px] tracking-wider mb-0.5">Holding BU</span>
-                                          <span className="text-slate-900 dark:text-white font-semibold font-mono">{e.holding}</span>
+                                          <span className="text-theme-text font-semibold font-mono">{e.holding}</span>
                                         </div>
                                         <div>
                                           <span className="text-slate-500 block uppercase font-bold text-[9px] tracking-wider mb-0.5">Role Operator</span>
-                                          <span className="text-slate-900 dark:text-white font-semibold">{e.department_operator}</span>
+                                          <span className="text-theme-text font-semibold">{e.department_operator}</span>
                                         </div>
                                         <div>
                                           <span className="text-slate-500 block uppercase font-bold text-[9px] tracking-wider mb-0.5">Project Type</span>
-                                          <span className="text-slate-900 dark:text-white font-semibold">{e.project_type}</span>
+                                          <span className="text-theme-text font-semibold">{e.project_type}</span>
                                         </div>
                                         <div>
                                           <span className="text-slate-500 block uppercase font-bold text-[9px] tracking-wider mb-0.5">Created At</span>
-                                          <span className="text-slate-900 dark:text-white font-semibold font-mono">{new Date(e.created_at).toLocaleString()}</span>
+                                          <span className="text-theme-text font-semibold font-mono">{new Date(e.created_at).toLocaleString()}</span>
                                         </div>
                                       </div>
                                       <div>
                                         <span className="text-[10px] text-slate-500 uppercase font-bold font-mono block mb-1">Work Description</span>
-                                        <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-[#1E293B]/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/50 leading-relaxed italic">
+                                        <p className="text-xs text-theme-text-secondary bg-theme-surface-tertiary/60 p-4 rounded-xl border border-theme-border/50 leading-relaxed italic">
                                           {e.description ? `"${e.description}"` : 'No custom description provided.'}
                                         </p>
                                         <div className="mt-3 flex justify-end gap-2">
@@ -1069,7 +1069,7 @@ export default function ReportsPage() {
                                               evt.stopPropagation();
                                               handleOpenViewModal(e);
                                             }}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#334155]/80 border border-slate-600/50 hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl transition-all"
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#334155]/80 border border-slate-600/50 hover:bg-slate-700 text-theme-text font-bold text-xs rounded-xl transition-all"
                                           >
                                             <Eye size={12} />
                                             <span>เปิดใบงาน (Open)</span>
@@ -1099,23 +1099,23 @@ export default function ReportsPage() {
                   
                   {/* Pagination Bar */}
                   {totalPages > 1 && (
-                    <div className="px-6 py-4 bg-slate-50 dark:bg-[#0F172A]/40 border-t border-slate-200 dark:border-slate-700/50 flex flex-col sm:flex-row justify-between items-center gap-4">
-                      <span className="text-xs text-slate-500 dark:text-slate-400 font-medium font-mono">
+                    <div className="px-6 py-4 bg-theme-surface-secondary/40 border-t border-theme-border/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                      <span className="text-xs text-theme-text-secondary font-medium font-mono">
                         Showing {((currentPage - 1) * entriesPerPage) + 1} - {Math.min(currentPage * entriesPerPage, filteredPersonalEntries.length)} of {filteredPersonalEntries.length} entries
                       </span>
                       <div className="flex items-center gap-1.5">
                         <button
                           disabled={currentPage === 1}
                           onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                          className="px-3 py-1.5 bg-[#1E293B] border border-slate-200 dark:border-slate-700/50 hover:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-xs text-slate-600 dark:text-slate-300 font-bold rounded-lg transition-all"
+                          className="px-3 py-1.5 bg-theme-surface-tertiary border border-theme-border/50 hover:border-theme-border-strong disabled:opacity-40 disabled:cursor-not-allowed text-xs text-theme-text-secondary font-bold rounded-lg transition-all"
                         >
                           Previous
                         </button>
                         {Array.from({ length: totalPages }).map((_, i) => {
                           const page = i + 1;
                           if (totalPages > 6 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
-                            if (page === 2 && currentPage > 3) return <span key={page} className="text-slate-600 text-xs px-1 select-none font-mono">...</span>;
-                            if (page === totalPages - 1 && currentPage < totalPages - 2) return <span key={page} className="text-slate-600 text-xs px-1 select-none font-mono">...</span>;
+                            if (page === 2 && currentPage > 3) return <span key={page} className="text-theme-text-muted text-xs px-1 select-none font-mono">...</span>;
+                            if (page === totalPages - 1 && currentPage < totalPages - 2) return <span key={page} className="text-theme-text-muted text-xs px-1 select-none font-mono">...</span>;
                             return null;
                           }
                           return (
@@ -1126,7 +1126,7 @@ export default function ReportsPage() {
                                 "w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all font-mono border",
                                 currentPage === page
                                   ? "bg-indigo-500 text-white border-transparent shadow-md shadow-indigo-500/10"
-                                  : "bg-transparent text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                                  : "bg-transparent text-theme-text-secondary border-transparent hover:text-theme-text hover:bg-theme-surface-tertiary"
                               )}
                             >
                               {page}
@@ -1136,7 +1136,7 @@ export default function ReportsPage() {
                         <button
                           disabled={currentPage === totalPages}
                           onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                          className="px-3 py-1.5 bg-[#1E293B] border border-slate-200 dark:border-slate-700/50 hover:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-xs text-slate-600 dark:text-slate-300 font-bold rounded-lg transition-all"
+                          className="px-3 py-1.5 bg-theme-surface-tertiary border border-theme-border/50 hover:border-theme-border-strong disabled:opacity-40 disabled:cursor-not-allowed text-xs text-theme-text-secondary font-bold rounded-lg transition-all"
                         >
                           Next
                         </button>
@@ -1163,11 +1163,11 @@ export default function ReportsPage() {
               {/* Dual Stacked Bar Charts for Daily Hours Trend - MOVED TO TOP */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Hours Trend IMP */}
-                <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl transition-all h-full">
+                <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl transition-all h-full">
                   <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-2.5">
                       <TrendingUp className="text-indigo-400" size={18} />
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">📈 Hours Trend (IMP)</h3>
+                      <h3 className="text-sm font-bold text-theme-text uppercase tracking-wider">📈 Hours Trend (IMP)</h3>
                     </div>
                   </div>
                   <div className="h-72 w-full">
@@ -1180,7 +1180,7 @@ export default function ReportsPage() {
                           <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
                           <Tooltip 
                             contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
-                            labelClassName="text-slate-500 dark:text-slate-400 font-bold font-mono text-[10px]"
+                            labelClassName="text-theme-text-secondary font-bold font-mono text-[10px]"
                           />
                           <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
                           <Bar name="Normal" dataKey="Normal" stackId="a" fill="#6366f1" radius={[0, 0, 0, 0]} />
@@ -1192,11 +1192,11 @@ export default function ReportsPage() {
                 </div>
 
                 {/* Hours Trend IT */}
-                <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-violet-500/10 hover:border-violet-500/20 rounded-3xl p-6 shadow-xl transition-all h-full">
+                <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-violet-500/10 hover:border-violet-500/20 rounded-3xl p-6 shadow-xl transition-all h-full">
                   <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-2.5">
                       <TrendingUp className="text-emerald-400" size={18} />
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">📈 Hours Trend (IT)</h3>
+                      <h3 className="text-sm font-bold text-theme-text uppercase tracking-wider">📈 Hours Trend (IT)</h3>
                     </div>
                   </div>
                   <div className="h-72 w-full">
@@ -1209,7 +1209,7 @@ export default function ReportsPage() {
                           <YAxis stroke="#64748b" fontSize={10} tickLine={false} />
                           <Tooltip 
                             contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
-                            labelClassName="text-slate-500 dark:text-slate-400 font-bold font-mono text-[10px]"
+                            labelClassName="text-theme-text-secondary font-bold font-mono text-[10px]"
                           />
                           <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
                           <Bar name="Normal" dataKey="Normal" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
@@ -1225,12 +1225,12 @@ export default function ReportsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 
                 {/* IMP Group summary */}
-                <div className={`bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border ${impStyle.border} ${impStyle.hover} rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full flex flex-col`}>
+                <div className={`bg-theme-surface-tertiary/80 backdrop-blur-xl border ${impStyle.border} ${impStyle.hover} rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full flex flex-col`}>
                   <div className={`absolute top-0 right-0 w-32 h-32 ${impStyle.bgGlow} rounded-full blur-3xl pointer-events-none ${impStyle.hoverBg} transition-colors`}></div>
                   <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-3">
                       <span className={`w-3.5 h-3.5 rounded-full ${impStyle.dot} animate-pulse`}></span>
-                      <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase">IMP Group (IMP)</h2>
+                      <h2 className="text-xl font-black text-theme-text tracking-tight uppercase">IMP Group (IMP)</h2>
                     </div>
                     <span className={`text-[10px] font-bold ${impStyle.badgeBg} border ${impStyle.badgeBorder} ${impStyle.badgeText} px-3 py-1 rounded-full uppercase tracking-wider font-mono shrink-0`}>
                       {overviewData.imp.metrics.usersCount} Active {overviewData.imp.metrics.usersCount === 1 ? 'User' : 'Users'}
@@ -1238,11 +1238,11 @@ export default function ReportsPage() {
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-700/40 rounded-2xl p-4 shadow-inner">
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
-                      <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono">{overviewData.imp.metrics.totalHours.toFixed(1)}h</span>
+                    <div className="bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl p-4 shadow-inner">
+                      <span className="text-[10px] text-theme-text-secondary font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
+                      <span className="text-3xl font-black text-theme-text tracking-tight font-mono">{overviewData.imp.metrics.totalHours.toFixed(1)}h</span>
                     </div>
-                    <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-700/40 rounded-2xl p-4 shadow-inner">
+                    <div className="bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl p-4 shadow-inner">
                       <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">Overtime Logged</span>
                       <span className="text-3xl font-black text-amber-400 tracking-tight font-mono">{overviewData.imp.metrics.otHours.toFixed(1)}h</span>
                     </div>
@@ -1250,7 +1250,7 @@ export default function ReportsPage() {
 
                   {/* Top Projects */}
                   <div className="mt-6 space-y-3 flex-1">
-                    <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">🏆 Top IMP Projects</h3>
+                    <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest">🏆 Top IMP Projects</h3>
                     {overviewData.imp.projects.length === 0 ? (
                       <span className="text-xs text-slate-500 italic block">No records logged in IMP group.</span>
                     ) : (
@@ -1258,10 +1258,10 @@ export default function ReportsPage() {
                         {overviewData.imp.projects.map((p, pIdx) => (
                           <div key={pIdx} className="flex flex-col gap-1.5">
                             <div className="flex justify-between text-xs font-medium">
-                              <span className="text-slate-600 dark:text-slate-300 font-bold truncate max-w-[200px]">{p.name}</span>
+                              <span className="text-theme-text-secondary font-bold truncate max-w-[200px]">{p.name}</span>
                               <span className={`${impStyle.badgeText} font-bold font-mono`}>{p.hours.toFixed(1)}h ({p.percentage}%)</span>
                             </div>
-                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                            <div className="w-full bg-theme-surface-secondary h-1.5 rounded-full overflow-hidden">
                               <div 
                                 className={`${impStyle.barBg} h-full rounded-full`} 
                                 style={{ width: `${p.percentage}%` }}
@@ -1275,12 +1275,12 @@ export default function ReportsPage() {
                 </div>
 
                 {/* IT Group summary */}
-                <div className={`bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border ${itStyle.border} ${itStyle.hover} rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full flex flex-col`}>
+                <div className={`bg-theme-surface-tertiary/80 backdrop-blur-xl border ${itStyle.border} ${itStyle.hover} rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full flex flex-col`}>
                   <div className={`absolute top-0 right-0 w-32 h-32 ${itStyle.bgGlow} rounded-full blur-3xl pointer-events-none ${itStyle.hoverBg} transition-colors`}></div>
                   <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-3">
                       <span className={`w-3.5 h-3.5 rounded-full ${itStyle.dot} animate-pulse`}></span>
-                      <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase">IT Group (IT)</h2>
+                      <h2 className="text-xl font-black text-theme-text tracking-tight uppercase">IT Group (IT)</h2>
                     </div>
                     <span className={`text-[10px] font-bold ${itStyle.badgeBg} border ${itStyle.badgeBorder} ${itStyle.badgeText} px-3 py-1 rounded-full uppercase tracking-wider font-mono shrink-0`}>
                       {overviewData.it.metrics.usersCount} Active {overviewData.it.metrics.usersCount === 1 ? 'User' : 'Users'}
@@ -1288,11 +1288,11 @@ export default function ReportsPage() {
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-700/40 rounded-2xl p-4 shadow-inner">
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
-                      <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono">{overviewData.it.metrics.totalHours.toFixed(1)}h</span>
+                    <div className="bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl p-4 shadow-inner">
+                      <span className="text-[10px] text-theme-text-secondary font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
+                      <span className="text-3xl font-black text-theme-text tracking-tight font-mono">{overviewData.it.metrics.totalHours.toFixed(1)}h</span>
                     </div>
-                    <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-700/40 rounded-2xl p-4 shadow-inner">
+                    <div className="bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl p-4 shadow-inner">
                       <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">Overtime Logged</span>
                       <span className="text-3xl font-black text-amber-400 tracking-tight font-mono">{overviewData.it.metrics.otHours.toFixed(1)}h</span>
                     </div>
@@ -1300,7 +1300,7 @@ export default function ReportsPage() {
 
                   {/* Top Projects */}
                   <div className="mt-6 space-y-3 flex-1">
-                    <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">🏆 Top IT Projects</h3>
+                    <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest">🏆 Top IT Projects</h3>
                     {overviewData.it.projects.length === 0 ? (
                       <span className="text-xs text-slate-500 italic block">No records logged in IT group.</span>
                     ) : (
@@ -1308,10 +1308,10 @@ export default function ReportsPage() {
                         {overviewData.it.projects.map((p, pIdx) => (
                           <div key={pIdx} className="flex flex-col gap-1.5">
                             <div className="flex justify-between text-xs font-medium">
-                              <span className="text-slate-600 dark:text-slate-300 font-bold truncate max-w-[200px]">{p.name}</span>
+                              <span className="text-theme-text-secondary font-bold truncate max-w-[200px]">{p.name}</span>
                               <span className={`${itStyle.badgeText} font-bold font-mono`}>{p.hours.toFixed(1)}h ({p.percentage}%)</span>
                             </div>
-                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                            <div className="w-full bg-theme-surface-secondary h-1.5 rounded-full overflow-hidden">
                               <div 
                                 className={`${itStyle.barBg} h-full rounded-full`} 
                                 style={{ width: `${p.percentage}%` }}
@@ -1330,11 +1330,11 @@ export default function ReportsPage() {
               <div className="space-y-6">
                 <div className="flex items-center gap-2.5 px-2">
                   <div className="w-2.5 h-6 bg-indigo-500 rounded-full shadow-[0_0_12px_rgba(99,102,241,0.5)]"></div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">🏢 Business Unit (BU) Distribution</h3>
+                  <h3 className="text-sm font-bold text-theme-text uppercase tracking-wider">🏢 Business Unit (BU) Distribution</h3>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* BU Distribution IMP */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
                     <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-6">🏢 Business Unit (BU) Distribution IMP</h3>
                     {overviewData.impBuBreakdown.length === 0 ? (
                       <span className="text-xs text-slate-500 italic block py-4 text-center">No Business Unit records found.</span>
@@ -1343,10 +1343,10 @@ export default function ReportsPage() {
                         {overviewData.impBuBreakdown.map((item) => (
                           <div key={item.name} className="flex flex-col gap-1.5">
                             <div className="flex justify-between text-xs font-medium">
-                              <span className="text-slate-800 dark:text-slate-200 font-bold truncate max-w-[200px]">{item.name}</span>
+                              <span className="text-theme-text font-bold truncate max-w-[200px]">{item.name}</span>
                               <span className="text-indigo-400 font-bold font-mono">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
                             </div>
-                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                            <div className="w-full bg-theme-surface-secondary h-1.5 rounded-full overflow-hidden">
                               <div 
                                 className="bg-indigo-500 h-full rounded-full" 
                                 style={{ width: `${item.percentage}%` }}
@@ -1359,7 +1359,7 @@ export default function ReportsPage() {
                   </div>
 
                   {/* BU Distribution IT */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-violet-500/10 hover:border-violet-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-violet-500/10 hover:border-violet-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
                     <h3 className="text-xs font-bold text-violet-400 uppercase tracking-widest mb-6">🏢 Business Unit (BU) Distribution IT</h3>
                     {overviewData.itBuBreakdown.length === 0 ? (
                       <span className="text-xs text-slate-500 italic block py-4 text-center">No Business Unit records found.</span>
@@ -1368,10 +1368,10 @@ export default function ReportsPage() {
                         {overviewData.itBuBreakdown.map((item) => (
                           <div key={item.name} className="flex flex-col gap-1.5">
                             <div className="flex justify-between text-xs font-medium">
-                              <span className="text-slate-800 dark:text-slate-200 font-bold truncate max-w-[200px]">{item.name}</span>
+                              <span className="text-theme-text font-bold truncate max-w-[200px]">{item.name}</span>
                               <span className="text-violet-400 font-bold font-mono">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
                             </div>
-                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                            <div className="w-full bg-theme-surface-secondary h-1.5 rounded-full overflow-hidden">
                               <div 
                                 className="bg-violet-500 h-full rounded-full" 
                                 style={{ width: `${item.percentage}%` }}
@@ -1389,11 +1389,11 @@ export default function ReportsPage() {
               <div className="space-y-6">
                 <div className="flex items-center gap-2.5 px-2">
                   <div className="w-2.5 h-6 bg-violet-500 rounded-full shadow-[0_0_12px_rgba(139,92,246,0.5)]"></div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">🛠️ Department Operator Support</h3>
+                  <h3 className="text-sm font-bold text-theme-text uppercase tracking-wider">🛠️ Department Operator Support</h3>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Department Operator Distribution IMP */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
                     <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-6">🛠️ Department Operator Distribution IMP</h3>
                     {overviewData.impDeptBreakdown.length === 0 ? (
                       <span className="text-xs text-slate-500 italic block py-4 text-center">No Department records found.</span>
@@ -1402,10 +1402,10 @@ export default function ReportsPage() {
                         {overviewData.impDeptBreakdown.map((item) => (
                           <div key={item.name} className="flex flex-col gap-1.5">
                             <div className="flex justify-between text-xs font-medium">
-                              <span className="text-slate-800 dark:text-slate-200 font-bold truncate max-w-[200px]">{item.name}</span>
+                              <span className="text-theme-text font-bold truncate max-w-[200px]">{item.name}</span>
                               <span className="text-indigo-400 font-bold font-mono">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
                             </div>
-                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                            <div className="w-full bg-theme-surface-secondary h-1.5 rounded-full overflow-hidden">
                               <div 
                                 className="bg-indigo-500 h-full rounded-full" 
                                 style={{ width: `${item.percentage}%` }}
@@ -1418,7 +1418,7 @@ export default function ReportsPage() {
                   </div>
 
                   {/* Department Operator Distribution IT */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-violet-500/10 hover:border-violet-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-violet-500/10 hover:border-violet-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group transition-all h-full">
                     <h3 className="text-xs font-bold text-violet-400 uppercase tracking-widest mb-6">🛠️ Department Operator Distribution IT</h3>
                     {overviewData.itDeptBreakdown.length === 0 ? (
                       <span className="text-xs text-slate-500 italic block py-4 text-center">No Department records found.</span>
@@ -1427,10 +1427,10 @@ export default function ReportsPage() {
                         {overviewData.itDeptBreakdown.map((item) => (
                           <div key={item.name} className="flex flex-col gap-1.5">
                             <div className="flex justify-between text-xs font-medium">
-                              <span className="text-slate-800 dark:text-slate-200 font-bold truncate max-w-[200px]">{item.name}</span>
+                              <span className="text-theme-text font-bold truncate max-w-[200px]">{item.name}</span>
                               <span className="text-violet-400 font-bold font-mono">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
                             </div>
-                            <div className="w-full bg-[#0F172A] h-1.5 rounded-full overflow-hidden">
+                            <div className="w-full bg-theme-surface-secondary h-1.5 rounded-full overflow-hidden">
                               <div 
                                 className="bg-violet-500 h-full rounded-full" 
                                 style={{ width: `${item.percentage}%` }}
@@ -1445,34 +1445,34 @@ export default function ReportsPage() {
               </div>
 
               {/* Overtime ranking leaderboard */}
-              <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl max-w-2xl mx-auto">
+              <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl max-w-2xl mx-auto">
                 <div className="flex items-center gap-2.5 mb-6">
                   <Clock className="text-amber-400" size={18} />
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">⏰ Top Overtime (OT) Operators</h3>
+                  <h3 className="text-sm font-bold text-theme-text uppercase tracking-wider">⏰ Top Overtime (OT) Operators</h3>
                 </div>
                 <div className="space-y-4">
                   {overviewData.otLeaderboard.length === 0 ? (
                     <span className="text-xs text-slate-500 italic block text-center py-4">No overtime hours logged in selected range.</span>
                   ) : (
                     overviewData.otLeaderboard.map((item, idx) => (
-                      <div key={item.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-700/40 rounded-2xl">
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl">
                         <div className="flex items-center gap-4">
                           <div className={cn(
                             "w-8 h-8 rounded-xl font-bold flex items-center justify-center text-xs font-mono border shadow-md",
                             idx === 0 ? "bg-amber-500/10 border-amber-500/30 text-amber-400 shadow-amber-500/5" :
-                            idx === 1 ? "bg-slate-400/10 border-slate-400/30 text-slate-600 dark:text-slate-300" :
-                            "bg-slate-100 dark:bg-slate-800 border-slate-700 text-slate-500 dark:text-slate-400"
+                            idx === 1 ? "bg-slate-400/10 border-slate-400/30 text-theme-text-secondary" :
+                            "bg-theme-surface-tertiary dark:bg-slate-800 border-slate-700 text-theme-text-secondary"
                           )}>
                             #{idx + 1}
                           </div>
                           <div>
-                            <span className="text-xs font-bold text-slate-900 dark:text-white block">{item.name}</span>
+                            <span className="text-xs font-bold text-theme-text block">{item.name}</span>
                             <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{item.dept} Department</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-mono font-black text-amber-400">{item.otHours.toFixed(1)}h OT</span>
-                          <div className="w-16 bg-[#0F172A] h-2 rounded-full overflow-hidden">
+                          <div className="w-16 bg-theme-surface-secondary h-2 rounded-full overflow-hidden">
                             <div 
                               className="bg-amber-400 h-full rounded-full"
                               style={{ width: `${Math.min((item.otHours / (overviewData.otLeaderboard[0]?.otHours || 1)) * 100, 100)}%` }}
@@ -1495,21 +1495,21 @@ export default function ReportsPage() {
         {activeTab === 'individual' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             {/* Employee selector bar */}
-            <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
               <div className="flex items-center gap-3.5">
                 <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
                   <UserIcon size={20} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Select Teammate Profile</h3>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Explore individual metrics, radar work grids, and BUs allocations.</p>
+                  <h3 className="text-sm font-bold text-theme-text uppercase tracking-wider">Select Teammate Profile</h3>
+                  <p className="text-[10px] text-theme-text-secondary mt-0.5">Explore individual metrics, radar work grids, and BUs allocations.</p>
                 </div>
               </div>
               
               <select
                 value={selectedUser}
                 onChange={(e) => setSelectedUser(e.target.value)}
-                className="bg-[#0F172A] border border-slate-700 rounded-xl py-2.5 px-6 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer font-bold w-full sm:w-64 shadow-md"
+                className="bg-theme-surface-secondary border border-slate-700 rounded-xl py-2.5 px-6 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer font-bold w-full sm:w-64 shadow-md"
               >
                 {usersList.map((user) => (
                   <option key={user.id} value={user.id}>
@@ -1520,7 +1520,7 @@ export default function ReportsPage() {
             </div>
 
                         {/* Sub-tab selection bar */}
-            <div className="flex border-b border-slate-200 dark:border-slate-700/50 mt-6 mb-8">
+            <div className="flex border-b border-theme-border/50 mt-6 mb-8">
               <button
                 className="px-6 py-3 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 bg-indigo-500/5 transition-all duration-200 flex items-center gap-2 cursor-default"
               >
@@ -1529,7 +1529,7 @@ export default function ReportsPage() {
               </button>
               <button
                 onClick={() => navigate('/hrbp')}
-                className="px-6 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-all duration-200 flex items-center gap-2"
+                className="px-6 py-3 text-xs font-bold border-b-2 border-transparent text-theme-text-secondary hover:text-indigo-400 hover:bg-theme-surface-tertiary dark:hover:bg-slate-800/20 transition-all duration-200 flex items-center gap-2"
               >
                 <Brain size={16} className="text-indigo-400 animate-pulse" />
                 <span className="flex items-center gap-1.5">
@@ -1545,9 +1545,9 @@ export default function ReportsPage() {
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   {/* Left Column Profile Card */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between items-center text-center relative overflow-hidden group">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between items-center text-center relative overflow-hidden group">
                     <div className="absolute top-[-10%] right-[-10%] w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
-                     <div className="w-20 h-20 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-indigo-500/30 overflow-hidden ring-4 ring-indigo-500/10 shadow-lg flex items-center justify-center shrink-0 mb-4">
+                     <div className="w-20 h-20 rounded-full bg-theme-surface-tertiary dark:bg-slate-800 border-2 border-indigo-500/30 overflow-hidden ring-4 ring-indigo-500/10 shadow-lg flex items-center justify-center shrink-0 mb-4">
                       <img 
                         src={`https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID=${individualData.user?.emp_id}`} 
                         alt="Teammate avatar" 
@@ -1558,23 +1558,23 @@ export default function ReportsPage() {
                       />
                     </div>
                     <div>
-                      <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{individualData.user?.full_name}</h2>
+                      <h2 className="text-xl font-black text-theme-text tracking-tight">{individualData.user?.full_name}</h2>
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono mt-1 block">Emp ID: {individualData.user?.emp_id}</span>
                       <span className="mt-3 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-bold rounded-full text-[9px] uppercase tracking-wider inline-block">
                         {individualData.user?.department || 'IMP'} Department
                       </span>
                     </div>
 
-                    <div className="w-full border-t border-slate-200 dark:border-slate-700/50 my-6 pt-6 grid grid-cols-2 gap-4 text-left">
+                    <div className="w-full border-t border-theme-border/50 my-6 pt-6 grid grid-cols-2 gap-4 text-left">
                       <div>
                         <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest block">User Role</span>
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">{individualData.user?.role || 'User'}</span>
+                        <span className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider">{individualData.user?.role || 'User'}</span>
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest block">Email Address</span>
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate block max-w-[120px] font-mono">{individualData.user?.email || 'N/A'}</span>
+                        <span className="text-xs font-bold text-theme-text-secondary truncate block max-w-[120px] font-mono">{individualData.user?.email || 'N/A'}</span>
                       </div>
-                      <div className="col-span-2 border-t border-slate-200 dark:border-slate-800/60 pt-3 mt-1">
+                      <div className="col-span-2 border-t border-theme-border/60 pt-3 mt-1">
                         <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest block">Job Position</span>
                         <span className="text-xs font-bold text-indigo-300 truncate block">{individualData.user?.position || 'General Staff'}</span>
                       </div>
@@ -1583,53 +1583,53 @@ export default function ReportsPage() {
 
                   {/* Right Column KPIs Grid */}
                   <div className="lg:col-span-2 grid grid-cols-2 gap-6">
-                    <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 shadow-lg flex items-center gap-4 transition-transform hover:-translate-y-0.5 duration-200">
+                    <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-5 shadow-lg flex items-center gap-4 transition-transform hover:-translate-y-0.5 duration-200">
                       <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl shrink-0"><Clock size={20} /></div>
                       <div>
-                        <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-0.5">Total Hours Logged</span>
-                        <span className="text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">{individualData.totalHours.toFixed(1)}h</span>
+                        <span className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-widest block mb-0.5">Total Hours Logged</span>
+                        <span className="text-2xl font-black text-theme-text font-mono tracking-tight">{individualData.totalHours.toFixed(1)}h</span>
                       </div>
                     </div>
 
-                    <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 shadow-lg flex items-center gap-4 transition-transform hover:-translate-y-0.5 duration-200">
+                    <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-5 shadow-lg flex items-center gap-4 transition-transform hover:-translate-y-0.5 duration-200">
                       <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl shrink-0"><Award size={20} /></div>
                       <div>
-                        <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-0.5">Average Hours/Day</span>
-                        <span className="text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">{individualData.avgHoursPerDay}h</span>
+                        <span className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-widest block mb-0.5">Average Hours/Day</span>
+                        <span className="text-2xl font-black text-theme-text font-mono tracking-tight">{individualData.avgHoursPerDay}h</span>
                       </div>
                     </div>
 
-                    <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 shadow-lg flex items-center gap-4 transition-transform hover:-translate-y-0.5 duration-200">
+                    <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-5 shadow-lg flex items-center gap-4 transition-transform hover:-translate-y-0.5 duration-200">
                       <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl shrink-0"><Clock size={20} /></div>
                       <div>
-                        <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-0.5">Overtime Rate</span>
+                        <span className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-widest block mb-0.5">Overtime Rate</span>
                         <span className="text-2xl font-black text-amber-400 font-mono tracking-tight">{individualData.otRate}%</span>
                       </div>
                     </div>
 
-                    <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 shadow-lg flex items-center gap-4 transition-transform hover:-translate-y-0.5 duration-200">
+                    <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-5 shadow-lg flex items-center gap-4 transition-transform hover:-translate-y-0.5 duration-200">
                       <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl shrink-0"><Layers size={20} /></div>
                       <div>
-                        <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-0.5">Projects Contributed</span>
-                        <span className="text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">{individualData.uniqueProjectsCount}</span>
+                        <span className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-widest block mb-0.5">Projects Contributed</span>
+                        <span className="text-2xl font-black text-theme-text font-mono tracking-tight">{individualData.uniqueProjectsCount}</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* 1. Daily Hours Trend with 8-Hour Baseline */}
-                <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl">
+                <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">📅 Daily Logged Hours</h3>
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest">📅 Daily Logged Hours</h3>
                       <p className="text-[10px] text-slate-500 mt-1">Daily effort showing Normal vs. Overtime hours with a red 8-hour workday standard baseline.</p>
                     </div>
                     <div className="flex items-center gap-4 text-[10px] font-bold">
-                      <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-1.5 text-theme-text-secondary">
                         <div className="w-2.5 h-2.5 rounded-sm bg-[#6366f1]"></div>
                         <span>Normal Hours</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-1.5 text-theme-text-secondary">
                         <div className="w-2.5 h-2.5 rounded-sm bg-[#f59e0b]"></div>
                         <span>Overtime</span>
                       </div>
@@ -1663,9 +1663,9 @@ export default function ReportsPage() {
                 {/* 2. Monthly Comparison & Weekly Trend Side-by-Side */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Monthly Comparison */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl">
                     <div className="mb-6">
-                      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest font-bold">🗓️ Monthly Comparison</h3>
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest font-bold">🗓️ Monthly Comparison</h3>
                       <p className="text-[10px] text-slate-500 mt-1 font-bold">Comparison of total logged hours (Normal vs OT) across active months.</p>
                     </div>
                     <div className="h-72 w-full">
@@ -1690,9 +1690,9 @@ export default function ReportsPage() {
                   </div>
 
                   {/* Weekly Trend vs Team Average */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl">
                     <div className="mb-6">
-                      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">📈 Weekly Trend vs Team Average</h3>
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest">📈 Weekly Trend vs Team Average</h3>
                       <p className="text-[10px] text-slate-500 mt-1">Comparing user weekly hours to the team average over the last 8 weeks.</p>
                     </div>
                     <div className="h-72 w-full">
@@ -1715,7 +1715,7 @@ export default function ReportsPage() {
                             <YAxis stroke="#64748b" fontSize={9} tickLine={false} unit="h" />
                             <Tooltip 
                               contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
-                              labelClassName="text-slate-500 dark:text-slate-400 font-bold text-[10px]"
+                              labelClassName="text-theme-text-secondary font-bold text-[10px]"
                             />
                             <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
                             
@@ -1747,20 +1747,20 @@ export default function ReportsPage() {
                 {/* 3. Hours by BU & Hours by Customer Dept */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Hours by BU */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">🏢 Hours by Business Unit (BU)</h3>
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-6">🏢 Hours by Business Unit (BU)</h3>
                       <div className="space-y-4">
                         {individualData.buDistributionData.length === 0 ? (
                           <div className="text-xs text-slate-500 italic py-6 text-center">No BU allocation logged.</div>
                         ) : (
                           individualData.buDistributionData.map((item, idx) => (
                             <div key={idx} className="space-y-1.5">
-                              <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                              <div className="flex justify-between text-xs font-bold text-theme-text-secondary">
                                 <span className="truncate max-w-[240px]">{item.name}</span>
-                                <span className="font-mono text-slate-500 dark:text-slate-400">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
+                                <span className="font-mono text-theme-text-secondary">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
                               </div>
-                              <div className="w-full bg-[#0F172A] h-2.5 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+                              <div className="w-full bg-theme-surface-secondary h-2.5 rounded-full overflow-hidden border border-theme-border">
                                 <div 
                                   className={cn(
                                     "bg-gradient-to-r h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(99,102,241,0.2)]",
@@ -1777,20 +1777,20 @@ export default function ReportsPage() {
                   </div>
 
                   {/* Hours by Customer Dept */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">🏬 Hours by Customer Department</h3>
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-6">🏬 Hours by Customer Department</h3>
                       <div className="space-y-4">
                         {individualData.deptDistributionData.length === 0 ? (
                           <div className="text-xs text-slate-500 italic py-6 text-center">No customer department hours logged.</div>
                         ) : (
                           individualData.deptDistributionData.map((item, idx) => (
                             <div key={idx} className="space-y-1.5">
-                              <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                              <div className="flex justify-between text-xs font-bold text-theme-text-secondary">
                                 <span className="truncate max-w-[240px]">{item.name}</span>
-                                <span className="font-mono text-slate-500 dark:text-slate-400">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
+                                <span className="font-mono text-theme-text-secondary">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
                               </div>
-                              <div className="w-full bg-[#0F172A] h-2.5 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+                              <div className="w-full bg-theme-surface-secondary h-2.5 rounded-full overflow-hidden border border-theme-border">
                                 <div 
                                   className={cn(
                                     "bg-gradient-to-r h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(99,102,241,0.2)]",
@@ -1810,20 +1810,20 @@ export default function ReportsPage() {
                 {/* 4. Top Actions & Top Projects Side-by-Side */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Top Actions list */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">⚡ Top Actions by Effort</h3>
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-6">⚡ Top Actions by Effort</h3>
                       <div className="space-y-4">
                         {individualData.topActionsData.length === 0 ? (
                           <div className="text-xs text-slate-500 italic py-6 text-center">No action details logged.</div>
                         ) : (
                           individualData.topActionsData.map((item, idx) => (
                             <div key={idx} className="space-y-1.5">
-                              <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                              <div className="flex justify-between text-xs font-bold text-theme-text-secondary">
                                 <span className="truncate max-w-[240px]">{item.name}</span>
-                                <span className="font-mono text-slate-500 dark:text-slate-400">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
+                                <span className="font-mono text-theme-text-secondary">{item.hours.toFixed(1)}h ({item.percentage}%)</span>
                               </div>
-                              <div className="w-full bg-[#0F172A] h-2.5 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+                              <div className="w-full bg-theme-surface-secondary h-2.5 rounded-full overflow-hidden border border-theme-border">
                                 <div 
                                   className={cn(
                                     "bg-gradient-to-r h-full rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(99,102,241,0.2)]",
@@ -1840,9 +1840,9 @@ export default function ReportsPage() {
                   </div>
 
                   {/* Top 5 Projects by Contributed Hours */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">🏆 Top 5 Projects by Contributed Hours</h3>
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-6">🏆 Top 5 Projects by Contributed Hours</h3>
                       <div className="h-72 w-full">
                         {individualData.projectData.length === 0 ? (
                           <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No project data logged.</div>
@@ -1868,9 +1868,9 @@ export default function ReportsPage() {
                 {/* 5. Donut, Work Type & Radar Charts Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   {/* Normal vs Overtime Split Donut Chart */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">📊 Normal vs. OT Split</h3>
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-6">📊 Normal vs. OT Split</h3>
                       <div className="h-56 w-full flex items-center justify-center relative">
                         {individualData.otSplitData[0].value === 0 && individualData.otSplitData[1].value === 0 ? (
                           <div className="text-xs text-slate-500 italic">No hours logged.</div>
@@ -1902,25 +1902,25 @@ export default function ReportsPage() {
                             {/* Centered Total Hours Info */}
                             <div className="absolute flex flex-col items-center justify-center pointer-events-none">
                               <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Total</span>
-                              <span className="text-xl font-black text-slate-900 dark:text-white font-mono">{individualData.totalHours.toFixed(1)}h</span>
+                              <span className="text-xl font-black text-theme-text font-mono">{individualData.totalHours.toFixed(1)}h</span>
                             </div>
                           </>
                         )}
                       </div>
                     </div>
                     {/* Visual Custom Legend below */}
-                    <div className="flex justify-around items-center border-t border-slate-200 dark:border-slate-700/30 pt-4 mt-2">
+                    <div className="flex justify-around items-center border-t border-theme-border/30 pt-4 mt-2">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-lg bg-[#6366f1] shadow-md shadow-indigo-500/20"></div>
                         <div className="flex flex-col">
-                          <span className="text-[9px] text-slate-500 dark:text-slate-400 font-bold">Normal</span>
-                          <span className="text-[10px] font-bold text-slate-900 dark:text-white font-mono">{individualData.otSplitData[0].value}h ({individualData.otSplitData[0].percentage}%)</span>
+                          <span className="text-[9px] text-theme-text-secondary font-bold">Normal</span>
+                          <span className="text-[10px] font-bold text-theme-text font-mono">{individualData.otSplitData[0].value}h ({individualData.otSplitData[0].percentage}%)</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-lg bg-[#f59e0b] shadow-md shadow-amber-500/20"></div>
                         <div className="flex flex-col">
-                          <span className="text-[9px] text-slate-500 dark:text-slate-400 font-bold">OT</span>
+                          <span className="text-[9px] text-theme-text-secondary font-bold">OT</span>
                           <span className="text-[10px] font-bold text-amber-400 font-mono">{individualData.otSplitData[1].value}h ({individualData.otSplitData[1].percentage}%)</span>
                         </div>
                       </div>
@@ -1928,9 +1928,9 @@ export default function ReportsPage() {
                   </div>
 
                   {/* Work Type Pie Chart */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">🎯 Work Type Ratio</h3>
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-6">🎯 Work Type Ratio</h3>
                       <div className="h-56 w-full flex items-center justify-center">
                         {individualData.pieData.length === 0 ? (
                           <div className="text-xs text-slate-500 italic">No logging records.</div>
@@ -1962,9 +1962,9 @@ export default function ReportsPage() {
                   </div>
 
                   {/* Radar Chart (Teammate vs Team Avg in BUs) */}
-                  <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+                  <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
                     <div>
-                      <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-6">🕸️ BU Allocation Map</h3>
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-6">🕸️ BU Allocation Map</h3>
                       <div className="h-56 w-full">
                         {individualData.radarData.length === 0 ? (
                           <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No allocation data.</div>
@@ -2019,13 +2019,13 @@ export default function ReportsPage() {
 
 function ReportKpi({ title, value, icon }: { title: string, value: string, icon: React.ReactNode }) {
   return (
-    <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 shadow-lg flex items-center gap-4 transition-transform hover:-translate-y-0.5 duration-200">
-      <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-700/50 shrink-0">
+    <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-5 shadow-lg flex items-center gap-4 transition-transform hover:-translate-y-0.5 duration-200">
+      <div className="p-3 rounded-xl bg-theme-surface-secondary/50 border border-theme-border/50 shrink-0">
         {icon}
       </div>
       <div>
-        <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-0.5">{title}</span>
-        <span className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight font-mono">{value}</span>
+        <span className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-wider block mb-0.5">{title}</span>
+        <span className="text-2xl font-extrabold text-theme-text tracking-tight font-mono">{value}</span>
       </div>
     </div>
   );
