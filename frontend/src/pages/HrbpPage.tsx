@@ -130,46 +130,65 @@ export default function HrbpPage() {
 
   // Load Session and Initial Users
   useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const token = queryParams.get('share');
     const sessionStr = localStorage.getItem('worklog_session');
-    if (!sessionStr) {
+    
+    if (!sessionStr && !token) {
       navigate('/login');
       return;
     }
-    const session = JSON.parse(sessionStr);
-    setSessionUser(session);
+    
+    const session = sessionStr ? JSON.parse(sessionStr) : null;
+    if (session) {
+      setSessionUser(session);
+    }
 
-    const loadUsers = async () => {
+    const loadData = async () => {
       try {
         setIsLoading(true);
-        const { data: usersData, error: usersErr } = await supabase
-          .from('users')
-          .select('*')
-          .order('full_name', { ascending: true });
 
-        if (usersErr) throw usersErr;
-        setUsersList(usersData || []);
-        
-        // Check for share query parameter
-        const queryParams = new URLSearchParams(window.location.search);
-        const token = queryParams.get('share');
         if (token) {
           setIsSharedView(true);
           setStep(3);
-          loadSharedReport(token);
-        } else if (usersData && usersData.length > 0) {
-          // Pre-select current user or first user
-          const matchingUser = usersData.find((u: any) => u.id === session.id);
-          setSelectedUser(matchingUser ? matchingUser.id : usersData[0].id);
+          await loadSharedReport(token);
+          
+          // Optionally load users for display, but swallow error if RLS blocks it (e.g. unauthenticated share viewer)
+          try {
+            const { data: usersData } = await supabase
+              .from('users')
+              .select('*')
+              .order('full_name', { ascending: true });
+            if (usersData) {
+              setUsersList(usersData);
+            }
+          } catch (e) {
+            console.log('Swallowed user list loading error in public shared view:', e);
+          }
+        } else {
+          const { data: usersData, error: usersErr } = await supabase
+            .from('users')
+            .select('*')
+            .order('full_name', { ascending: true });
+
+          if (usersErr) throw usersErr;
+          setUsersList(usersData || []);
+
+          if (usersData && usersData.length > 0 && session) {
+            // Pre-select current user or first user
+            const matchingUser = usersData.find((u: any) => u.id === session.id);
+            setSelectedUser(matchingUser ? matchingUser.id : usersData[0].id);
+          }
         }
       } catch (err: any) {
-        console.error('Error loading users:', err);
+        console.error('Error loading initialization data:', err);
         showToast('ไม่สามารถดึงข้อมูลพนักงานได้: ' + err.message, 'error');
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadUsers();
+    loadData();
   }, [navigate]);
 
   // Clean up and Purge logic upon step changes or selectedUser updates
@@ -320,6 +339,43 @@ export default function HrbpPage() {
         return;
       }
 
+      // Try fetching the specific user's details to populate metadata in results view
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', report.user_id)
+          .maybeSingle();
+        if (userData) {
+          setSelectedUser(userData.id);
+          setUsersList(prev => {
+            if (prev.some(u => u.id === userData.id)) return prev;
+            return [...prev, userData];
+          });
+        }
+      } catch (userErr) {
+        console.error('Swallowed user details fetch error in shared view:', userErr);
+      }
+
+      // Query work logs to compute total hours and logs count (wrapped in try-catch for unauthenticated users)
+      let totalHours = 0;
+      let logsCount = 0;
+      try {
+        const { data: logs } = await supabase
+          .from('col_worklog')
+          .select('total_hours')
+          .eq('user_id', report.user_id)
+          .gte('work_date', report.start_date)
+          .lte('work_date', report.end_date);
+        
+        if (logs) {
+          totalHours = logs.reduce((sum, e) => sum + Number(e.total_hours || 0), 0);
+          logsCount = logs.length;
+        }
+      } catch (logsErr) {
+        console.log('Skipping log metrics calculation in shared view (read-only):', logsErr);
+      }
+
       setAiAnalysis({
         id: report.id,
         share_token: report.share_token,
@@ -338,8 +394,8 @@ export default function HrbpPage() {
         model: report.engine_model || 'Historical Shared Record',
         start_date: report.start_date,
         end_date: report.end_date,
-        total_hours: null,
-        logs_count: null,
+        total_hours: totalHours,
+        logs_count: logsCount,
         weights: []
       });
 
@@ -352,31 +408,67 @@ export default function HrbpPage() {
     }
   };
 
-  const loadHistoryRecord = (record: any) => {
-    setAiAnalysis({
-      id: record.id,
-      share_token: record.share_token,
-      is_public: record.is_public,
-      acknowledged_at: record.acknowledged_at,
-      acknowledged_by: record.acknowledged_by,
-      jd_alignment_score: record.jd_alignment_score,
-      burnout_risk_score: record.burnout_risk_score,
-      workload_allocation: record.actual_vs_target,
-      strengths: record.strengths,
-      improvements: record.improvements,
-      development_plan: record.development_plan,
-      markdown_executive_summary: record.raw_ai_report,
-      created_at: record.created_at,
-      isCached: true,
-      model: record.engine_model || 'Historical Record',
-      start_date: record.start_date,
-      end_date: record.end_date,
-      total_hours: null,
-      logs_count: null,
-      weights: keyResponsibilities
-    });
-    setActiveResultsSubTab('summary');
-    showToast('โหลดผลวิเคราะห์ย้อนหลังสำเร็จ', 'success');
+  const loadHistoryRecord = async (record: any) => {
+    try {
+      const { data: logs } = await supabase
+        .from('col_worklog')
+        .select('total_hours')
+        .eq('user_id', record.user_id)
+        .gte('work_date', record.start_date)
+        .lte('work_date', record.end_date);
+      const totalHours = (logs || []).reduce((sum, e) => sum + Number(e.total_hours || 0), 0);
+
+      setAiAnalysis({
+        id: record.id,
+        share_token: record.share_token,
+        is_public: record.is_public,
+        acknowledged_at: record.acknowledged_at,
+        acknowledged_by: record.acknowledged_by,
+        jd_alignment_score: record.jd_alignment_score,
+        burnout_risk_score: record.burnout_risk_score,
+        workload_allocation: record.actual_vs_target,
+        strengths: record.strengths,
+        improvements: record.improvements,
+        development_plan: record.development_plan,
+        markdown_executive_summary: record.raw_ai_report,
+        created_at: record.created_at,
+        isCached: true,
+        model: record.engine_model || 'Historical Record',
+        start_date: record.start_date,
+        end_date: record.end_date,
+        total_hours: totalHours,
+        logs_count: logs?.length || 0,
+        weights: keyResponsibilities
+      });
+      setActiveResultsSubTab('summary');
+      showToast('โหลดผลวิเคราะห์ย้อนหลังสำเร็จ', 'success');
+    } catch (err) {
+      console.error('Error loading history record work logs:', err);
+      setAiAnalysis({
+        id: record.id,
+        share_token: record.share_token,
+        is_public: record.is_public,
+        acknowledged_at: record.acknowledged_at,
+        acknowledged_by: record.acknowledged_by,
+        jd_alignment_score: record.jd_alignment_score,
+        burnout_risk_score: record.burnout_risk_score,
+        workload_allocation: record.actual_vs_target,
+        strengths: record.strengths,
+        improvements: record.improvements,
+        development_plan: record.development_plan,
+        markdown_executive_summary: record.raw_ai_report,
+        created_at: record.created_at,
+        isCached: true,
+        model: record.engine_model || 'Historical Record',
+        start_date: record.start_date,
+        end_date: record.end_date,
+        total_hours: null,
+        logs_count: null,
+        weights: keyResponsibilities
+      });
+      setActiveResultsSubTab('summary');
+      showToast('โหลดผลวิเคราะห์ย้อนหลังสำเร็จ (ไม่มีข้อมูลชั่วโมงงาน)', 'warning');
+    }
   };
 
   // Recommendations: Pos + weights
@@ -704,7 +796,7 @@ export default function HrbpPage() {
         .from('tb_ai_individual_analysis')
         .update({
           acknowledged_at: new Date().toISOString(),
-          acknowledged_by: sessionUser?.name || 'HRBP Admin'
+          acknowledged_by: sessionUser?.name || 'AI Specialist'
         })
         .eq('id', aiAnalysis.id);
 
@@ -713,17 +805,17 @@ export default function HrbpPage() {
       setAiAnalysis((prev: any) => ({
         ...prev,
         acknowledged_at: new Date().toISOString(),
-        acknowledged_by: sessionUser?.name || 'HRBP Admin'
+        acknowledged_by: sessionUser?.name || 'AI Specialist'
       }));
 
       // Update in history as well
       setAnalysisHistory(prev => prev.map(item => 
         item.id === aiAnalysis.id 
-          ? { ...item, acknowledged_at: new Date().toISOString(), acknowledged_by: sessionUser?.name || 'HRBP Admin' }
+          ? { ...item, acknowledged_at: new Date().toISOString(), acknowledged_by: sessionUser?.name || 'AI Specialist' }
           : item
       ));
 
-      showToast('ลงนามรับทราบการประเมินโดย HRBP สำเร็จ / Report acknowledged successfully', 'success');
+      showToast('ลงนามรับทราบการประเมินโดยระบบ AI Enhance สำเร็จ / Report acknowledged successfully', 'success');
       setShowAckModal(false);
     } catch (err: any) {
       console.error('Error acknowledging report:', err);
@@ -756,6 +848,36 @@ export default function HrbpPage() {
   const copyShareLink = () => {
     if (!aiAnalysis || !aiAnalysis.share_token) return;
     const shareUrl = `${window.location.origin}/hrbp?share=${aiAnalysis.share_token}`;
+    navigator.clipboard.writeText(shareUrl);
+    showToast('คัดลอกลิงก์ผลการวิเคราะห์ลง Clipboard สำเร็จ', 'success');
+  };
+
+  const toggleHistoryRecordShare = async (recordId: string, currentIsPublic: boolean) => {
+    const newIsPublic = !currentIsPublic;
+    try {
+      const { error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .update({ is_public: newIsPublic })
+        .eq('id', recordId);
+
+      if (error) throw error;
+
+      setAnalysisHistory(prev => prev.map(item => item.id === recordId ? { ...item, is_public: newIsPublic } : item));
+      
+      if (aiAnalysis && aiAnalysis.id === recordId) {
+        setAiAnalysis((prev: any) => ({ ...prev, is_public: newIsPublic }));
+      }
+      
+      showToast(newIsPublic ? 'เปิดแชร์ผลการวิเคราะห์สู่สาธารณะแล้ว' : 'ปิดการเข้าถึงสาธารณะเรียบร้อย', 'success');
+    } catch (err: any) {
+      console.error('Error toggling share status:', err);
+      showToast('ไม่สามารถเปลี่ยนสถานะการแชร์ได้: ' + err.message, 'error');
+    }
+  };
+
+  const copyHistoryShareLink = (shareToken: string) => {
+    if (!shareToken) return;
+    const shareUrl = `${window.location.origin}/hrbp?share=${shareToken}`;
     navigator.clipboard.writeText(shareUrl);
     showToast('คัดลอกลิงก์ผลการวิเคราะห์ลง Clipboard สำเร็จ', 'success');
   };
@@ -814,12 +936,43 @@ export default function HrbpPage() {
   // Recharts chart compiler data
   const chartData = useMemo(() => {
     if (!aiAnalysis || !aiAnalysis.workload_allocation) return [];
-    return aiAnalysis.workload_allocation.map((item: any) => ({
-      name: item.category,
-      'Actual %': Math.round(item.actual_percentage || 0),
-      'Target %': Math.round(item.target_percentage || 0),
-      'Actual Hours': Number(item.actual_hours || 0).toFixed(1)
-    }));
+    
+    // We try to find total hours to compute actual hours as a fallback if not provided
+    const totalHours = aiAnalysis.total_hours || 0;
+    
+    return aiAnalysis.workload_allocation.map((item: any) => {
+      const actualPct = Math.round(
+        item.actual_percentage !== undefined 
+          ? item.actual_percentage 
+          : (item.actual_weight_pct !== undefined 
+              ? item.actual_weight_pct 
+              : 0)
+      );
+      
+      const targetPct = Math.round(
+        item.target_percentage !== undefined 
+          ? item.target_percentage 
+          : (item.target_weight_pct !== undefined 
+              ? item.target_weight_pct 
+              : 0)
+      );
+      
+      let actualHours = 0;
+      if (item.actual_hours !== undefined) {
+        actualHours = Number(item.actual_hours);
+      } else if (item.hours !== undefined) {
+        actualHours = Number(item.hours);
+      } else if (totalHours > 0) {
+        actualHours = (totalHours * actualPct) / 100;
+      }
+      
+      return {
+        name: item.category,
+        'Actual %': actualPct,
+        'Target %': targetPct,
+        'Actual Hours': actualHours.toFixed(1)
+      };
+    });
   }, [aiAnalysis]);
 
   return (
@@ -834,11 +987,11 @@ export default function HrbpPage() {
                 <Cpu size={16} className="text-white" />
               </div>
               <h1 className="text-2xl font-black tracking-tight text-white uppercase">
-                HRBP AI Diagnostics
+                AI Enhance Diagnostics
               </h1>
             </div>
             <p className="text-xs text-slate-400">
-              {isSharedView ? "กำลังดูรายงานผลวิเคราะห์สมรรถนะการทำงานที่แชร์" : "ห้องแล็บควบคุมและประเมินประสิทธิภาพพนักงานสำหรับ HRBP และผู้บริหาร"}
+              {isSharedView ? "กำลังดูรายงานผลวิเคราะห์สมรรถนะการทำงานที่แชร์" : "ห้องแล็บจำลองและประเมินการพัฒนาศักยภาพพนักงานด้วยระบบ AI (AI Enhance)"}
             </p>
           </div>
 
@@ -881,20 +1034,20 @@ export default function HrbpPage() {
 
                 <button
                   onClick={() => {
-                    if (aiAnalysis) {
-                      setStep(3);
-                    } else {
-                      showToast('กรุณาเริ่มการวิเคราะห์ AI เพื่อดูผลลัพธ์', 'warning');
+                    setStep(3);
+                    if (!aiAnalysis) {
+                      setActiveResultsSubTab('history');
+                      loadAnalysisHistory();
                     }
                   }}
-                  disabled={!aiAnalysis}
+                  disabled={!selectedUser}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all tracking-wider flex items-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none",
                     step === 3 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "text-slate-400 hover:text-slate-200"
                   )}
                 >
                   <span className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-[9px] font-bold">3</span>
-                  Results
+                  Results & History
                 </button>
               </div>
             </div>
@@ -949,18 +1102,37 @@ export default function HrbpPage() {
                     </div>
 
                     {selectedUserInfo && (
-                      <div className="bg-slate-900/60 rounded-2xl p-4 border border-slate-800/80 space-y-2 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">ชื่อ-นามสกุล:</span>
-                          <span className="text-slate-200 font-bold">{selectedUserInfo.full_name}</span>
+                      <div className="space-y-3">
+                        <div className="bg-slate-900/60 rounded-2xl p-4 border border-slate-800/80 space-y-2 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">ชื่อ-นามสกุล:</span>
+                            <span className="text-slate-200 font-bold">{selectedUserInfo.full_name}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">แผนกงาน:</span>
+                            <span className="text-indigo-300 font-bold">{selectedUserInfo.department}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">ตำแหน่ง HRMS:</span>
+                            <span className="text-indigo-400 font-bold">{selectedUserInfo.position || 'General Staff'}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">แผนกงาน:</span>
-                          <span className="text-indigo-300 font-bold">{selectedUserInfo.department}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">ตำแหน่ง HRMS:</span>
-                          <span className="text-indigo-400 font-bold">{selectedUserInfo.position || 'General Staff'}</span>
+
+                        <div className="p-3.5 bg-indigo-950/20 border border-indigo-900/30 rounded-2xl flex items-center justify-between text-xs">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">ประวัติการวิเคราะห์ / History</span>
+                            <span className="text-indigo-300 font-mono font-bold">มีบันทึก {analysisHistory.length} รายการ</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setStep(3);
+                              setActiveResultsSubTab('history');
+                              loadAnalysisHistory();
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/20 hover:text-indigo-300 text-[10px] font-black uppercase tracking-wider transition-all"
+                          >
+                            จัดการประวัติ
+                          </button>
                         </div>
                       </div>
                     )}
@@ -1086,7 +1258,7 @@ export default function HrbpPage() {
                             type="text"
                             value={customPosition}
                             onChange={(e) => setCustomPosition(e.target.value)}
-                            placeholder={selectedUserInfo?.position || 'เช่น Senior Developer, HRBP Manager'}
+                            placeholder={selectedUserInfo?.position || 'เช่น Senior Developer, Manager'}
                             className="w-full bg-[#0F172A] border border-slate-700/60 rounded-xl px-4 py-3 text-xs text-slate-200 outline-none focus:border-indigo-500/80 transition-colors"
                           />
                         </div>
@@ -1507,7 +1679,7 @@ export default function HrbpPage() {
                         <div className="space-y-1 text-slate-300">
                           <div className="flex items-center gap-1 text-emerald-400 font-extrabold uppercase text-[9px] tracking-widest">
                             <Check size={12} />
-                            <span>SIGNED BY HRBP</span>
+                            <span>VERIFIED BY AI ENHANCE</span>
                           </div>
                           <div>ลงนามโดย: <span className="text-white font-bold">{aiAnalysis.acknowledged_by}</span></div>
                           <div className="text-[10px] text-slate-500">{new Date(aiAnalysis.acknowledged_at).toLocaleString('th-TH')}</div>
@@ -1515,7 +1687,7 @@ export default function HrbpPage() {
                       ) : (
                         <div className="space-y-2">
                           <p className="text-slate-400 text-[10px] leading-relaxed">
-                            รายงานนี้ยังไม่ได้รับการลงนามตรวจทานจากทีม HRBP เพื่อเป็นบันทึกข้อแนะนำอย่างเป็นทางการ
+                            รายงานนี้ยังไม่ได้รับการลงนามบันทึกรับทราบผลการประเมินความสามารถเพื่อประกอบคำแนะนำ
                           </p>
                           {!isSharedView && (
                             <button
@@ -1922,30 +2094,53 @@ export default function HrbpPage() {
                                     )}
                                   </div>
 
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex-1 bg-slate-950/60 p-2 rounded-xl border border-slate-800/60 flex items-center justify-around font-mono text-[10px] font-bold">
-                                      <div className="text-center">
-                                        <span className="text-slate-500 uppercase block text-[8px] tracking-widest mb-0.5">ALIGNMENT</span>
-                                        <span className="text-indigo-400">{record.jd_alignment_score || 0}%</span>
-                                      </div>
-                                      <div className="text-center border-l border-slate-800/80 pl-3">
-                                        <span className="text-slate-500 uppercase block text-[8px] tracking-widest mb-0.5">BURNOUT</span>
-                                        <span className={cn(
-                                          (record.burnout_risk_score || 0) > 70 ? "text-rose-400" :
-                                          (record.burnout_risk_score || 0) > 40 ? "text-amber-400" :
-                                          "text-emerald-400"
-                                        )}>
-                                          {record.burnout_risk_score || 0}%
-                                        </span>
-                                      </div>
+                                  <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60 flex items-center justify-around font-mono text-[10px] font-bold">
+                                    <div className="text-center">
+                                      <span className="text-slate-500 uppercase block text-[8px] tracking-widest mb-0.5">ALIGNMENT</span>
+                                      <span className="text-indigo-400">{record.jd_alignment_score || 0}%</span>
                                     </div>
-                                    
+                                    <div className="text-center border-l border-slate-800/80 pl-3">
+                                      <span className="text-slate-500 uppercase block text-[8px] tracking-widest mb-0.5">BURNOUT</span>
+                                      <span className={cn(
+                                        (record.burnout_risk_score || 0) > 70 ? "text-rose-400" :
+                                        (record.burnout_risk_score || 0) > 40 ? "text-amber-400" :
+                                        "text-emerald-400"
+                                      )}>
+                                        {record.burnout_risk_score || 0}%
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between border-t border-slate-800/60 pt-3" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center gap-2">
+                                      {/* Public / Private Toggle */}
+                                      <button
+                                        onClick={() => toggleHistoryRecordShare(record.id, record.is_public)}
+                                        className={cn(
+                                          "px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
+                                          record.is_public
+                                            ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20"
+                                            : "bg-slate-800 text-slate-400 border border-slate-700/50 hover:text-slate-200"
+                                        )}
+                                      >
+                                        {record.is_public ? <Globe size={11} /> : <Lock size={11} />}
+                                        <span>{record.is_public ? 'Public' : 'Private'}</span>
+                                      </button>
+
+                                      {record.is_public && record.share_token && (
+                                        <button
+                                          onClick={() => copyHistoryShareLink(record.share_token)}
+                                          className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors border border-slate-700/50"
+                                          title="Copy URL Share Link to Clipboard"
+                                        >
+                                          <Copy size={11} />
+                                        </button>
+                                      )}
+                                    </div>
+
                                     <button 
-                                      className="px-2.5 py-1.5 rounded-lg bg-[#0F172A] border border-slate-800 hover:border-slate-700 text-slate-300 font-bold transition-all text-[9px] hover:text-indigo-400"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        loadHistoryRecord(record);
-                                      }}
+                                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
+                                      onClick={() => loadHistoryRecord(record)}
                                     >
                                       LOAD
                                     </button>
@@ -1988,18 +2183,124 @@ export default function HrbpPage() {
 
             {/* If no analysis runs exist yet and we are in step 3 */}
             {step === 3 && !aiAnalysis && (
-              <div className="p-12 rounded-3xl bg-[#0B0F19]/80 border border-slate-800/80 shadow-2xl text-center space-y-4 max-w-lg mx-auto">
-                <AlertTriangle size={36} className="text-amber-400 mx-auto animate-bounce" />
-                <h3 className="text-base font-bold text-white uppercase tracking-wider">No Active Diagnostic Results</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  ยังไม่มีการเริ่มต้นประเมินผลพฤติกรรมการทำงานของพนักงานรายบุคคลสำหรับความรับผิดชอบนี้ในระบบ
-                </p>
-                <button
-                  onClick={() => setStep(1)}
-                  className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-indigo-600/20 transition-all inline-block"
-                >
-                  กำหนดตัวแปรและเริ่มวิเคราะห์ (Setup Page)
-                </button>
+              <div className="w-full max-w-4xl mx-auto p-6 rounded-3xl bg-[#0B0F19]/90 border border-slate-800/80 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 space-y-6">
+                <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
+                <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-violet-500/5 rounded-full blur-[100px] pointer-events-none" />
+
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800/60">
+                  <div className="flex items-center gap-2">
+                    <Clock size={18} className="text-emerald-400" />
+                    <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                      ประวัติการประเมินย้อนหลัง (HISTORICAL DIAGNOSTICS LOGS)
+                    </h3>
+                  </div>
+                  
+                  <button
+                    onClick={() => setStep(1)}
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-[10px] font-black uppercase tracking-wider transition-all"
+                  >
+                    ย้อนกลับ / Setup Page
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {isLoadingHistory ? (
+                    <div className="flex justify-center p-12">
+                      <Loader2 className="animate-spin text-indigo-400" size={32} />
+                    </div>
+                  ) : analysisHistory.length === 0 ? (
+                    <div className="text-center p-12 rounded-3xl bg-slate-900/30 border border-slate-800/80 text-xs text-slate-500 italic space-y-4">
+                      <div>ไม่มีประวัติการประเมินมาก่อนสำหรับพนักงานรายนี้ / No history logs found for this employee</div>
+                      <button
+                        onClick={() => setStep(1)}
+                        className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-indigo-600/20 transition-all inline-block not-italic"
+                      >
+                        กำหนดตัวแปรและเริ่มวิเคราะห์ (Setup Page)
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-1">
+                      {analysisHistory.map((record) => (
+                        <div 
+                          key={record.id} 
+                          className="p-5 rounded-2xl border text-xs flex flex-col gap-4 justify-between transition-all hover:border-indigo-500/40 bg-slate-900/50 border-slate-800/80"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                              <span className="font-bold text-slate-200 font-mono tracking-wide text-sm">
+                                📅 {record.start_date} ~ {record.end_date}
+                              </span>
+                              <span className="text-[10px] text-slate-500 block">
+                                วิเคราะห์เมื่อ: {new Date(record.created_at).toLocaleString('th-TH')}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              {record.acknowledged_at && (
+                                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider font-mono">
+                                  SIGNED
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800/60 font-mono text-xs font-bold text-center">
+                            <div>
+                              <span className="text-slate-500 uppercase block text-[8px] tracking-widest mb-0.5">ALIGNMENT</span>
+                              <span className="text-indigo-400 text-sm">{record.jd_alignment_score || 0}%</span>
+                            </div>
+                            <div className="border-l border-slate-800/80">
+                              <span className="text-slate-500 uppercase block text-[8px] tracking-widest mb-0.5">BURNOUT</span>
+                              <span className={cn(
+                                "text-sm",
+                                (record.burnout_risk_score || 0) > 70 ? "text-rose-400" :
+                                (record.burnout_risk_score || 0) > 40 ? "text-amber-400" :
+                                "text-emerald-400"
+                              )}>
+                                {record.burnout_risk_score || 0}%
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between border-t border-slate-800/60 pt-3">
+                            <div className="flex items-center gap-2">
+                              {/* Public / Private Toggle */}
+                              <button
+                                onClick={() => toggleHistoryRecordShare(record.id, record.is_public)}
+                                className={cn(
+                                  "px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
+                                  record.is_public
+                                    ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20"
+                                    : "bg-slate-800 text-slate-400 border border-slate-700/50 hover:text-slate-200"
+                                )}
+                              >
+                                {record.is_public ? <Globe size={11} /> : <Lock size={11} />}
+                                <span>{record.is_public ? 'Public' : 'Private'}</span>
+                              </button>
+
+                              {record.is_public && record.share_token && (
+                                <button
+                                  onClick={() => copyHistoryShareLink(record.share_token)}
+                                  className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors border border-slate-700/50"
+                                  title="Copy URL Share Link to Clipboard"
+                                >
+                                  <Copy size={11} />
+                                </button>
+                              )}
+                            </div>
+
+                            <button 
+                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
+                              onClick={() => loadHistoryRecord(record)}
+                            >
+                              LOAD REPORT
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -2019,7 +2320,7 @@ export default function HrbpPage() {
               <div className="flex items-center gap-2">
                 <UserCheck className="text-indigo-400" size={18} />
                 <h3 className="text-sm font-black text-white uppercase tracking-wider">
-                  HRBP Audit Signature
+                  AI Enhance Verification Sign-Off
                 </h3>
               </div>
               <button 
@@ -2033,12 +2334,12 @@ export default function HrbpPage() {
             <div className="space-y-3.5 text-xs text-slate-300 leading-relaxed">
               <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 text-indigo-300 flex items-start gap-2.5">
                 <Info size={16} className="shrink-0 mt-0.5" />
-                <span>การลงนามรับทราบนี้ เป็นการระบุว่าผู้เชี่ยวชาญฝ่ายทรัพยากรบุคคล (HRBP) หรือผู้บังคับบัญชา ได้ตรวจทานบทวิเคราะห์สมรรถนะ หน้าที่งาน และแผนส่งเสริมพัฒนาการนี้เรียบร้อยแล้ว</span>
+                <span>การลงนามรับทราบนี้ เป็นการยืนยันการรับทราบข้อมูลวิเคราะห์สมรรถนะ แผนการดำเนินงาน และแผนพัฒนาประสิทธิภาพนี้เพื่อประโยชน์ในการเพิ่มศักยภาพพนักงาน</span>
               </div>
               
               <div className="bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2 text-slate-400">
-                <div>ผู้ลงนาม: <span className="text-white font-bold">{sessionUser?.name || 'HRBP Admin'}</span></div>
-                <div>ตำแหน่งลงนาม: <span className="text-white font-bold">{sessionUser?.role === 'admin' ? 'HRBP Administrator / Super Admin' : 'HRBP Associate'}</span></div>
+                <div>ผู้ลงนาม: <span className="text-white font-bold">{sessionUser?.name || 'AI Specialist'}</span></div>
+                <div>ตำแหน่งลงนาม: <span className="text-white font-bold">{sessionUser?.role === 'admin' ? 'AI Enhance Administrator / Super Admin' : 'AI Enhance Associate'}</span></div>
                 <div>รหัสพนักงาน: <span className="text-slate-300 font-mono">{sessionUser?.empId || 'N/A'}</span></div>
               </div>
             </div>

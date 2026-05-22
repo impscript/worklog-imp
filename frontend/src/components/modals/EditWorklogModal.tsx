@@ -293,10 +293,36 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     if (!isOpen || !log) return;
     
     async function loadDropdownData() {
-      const mapName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+      let cleanName = 'Chatchawan';
       
+      // Fetch user from database to get the latest nickname, to avoid stale localStorage issues
+      if (session.id) {
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('nickname, full_name')
+          .eq('id', session.id)
+          .maybeSingle();
+          
+        if (dbUser) {
+          const rawName = dbUser.nickname || dbUser.full_name?.split(' ')[0] || '';
+          cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+        } else {
+          const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+          cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+        }
+      } else {
+        const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+        cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+      }
+      
+      // Trim and ignore Thai names for matching user role in mapping
+      const isThai = /[\u0e00-\u0e7f]/.test(cleanName);
+      if (isThai || !cleanName.trim()) {
+        cleanName = 'Chatchawan';
+      }
+
       const [resUser, resProj, resAct] = await Promise.all([
-        supabase.from('tb_map_user_role').select('*').eq('name', mapName),
+        supabase.from('tb_map_user_role').select('*').ilike('name', cleanName.trim()),
         supabase.from('tb_map_project_structure').select('*'),
         supabase.from('tb_master_action').select('*')
       ]);
@@ -304,7 +330,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       if (resUser.data && resUser.data.length > 0) {
         setMapUserRole(resUser.data);
       } else {
-        const fallback = await supabase.from('tb_map_user_role').select('*').eq('name', 'Chatchawan');
+        const fallback = await supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
         if (fallback.data) setMapUserRole(fallback.data);
       }
       if (resProj.data) setMapProjectStructure(resProj.data);
@@ -397,30 +423,47 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   
   const availableRoles = useMemo(() => {
     if (!holding) return [];
-    return Array.from(new Set(mapUserRole.filter(m => m.holding === holding).map(m => m.department_operator))).sort();
+    return Array.from(new Set(
+      mapUserRole
+        .filter(m => (m.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase())
+        .map(m => m.department_operator)
+    )).sort();
   }, [holding, mapUserRole]);
 
   const availableProjectTypes = useMemo(() => {
     if (!holding || !role) return [];
     return Array.from(new Set(mapProjectStructure
-      .filter(p => p.holding === holding && p.department_operator === role)
+      .filter(p => 
+        (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() && 
+        (p.department_operator || '').trim().toLowerCase() === (role || '').trim().toLowerCase()
+      )
       .map(p => p.project_type))).sort();
   }, [holding, role, mapProjectStructure]);
 
   const availableProjects = useMemo(() => {
     if (!holding || !role || !projectType) return [];
     return Array.from(new Set(mapProjectStructure
-      .filter(p => p.holding === holding && p.department_operator === role && p.project_type === projectType)
+      .filter(p => 
+        (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() && 
+        (p.department_operator || '').trim().toLowerCase() === (role || '').trim().toLowerCase() && 
+        p.project_type === projectType
+      )
       .map(p => p.project_name))).sort();
   }, [holding, role, projectType, mapProjectStructure]);
 
   const availableModules = useMemo(() => {
     if (!projectName) return [];
-    return (mapProjectStructure
-      .filter(p => p.holding === holding && p.department_operator === role && p.project_type === projectType && p.project_name === projectName)
-      .map(p => p.module)
-      .filter(Boolean) as string[])
-      .sort();
+    return Array.from(new Set(
+      mapProjectStructure
+        .filter(p => 
+          (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() && 
+          (p.department_operator || '').trim().toLowerCase() === (role || '').trim().toLowerCase() && 
+          p.project_type === projectType && 
+          p.project_name === projectName
+        )
+        .map(p => p.module)
+        .filter(Boolean) as string[]
+    )).sort();
   }, [projectName, projectType, role, holding, mapProjectStructure]);
 
   // When no modules exist for the selected project, expose BU/Dept options for manual selection
@@ -431,8 +474,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     return Array.from(new Set(
       mapProjectStructure
         .filter(p =>
-          p.holding === holding &&
-          p.department_operator === role &&
+          (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() &&
+          (p.department_operator || '').trim().toLowerCase() === (role || '').trim().toLowerCase() &&
           p.project_type === projectType &&
           p.project_name === projectName
         )
@@ -446,8 +489,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     return Array.from(new Set(
       mapProjectStructure
         .filter(p =>
-          p.holding === holding &&
-          p.department_operator === role &&
+          (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() &&
+          (p.department_operator || '').trim().toLowerCase() === (role || '').trim().toLowerCase() &&
           p.project_type === projectType &&
           p.project_name === projectName &&
           p.bu === bu
@@ -456,6 +499,39 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         .filter(Boolean)
     )).sort() as string[];
   }, [noModuleMode, bu, projectName, projectType, role, holding, mapProjectStructure]);
+
+  const availableBUsForModule = useMemo(() => {
+    if (!projectName || !module) return [];
+    return Array.from(new Set(
+      mapProjectStructure
+        .filter(p =>
+          (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() &&
+          (p.department_operator || '').trim().toLowerCase() === (role || '').trim().toLowerCase() &&
+          p.project_type === projectType &&
+          p.project_name === projectName &&
+          p.module === module
+        )
+        .map(p => p.bu)
+        .filter(Boolean)
+    )).sort() as string[];
+  }, [projectName, projectType, role, holding, module, mapProjectStructure]);
+
+  const availableDeptsForModule = useMemo(() => {
+    if (!projectName || !module || !bu) return [];
+    return Array.from(new Set(
+      mapProjectStructure
+        .filter(p =>
+          (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() &&
+          (p.department_operator || '').trim().toLowerCase() === (role || '').trim().toLowerCase() &&
+          p.project_type === projectType &&
+          p.project_name === projectName &&
+          p.module === module &&
+          p.bu === bu
+        )
+        .map(p => p.department)
+        .filter(Boolean)
+    )).sort() as string[];
+  }, [projectName, projectType, role, holding, module, bu, mapProjectStructure]);
 
   const availableActions = useMemo(() => {
     if (!projectType) return [];
@@ -514,14 +590,55 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       );
 
       if (hasModules) {
-        // Module-based: auto-derive BU/Dept from selected module
-        const match = mapProjectStructure.find(p => 
-          p.holding === holding && p.department_operator === role && p.project_type === projectType && 
-          p.project_name === projectName && (module ? p.module === module : true)
-        );
-        if (match) {
-          setBu(match.bu || '');
-          setDepartment(match.department || '');
+        if (module) {
+          const matches = mapProjectStructure.filter(p =>
+            p.holding === holding &&
+            p.department_operator === role &&
+            p.project_type === projectType &&
+            p.project_name === projectName &&
+            p.module === module
+          );
+          
+          const uniqueBUs = Array.from(new Set(matches.map(m => m.bu).filter(Boolean)));
+          
+          if (uniqueBUs.length === 1) {
+            const singleBU = uniqueBUs[0];
+            setBu(singleBU);
+            
+            const deptsForBU = Array.from(new Set(
+              matches
+                .filter(m => m.bu === singleBU)
+                .map(m => m.department)
+                .filter(Boolean)
+            ));
+            
+            if (deptsForBU.length === 1) {
+              setDepartment(deptsForBU[0]);
+            } else {
+              if (!deptsForBU.includes(department)) {
+                setDepartment('');
+              }
+            }
+          } else {
+            if (!uniqueBUs.includes(bu)) {
+              setBu('');
+              setDepartment('');
+            } else {
+              const deptsForBU = Array.from(new Set(
+                matches
+                  .filter(m => m.bu === bu)
+                  .map(m => m.department)
+                  .filter(Boolean)
+              ));
+              if (!deptsForBU.includes(department)) {
+                setDepartment('');
+              }
+            }
+          }
+        } else {
+          // Only clear if the module actually changed to empty
+          setBu('');
+          setDepartment('');
         }
       } else {
         // No-module mode: BU/Dept chosen by user via dropdown — don't auto-set or clear prepopulated value
@@ -602,6 +719,23 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     if (!log || !holding || !role || !projectType || !projectName || !actionName || preview.duration <= 0) {
       showToast('โปรดกรอกข้อมูลให้ครบทุกช่องก่อนบันทึก', 'warning');
       return;
+    }
+    
+    if (availableModules.length > 0 && !module) {
+      showToast('กรุณาเลือกโมดูล / Please select Module', 'warning');
+      return;
+    }
+
+    const isBuDeptSelectable = noModuleMode || (projectName && module && (availableBUsForModule.length > 1 || availableDeptsForModule.length > 1));
+    if (isBuDeptSelectable) {
+      if (!bu) {
+        showToast('กรุณาเลือก Business Unit (BU) / Please select Business Unit', 'warning');
+        return;
+      }
+      if (!department) {
+        showToast('กรุณาเลือก Target Department / Please select Target Department', 'warning');
+        return;
+      }
     }
     
     if (preview.isOverlap) {
@@ -956,41 +1090,52 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               </div>
             </div>
 
-            {/* Business Unit & Department — auto-derived (with module) or selectable (no module) */}
-            {projectName && (
-              noModuleMode ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">Business Unit <span className="text-rose-400">*</span></label>
-                    <select
-                      value={bu}
-                      onChange={e => { setBu(e.target.value); setDepartment(''); }}
-                      className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
-                    >
-                      <option value="">-- เลือก Business Unit --</option>
-                      {availableBUs.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
+            {/* Business Unit & Department — auto-derived (with module) or selectable (no module or multi-option module) */}
+            {projectName && (() => {
+              const showDropdowns = noModuleMode || (
+                module && (availableBUsForModule.length > 1 || availableDeptsForModule.length > 1)
+              );
+              
+              if (showDropdowns) {
+                const buOpts = noModuleMode ? availableBUs : availableBUsForModule;
+                const deptOpts = noModuleMode ? availableDepts : availableDeptsForModule;
+                
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">Business Unit <span className="text-rose-400">*</span></label>
+                      <select
+                        value={bu}
+                        onChange={e => { setBu(e.target.value); setDepartment(''); }}
+                        className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                      >
+                        <option value="">-- เลือก Business Unit --</option>
+                        {buOpts.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">Target Department <span className="text-rose-400">*</span></label>
+                      <select
+                        value={department}
+                        onChange={e => setDepartment(e.target.value)}
+                        disabled={!bu}
+                        className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
+                      >
+                        <option value="">-- เลือก Target Department --</option>
+                        {deptOpts.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1.5 ml-1">Target Department <span className="text-rose-400">*</span></label>
-                    <select
-                      value={department}
-                      onChange={e => setDepartment(e.target.value)}
-                      disabled={!bu}
-                      className="w-full bg-[#0F172A]/90 border border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:opacity-40 transition-all"
-                    >
-                      <option value="">-- เลือก Target Department --</option>
-                      {availableDepts.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                );
+              } else {
+                return (
+                  <div className="grid grid-cols-2 gap-4 p-3 bg-slate-800/40 rounded-xl border border-slate-700/50 text-[11px] font-semibold text-slate-400">
+                    <div>7. Business Unit: <span className="text-white font-mono">{bu || '-'}</span></div>
+                    <div>8. Target Department: <span className="text-white font-mono">{department || '-'}</span></div>
                   </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4 p-3 bg-slate-800/40 rounded-xl border border-slate-700/50 text-[11px] font-semibold text-slate-400">
-                  <div>7. Business Unit: <span className="text-white font-mono">{bu || '-'}</span></div>
-                  <div>8. Target Department: <span className="text-white font-mono">{department || '-'}</span></div>
-                </div>
-              )
-            )}
+                );
+              }
+            })()}
 
             {/* Optional Action Channels as Clickable Tag Chips */}
             <div className="space-y-2 mt-4 pt-2 border-t border-slate-700/30">

@@ -292,6 +292,7 @@ export default function LogWorkPage() {
 
   // Cascading State
   const [selectedHolding, setSelectedHolding] = useState<string>('');
+  const [selectedRoleOperator, setSelectedRoleOperator] = useState<string>('');
   const [holding, setHolding] = useState<string>('');
   const [role, setRole] = useState<string>('');
   const [projectType, setProjectType] = useState<string>('');
@@ -310,19 +311,130 @@ export default function LogWorkPage() {
   const [mapProjectStructure, setMapProjectStructure] = useState<any[]>([]);
   const [masterActions, setMasterActions] = useState<any[]>([]);
 
+  // Simulated User States
+  const [selectedUser, setSelectedUser] = useState<string>('');
+  const [allUsers, setAllUsers] = useState<string[]>([]);
+  const [resolvedUserId, setResolvedUserId] = useState<string>('');
+
   // Daily context state
   const [existingEntries, setExistingEntries] = useState<any[]>([]);
   const [isHolidayDate, setIsHolidayDate] = useState(false);
   const [holidayName, setHolidayName] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Load unique user list and default selection
+  useEffect(() => {
+    async function loadUsersAndResolve() {
+      try {
+        const { data } = await supabase.from('tb_map_user_role').select('name');
+        let uniqueNames: string[] = [];
+        if (data) {
+          uniqueNames = Array.from(new Set(data.map(d => d.name).filter(Boolean))) as string[];
+        }
+        
+        // Calculate clean name for current logged-in user
+        let currentCleanName = 'Chatchawan';
+        if (session.id) {
+          const { data: dbUser } = await supabase
+            .from('users')
+            .select('nickname, full_name')
+            .eq('id', session.id)
+            .maybeSingle();
+            
+          if (dbUser) {
+            const rawName = dbUser.nickname || dbUser.full_name?.split(' ')[0] || '';
+            currentCleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+          } else {
+            const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+            currentCleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+          }
+        } else {
+          const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+          currentCleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+        }
+        
+        const isThai = /[\u0e00-\u0e7f]/.test(currentCleanName);
+        if (isThai || !currentCleanName.trim()) {
+          currentCleanName = 'Chatchawan';
+        }
+
+        // Add logged-in user's clean name if not present
+        if (!uniqueNames.some(name => name.toLowerCase() === currentCleanName.toLowerCase())) {
+          uniqueNames.push(currentCleanName);
+        }
+        
+        uniqueNames.sort();
+        setAllUsers(uniqueNames);
+        
+        if (!selectedUser) {
+          setSelectedUser(currentCleanName);
+        }
+      } catch (err) {
+        console.error('Failed to load users:', err);
+      }
+    }
+    loadUsersAndResolve();
+  }, [session]);
+
+  // Resolve user_id whenever selectedUser changes
+  useEffect(() => {
+    async function resolveUser() {
+      if (!selectedUser) return;
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .ilike('nickname', `%${selectedUser}%`)
+          .limit(1)
+          .maybeSingle();
+        
+        if (userData) {
+          setResolvedUserId(userData.id);
+        } else {
+          setResolvedUserId(session.id || '');
+        }
+      } catch (err) {
+        console.error('Error resolving user ID:', err);
+        setResolvedUserId(session.id || '');
+      }
+    }
+    resolveUser();
+  }, [selectedUser, session]);
+
   // Fetch Data from Supabase
   useEffect(() => {
     async function loadData() {
-      const mapName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+      let cleanName = 'Chatchawan';
       
+      if (session.id) {
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('nickname, full_name')
+          .eq('id', session.id)
+          .maybeSingle();
+          
+        if (dbUser) {
+          const rawName = dbUser.nickname || dbUser.full_name?.split(' ')[0] || '';
+          cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+        } else {
+          const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+          cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+        }
+      } else {
+        const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+        cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+      }
+      
+      const isThai = /[\u0e00-\u0e7f]/.test(cleanName);
+      if (isThai || !cleanName.trim()) {
+        cleanName = 'Chatchawan';
+      }
+
+      const targetUser = selectedUser || cleanName;
+      console.log('LogWorkPage loading mappings for targetUser:', targetUser);
+
       const [resUser, resProj, resAct] = await Promise.all([
-        supabase.from('tb_map_user_role').select('*').eq('name', mapName),
+        supabase.from('tb_map_user_role').select('*').ilike('name', targetUser.trim()),
         supabase.from('tb_map_project_structure').select('*'),
         supabase.from('tb_master_action').select('*')
       ]);
@@ -330,24 +442,37 @@ export default function LogWorkPage() {
       if (resUser.data && resUser.data.length > 0) {
         setMapUserRole(resUser.data);
       } else {
-        // Fallback for demo if no data
-        const fallback = await supabase.from('tb_map_user_role').select('*').eq('name', 'Chatchawan');
+        const fallback = await supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
         if (fallback.data) setMapUserRole(fallback.data);
       }
       if (resProj.data) setMapProjectStructure(resProj.data);
       if (resAct.data) setMasterActions(resAct.data);
     }
     loadData();
-  }, [session]);
+  }, [session, selectedUser]);
 
   // Fetch daily entries and holiday status
   useEffect(() => {
+    let active = true;
     async function loadDailyData() {
-      let userId = session.id;
+      let userId = resolvedUserId;
+      if (selectedUser) {
+        try {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('id')
+            .ilike('nickname', `%${selectedUser}%`)
+            .limit(1)
+            .maybeSingle();
+          if (userData && active) {
+            userId = userData.id;
+          }
+        } catch (err) {
+          console.error('Error resolving user ID inline:', err);
+        }
+      }
       if (!userId) {
-        const mapName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
-        const { data: userData } = await supabase.from('users').select('id').eq('nickname', mapName).maybeSingle();
-        userId = userData?.id;
+        userId = session.id || '';
       }
       if (!userId) return;
 
@@ -357,31 +482,44 @@ export default function LogWorkPage() {
         .select('*')
         .eq('user_id', userId)
         .eq('work_date', date);
-      if (logs) setExistingEntries(logs);
+      if (active) {
+        if (logs) {
+          setExistingEntries(logs);
+        } else {
+          setExistingEntries([]);
+        }
+      }
 
       // 2. Check if weekend or holiday
       const d = new Date(date);
       const day = d.getDay(); // 0 = Sunday, 6 = Saturday
       if (day === 0 || day === 6) {
-        setIsHolidayDate(true);
-        setHolidayName(day === 0 ? 'วันอาทิตย์ (Weekend)' : 'วันเสาร์ (Weekend)');
+        if (active) {
+          setIsHolidayDate(true);
+          setHolidayName(day === 0 ? 'วันอาทิตย์ (Weekend)' : 'วันเสาร์ (Weekend)');
+        }
       } else {
         const { data: holiday } = await supabase
           .from('tb_master_holiday')
           .select('name')
           .eq('date', date)
           .maybeSingle();
-        if (holiday) {
-          setIsHolidayDate(true);
-          setHolidayName(holiday.name);
-        } else {
-          setIsHolidayDate(false);
-          setHolidayName('');
+        if (active) {
+          if (holiday) {
+            setIsHolidayDate(true);
+            setHolidayName(holiday.name);
+          } else {
+            setIsHolidayDate(false);
+            setHolidayName('');
+          }
         }
       }
     }
     loadDailyData();
-  }, [date, session, refreshTrigger]);
+    return () => {
+      active = false;
+    };
+  }, [date, session, refreshTrigger, resolvedUserId, selectedUser]);
 
   // Automatically check/force explicit OT flag if holiday is detected
   useEffect(() => {
@@ -394,7 +532,10 @@ export default function LogWorkPage() {
 
   const allowedProjects = useMemo(() => {
     return mapProjectStructure.filter(proj => 
-      mapUserRole.some(ur => ur.holding === proj.holding && ur.department_operator === proj.department_operator)
+      mapUserRole.some(ur => 
+        (ur.holding || '').trim().toLowerCase() === (proj.holding || '').trim().toLowerCase() && 
+        (ur.department_operator || '').trim().toLowerCase() === (proj.department_operator || '').trim().toLowerCase()
+      )
     );
   }, [mapProjectStructure, mapUserRole]);
 
@@ -402,17 +543,33 @@ export default function LogWorkPage() {
     return Array.from(new Set(allowedProjects.map(p => p.holding).filter(Boolean))).sort() as string[];
   }, [allowedProjects]);
 
+  const availableRoleOperators = useMemo(() => {
+    if (!selectedHolding) return [];
+    return Array.from(new Set(
+      mapUserRole
+        .filter(ur => (ur.holding || '').trim().toLowerCase() === selectedHolding.trim().toLowerCase())
+        .map(ur => ur.department_operator)
+        .filter(Boolean)
+    )).sort() as string[];
+  }, [mapUserRole, selectedHolding]);
+
   const availableProjectTypes = useMemo(() => {
-    const filtered = selectedHolding
-      ? allowedProjects.filter(p => p.holding === selectedHolding)
-      : allowedProjects;
+    if (!selectedHolding || !selectedRoleOperator) return [];
+    const filtered = allowedProjects.filter(p => 
+      (p.holding || '').trim().toLowerCase() === selectedHolding.trim().toLowerCase() && 
+      (p.department_operator || '').trim().toLowerCase() === selectedRoleOperator.trim().toLowerCase()
+    );
     return Array.from(new Set(filtered.map(p => p.project_type))).sort();
-  }, [allowedProjects, selectedHolding]);
+  }, [allowedProjects, selectedHolding, selectedRoleOperator]);
 
   const availableProjects = useMemo(() => {
-    if (!projectType) return [];
+    if (!projectType || !selectedHolding || !selectedRoleOperator) return [];
     
-    const typeProjs = allowedProjects.filter(p => p.project_type === projectType && (!selectedHolding || p.holding === selectedHolding));
+    const typeProjs = allowedProjects.filter(p => 
+      p.project_type === projectType && 
+      (p.holding || '').trim().toLowerCase() === selectedHolding.trim().toLowerCase() && 
+      (p.department_operator || '').trim().toLowerCase() === selectedRoleOperator.trim().toLowerCase()
+    );
     const seen = new Set<string>();
     const options: { label: string; value: string }[] = [];
     
@@ -420,33 +577,26 @@ export default function LogWorkPage() {
       const key = `${p.project_name}|${p.holding}|${p.department_operator}`;
       if (!seen.has(key)) {
         seen.add(key);
-        const isDupeName = typeProjs.some(x => 
-          x.project_name === p.project_name && 
-          (x.holding !== p.holding || x.department_operator !== p.department_operator)
-        );
-        const label = isDupeName 
-          ? `${p.project_name} (${p.holding} - ${p.department_operator})` 
-          : p.project_name;
-          
-        options.push({ label, value: key });
+        options.push({ label: p.project_name, value: key });
       }
     }
     return options.sort((a, b) => a.label.localeCompare(b.label));
-  }, [projectType, allowedProjects]);
+  }, [projectType, allowedProjects, selectedHolding, selectedRoleOperator]);
 
   const availableModules = useMemo(() => {
     if (!selectedProjectKey) return [];
     const [pName, pHolding, pRole] = selectedProjectKey.split('|');
-    return allowedProjects
-      .filter(p => 
-        p.project_type === projectType && 
-        p.project_name === pName && 
-        p.holding === pHolding && 
-        p.department_operator === pRole
-      )
-      .map(p => p.module)
-      .filter(Boolean)
-      .sort() as string[];
+    return Array.from(new Set(
+      allowedProjects
+        .filter(p => 
+          p.project_type === projectType && 
+          p.project_name === pName && 
+          p.holding === pHolding && 
+          p.department_operator === pRole
+        )
+        .map(p => p.module)
+        .filter(Boolean)
+    )).sort() as string[];
   }, [selectedProjectKey, projectType, allowedProjects]);
 
   // When no modules exist for the selected project, expose BU/Dept options for manual selection
@@ -485,6 +635,41 @@ export default function LogWorkPage() {
     )).sort() as string[];
   }, [noModuleMode, bu, selectedProjectKey, projectType, allowedProjects]);
 
+  const availableBUsForModule = useMemo(() => {
+    if (!selectedProjectKey || !module) return [];
+    const [pName, pHolding, pRole] = selectedProjectKey.split('|');
+    return Array.from(new Set(
+      allowedProjects
+        .filter(p =>
+          p.project_type === projectType &&
+          p.project_name === pName &&
+          p.holding === pHolding &&
+          p.department_operator === pRole &&
+          p.module === module
+        )
+        .map(p => p.bu)
+        .filter(Boolean)
+    )).sort() as string[];
+  }, [selectedProjectKey, projectType, module, allowedProjects]);
+
+  const availableDeptsForModule = useMemo(() => {
+    if (!selectedProjectKey || !module || !bu) return [];
+    const [pName, pHolding, pRole] = selectedProjectKey.split('|');
+    return Array.from(new Set(
+      allowedProjects
+        .filter(p =>
+          p.project_type === projectType &&
+          p.project_name === pName &&
+          p.holding === pHolding &&
+          p.department_operator === pRole &&
+          p.module === module &&
+          p.bu === bu
+        )
+        .map(p => p.department)
+        .filter(Boolean)
+    )).sort() as string[];
+  }, [selectedProjectKey, projectType, module, bu, allowedProjects]);
+
   const availableActions = useMemo(() => {
     if (!projectType) return [];
     const category = projectType === 'Management' ? 'Management' : projectType.includes('Support') ? 'Support' : 'Project';
@@ -508,17 +693,54 @@ export default function LogWorkPage() {
       );
 
       if (hasModules) {
-        // Module-based: auto-derive BU/Dept from selected module
-        const match = allowedProjects.find(p =>
-          p.project_type === projectType &&
-          p.project_name === pName &&
-          p.holding === pHolding &&
-          p.department_operator === pRole &&
-          (module ? p.module === module : true)
-        );
-        if (match) {
-          setBu(match.bu);
-          setDepartment(match.department);
+        if (module) {
+          const matches = allowedProjects.filter(p =>
+            p.project_type === projectType &&
+            p.project_name === pName &&
+            p.holding === pHolding &&
+            p.department_operator === pRole &&
+            p.module === module
+          );
+          
+          const uniqueBUs = Array.from(new Set(matches.map(m => m.bu).filter(Boolean)));
+          
+          if (uniqueBUs.length === 1) {
+            const singleBU = uniqueBUs[0];
+            setBu(singleBU);
+            
+            const deptsForBU = Array.from(new Set(
+              matches
+                .filter(m => m.bu === singleBU)
+                .map(m => m.department)
+                .filter(Boolean)
+            ));
+            
+            if (deptsForBU.length === 1) {
+              setDepartment(deptsForBU[0]);
+            } else {
+              if (!deptsForBU.includes(department)) {
+                setDepartment('');
+              }
+            }
+          } else {
+            if (!uniqueBUs.includes(bu)) {
+              setBu('');
+              setDepartment('');
+            } else {
+              const deptsForBU = Array.from(new Set(
+                matches
+                  .filter(m => m.bu === bu)
+                  .map(m => m.department)
+                  .filter(Boolean)
+              ));
+              if (!deptsForBU.includes(department)) {
+                setDepartment('');
+              }
+            }
+          }
+        } else {
+          setBu('');
+          setDepartment('');
         }
       } else {
         // No-module mode: BU/Dept chosen by user via dropdown — don't auto-set
@@ -535,9 +757,15 @@ export default function LogWorkPage() {
 
   // Resets
   useEffect(() => {
+    setSelectedRoleOperator('');
     setProjectType('');
     setSelectedProjectKey('');
   }, [selectedHolding]);
+
+  useEffect(() => {
+    setProjectType('');
+    setSelectedProjectKey('');
+  }, [selectedRoleOperator]);
 
   useEffect(() => {
     setSelectedProjectKey('');
@@ -550,12 +778,30 @@ export default function LogWorkPage() {
     setDepartment('');
   }, [selectedProjectKey]);
 
+  // Reset all selections when switching simulated user
+  useEffect(() => {
+    setSelectedHolding('');
+    setSelectedRoleOperator('');
+    setProjectType('');
+    setSelectedProjectKey('');
+    setModule('');
+    setActionName('');
+    setBu('');
+    setDepartment('');
+  }, [selectedUser]);
+
   // Auto-select if only 1 option available
   useEffect(() => {
     if (availableHoldings.length === 1 && !selectedHolding) {
       setSelectedHolding(availableHoldings[0]);
     }
   }, [availableHoldings, selectedHolding]);
+
+  useEffect(() => {
+    if (availableRoleOperators.length === 1 && !selectedRoleOperator) {
+      setSelectedRoleOperator(availableRoleOperators[0]);
+    }
+  }, [availableRoleOperators, selectedRoleOperator]);
 
   useEffect(() => {
     if (availableProjectTypes.length === 1 && !projectType) {
@@ -729,7 +975,8 @@ export default function LogWorkPage() {
       showToast('กรุณาเลือกโมดูล / Please select Module', 'error');
       return;
     }
-    if (noModuleMode) {
+    const isBuDeptSelectable = noModuleMode || (projectName && module && (availableBUsForModule.length > 1 || availableDeptsForModule.length > 1));
+    if (isBuDeptSelectable) {
       if (!bu) {
         showToast('กรุณาเลือก Business Unit (BU) / Please select Business Unit', 'error');
         return;
@@ -774,12 +1021,12 @@ export default function LogWorkPage() {
 
     setIsSubmitting(true);
     try {
-      // Get the correct user ID from the active session
-      let userId = session.id;
+      // Get the correct user ID from the active session or simulated user
+      let userId = resolvedUserId || session.id;
       
       if (!userId) {
         // Fallback for safety/dev
-        const mapName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+        const mapName = selectedUser || session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
         let { data: userData } = await supabase.from('users').select('id').eq('nickname', mapName).maybeSingle();
         userId = userData?.id;
         
@@ -787,7 +1034,7 @@ export default function LogWorkPage() {
           const { data: newUser, error: createErr } = await supabase.from('users').insert({
             emp_id: `EMP-${Math.floor(Math.random() * 10000)}`,
             email: `${mapName.toLowerCase()}@example.com`,
-            full_name: session.name || mapName,
+            full_name: mapName,
             nickname: mapName,
             role: 'user'
           }).select('id').maybeSingle();
@@ -904,17 +1151,30 @@ export default function LogWorkPage() {
         
         <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 md:p-8 shadow-xl shadow-black/20">
           
-          {/* Date Picker */}
-          <div className="mb-8">
-            <label className="block text-sm font-medium text-slate-300 mb-2">เลือกวันที่ / Select Date</label>
-            <div className="relative w-full sm:w-1/2">
-              <input 
-                type="date" 
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-[#0F172A] border border-slate-600 rounded-lg py-2.5 px-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              />
+          {/* Date Picker & User Selector */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">เลือกวันที่ / Select Date</label>
+              <div className="relative w-full">
+                <input 
+                  type="date" 
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full bg-[#0F172A] border border-slate-600 rounded-lg py-2.5 px-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                />
+              </div>
             </div>
+
+            <DropdownField
+              label="ผู้ใช้งานจำลองสิทธิ์ / Simulating User"
+              value={selectedUser}
+              onChange={(v) => setSelectedUser(v)}
+              options={allUsers.map((u) => ({
+                value: u,
+                label: `${u}${u.toLowerCase() === (session.nickname || '').split('_')[0].toLowerCase() ? ' (You)' : ''}`
+              }))}
+              placeholder="เลือกผู้ใช้งาน / Select User"
+            />
           </div>
 
           <div className="h-px bg-slate-700/50 w-full mb-8"></div>
@@ -922,14 +1182,22 @@ export default function LogWorkPage() {
           {/* Cascading Logic Area */}
           <div className="space-y-6 mb-8">
             
-            {/* Row 1: Holding */}
-            <div className="grid grid-cols-1 gap-6">
+            {/* Row 1: Holding & Role Operator */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <DropdownField
                 label="Holding"
                 value={selectedHolding}
                 onChange={setSelectedHolding}
                 options={availableHoldings}
                 placeholder="Select Holding"
+              />
+              <DropdownField
+                label="Role Operator (Department Operator)"
+                value={selectedRoleOperator}
+                onChange={setSelectedRoleOperator}
+                options={availableRoleOperators}
+                disabled={!selectedHolding}
+                placeholder={!selectedHolding ? "Select Holding first" : "Select Role Operator"}
               />
             </div>
 
@@ -940,7 +1208,7 @@ export default function LogWorkPage() {
                 value={projectType} 
                 onChange={setProjectType} 
                 options={availableProjectTypes}
-                disabled={!selectedHolding}
+                disabled={!selectedRoleOperator}
                 placeholder="Select Type"
               />
               <SearchableCombobox
@@ -973,47 +1241,58 @@ export default function LogWorkPage() {
               />
             </div>
 
-            {/* Business Unit & Department — auto-derived (with module) or selectable (no module) */}
-            {projectName && (
-              noModuleMode ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1.5">BUSINESS UNIT <span className="text-rose-400">*</span></label>
-                    <select
-                      value={bu}
-                      onChange={e => { setBu(e.target.value); setDepartment(''); }}
-                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-700 bg-[#0F172A]/80 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
-                    >
-                      <option value="">— Select BU —</option>
-                      {availableBUs.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
+            {/* Business Unit & Department — auto-derived (with module) or selectable (no module or multi-option module) */}
+            {projectName && (() => {
+              const showDropdowns = noModuleMode || (
+                module && (availableBUsForModule.length > 1 || availableDeptsForModule.length > 1)
+              );
+              
+              if (showDropdowns) {
+                const buOpts = noModuleMode ? availableBUs : availableBUsForModule;
+                const deptOpts = noModuleMode ? availableDepts : availableDeptsForModule;
+                
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1.5">BUSINESS UNIT <span className="text-rose-400">*</span></label>
+                      <select
+                        value={bu}
+                        onChange={e => { setBu(e.target.value); setDepartment(''); }}
+                        className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-700 bg-[#0F172A]/80 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                      >
+                        <option value="">— Select BU —</option>
+                        {buOpts.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1.5">TARGET DEPARTMENT <span className="text-rose-400">*</span></label>
+                      <select
+                        value={department}
+                        onChange={e => setDepartment(e.target.value)}
+                        disabled={!bu}
+                        className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-700 bg-[#0F172A]/80 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all disabled:opacity-40"
+                      >
+                        <option value="">— Select Department —</option>
+                        {deptOpts.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1.5">TARGET DEPARTMENT <span className="text-rose-400">*</span></label>
-                    <select
-                      value={department}
-                      onChange={e => setDepartment(e.target.value)}
-                      disabled={!bu}
-                      className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-700 bg-[#0F172A]/80 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all disabled:opacity-40"
-                    >
-                      <option value="">— Select Department —</option>
-                      {availableDepts.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                );
+              } else {
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-800/40 border border-slate-700/50 rounded-xl text-xs font-semibold text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Business Unit:</span>
+                      <span className="text-slate-200 font-mono">{bu || '-'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Target Department:</span>
+                      <span className="text-slate-200 font-mono">{department || '-'}</span>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-800/40 border border-slate-700/50 rounded-xl text-xs font-semibold text-slate-400">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Business Unit:</span>
-                    <span className="text-slate-200 font-mono">{bu || '-'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Target Department:</span>
-                    <span className="text-slate-200 font-mono">{department || '-'}</span>
-                  </div>
-                </div>
-              )
-            )}
+                );
+              }
+            })()}
 
             {/* Optional Action Channels as Clickable Tag Chips */}
             <div className="space-y-2 mt-4">
@@ -1049,8 +1328,8 @@ export default function LogWorkPage() {
               </div>
             </div>
 
-            {/* Auto-filled Preview (only in module mode) */}
-            {!noModuleMode && (bu || department) && (
+            {/* Auto-filled Preview (only in module mode when BU/Dept are unique/auto-derived) */}
+            {!noModuleMode && (bu || department) && !(availableBUsForModule.length > 1 || availableDeptsForModule.length > 1) && (
               <div className="flex items-center gap-3 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl mt-4">
                 <Check className="text-indigo-400 shrink-0" size={18} />
                 <div className="text-sm">

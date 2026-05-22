@@ -6,9 +6,14 @@ const supabase = createClient(
 );
 
 async function run() {
-  console.log('Testing users table...');
-  const users = await supabase.from('users').select('*');
-  console.log('users:', users.data, users.error);
+  console.log('Testing tb_map_user_role table...');
+  const { data, error } = await supabase.from('tb_map_user_role').select('name');
+  if (error) {
+    console.error('Error:', error);
+  } else {
+    const names = [...new Set(data.map(d => d.name))];
+    console.log('Unique names in tb_map_user_role:', names);
+  }
 }
 
 run();

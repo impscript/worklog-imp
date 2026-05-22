@@ -212,6 +212,18 @@ html.light {
   .bg-\[\#0B0F19\], .bg-\[\#0b0f19\] {
     background-color: #f8fafc !important;
   }
+  .bg-\[\#0B0F19\]\/80, .bg-\[\#0b0f19\]\/80 {
+    background-color: rgba(255, 255, 255, 0.8) !important;
+    border-color: rgba(226, 232, 240, 0.8) !important;
+  }
+  .bg-\[\#0B0F19\]\/90, .bg-\[\#0b0f19\]\/90 {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border-color: rgba(226, 232, 240, 0.9) !important;
+  }
+  .bg-gradient-to-br.from-\[\#0B0F19\].to-\[\#0A0D15\],
+  .bg-gradient-to-br.from-\[\#0b0f19\].to-\[\#0a0d15\] {
+    background-image: linear-gradient(to bottom right, #ffffff, #f8fafc) !important;
+  }
   .bg-\[\#0F172A\], .bg-\[\#0f172a\] {
     background-color: #f8fafc !important;
   }
@@ -224,14 +236,29 @@ html.light {
   .bg-\[\#0F172A\]\/50, .bg-\[\#0f172a\]\/50 {
     background-color: rgba(248, 250, 252, 0.8) !important;
   }
+  .bg-\[\#0F172A\]\/60, .bg-\[\#0f172a\]\/60 {
+    background-color: rgba(248, 250, 252, 0.8) !important;
+    border-color: rgba(226, 232, 240, 0.6) !important;
+  }
   .bg-\[\#0F172A\]\/80, .bg-\[\#0f172a\]\/80 {
     background-color: rgba(248, 250, 252, 0.9) !important;
+  }
+  .bg-\[\#020617\] {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
   }
   .bg-slate-900 {
     background-color: #f8fafc !important;
   }
+  .bg-slate-900\/60 {
+    background-color: rgba(241, 245, 249, 0.6) !important;
+  }
   .bg-slate-950, .bg-slate-950\/20, .bg-slate-950\/25, .bg-slate-950\/50 {
     background-color: rgba(241, 245, 249, 0.5) !important;
+  }
+  .bg-slate-950\/60 {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
   }
   .bg-slate-950\/50 {
     background-color: #f8fafc !important;
@@ -258,6 +285,54 @@ html.light {
 
   /* Text color overrides */
   .text-white, .text-slate-100 {
+    color: #0f172a !important;
+  }
+
+  /* Override text color on light-themed card gradients and custom card backgrounds */
+  .bg-gradient-to-br.from-\[\#0B0F19\].to-\[\#0A0D15\] *,
+  .bg-gradient-to-br.from-\[\#0b0f19\].to-\[\#0a0d15\] *,
+  .bg-gradient-to-br.from-\[\#0B0F19\].to-\[\#0A0D15\],
+  .bg-gradient-to-br.from-\[\#0b0f19\].to-\[\#0a0d15\],
+  .bg-\[\#0B0F19\]\/80 *,
+  .bg-\[\#0b0f19\]\/80 *,
+  .bg-\[\#0B0F19\]\/80,
+  .bg-\[\#0b0f19\]\/80,
+  .bg-\[\#0B0F19\]\/90 *,
+  .bg-\[\#0b0f19\]\/90 *,
+  .bg-\[\#0B0F19\]\/90,
+  .bg-\[\#0b0f19\]\/90 {
+    color: #0f172a !important;
+  }
+
+  /* Specific sub-element color states within cards and consoles */
+  .bg-gradient-to-br.from-\[\#0B0F19\].to-\[\#0A0D15\] .text-slate-400,
+  .bg-gradient-to-br.from-\[\#0b0f19\].to-\[\#0a0d15\] .text-slate-400,
+  .bg-\[\#0B0F19\]\/80 .text-slate-400,
+  .bg-\[\#0b0f19\]\/80 .text-slate-400,
+  .bg-\[\#0B0F19\]\/90 .text-slate-400,
+  .bg-\[\#0b0f19\]\/90 .text-slate-400 {
+    color: #475569 !important;
+  }
+
+  .bg-gradient-to-br.from-\[\#0B0F19\].to-\[\#0A0D15\] .text-slate-500,
+  .bg-gradient-to-br.from-\[\#0b0f19\].to-\[\#0a0d15\] .text-slate-500,
+  .bg-\[\#0B0F19\]\/80 .text-slate-500,
+  .bg-\[\#0b0f19\]\/80 .text-slate-500,
+  .bg-\[\#0B0F19\]\/90 .text-slate-500,
+  .bg-\[\#0b0f19\]\/90 .text-slate-500 {
+    color: #64748b !important;
+  }
+
+  .bg-gradient-to-br.from-\[\#0B0F19\].to-\[\#0A0D15\] .text-slate-300,
+  .bg-gradient-to-br.from-\[\#0b0f19\].to-\[\#0a0d15\] .text-slate-300,
+  .bg-\[\#0B0F19\]\/80 .text-slate-300,
+  .bg-\[\#0b0f19\]\/80 .text-slate-300,
+  .bg-\[\#0B0F19\]\/90 .text-slate-300,
+  .bg-\[\#0b0f19\]\/90 .text-slate-300 {
+    color: #334155 !important;
+  }
+
+  .hover\:text-white:hover {
     color: #0f172a !important;
   }
 
@@ -641,7 +716,7 @@ html.light {
   }
 
   /* ── Calendar: selected cell ── */
-  .bg-\[\\#1e293b\]\/90, .bg-\[\\#1E293B\]\/90 {
+  .bg-\[\#1e293b\]\/90, .bg-\[\#1E293B\]\/90 {
     background-color: rgba(255,255,255,0.95) !important;
     border-color: #6366f1 !important;
   }
