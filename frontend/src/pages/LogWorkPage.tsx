@@ -1263,20 +1263,20 @@ export default function LogWorkPage() {
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-white mb-8 tracking-tight">Log Work</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-8 tracking-tight">Log Work</h1>
         
-        <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 md:p-8 shadow-xl shadow-black/20">
+        <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-6 md:p-8 shadow-xl shadow-black/20">
           
           {/* Date Picker & User Selector */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">เลือกวันที่ / Select Date</label>
+              <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">เลือกวันที่ / Select Date</label>
               <div className="relative w-full">
                 <input 
                   type="date" 
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-[#0F172A] border border-slate-600 rounded-lg py-2.5 px-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2.5 px-4 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 />
               </div>
             </div>
@@ -1370,23 +1370,23 @@ export default function LogWorkPage() {
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1.5">BUSINESS UNIT <span className="text-rose-400">*</span></label>
+                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">BUSINESS UNIT <span className="text-rose-400">*</span></label>
                       <select
                         value={bu}
                         onChange={e => { setBu(e.target.value); setDepartment(''); }}
-                        className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-700 bg-[#0F172A]/80 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                        className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0F172A]/80 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                       >
                         <option value="">— Select BU —</option>
                         {buOpts.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1.5">TARGET DEPARTMENT <span className="text-rose-400">*</span></label>
+                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">TARGET DEPARTMENT <span className="text-rose-400">*</span></label>
                       <select
                         value={department}
                         onChange={e => setDepartment(e.target.value)}
                         disabled={!bu}
-                        className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-700 bg-[#0F172A]/80 text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all disabled:opacity-40"
+                        className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0F172A]/80 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all disabled:opacity-40"
                       >
                         <option value="">— Select Department —</option>
                         {deptOpts.map(d => <option key={d} value={d}>{d}</option>)}
@@ -1396,14 +1396,14 @@ export default function LogWorkPage() {
                 );
               } else {
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-800/40 border border-slate-700/50 rounded-xl text-xs font-semibold text-slate-400">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400">
                     <div className="flex items-center gap-2">
                       <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Business Unit:</span>
-                      <span className="text-slate-200 font-mono">{bu || '-'}</span>
+                      <span className="text-slate-800 dark:text-slate-200 font-mono">{bu || '-'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-slate-500 uppercase text-[10px] tracking-wider font-bold">Target Department:</span>
-                      <span className="text-slate-200 font-mono">{department || '-'}</span>
+                      <span className="text-slate-800 dark:text-slate-200 font-mono">{department || '-'}</span>
                     </div>
                   </div>
                 );
@@ -1412,7 +1412,7 @@ export default function LogWorkPage() {
 
             {/* Optional Action Channels as Clickable Tag Chips */}
             <div className="space-y-2 mt-4">
-              <label className="block text-xs font-semibold text-slate-400">ช่องทางการสื่อสาร (Action Channels - Optional)</label>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">ช่องทางการสื่อสาร (Action Channels - Optional)</label>
               <div className="flex flex-wrap gap-2.5">
                 {['Meeting', 'Discuss via phone', 'On site'].map((channelOption) => {
                   const isSelected = selectedActionChannels.includes(channelOption);
@@ -1430,8 +1430,8 @@ export default function LogWorkPage() {
                       className={cn(
                         "px-4 py-2 text-xs font-bold rounded-full transition-all duration-200 border flex items-center gap-1.5 active:scale-95 shadow-sm",
                         isSelected
-                          ? "bg-gradient-to-r from-indigo-500 to-indigo-600 border-indigo-400/30 text-white hover:from-indigo-600 hover:to-indigo-700 shadow-indigo-500/10 animate-in zoom-in-95 duration-100"
-                          : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 hover:border-slate-600"
+                          ? "bg-gradient-to-r from-indigo-500 to-indigo-600 border-indigo-400/30 text-slate-900 dark:text-white hover:from-indigo-600 hover:to-indigo-700 shadow-indigo-500/10 animate-in zoom-in-95 duration-100"
+                          : "bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/50 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:border-slate-600"
                       )}
                     >
                       {channelOption === 'Meeting' && <span className="text-sm">👥</span>}
@@ -1449,8 +1449,8 @@ export default function LogWorkPage() {
               <div className="flex items-center gap-3 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl mt-4">
                 <Check className="text-indigo-400 shrink-0" size={18} />
                 <div className="text-sm">
-                  <span className="text-slate-400">Auto-filled BU: </span><span className="text-white font-medium mr-4">{bu}</span>
-                  <span className="text-slate-400">Dept: </span><span className="text-white font-medium">{department}</span>
+                  <span className="text-slate-500 dark:text-slate-400">Auto-filled BU: </span><span className="text-slate-900 dark:text-white font-medium mr-4">{bu}</span>
+                  <span className="text-slate-500 dark:text-slate-400">Dept: </span><span className="text-slate-900 dark:text-white font-medium">{department}</span>
                 </div>
               </div>
             )}
@@ -1463,14 +1463,14 @@ export default function LogWorkPage() {
             <div className="flex-1 space-y-6">
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <label className="block text-sm font-medium text-slate-300">ระบุเวลา / Specify Time</label>
-                  <div className="flex bg-[#0F172A] p-1 rounded-lg border border-slate-700">
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">ระบุเวลา / Specify Time</label>
+                  <div className="flex bg-slate-50 dark:bg-[#0F172A] p-1 rounded-lg border border-slate-200 dark:border-slate-700">
                     <button
                       type="button"
                       onClick={() => setTimeMode('range')}
                       className={cn(
                         "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                        timeMode === 'range' ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
+                        timeMode === 'range' ? "bg-indigo-600 text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200"
                       )}
                     >
                       🕒 ช่วงเวลา
@@ -1480,7 +1480,7 @@ export default function LogWorkPage() {
                       onClick={() => setTimeMode('duration')}
                       className={cn(
                         "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                        timeMode === 'duration' ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
+                        timeMode === 'duration' ? "bg-indigo-600 text-slate-900 dark:text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200"
                       )}
                     >
                       ⏳ จำนวนชั่วโมง
@@ -1491,36 +1491,36 @@ export default function LogWorkPage() {
                 {timeMode === 'range' ? (
                   <div className="flex items-center gap-4">
                     <div className="flex-1">
-                      <span className="block text-xs text-slate-400 mb-1">เวลาเริ่มต้น / Start Time</span>
+                      <span className="block text-xs text-slate-500 dark:text-slate-400 mb-1">เวลาเริ่มต้น / Start Time</span>
                       <div className="relative">
                         <select 
                           value={startTime}
                           onChange={e => { setStartTime(e.target.value); setIsTimeCustomized(true); }}
-                          className="w-full appearance-none bg-[#0F172A] border border-slate-600 rounded-lg py-2.5 px-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                          className="w-full appearance-none bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2.5 px-4 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
                           {timeOptions.map(t => <option key={`start-${t.value}`} value={t.value}>{t.label}</option>)}
                         </select>
-                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none" />
                       </div>
                     </div>
                     <span className="text-slate-500 mt-4">-</span>
                     <div className="flex-1">
-                      <span className="block text-xs text-slate-400 mb-1">เวลาสิ้นสุด / End Time</span>
+                      <span className="block text-xs text-slate-500 dark:text-slate-400 mb-1">เวลาสิ้นสุด / End Time</span>
                       <div className="relative">
                         <select 
                           value={endTime}
                           onChange={e => { setEndTime(e.target.value); setIsTimeCustomized(true); }}
-                          className="w-full appearance-none bg-[#0F172A] border border-slate-600 rounded-lg py-2.5 px-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                          className="w-full appearance-none bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2.5 px-4 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
                           {timeOptions.map(t => <option key={`end-${t.value}`} value={t.value}>{t.label}</option>)}
                         </select>
-                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none" />
                       </div>
                     </div>
                   </div>
                 ) : (
                   <div className="flex-1 max-w-xs">
-                    <span className="block text-xs text-slate-400 mb-1">จำนวนชั่วโมง / Hours spent</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400 mb-1">จำนวนชั่วโมง / Hours spent</span>
                     <div className="relative">
                       <input 
                         type="number" 
@@ -1528,7 +1528,7 @@ export default function LogWorkPage() {
                         min="0.5"
                         value={durationHours}
                         onChange={e => setDurationHours(parseFloat(e.target.value) || 0)}
-                        className="w-full bg-[#0F172A] border border-slate-600 rounded-lg py-2.5 px-4 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg py-2.5 px-4 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                   </div>
@@ -1539,12 +1539,12 @@ export default function LogWorkPage() {
                 <label className="flex items-center space-x-3 cursor-pointer group flex-1">
                   <div className={cn(
                     "relative flex items-center justify-center w-5 h-5 rounded border transition-colors",
-                    isBreak ? "bg-indigo-500 border-indigo-500" : "bg-[#0F172A] border-slate-500 group-hover:border-indigo-400"
+                    isBreak ? "bg-indigo-500 border-indigo-500" : "bg-slate-50 dark:bg-[#0F172A] border-slate-500 group-hover:border-indigo-400"
                   )}>
                     <input type="checkbox" checked={isBreak} onChange={e => setIsBreak(e.target.checked)} className="sr-only" />
-                    {isBreak && <Check size={14} className="text-white" />}
+                    {isBreak && <Check size={14} className="text-slate-900 dark:text-white" />}
                   </div>
-                  <span className="text-sm text-slate-300 group-hover:text-white transition-colors">หักพักเบรกเที่ยง / Break (1 hr)</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:text-white transition-colors">หักพักเบรกเที่ยง / Break (1 hr)</span>
                 </label>
 
                 <label className={cn(
@@ -1553,7 +1553,7 @@ export default function LogWorkPage() {
                 )}>
                   <div className={cn(
                     "relative flex items-center justify-center w-5 h-5 rounded border transition-colors",
-                    isExplicitOt ? "bg-amber-500 border-amber-500" : "bg-[#0F172A] border-slate-500 group-hover:border-amber-400"
+                    isExplicitOt ? "bg-amber-500 border-amber-500" : "bg-slate-50 dark:bg-[#0F172A] border-slate-500 group-hover:border-amber-400"
                   )}>
                     <input 
                       type="checkbox" 
@@ -1562,29 +1562,29 @@ export default function LogWorkPage() {
                       disabled={isHolidayDate}
                       className="sr-only" 
                     />
-                    {isExplicitOt && <Check size={14} className="text-white" />}
+                    {isExplicitOt && <Check size={14} className="text-slate-900 dark:text-white" />}
                   </div>
-                  <span className="text-sm text-slate-300 group-hover:text-white transition-colors">บันทึกเป็น OT เจาะจง / Explicit OT</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:text-white transition-colors">บันทึกเป็น OT เจาะจง / Explicit OT</span>
                 </label>
               </div>
             </div>
 
             {/* Hours Display Breakdown */}
-            <div className="w-full md:w-80 bg-slate-900 border border-slate-700/60 rounded-xl p-5 flex flex-col justify-between shadow-lg">
+            <div className="w-full md:w-80 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl p-5 flex flex-col justify-between shadow-lg">
               <div className="mb-4">
-                <span className="text-slate-400 text-sm font-medium">รวมเวลาทำงาน / Total Hours</span>
+                <span className="text-slate-500 dark:text-slate-400 text-sm font-medium">รวมเวลาทำงาน / Total Hours</span>
                 <div className="flex items-baseline mt-1">
-                  <span className="text-4xl font-bold text-white tracking-tight">{preview.duration.toFixed(1)}</span>
-                  <span className="text-sm text-slate-400 ml-1.5 font-medium">hrs</span>
+                  <span className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight">{preview.duration.toFixed(1)}</span>
+                  <span className="text-sm text-slate-500 dark:text-slate-400 ml-1.5 font-medium">hrs</span>
                 </div>
               </div>
-              <div className="space-y-2 border-t border-slate-800 pt-3">
+              <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400">ชั่วโมงปกติ / Regular:</span>
-                  <span className="text-slate-200 font-semibold">{preview.normalHours.toFixed(1)} hrs</span>
+                  <span className="text-slate-500 dark:text-slate-400">ชั่วโมงปกติ / Regular:</span>
+                  <span className="text-slate-800 dark:text-slate-200 font-semibold">{preview.normalHours.toFixed(1)} hrs</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400">ชั่วโมง OT / Overtime:</span>
+                  <span className="text-slate-500 dark:text-slate-400">ชั่วโมง OT / Overtime:</span>
                   <span className="text-amber-400 font-semibold">{preview.otHours.toFixed(1)} hrs</span>
                 </div>
               </div>
@@ -1593,13 +1593,13 @@ export default function LogWorkPage() {
 
           {/* Description */}
           <div className="mb-8">
-            <label className="block text-sm font-medium text-slate-300 mb-2">รายละเอียดงาน / Work Description</label>
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">รายละเอียดงาน / Work Description</label>
             <textarea 
               rows={4}
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="What did you work on today?"
-              className="w-full bg-[#0F172A] border border-slate-600 rounded-lg p-4 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none mb-3"
+              className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-600 rounded-lg p-4 text-slate-800 dark:text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none mb-3"
             ></textarea>
             
             {/* AI Enhancement Container */}
@@ -1610,7 +1610,7 @@ export default function LogWorkPage() {
                 </div>
                 <div>
                   <span className="text-[10px] text-indigo-400 uppercase font-black tracking-widest block mb-0.5">ขัดเกลาคำด้วย AI / AI Sparkle</span>
-                  <span className="text-xs text-slate-400 leading-normal block">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 leading-normal block">
                     ช่วยเกลาคำอธิบายงานให้ออกมาในแง่บวก เห็นภาพความสำเร็จ ประหยัดเวลา และประหยัดต้นทุนสำหรับผู้บริหาร
                   </span>
                 </div>
@@ -1620,7 +1620,7 @@ export default function LogWorkPage() {
                 onClick={handleEnhanceDescription}
                 disabled={isEnhancing}
                 className={cn(
-                  "px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:border-slate-700/50 text-white text-xs font-bold rounded-xl border border-indigo-500/30 shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95 transition-all",
+                  "px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 disabled:bg-slate-100 dark:bg-slate-800 disabled:text-slate-500 disabled:border-slate-200 dark:border-slate-700/50 text-slate-900 dark:text-white text-xs font-bold rounded-xl border border-indigo-500/30 shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95 transition-all",
                   isEnhancing && "cursor-not-allowed"
                 )}
               >
@@ -1640,11 +1640,11 @@ export default function LogWorkPage() {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end pt-6 border-t border-slate-700/50">
+          <div className="flex justify-end pt-6 border-t border-slate-200 dark:border-slate-700/50">
             <button 
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="px-8 py-3 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none text-white font-medium rounded-lg shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+              className="px-8 py-3 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 disabled:text-slate-500 dark:text-slate-400 disabled:shadow-none text-slate-900 dark:text-white font-medium rounded-lg shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
             >
               {isSubmitting ? 'กำลังบันทึก...' : 'บันทึก / Save Log'}
             </button>
@@ -1657,7 +1657,7 @@ export default function LogWorkPage() {
                 <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={18} />
                 <div>
                   <h4 className="font-semibold text-red-300">ช่วงเวลาทำงานทับซ้อนกัน / Time Overlap Alert</h4>
-                  <p className="text-sm text-red-400 mt-1">เวลาที่คุณเลือกทับซ้อนกับรายการที่บันทึกแล้ว: <span className="font-semibold text-white">{preview.overlappingEvent}</span></p>
+                  <p className="text-sm text-red-400 mt-1">เวลาที่คุณเลือกทับซ้อนกับรายการที่บันทึกแล้ว: <span className="font-semibold text-slate-900 dark:text-white">{preview.overlappingEvent}</span></p>
                 </div>
               </div>
             )}
@@ -1678,7 +1678,7 @@ export default function LogWorkPage() {
                 <div>
                   <h4 className="font-semibold text-indigo-300">ชั่วโมงสะสมปกติเกิน 8 ชม. ต่อวัน / Implied Overtime</h4>
                   <p className="text-sm text-indigo-400 mt-1">
-                    ยอดรวมชั่วโมงงานปกติในวันนี้ของคุณเต็ม 8 ชม. แล้ว ส่วนต่างอีก <span className="font-semibold text-white">{preview.otHours.toFixed(1)} ชม.</span> จะถูกปัดเป็น OT แฝงให้อัตโนมัติ
+                    ยอดรวมชั่วโมงงานปกติในวันนี้ของคุณเต็ม 8 ชม. แล้ว ส่วนต่างอีก <span className="font-semibold text-slate-900 dark:text-white">{preview.otHours.toFixed(1)} ชม.</span> จะถูกปัดเป็น OT แฝงให้อัตโนมัติ
                   </p>
                 </div>
               </div>
@@ -1687,17 +1687,17 @@ export default function LogWorkPage() {
 
           {/* Today's Logged Activities */}
           {existingEntries.length > 0 && (
-            <div className="mt-10 pt-8 border-t border-slate-700/50">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <div className="mt-10 pt-8 border-t border-slate-200 dark:border-slate-700/50">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                 <Clock size={18} className="text-indigo-400" />
                 <span>งานที่คุณบันทึกแล้วในวันนี้ / Activities Logged Today</span>
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {existingEntries.map((entry) => (
-                  <div key={entry.id} className="bg-[#0F172A]/40 border border-slate-700/50 rounded-xl p-4 flex flex-col justify-between hover:border-slate-600 transition-colors">
+                  <div key={entry.id} className="bg-slate-50 dark:bg-[#0F172A]/40 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 flex flex-col justify-between hover:border-slate-300 dark:border-slate-600 transition-colors">
                     <div>
                       <div className="flex justify-between items-start mb-1">
-                        <h4 className="font-semibold text-white text-sm line-clamp-1">{entry.project_name}</h4>
+                        <h4 className="font-semibold text-slate-900 dark:text-white text-sm line-clamp-1">{entry.project_name}</h4>
                         <span className={cn(
                           "px-2 py-0.5 text-[10px] font-medium rounded-full",
                           entry.is_ot || entry.is_implied_ot 
@@ -1707,19 +1707,19 @@ export default function LogWorkPage() {
                           {entry.is_ot ? 'OT' : entry.is_implied_ot ? 'OT แฝง' : 'ปกติ'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 mb-2">{entry.module || 'No Module'} • {entry.action_name}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{entry.module || 'No Module'} • {entry.action_name}</p>
                       {entry.description && (
-                        <p className="text-xs text-slate-300 line-clamp-2 italic bg-slate-800/30 p-2 rounded border border-slate-700/30 mb-2">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 italic bg-slate-100 dark:bg-slate-800/30 p-2 rounded border border-slate-200 dark:border-slate-700/30 mb-2">
                           "{entry.description}"
                         </p>
                       )}
                     </div>
-                    <div className="flex justify-between items-center text-xs text-slate-400 border-t border-slate-800 pt-2 mt-1">
+                    <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-2 mt-1">
                       <span>{entry.start_time.slice(0, 5)} - {entry.end_time.slice(0, 5)}</span>
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => setViewingLog(entry)}
-                          className="text-slate-400 hover:text-slate-200 font-semibold transition-colors uppercase tracking-wider text-[10px] flex items-center gap-1 cursor-pointer"
+                          className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 font-semibold transition-colors uppercase tracking-wider text-[10px] flex items-center gap-1 cursor-pointer"
                         >
                           <Eye size={12} />
                           <span>ดูใบงาน / View</span>
@@ -1730,7 +1730,7 @@ export default function LogWorkPage() {
                         >
                           แก้ไข / Edit
                         </button>
-                        <span className="font-medium text-slate-200">{Number(entry.total_hours).toFixed(1)} hrs</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{Number(entry.total_hours).toFixed(1)} hrs</span>
                       </div>
                     </div>
                   </div>
@@ -1771,7 +1771,7 @@ interface DropdownOption {
 function DropdownField({ label, value, onChange, options, disabled, placeholder }: { label: string, value: string, onChange: (v: string) => void, options: (string | DropdownOption)[], disabled?: boolean, placeholder?: string }) {
   return (
     <div>
-      <label className={cn("block text-sm font-medium mb-1.5 transition-colors", disabled ? "text-slate-500" : "text-slate-300")}>
+      <label className={cn("block text-sm font-medium mb-1.5 transition-colors", disabled ? "text-slate-500" : "text-slate-600 dark:text-slate-300")}>
         {label}
       </label>
       <div className="relative">
@@ -1782,8 +1782,8 @@ function DropdownField({ label, value, onChange, options, disabled, placeholder 
           className={cn(
             "w-full appearance-none border rounded-lg py-2.5 px-4 focus:outline-none focus:ring-2 transition-all",
             disabled 
-              ? "bg-[#0F172A]/50 border-slate-700/50 text-slate-500 cursor-not-allowed" 
-              : "bg-[#0F172A] border-slate-600 text-slate-200 focus:ring-indigo-500 focus:border-transparent cursor-pointer hover:border-slate-500"
+              ? "bg-slate-50 dark:bg-[#0F172A]/50 border-slate-200 dark:border-slate-700/50 text-slate-500 cursor-not-allowed" 
+              : "bg-slate-50 dark:bg-[#0F172A] border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 focus:ring-indigo-500 focus:border-transparent cursor-pointer hover:border-slate-500"
           )}
         >
           <option value="" disabled>{placeholder}</option>
@@ -1795,7 +1795,7 @@ function DropdownField({ label, value, onChange, options, disabled, placeholder 
             );
           })}
         </select>
-        <ChevronDown size={16} className={cn("absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none", disabled ? "text-slate-600" : "text-slate-400")} />
+        <ChevronDown size={16} className={cn("absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none", disabled ? "text-slate-600" : "text-slate-500 dark:text-slate-400")} />
       </div>
     </div>
   )
@@ -1868,7 +1868,7 @@ function SearchableCombobox({
       <label
         className={cn(
           'block text-sm font-medium mb-1.5 transition-colors',
-          disabled ? 'text-slate-500' : 'text-slate-300'
+          disabled ? 'text-slate-500' : 'text-slate-600 dark:text-slate-300'
         )}
       >
         {label}
@@ -1893,22 +1893,22 @@ function SearchableCombobox({
           className={cn(
             'w-full border rounded-lg py-2.5 px-4 pr-10 focus:outline-none focus:ring-2 transition-all text-sm',
             disabled
-              ? 'bg-[#0F172A]/50 border-slate-700/50 text-slate-500 cursor-not-allowed'
-              : 'bg-[#0F172A] border-slate-600 text-slate-200 focus:ring-indigo-500 focus:border-transparent cursor-text hover:border-slate-500'
+              ? 'bg-slate-50 dark:bg-[#0F172A]/50 border-slate-200 dark:border-slate-700/50 text-slate-500 cursor-not-allowed'
+              : 'bg-slate-50 dark:bg-[#0F172A] border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 focus:ring-indigo-500 focus:border-transparent cursor-text hover:border-slate-500'
           )}
         />
         <ChevronDown
           size={16}
           className={cn(
             'absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-200',
-            disabled ? 'text-slate-600' : 'text-slate-400',
+            disabled ? 'text-slate-600' : 'text-slate-500 dark:text-slate-400',
             isOpen && 'rotate-180'
           )}
         />
 
         {/* Dropdown list */}
         {isOpen && !disabled && (
-          <div className="absolute z-50 mt-1 w-full bg-[#1E293B] border border-slate-700 rounded-xl shadow-2xl shadow-black/40 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="absolute z-50 mt-1 w-full bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl shadow-black/40 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
             {/* Result count hint */}
             {query && (
               <div className="px-4 pt-2.5 pb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
@@ -1936,7 +1936,7 @@ function SearchableCombobox({
                         'w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-2.5 group',
                         isSelected
                           ? 'bg-indigo-500/20 text-indigo-300 font-semibold'
-                          : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-700/60 hover:text-slate-900 dark:text-white'
                       )}
                     >
                       <span

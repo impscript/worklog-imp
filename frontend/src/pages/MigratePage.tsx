@@ -920,11 +920,11 @@ export default function MigratePage() {
         
         {/* Page Title */}
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
+          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight theme-heading-gradient flex items-center gap-2">
             <Database className="text-indigo-400" />
             <span>Data Migration (Import & Export CSV)</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Easily import historical work entries from custom CSV backups or export your current logged work activities.
           </p>
         </div>
@@ -937,16 +937,16 @@ export default function MigratePage() {
 
             {/* Import Target User Selector */}
             {csvData.length === 0 && (
-              <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-5 shadow-xl">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-3">
+              <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 shadow-xl">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2 mb-3">
                   <User size={16} className="text-indigo-400" />
                   <span>Import Target User</span>
                 </h3>
-                <p className="text-xs text-slate-400 mb-3">Select which employee this CSV data will be imported for.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Select which employee this CSV data will be imported for.</p>
                 <select
                   value={selectedImportUserId}
                   onChange={(e) => setSelectedImportUserId(e.target.value)}
-                  className="w-full bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                  className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-900 dark:text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                 >
                   <option value="">-- Select Employee --</option>
                   {usersList.map(u => (
@@ -970,7 +970,7 @@ export default function MigratePage() {
                   "border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-300 flex flex-col items-center justify-center space-y-4 ai-glass",
                   dragActive 
                     ? "border-indigo-500 bg-indigo-500/5 shadow-[0_0_20px_rgba(99,102,241,0.15)]" 
-                    : "border-slate-700/80 hover:border-indigo-500/50 hover:bg-slate-900/10"
+                    : "border-slate-200 dark:border-slate-700/80 hover:border-indigo-500/50 hover:bg-slate-50 dark:hover:bg-slate-900/10"
                 )}
               >
                 <input 
@@ -984,27 +984,27 @@ export default function MigratePage() {
                   <UploadCloud size={32} className="animate-bounce" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">Drag & drop your CSV backup here</h3>
-                  <p className="text-sm text-slate-400 mt-1">or click to browse your computer files</p>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Drag & drop your CSV backup here</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">or click to browse your computer files</p>
                 </div>
-                <div className="text-xs text-slate-500 bg-[#0F172A]/50 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-mono">
+                <div className="text-xs text-slate-500 bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-mono">
                   <Sparkles size={12} className="text-amber-400" />
                   <span>Supports auto header detection & fuzzy mapping</span>
                 </div>
               </div>
             ) : (
               /* Step 2: Mapping, Preview & Import Control Panel */
-              <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-xl space-y-6">
+              <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-6 shadow-xl space-y-6">
                 
                 {/* File Header */}
-                <div className="flex justify-between items-center border-b border-slate-800/80 pb-4">
+                <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800/80 pb-4">
                   <div>
-                    <span className="text-xs text-slate-400 uppercase tracking-widest font-bold">Active File</span>
-                    <h3 className="text-lg font-bold text-white font-mono">{fileName}</h3>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-widest font-bold">Active File</span>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white font-mono">{fileName}</h3>
                   </div>
                   <button 
                     onClick={resetFileState}
-                    className="px-3 py-1.5 rounded-xl border border-slate-700 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                   >
                     Reset File
                   </button>
@@ -1013,10 +1013,10 @@ export default function MigratePage() {
                 {/* Live Validation & Preview Table */}
                 <div className="space-y-4">
                   {/* Summary & Filters Header */}
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between bg-[#0F172A]/30 p-3 rounded-xl border border-slate-800/60">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between bg-slate-50 dark:bg-[#0F172A]/30 p-3 rounded-xl border border-slate-200 dark:border-slate-800/60">
                     <div className="flex items-center gap-2">
                       <Eye size={16} className="text-indigo-400" />
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                         Validation Preview ({previewRows.length} Rows)
                       </span>
                     </div>
@@ -1029,7 +1029,7 @@ export default function MigratePage() {
                           "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border flex items-center gap-1 cursor-pointer",
                           statusFilter === 'all'
                             ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
-                            : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300"
+                            : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:text-slate-300"
                         )}
                       >
                         All ({previewRows.length})
@@ -1040,7 +1040,7 @@ export default function MigratePage() {
                           "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border flex items-center gap-1 cursor-pointer",
                           statusFilter === 'ready'
                             ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                            : "bg-slate-900 border-slate-800 text-slate-400 hover:text-emerald-400"
+                            : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-emerald-400"
                         )}
                       >
                         <CheckCircle2 size={10} />
@@ -1052,7 +1052,7 @@ export default function MigratePage() {
                           "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border flex items-center gap-1 cursor-pointer",
                           statusFilter === 'warning'
                             ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                            : "bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-400"
+                            : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-amber-400"
                         )}
                       >
                         <AlertCircle size={10} />
@@ -1064,7 +1064,7 @@ export default function MigratePage() {
                           "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all border flex items-center gap-1 cursor-pointer",
                           statusFilter === 'error'
                             ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
-                            : "bg-slate-900 border-slate-800 text-slate-400 hover:text-rose-400"
+                            : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-rose-400"
                         )}
                       >
                         <AlertCircle size={10} />
@@ -1074,10 +1074,10 @@ export default function MigratePage() {
                   </div>
 
                   {/* Main Table */}
-                  <div className="overflow-x-auto border border-slate-800 rounded-xl bg-[#0F172A]/40">
+                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-[#0F172A]/40">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="bg-slate-900/80 border-b border-slate-800/60 font-semibold text-slate-300">
+                        <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800/60 font-semibold text-slate-600 dark:text-slate-300">
                           <th className="p-3 w-[100px]">Status</th>
                           <th className="p-3 w-[120px]">Work Date</th>
                           <th className="p-3 w-[140px]">Times / Hours</th>
@@ -1109,8 +1109,8 @@ export default function MigratePage() {
                                 <tr 
                                   onClick={() => setExpandedRowIdx(isExpanded ? null : row.originalIndex)}
                                   className={cn(
-                                    "hover:bg-slate-950/30 text-slate-300 transition-all cursor-pointer",
-                                    isExpanded && "bg-slate-900/40 border-l-2 border-indigo-500",
+                                    "hover:bg-white/80 dark:bg-slate-950/30 text-slate-600 dark:text-slate-300 transition-all cursor-pointer",
+                                    isExpanded && "bg-slate-50 dark:bg-slate-900/40 border-l-2 border-indigo-500",
                                     row.status === 'error' && "hover:bg-rose-500/5",
                                     row.status === 'warning' && "hover:bg-amber-500/5"
                                   )}
@@ -1141,7 +1141,7 @@ export default function MigratePage() {
 
                                   {/* Work Date */}
                                   <td className={cn(
-                                    "p-3 font-mono font-bold text-white",
+                                    "p-3 font-mono font-bold text-slate-900 dark:text-white",
                                     isWorkDateInvalid && "text-rose-400 underline decoration-rose-500/40"
                                   )}>
                                     {row.work_date || 'Missing Date'}
@@ -1152,16 +1152,16 @@ export default function MigratePage() {
                                     "p-3 font-mono",
                                     isTimeInvalid && "text-rose-400"
                                   )}>
-                                    <div className="font-semibold text-white">
+                                    <div className="font-semibold text-slate-900 dark:text-white">
                                       {row.start_time ? `${row.start_time} - ${row.end_time}` : '-'}
                                     </div>
-                                    <div className="text-[10px] text-slate-400 font-mono">({row.total_hours.toFixed(1)} hrs)</div>
+                                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">({row.total_hours.toFixed(1)} hrs)</div>
                                   </td>
 
                                   {/* Project Name */}
                                   <td className="p-3">
                                     <span className={cn(
-                                      "font-semibold text-white",
+                                      "font-semibold text-slate-900 dark:text-white",
                                       isProjMismatch && "text-amber-400 underline decoration-amber-500/40"
                                     )}>
                                       {row.project_name || 'Missing Project'}
@@ -1169,7 +1169,7 @@ export default function MigratePage() {
                                   </td>
 
                                   {/* Action Name */}
-                                  <td className="p-3 text-slate-400">{row.action_name}</td>
+                                  <td className="p-3 text-slate-500 dark:text-slate-400">{row.action_name}</td>
 
                                   {/* Description */}
                                   <td className="p-3 italic truncate max-w-[150px]" title={row.description}>
@@ -1183,7 +1183,7 @@ export default function MigratePage() {
                                         "p-1.5 rounded-lg border transition-all hover:scale-105 active:scale-95",
                                         row.status === 'error' && "border-rose-500/30 text-rose-400 bg-rose-500/10",
                                         row.status === 'warning' && "border-amber-500/30 text-amber-400 bg-amber-500/10",
-                                        row.status === 'ready' && "border-slate-800 text-slate-400 hover:text-white"
+                                        row.status === 'ready' && "border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white"
                                       )}
                                       title="Fix row inline"
                                     >
@@ -1194,10 +1194,10 @@ export default function MigratePage() {
 
                                 {/* Interactive Editor Expansion Panel */}
                                 {isExpanded && (
-                                  <tr className="bg-slate-900/60 border-b border-slate-800/80">
+                                  <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800/80">
                                     <td colSpan={7} className="p-4" onClick={(e) => e.stopPropagation()}>
-                                      <div className="bg-[#0F172A]/95 border border-indigo-500/30 rounded-xl p-5 shadow-2xl space-y-4 text-xs">
-                                        <div className="flex flex-col gap-1 border-b border-slate-800/80 pb-3">
+                                      <div className="bg-slate-50 dark:bg-[#0F172A]/95 border border-indigo-500/30 rounded-xl p-5 shadow-2xl space-y-4 text-xs">
+                                        <div className="flex flex-col gap-1 border-b border-slate-200 dark:border-slate-800/80 pb-3">
                                           <div className="flex items-center justify-between">
                                             <h4 className="font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 text-[11px]">
                                               <Pencil size={12} />
@@ -1227,10 +1227,10 @@ export default function MigratePage() {
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                                           {/* Col 1: Date & Time */}
                                           <div className="space-y-3">
-                                            <h5 className="font-bold text-slate-300 uppercase tracking-widest text-[9px] border-b border-slate-800/60 pb-1">Date & Time</h5>
+                                            <h5 className="font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest text-[9px] border-b border-slate-200 dark:border-slate-800/60 pb-1">Date & Time</h5>
                                             
                                             <div className="flex flex-col gap-1">
-                                              <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                                                 <span>Work Date</span>
                                                 {isWorkDateInvalid && <span className="text-rose-400 text-[8px] uppercase">Required</span>}
                                               </label>
@@ -1239,15 +1239,15 @@ export default function MigratePage() {
                                                 value={row.work_date}
                                                 onChange={(e) => handleUpdateRow(row.originalIndex, { work_date: e.target.value })}
                                                 className={cn(
-                                                  "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-indigo-500 transition-all",
-                                                  isWorkDateInvalid ? "border-rose-500/60 focus:ring-1 focus:ring-rose-500/20" : "border-slate-800"
+                                                  "bg-slate-50 dark:bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:border-indigo-500 transition-all",
+                                                  isWorkDateInvalid ? "border-rose-500/60 focus:ring-1 focus:ring-rose-500/20" : "border-slate-200 dark:border-slate-800"
                                                 )}
                                               />
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-2">
                                               <div className="flex flex-col gap-1">
-                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                                                   <span>Start Time</span>
                                                   {isTimeInvalid && <span className="text-rose-400 text-[8px] uppercase">Req</span>}
                                                 </label>
@@ -1257,13 +1257,13 @@ export default function MigratePage() {
                                                   value={row.start_time}
                                                   onChange={(e) => handleUpdateRow(row.originalIndex, { start_time: e.target.value })}
                                                   className={cn(
-                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-indigo-500 transition-all",
-                                                    isTimeInvalid ? "border-rose-500/60 focus:ring-1 focus:ring-rose-500/20" : "border-slate-800"
+                                                    "bg-slate-50 dark:bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:border-indigo-500 transition-all",
+                                                    isTimeInvalid ? "border-rose-500/60 focus:ring-1 focus:ring-rose-500/20" : "border-slate-200 dark:border-slate-800"
                                                   )}
                                                 />
                                               </div>
                                               <div className="flex flex-col gap-1">
-                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                                                   <span>End Time</span>
                                                   {isTimeInvalid && <span className="text-rose-400 text-[8px] uppercase">Req</span>}
                                                 </label>
@@ -1273,31 +1273,31 @@ export default function MigratePage() {
                                                   value={row.end_time}
                                                   onChange={(e) => handleUpdateRow(row.originalIndex, { end_time: e.target.value })}
                                                   className={cn(
-                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-indigo-500 transition-all",
-                                                    isTimeInvalid ? "border-rose-500/60 focus:ring-1 focus:ring-rose-500/20" : "border-slate-800"
+                                                    "bg-slate-50 dark:bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:border-indigo-500 transition-all",
+                                                    isTimeInvalid ? "border-rose-500/60 focus:ring-1 focus:ring-rose-500/20" : "border-slate-200 dark:border-slate-800"
                                                   )}
                                                 />
                                               </div>
                                             </div>
 
                                             <div className="flex flex-col gap-1">
-                                              <label className="text-[10px] font-bold text-slate-400">Total Hours</label>
+                                              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Total Hours</label>
                                               <input
                                                 type="number"
                                                 step="0.1"
                                                 value={row.total_hours}
                                                 onChange={(e) => handleUpdateRow(row.originalIndex, { total_hours: parseFloat(e.target.value) || 0 })}
-                                                className="bg-[#090D16] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-indigo-500 transition-all"
+                                                className="bg-slate-50 dark:bg-[#090D16] border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white font-mono focus:border-indigo-500 transition-all"
                                               />
                                             </div>
                                           </div>
 
                                           {/* Col 2: Project Registry Mappings */}
                                           <div className="space-y-3">
-                                            <h5 className="font-bold text-slate-300 uppercase tracking-widest text-[9px] border-b border-slate-800/60 pb-1">Project Alignment</h5>
+                                            <h5 className="font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest text-[9px] border-b border-slate-200 dark:border-slate-800/60 pb-1">Project Alignment</h5>
 
                                             <div className="flex flex-col gap-1">
-                                              <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                                                 <span>Registered Project</span>
                                                 {isProjMismatch && <span className="text-amber-400 text-[8px] uppercase">Mismatch</span>}
                                               </label>
@@ -1305,8 +1305,8 @@ export default function MigratePage() {
                                                 value={row.project_name}
                                                 onChange={(e) => handleUpdateRow(row.originalIndex, { project_name: e.target.value })}
                                                 className={cn(
-                                                  "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all",
-                                                  isProjMismatch ? "border-amber-500/60 focus:ring-1 focus:ring-amber-500/20 bg-amber-500/5" : "border-slate-800"
+                                                  "bg-slate-50 dark:bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-indigo-500 transition-all",
+                                                  isProjMismatch ? "border-amber-500/60 focus:ring-1 focus:ring-amber-500/20 bg-amber-500/5" : "border-slate-200 dark:border-slate-800"
                                                 )}
                                               >
                                                 <option value="">-- Select Project to Auto-map --</option>
@@ -1320,33 +1320,33 @@ export default function MigratePage() {
                                             </div>
 
                                             <div className="flex flex-col gap-1">
-                                              <label className="text-[10px] font-bold text-slate-400">Action / Task</label>
+                                              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Action / Task</label>
                                               <input
                                                 type="text"
                                                 value={row.action_name}
                                                 onChange={(e) => handleUpdateRow(row.originalIndex, { action_name: e.target.value })}
-                                                className="bg-[#090D16] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all"
+                                                className="bg-slate-50 dark:bg-[#090D16] border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-indigo-500 transition-all"
                                               />
                                             </div>
 
                                             <div className="flex flex-col gap-1">
-                                              <label className="text-[10px] font-bold text-slate-400">Description</label>
+                                              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Description</label>
                                               <textarea
                                                 value={row.description}
                                                 rows={2}
                                                 onChange={(e) => handleUpdateRow(row.originalIndex, { description: e.target.value })}
-                                                className="bg-[#090D16] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all resize-none"
+                                                className="bg-slate-50 dark:bg-[#090D16] border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-indigo-500 transition-all resize-none"
                                               />
                                             </div>
                                           </div>
 
                                           {/* Col 3: Hierarchy Structures */}
                                           <div className="space-y-3">
-                                            <h5 className="font-bold text-slate-300 uppercase tracking-widest text-[9px] border-b border-slate-800/60 pb-1">Structural Hierarchy</h5>
+                                            <h5 className="font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest text-[9px] border-b border-slate-200 dark:border-slate-800/60 pb-1">Structural Hierarchy</h5>
 
                                             <div className="grid grid-cols-2 gap-2">
                                               <div className="flex flex-col gap-1">
-                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                                                   <span>Holding</span>
                                                   {isStructInvalid && !row.holding && <span className="text-rose-400 text-[7px] uppercase">*</span>}
                                                 </label>
@@ -1355,13 +1355,13 @@ export default function MigratePage() {
                                                   value={row.holding}
                                                   onChange={(e) => handleUpdateRow(row.originalIndex, { holding: e.target.value })}
                                                   className={cn(
-                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all font-semibold",
-                                                    isStructInvalid && !row.holding ? "border-rose-500/60" : "border-slate-800"
+                                                    "bg-slate-50 dark:bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-indigo-500 transition-all font-semibold",
+                                                    isStructInvalid && !row.holding ? "border-rose-500/60" : "border-slate-200 dark:border-slate-800"
                                                   )}
                                                 />
                                               </div>
                                               <div className="flex flex-col gap-1">
-                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                                                   <span>Operator</span>
                                                   {isStructInvalid && !row.department_operator && <span className="text-rose-400 text-[7px] uppercase">*</span>}
                                                 </label>
@@ -1370,8 +1370,8 @@ export default function MigratePage() {
                                                   value={row.department_operator}
                                                   onChange={(e) => handleUpdateRow(row.originalIndex, { department_operator: e.target.value })}
                                                   className={cn(
-                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all font-semibold",
-                                                    isStructInvalid && !row.department_operator ? "border-rose-500/60" : "border-slate-800"
+                                                    "bg-slate-50 dark:bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-indigo-500 transition-all font-semibold",
+                                                    isStructInvalid && !row.department_operator ? "border-rose-500/60" : "border-slate-200 dark:border-slate-800"
                                                   )}
                                                 />
                                               </div>
@@ -1379,7 +1379,7 @@ export default function MigratePage() {
 
                                             <div className="grid grid-cols-2 gap-2">
                                               <div className="flex flex-col gap-1">
-                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                                                   <span>BU</span>
                                                   {isStructInvalid && !row.bu && <span className="text-rose-400 text-[7px] uppercase">*</span>}
                                                 </label>
@@ -1388,13 +1388,13 @@ export default function MigratePage() {
                                                   value={row.bu}
                                                   onChange={(e) => handleUpdateRow(row.originalIndex, { bu: e.target.value })}
                                                   className={cn(
-                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all font-semibold",
-                                                    isStructInvalid && !row.bu ? "border-rose-500/60" : "border-slate-800"
+                                                    "bg-slate-50 dark:bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-indigo-500 transition-all font-semibold",
+                                                    isStructInvalid && !row.bu ? "border-rose-500/60" : "border-slate-200 dark:border-slate-800"
                                                   )}
                                                 />
                                               </div>
                                               <div className="flex flex-col gap-1">
-                                                <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                                                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                                                   <span>Department</span>
                                                   {isStructInvalid && !row.department && <span className="text-rose-400 text-[7px] uppercase">*</span>}
                                                 </label>
@@ -1403,30 +1403,30 @@ export default function MigratePage() {
                                                   value={row.department}
                                                   onChange={(e) => handleUpdateRow(row.originalIndex, { department: e.target.value })}
                                                   className={cn(
-                                                    "bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 transition-all font-semibold",
-                                                    isStructInvalid && !row.department ? "border-rose-500/60" : "border-slate-800"
+                                                    "bg-slate-50 dark:bg-[#090D16] border rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-indigo-500 transition-all font-semibold",
+                                                    isStructInvalid && !row.department ? "border-rose-500/60" : "border-slate-200 dark:border-slate-800"
                                                   )}
                                                 />
                                               </div>
                                             </div>
 
-                                            <div className="flex gap-4 pt-3 border-t border-slate-800/50">
-                                              <label className="flex items-center gap-2 text-[10px] font-bold text-slate-300 cursor-pointer">
+                                            <div className="flex gap-4 pt-3 border-t border-slate-200 dark:border-slate-800/50">
+                                              <label className="flex items-center gap-2 text-[10px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
                                                 <input
                                                   type="checkbox"
                                                   checked={row.is_ot}
                                                   onChange={(e) => handleUpdateRow(row.originalIndex, { is_ot: e.target.checked })}
-                                                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-[#090D16] border-slate-800"
+                                                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-50 dark:bg-[#090D16] border-slate-200 dark:border-slate-800"
                                                 />
                                                 <span>Overtime (OT)</span>
                                               </label>
 
-                                              <label className="flex items-center gap-2 text-[10px] font-bold text-slate-300 cursor-pointer">
+                                              <label className="flex items-center gap-2 text-[10px] font-bold text-slate-600 dark:text-slate-300 cursor-pointer">
                                                 <input
                                                   type="checkbox"
                                                   checked={row.break_time}
                                                   onChange={(e) => handleUpdateRow(row.originalIndex, { break_time: e.target.checked })}
-                                                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-[#090D16] border-slate-800"
+                                                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-50 dark:bg-[#090D16] border-slate-200 dark:border-slate-800"
                                                 />
                                                 <span>Break (1 hr)</span>
                                               </label>
@@ -1434,11 +1434,11 @@ export default function MigratePage() {
                                           </div>
                                         </div>
 
-                                        <div className="flex justify-end pt-3 border-t border-slate-800/80 gap-3">
+                                        <div className="flex justify-end pt-3 border-t border-slate-200 dark:border-slate-800/80 gap-3">
                                           <button
                                             type="button"
                                             onClick={() => setExpandedRowIdx(null)}
-                                            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+                                            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-slate-900 dark:text-white rounded-lg text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
                                           >
                                             Done
                                           </button>
@@ -1457,7 +1457,7 @@ export default function MigratePage() {
 
                   {/* Pagination Controls */}
                   {filteredRows.length > 0 && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 text-xs font-semibold text-slate-400">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       <div className="flex items-center gap-2">
                         <span>Show</span>
                         <select
@@ -1466,7 +1466,7 @@ export default function MigratePage() {
                             setRowsPerPage(Number(e.target.value));
                             setCurrentPage(1);
                           }}
-                          className="bg-[#0F172A] border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:border-indigo-500"
+                          className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white focus:border-indigo-500"
                         >
                           <option value={10}>10 rows</option>
                           <option value={20}>20 rows</option>
@@ -1481,19 +1481,19 @@ export default function MigratePage() {
                         <button
                           onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                           disabled={currentPage === 1}
-                          className="p-2 rounded-lg border border-slate-800 bg-slate-900/60 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-40 disabled:hover:bg-slate-900/60 disabled:hover:text-slate-400 cursor-pointer"
+                          className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:text-white transition-all disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500 dark:text-slate-400 cursor-pointer"
                         >
                           <ChevronLeft size={14} />
                         </button>
                         
-                        <span className="font-mono text-white">
+                        <span className="font-mono text-slate-900 dark:text-white">
                           Page {currentPage} of {totalPages || 1}
                         </span>
 
                         <button
                           onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                           disabled={currentPage === totalPages || totalPages === 0}
-                          className="p-2 rounded-lg border border-slate-800 bg-slate-900/60 hover:bg-slate-800 hover:text-white transition-all disabled:opacity-40 disabled:hover:bg-slate-900/60 disabled:hover:text-slate-400 cursor-pointer"
+                          className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:text-white transition-all disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500 dark:text-slate-400 cursor-pointer"
                         >
                           <ChevronRight size={14} />
                         </button>
@@ -1503,14 +1503,14 @@ export default function MigratePage() {
                 </div>
 
                 {/* Active Action Button */}
-                <div className="pt-4 border-t border-slate-800/80 flex flex-col gap-4">
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800/80 flex flex-col gap-4">
                   {isProcessing ? (
                     <div className="space-y-2">
                       <div className="flex justify-between items-center text-xs font-semibold">
                         <span className="text-indigo-400">Importing rows to Supabase database...</span>
-                        <span className="text-white font-mono">{importProgress}%</span>
+                        <span className="text-slate-900 dark:text-white font-mono">{importProgress}%</span>
                       </div>
-                      <div className="w-full bg-[#0F172A] rounded-full h-2 overflow-hidden border border-slate-800">
+                      <div className="w-full bg-slate-50 dark:bg-[#0F172A] rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-800">
                         <div 
                           className="bg-gradient-to-r from-indigo-500 to-violet-500 h-full transition-all duration-300"
                           style={{ width: `${importProgress}%` }}
@@ -1524,8 +1524,8 @@ export default function MigratePage() {
                           <Check size={20} />
                         </div>
                         <div>
-                          <h4 className="text-sm font-bold text-white">Import completed successfully!</h4>
-                          <p className="text-xs text-slate-400">
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-white">Import completed successfully!</h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             Successfully imported {importStats.success} logs. Mismatches/Errors skipped: {importStats.failed}.
                           </p>
                         </div>
@@ -1535,7 +1535,7 @@ export default function MigratePage() {
                           setImportStats(null);
                           navigate('/');
                         }}
-                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-slate-900 dark:text-white rounded-xl text-xs font-bold transition-all shadow-md"
                       >
                         Go to Dashboard
                       </button>
@@ -1547,8 +1547,8 @@ export default function MigratePage() {
                       className={cn(
                         "w-full py-3.5 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2",
                         previewRows.filter(r => r.status === 'error').length > 0
-                          ? "bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed"
-                          : "bg-indigo-500 hover:bg-indigo-600 text-white hover:shadow-indigo-500/10 active:scale-95"
+                          ? "bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700/50 cursor-not-allowed"
+                          : "bg-indigo-500 hover:bg-indigo-600 text-slate-900 dark:text-white hover:shadow-indigo-500/10 active:scale-95"
                       )}
                     >
                       <Play size={16} />
@@ -1567,19 +1567,19 @@ export default function MigratePage() {
             
             {/* CSV Mapping Fields Settings */}
             {csvData.length > 0 && (
-              <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-xl space-y-4">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-6 shadow-xl space-y-4">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                   <Settings size={16} className="text-indigo-400 animate-spin-slow" />
                   <span>CSV Header Mapping</span>
                 </h3>
                 
                 <div className="space-y-3">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-slate-400">Worklog ID (Optional for Upserts)</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Worklog ID (Optional for Upserts)</label>
                     <select 
                       value={mappings.id}
                       onChange={(e) => setMappings({ ...mappings, id: e.target.value })}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     >
                       <option value="">-- Generate New (Insert) --</option>
                       {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1587,11 +1587,11 @@ export default function MigratePage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-slate-400">Work Date (Required)</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Work Date (Required)</label>
                     <select 
                       value={mappings.work_date}
                       onChange={(e) => setMappings({ ...mappings, work_date: e.target.value })}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     >
                       <option value="">-- Choose Column --</option>
                       {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1599,11 +1599,11 @@ export default function MigratePage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-slate-400">Project Name (Required)</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Project Name (Required)</label>
                     <select 
                       value={mappings.project_name}
                       onChange={(e) => setMappings({ ...mappings, project_name: e.target.value })}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     >
                       <option value="">-- Choose Column --</option>
                       {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1611,11 +1611,11 @@ export default function MigratePage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-slate-400">Start Time (Optional)</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Start Time (Optional)</label>
                     <select 
                       value={mappings.start_time}
                       onChange={(e) => setMappings({ ...mappings, start_time: e.target.value })}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     >
                       <option value="">-- Reconstruct / Skip --</option>
                       {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1623,11 +1623,11 @@ export default function MigratePage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-slate-400">End Time (Optional)</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">End Time (Optional)</label>
                     <select 
                       value={mappings.end_time}
                       onChange={(e) => setMappings({ ...mappings, end_time: e.target.value })}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     >
                       <option value="">-- Reconstruct / Skip --</option>
                       {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1635,11 +1635,11 @@ export default function MigratePage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-slate-400">Hours / Duration (Required if Times omitted)</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Hours / Duration (Required if Times omitted)</label>
                     <select 
                       value={mappings.total_hours}
                       onChange={(e) => setMappings({ ...mappings, total_hours: e.target.value })}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     >
                       <option value="">-- Choose Column --</option>
                       {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1647,11 +1647,11 @@ export default function MigratePage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-slate-400">Action/Task (Optional)</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Action/Task (Optional)</label>
                     <select 
                       value={mappings.action_name}
                       onChange={(e) => setMappings({ ...mappings, action_name: e.target.value })}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     >
                       <option value="">-- Default Fallback --</option>
                       {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1659,11 +1659,11 @@ export default function MigratePage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-slate-400">Description (Optional)</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Description (Optional)</label>
                     <select 
                       value={mappings.description}
                       onChange={(e) => setMappings({ ...mappings, description: e.target.value })}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     >
                       <option value="">-- Leave Blank --</option>
                       {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1671,11 +1671,11 @@ export default function MigratePage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-slate-400">OT Flag (Optional)</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">OT Flag (Optional)</label>
                     <select 
                       value={mappings.is_ot}
                       onChange={(e) => setMappings({ ...mappings, is_ot: e.target.value })}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     >
                       <option value="">-- False --</option>
                       {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
@@ -1683,18 +1683,18 @@ export default function MigratePage() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800/80 space-y-3">
                   <h4 className="text-[11px] font-bold text-indigo-300 uppercase tracking-widest flex items-center gap-1.5">
                     <Settings size={12} />
                     <span>Import Settings</span>
                   </h4>
                   
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0F172A]/50 border border-slate-800/60">
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800/60">
                     <div className="space-y-0.5 pr-2">
-                      <label className="text-[11px] font-bold text-slate-200 cursor-pointer flex items-center gap-1.5" htmlFor="autoSplitOTToggle">
+                      <label className="text-[11px] font-bold text-slate-800 dark:text-slate-200 cursor-pointer flex items-center gap-1.5" htmlFor="autoSplitOTToggle">
                         Auto-Split Overtime (OT)
                       </label>
-                      <p className="text-[9px] text-slate-400 leading-tight">
+                      <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">
                         Weekday logs crossing 18:00 (Mon-Thu) / 17:00 (Fri) will split into Normal & OT portions.
                       </p>
                     </div>
@@ -1703,51 +1703,51 @@ export default function MigratePage() {
                       id="autoSplitOTToggle"
                       checked={autoSplitOT}
                       onChange={(e) => setAutoSplitOT(e.target.checked)}
-                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-[#0F172A] border-slate-800"
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-50 dark:bg-[#0F172A] border-slate-200 dark:border-slate-800"
                     />
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800/80 space-y-3">
                   <h4 className="text-[11px] font-bold text-indigo-300 uppercase tracking-widest">Fallback Values</h4>
                   
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-semibold text-slate-400">Default Holding (For project mismatches)</label>
+                    <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Default Holding (For project mismatches)</label>
                     <input 
                       type="text"
                       value={fallbackHolding}
                       onChange={(e) => setFallbackHolding(e.target.value)}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-semibold text-slate-400">Default Operator Role</label>
+                    <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Default Operator Role</label>
                     <input 
                       type="text"
                       value={fallbackOperator}
                       onChange={(e) => setFallbackOperator(e.target.value)}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-semibold text-slate-400">Default Action</label>
+                    <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Default Action</label>
                     <input 
                       type="text"
                       value={fallbackAction}
                       onChange={(e) => setFallbackAction(e.target.value)}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-semibold text-slate-400">Default Start Time (For reconstruction)</label>
+                    <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Default Start Time (For reconstruction)</label>
                     <input 
                       type="text"
                       value={fallbackStartTime}
                       onChange={(e) => setFallbackStartTime(e.target.value)}
-                      className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500 font-mono"
+                      className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500 font-mono"
                     />
                   </div>
                 </div>
@@ -1756,26 +1756,26 @@ export default function MigratePage() {
             )}
 
             {/* CSV Exporter Container */}
-            <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-xl space-y-4">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl p-6 shadow-xl space-y-4">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                 <Download className="text-indigo-400" />
                 <span>Export logs to CSV</span>
               </h3>
               
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Download a backup of logged work hours in a standard CSV format compatible with this importer.
               </p>
 
               <div className="space-y-3">
                 {/* Employee Selector */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
                     <Users size={11} /> Select Employee
                   </label>
                   <select
                     value={selectedExportUserId}
                     onChange={(e) => setSelectedExportUserId(e.target.value)}
-                    className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-medium text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                    className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                   >
                     <option value="">-- Select Employee --</option>
                     {usersList.map(u => (
@@ -1787,28 +1787,28 @@ export default function MigratePage() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold text-slate-400">Start Date</label>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Start Date</label>
                   <input 
                     type="date"
                     value={exportStartDate}
                     onChange={(e) => setExportStartDate(e.target.value)}
-                    className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500 font-mono"
+                    className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500 font-mono"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold text-slate-400">End Date</label>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">End Date</label>
                   <input 
                     type="date"
                     value={exportEndDate}
                     onChange={(e) => setExportEndDate(e.target.value)}
-                    className="bg-[#0F172A] border border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-white focus:border-indigo-500 font-mono"
+                    className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-white focus:border-indigo-500 font-mono"
                   />
                 </div>
 
                 {/* Record count preview */}
                 {exportRecordCount !== null && selectedExportUserId && (
-                  <div className="text-xs font-medium text-slate-400 bg-[#0F172A]/50 border border-slate-800/60 rounded-lg px-3 py-2 flex items-center justify-between">
+                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800/60 rounded-lg px-3 py-2 flex items-center justify-between">
                     <span>Records found:</span>
                     <span className={cn(
                       "font-bold font-mono",
@@ -1823,10 +1823,10 @@ export default function MigratePage() {
                   onClick={handleExport}
                   disabled={isExporting || !selectedExportUserId || exportRecordCount === 0}
                   className={cn(
-                    "w-full inline-flex items-center justify-center gap-1.5 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-md active:scale-95 mt-2",
+                    "w-full inline-flex items-center justify-center gap-1.5 text-slate-900 dark:text-white text-xs font-bold py-3 rounded-xl transition-all shadow-md active:scale-95 mt-2",
                     !selectedExportUserId || exportRecordCount === 0
-                      ? "bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed"
-                      : "bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-800"
+                      ? "bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700/50 cursor-not-allowed"
+                      : "bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-100 dark:bg-slate-800"
                   )}
                 >
                   <Download size={14} />

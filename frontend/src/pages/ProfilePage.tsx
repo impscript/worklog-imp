@@ -196,22 +196,22 @@ export default function ProfilePage() {
         
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight theme-heading-gradient">
             User Profile
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Manage your account settings, holdings, and system preferences.
           </p>
         </div>
 
         {/* Profile Card */}
-        <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+        <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
           {/* Glass background highlights */}
           <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
           
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10">
             {/* Avatar — WMS Face Photo */}
-            <div className="w-24 h-24 rounded-2xl overflow-hidden bg-slate-800 flex items-center justify-center shadow-xl shadow-indigo-500/20 shrink-0 ring-2 ring-indigo-500/20">
+            <div className="w-24 h-24 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-xl shadow-indigo-500/20 shrink-0 ring-2 ring-indigo-500/20">
               <img
                 src={`https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID=${session?.empId}`}
                 alt={session?.name || 'Profile'}
@@ -229,18 +229,18 @@ export default function ProfilePage() {
                 <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full uppercase tracking-wider">
                   {session?.department || 'IMP'} Department ({session?.role || 'User'})
                 </span>
-                <h2 className="text-2xl font-black text-white mt-2.5 tracking-tight">{session?.name}</h2>
-                <p className="text-sm text-slate-400 mt-0.5">{session?.email}</p>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-2.5 tracking-tight">{session?.name}</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{session?.email}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4 max-w-sm pt-2">
-                <div className="bg-[#0F172A]/50 border border-slate-800 rounded-xl p-3">
+                <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Employee ID</span>
-                  <span className="text-sm font-semibold text-slate-200 font-mono mt-0.5 block">{session?.empId || 'EMP-XXXXX'}</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono mt-0.5 block">{session?.empId || 'EMP-XXXXX'}</span>
                 </div>
-                <div className="bg-[#0F172A]/50 border border-slate-800 rounded-xl p-3">
+                <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800 rounded-xl p-3">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Nickname</span>
-                  <span className="text-sm font-semibold text-slate-200 mt-0.5 block">{session?.name?.split(' ')[0] || 'User'}</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-0.5 block">{session?.name?.split(' ')[0] || 'User'}</span>
                 </div>
               </div>
             </div>
@@ -257,56 +257,56 @@ export default function ProfilePage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+        <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
           
           <div className="relative z-10 space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-800/80 pb-4">
+            <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800/80 pb-4">
               <Award size={24} className="text-indigo-400" />
-              <h3 className="text-xl font-bold text-white tracking-tight">Performance Statistics</h3>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Performance Statistics</h3>
             </div>
 
             {isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="h-28 bg-slate-800 animate-pulse rounded-2xl"></div>
-                <div className="h-28 bg-slate-800 animate-pulse rounded-2xl"></div>
-                <div className="h-28 bg-slate-800 animate-pulse rounded-2xl"></div>
+                <div className="h-28 bg-slate-100 dark:bg-slate-800 animate-pulse rounded-2xl"></div>
+                <div className="h-28 bg-slate-100 dark:bg-slate-800 animate-pulse rounded-2xl"></div>
+                <div className="h-28 bg-slate-100 dark:bg-slate-800 animate-pulse rounded-2xl"></div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {/* Logged Days */}
-                <div className="bg-[#0F172A]/50 border border-slate-800 rounded-2xl p-5 flex items-center gap-4 hover:border-slate-700/30 transition-all duration-300">
+                <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center gap-4 hover:border-slate-200 dark:border-slate-700/30 transition-all duration-300">
                   <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
                     <Calendar size={24} />
                   </div>
                   <div>
-                    <span className="text-xs text-slate-400 font-medium block">Logged Days</span>
-                    <span className="text-2xl font-black text-white mt-1 block">{stats.totalDays}</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">Logged Days</span>
+                    <span className="text-2xl font-black text-slate-900 dark:text-white mt-1 block">{stats.totalDays}</span>
                   </div>
                 </div>
 
                 {/* Total Tasks */}
-                <div className="bg-[#0F172A]/50 border border-slate-800 rounded-2xl p-5 flex items-center gap-4 hover:border-slate-700/30 transition-all duration-300">
+                <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center gap-4 hover:border-slate-200 dark:border-slate-700/30 transition-all duration-300">
                   <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
                     <BookOpen size={24} />
                   </div>
                   <div>
-                    <span className="text-xs text-slate-400 font-medium block">Total Tasks</span>
-                    <span className="text-2xl font-black text-white mt-1 block">
-                      {stats.totalTasks} <span className="text-xs text-slate-400 font-normal font-mono">Logs</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">Total Tasks</span>
+                    <span className="text-2xl font-black text-slate-900 dark:text-white mt-1 block">
+                      {stats.totalTasks} <span className="text-xs text-slate-500 dark:text-slate-400 font-normal font-mono">Logs</span>
                     </span>
                   </div>
                 </div>
 
                 {/* Total Hours */}
-                <div className="bg-[#0F172A]/50 border border-slate-800 rounded-2xl p-5 flex items-center gap-4 hover:border-slate-700/30 transition-all duration-300">
-                  <div className="p-3 bg-[#0F172A]/80 border border-slate-800 rounded-xl text-indigo-400">
+                <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center gap-4 hover:border-slate-200 dark:border-slate-700/30 transition-all duration-300">
+                  <div className="p-3 bg-slate-50 dark:bg-[#0F172A]/80 border border-slate-200 dark:border-slate-800 rounded-xl text-indigo-400">
                     <Shield size={24} />
                   </div>
                   <div>
-                    <span className="text-xs text-slate-400 font-medium block">Total Hours</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">Total Hours</span>
                     <span className="text-2xl font-black text-indigo-400 mt-1 block">
-                      {stats.totalHours.toFixed(1)} <span className="text-xs text-slate-400 font-normal font-mono">hrs</span>
+                      {stats.totalHours.toFixed(1)} <span className="text-xs text-slate-500 dark:text-slate-400 font-normal font-mono">hrs</span>
                     </span>
                   </div>
                 </div>
@@ -316,17 +316,17 @@ export default function ProfilePage() {
         </div>
 
         {/* Google Calendar Sync Card */}
-        <div className="bg-[#1E293B]/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+        <div className="bg-slate-100 dark:bg-[#1E293B]/80 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
           
           <div className="relative z-10 space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800/80 pb-6">
               <div>
-                <h3 className="text-xl font-bold text-white flex items-center gap-2.5">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
                   <CalendarRange className="text-indigo-400" size={24} />
                   <span>Google Calendar Synchronization</span>
                 </h3>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                   Sync your normal work logs and OT shifts to your Google Calendar in real-time.
                 </p>
               </div>
@@ -346,7 +346,7 @@ export default function ProfilePage() {
                     </span>
                   )
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 bg-slate-500/10 text-slate-400 border border-slate-500/20 text-xs font-bold px-3 py-1.5 rounded-full">
+                  <span className="inline-flex items-center gap-1.5 bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/20 text-xs font-bold px-3 py-1.5 rounded-full">
                     <span>Not Connected</span>
                   </span>
                 )}
@@ -357,10 +357,10 @@ export default function ProfilePage() {
               {/* Left Side: Sync Toggle and Settings */}
               <div className="space-y-6">
                 {/* Sync Toggle */}
-                <div className="flex items-center justify-between p-4 bg-[#0F172A]/40 border border-slate-800 rounded-2xl hover:border-slate-700/30 transition-all">
+                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-[#0F172A]/40 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-slate-200 dark:border-slate-700/30 transition-all">
                   <div>
-                    <span className="text-sm font-bold text-slate-200 block">Automatic Synchronization</span>
-                    <span className="text-xs text-slate-400 mt-0.5 block">
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 block">Automatic Synchronization</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 block">
                       Sync shifts automatically when creating or editing logs.
                     </span>
                   </div>
@@ -373,15 +373,15 @@ export default function ProfilePage() {
                       onChange={(e) => handleToggleSync(e.target.checked)}
                       className="sr-only peer" 
                     />
-                    <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500 peer-checked:after:bg-white peer-checked:after:border-white"></div>
+                    <div className="w-11 h-6 bg-slate-100 dark:bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500 peer-checked:after:bg-white peer-checked:after:border-white"></div>
                   </label>
                 </div>
 
                 {/* Calendar ID Configuration */}
-                <div className="p-4 bg-[#0F172A]/40 border border-slate-800 rounded-2xl space-y-3">
+                <div className="p-4 bg-slate-50 dark:bg-[#0F172A]/40 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
                   <div>
-                    <span className="text-sm font-bold text-slate-200 block">Target Calendar ID</span>
-                    <span className="text-xs text-slate-400 mt-0.5 block">
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 block">Target Calendar ID</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 block">
                       Use "primary" or enter a shared Google Calendar ID.
                     </span>
                   </div>
@@ -392,11 +392,11 @@ export default function ProfilePage() {
                       value={gcalCalendarId}
                       onChange={(e) => setGcalCalendarId(e.target.value)}
                       placeholder="primary"
-                      className="flex-1 bg-[#0F172A] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-sm text-slate-200 font-mono focus:outline-none transition-colors"
+                      className="flex-1 bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-sm text-slate-800 dark:text-slate-200 font-mono focus:outline-none transition-colors"
                     />
                     <button
                       onClick={() => handleSaveCalendarId(gcalCalendarId)}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all active:scale-95 flex items-center justify-center font-semibold"
+                      className="bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white font-bold text-xs px-4 py-2 rounded-xl transition-all active:scale-95 flex items-center justify-center font-semibold"
                     >
                       Save
                     </button>
@@ -405,13 +405,13 @@ export default function ProfilePage() {
               </div>
 
               {/* Right Side: Account connection & status */}
-              <div className="p-6 bg-[#0F172A]/40 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-4">
+              <div className="p-6 bg-slate-50 dark:bg-[#0F172A]/40 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col justify-between space-y-4">
                 <div className="space-y-2">
                   <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider block">Google Session</span>
                   {gcalConnected ? (
                     <div>
-                      <span className="text-base font-bold text-white block">{gcalEmail}</span>
-                      <span className="text-xs text-slate-400 mt-1 block">
+                      <span className="text-base font-bold text-slate-900 dark:text-white block">{gcalEmail}</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
                         {isTokenExpired 
                           ? "Your Google session has expired. Please click below to refresh it for continuous background sync." 
                           : "Work logs synced using this account will appear directly on your calendar timeline."}
@@ -419,7 +419,7 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     <div>
-                      <span className="text-sm text-slate-400 block">
+                      <span className="text-sm text-slate-500 dark:text-slate-400 block">
                         Authorize connection to Google Calendar to begin syncing your daily activities and overtime segments.
                       </span>
                     </div>
@@ -432,7 +432,7 @@ export default function ProfilePage() {
                       {isTokenExpired && (
                         <button
                           onClick={handleConnectGCal}
-                          className="flex-1 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/25"
+                          className="flex-1 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-slate-900 dark:text-white text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/25"
                         >
                           <RefreshCw size={16} />
                           <span>Re-authorize Session</span>
@@ -450,7 +450,7 @@ export default function ProfilePage() {
                     <button
                       onClick={handleConnectGCal}
                       disabled={isSyncing}
-                      className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-600/25 disabled:opacity-50"
+                      className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-600/25 disabled:opacity-50"
                     >
                       {isSyncing ? (
                         <RefreshCw size={16} className="animate-spin" />
@@ -468,7 +468,7 @@ export default function ProfilePage() {
 
         {/* Floating Toast Notification */}
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 bg-[#1E293B] border border-slate-700/80 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
+          <div className="fixed bottom-6 right-6 z-50 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
             <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
             <span className="text-sm font-semibold">{toastMessage}</span>
           </div>

@@ -931,7 +931,7 @@ export default function HrbpPage() {
           }
           if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
             return (
-              <div key={idx} className="flex items-start gap-2.5 pl-3 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800/10 rounded transition-colors">
+              <div key={idx} className="flex items-start gap-2.5 pl-3 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-100 dark:hover:bg-slate-800/10 rounded transition-colors">
                 <span className="text-indigo-500 dark:text-indigo-400 mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 shadow-md shadow-indigo-500/50"></span>
                 <span>{trimmed.substring(1).trim()}</span>
               </div>
@@ -998,17 +998,17 @@ export default function HrbpPage() {
       <div className="w-full max-w-7xl mx-auto space-y-6">
         
         {/* Global Page Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800/60">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800/60">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg">
-                <Cpu size={16} className="text-white" />
+                <Cpu size={16} className="text-slate-900 dark:text-white" />
               </div>
-              <h1 className="text-2xl font-black tracking-tight text-white uppercase">
+              <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white uppercase">
                 AI Enhance Diagnostics
               </h1>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {isSharedView ? "กำลังดูรายงานผลวิเคราะห์สมรรถนะการทำงานที่แชร์" : "ห้องแล็บจำลองและประเมินการพัฒนาศักยภาพพนักงานด้วยระบบ AI (AI Enhance)"}
             </p>
           </div>
@@ -1016,15 +1016,15 @@ export default function HrbpPage() {
           {!isSharedView && (
             <div className="flex items-center gap-2">
               {/* Step Navigation Wizard Bar */}
-              <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800/80">
+              <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900/80 p-1 rounded-xl border border-slate-200 dark:border-slate-800/80">
                 <button
                   onClick={() => setStep(1)}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all tracking-wider flex items-center gap-1.5",
-                    step === 1 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "text-slate-400 hover:text-slate-200"
+                    step === 1 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200"
                   )}
                 >
-                  <span className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-[9px] font-bold">1</span>
+                  <span className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-bold">1</span>
                   Setup
                 </button>
                 
@@ -1041,10 +1041,10 @@ export default function HrbpPage() {
                   disabled={!jdText.trim()}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all tracking-wider flex items-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none",
-                    step === 2 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "text-slate-400 hover:text-slate-200"
+                    step === 2 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200"
                   )}
                 >
-                  <span className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-[9px] font-bold">2</span>
+                  <span className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-bold">2</span>
                   Console
                 </button>
 
@@ -1061,10 +1061,10 @@ export default function HrbpPage() {
                   disabled={!selectedUser}
                   className={cn(
                     "px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-all tracking-wider flex items-center gap-1.5 disabled:opacity-50 disabled:pointer-events-none",
-                    step === 3 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "text-slate-400 hover:text-slate-200"
+                    step === 3 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200"
                   )}
                 >
-                  <span className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center text-[9px] font-bold">3</span>
+                  <span className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[9px] font-bold">3</span>
                   Results & History
                 </button>
               </div>
@@ -1077,7 +1077,7 @@ export default function HrbpPage() {
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="animate-spin text-indigo-400" size={32} />
-              <p className="text-slate-400 text-xs font-semibold">กำลังโหลดข้อมูลระบบ...</p>
+              <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">กำลังโหลดข้อมูลระบบ...</p>
             </div>
           </div>
         )}
@@ -1093,23 +1093,23 @@ export default function HrbpPage() {
                 {/* Left Side: Setup Parameters & User Select */}
                 <div className="lg:col-span-1 space-y-6">
                   {/* Select Employee */}
-                  <div className="p-6 rounded-3xl bg-[#0B0F19]/80 border border-slate-800/80 shadow-2xl space-y-4 relative overflow-hidden">
+                  <div className="p-6 rounded-3xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800/80 shadow-2xl space-y-4 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl" />
                     
-                    <h3 className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <h3 className="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
                       <UserIcon size={14} className="text-indigo-400" />
                       1. เลือกพนักงานที่จะวิเคราะห์
                     </h3>
 
                     <div className="space-y-2">
-                      <label className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold">Employee Profile</label>
+                      <label className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-extrabold">Employee Profile</label>
                       <select
                         value={selectedUser}
                         onChange={(e) => {
                           setSelectedUser(e.target.value);
                           setAiAnalysis(null);
                         }}
-                        className="w-full bg-[#0F172A] border border-slate-700/60 rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:border-indigo-500/80 transition-colors"
+                        className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500/80 transition-colors"
                       >
                         {usersList.map((u) => (
                           <option key={u.id} value={u.id}>
@@ -1121,24 +1121,24 @@ export default function HrbpPage() {
 
                     {selectedUserInfo && (
                       <div className="space-y-3">
-                        <div className="bg-slate-900/60 rounded-2xl p-4 border border-slate-800/80 space-y-2 text-xs">
+                        <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl p-4 border border-slate-200 dark:border-slate-800/80 space-y-2 text-xs">
                           <div className="flex justify-between">
-                            <span className="text-slate-400">ชื่อ-นามสกุล:</span>
-                            <span className="text-slate-200 font-bold">{selectedUserInfo.full_name}</span>
+                            <span className="text-slate-500 dark:text-slate-400">ชื่อ-นามสกุล:</span>
+                            <span className="text-slate-800 dark:text-slate-200 font-bold">{selectedUserInfo.full_name}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-slate-400">แผนกงาน:</span>
+                            <span className="text-slate-500 dark:text-slate-400">แผนกงาน:</span>
                             <span className="text-indigo-300 font-bold">{selectedUserInfo.department}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-slate-400">ตำแหน่ง HRMS:</span>
+                            <span className="text-slate-500 dark:text-slate-400">ตำแหน่ง HRMS:</span>
                             <span className="text-indigo-400 font-bold">{selectedUserInfo.position || 'General Staff'}</span>
                           </div>
                         </div>
 
                         <div className="p-3.5 bg-indigo-950/20 border border-indigo-900/30 rounded-2xl flex items-center justify-between text-xs">
                           <div className="space-y-0.5">
-                            <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">ประวัติการวิเคราะห์ / History</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-bold tracking-wider">ประวัติการวิเคราะห์ / History</span>
                             <span className="text-indigo-300 font-mono font-bold">มีบันทึก {analysisHistory.length} รายการ</span>
                           </div>
                           <button
@@ -1157,8 +1157,8 @@ export default function HrbpPage() {
                   </div>
 
                   {/* Diagnostic Date Period Filter */}
-                  <div className="p-6 rounded-3xl bg-[#0B0F19]/80 border border-slate-800/80 shadow-2xl space-y-4">
-                    <h3 className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <div className="p-6 rounded-3xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800/80 shadow-2xl space-y-4">
+                    <h3 className="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
                       <Calendar size={14} className="text-indigo-400" />
                       2. ช่วงเวลาตรวจประเมิน
                     </h3>
@@ -1175,7 +1175,7 @@ export default function HrbpPage() {
                             "px-3 py-2 rounded-xl text-[10px] font-extrabold uppercase transition-all tracking-wider border",
                             dateFilter === filter
                               ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
-                              : "bg-[#0F172A]/50 text-slate-400 border-transparent hover:border-slate-800 hover:text-slate-200"
+                              : "bg-slate-50 dark:bg-[#0F172A]/50 text-slate-500 dark:text-slate-400 border-transparent hover:border-slate-200 dark:border-slate-800 hover:text-slate-800 dark:text-slate-200"
                           )}
                         >
                           {filter === 'this-week' && 'สัปดาห์นี้'}
@@ -1189,7 +1189,7 @@ export default function HrbpPage() {
                     {dateFilter === 'custom' && (
                       <div className="grid grid-cols-2 gap-2.5 pt-2 animate-in fade-in duration-200">
                         <div className="space-y-1">
-                          <span className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Start Date</span>
+                          <span className="text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Start Date</span>
                           <input
                             type="date"
                             value={customStart}
@@ -1197,11 +1197,11 @@ export default function HrbpPage() {
                               setCustomStart(e.target.value);
                               setAiAnalysis(null);
                             }}
-                            className="w-full bg-[#0F172A] border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-200"
+                            className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200"
                           />
                         </div>
                         <div className="space-y-1">
-                          <span className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">End Date</span>
+                          <span className="text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">End Date</span>
                           <input
                             type="date"
                             value={customEnd}
@@ -1209,7 +1209,7 @@ export default function HrbpPage() {
                               setCustomEnd(e.target.value);
                               setAiAnalysis(null);
                             }}
-                            className="w-full bg-[#0F172A] border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-200"
+                            className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200"
                           />
                         </div>
                       </div>
@@ -1219,16 +1219,16 @@ export default function HrbpPage() {
 
                 {/* Right Side: Job Description & Target Weights Setup */}
                 <div className="lg:col-span-2 space-y-6">
-                  <div className="p-6 rounded-3xl bg-[#0B0F19]/80 border border-slate-800/80 shadow-2xl space-y-6">
+                  <div className="p-6 rounded-3xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800/80 shadow-2xl space-y-6">
                     
                     {/* Header bar inside setting */}
-                    <div className="flex items-center justify-between border-b border-slate-800/60 pb-4">
+                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-4">
                       <div className="space-y-1">
-                        <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                           <FileSpreadsheet size={16} className="text-indigo-400" />
                           3. กำหนดความคาดหวังภาระงาน (Job Description & Target Weights)
                         </h3>
-                        <p className="text-[10px] text-slate-400">
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
                           ระบุหน้าที่งานและจัดสรรสัดส่วนน้ำหนักเป้าหมายของงานให้อ้างอิงรวมกันได้ 100%
                         </p>
                       </div>
@@ -1237,7 +1237,7 @@ export default function HrbpPage() {
                         <button
                           onClick={recommendJd}
                           disabled={isRecommendingJd}
-                          className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-[10px] font-black uppercase text-white shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2"
+                          className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-[10px] font-black uppercase text-slate-900 dark:text-white shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2"
                         >
                           {isRecommendingJd ? (
                             <>
@@ -1255,7 +1255,7 @@ export default function HrbpPage() {
                         <button
                           onClick={handleSaveJd}
                           disabled={isSavingJd}
-                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-[10px] font-black uppercase text-white shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-[10px] font-black uppercase text-slate-900 dark:text-white shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
                         >
                           {isSavingJd ? (
                             <Loader2 size={12} className="animate-spin" />
@@ -1271,23 +1271,23 @@ export default function HrbpPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="md:col-span-1 space-y-4">
                         <div className="space-y-1.5">
-                          <label className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold">ตำแหน่งงานสำหรับการประเมิน (Override Position)</label>
+                          <label className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-extrabold">ตำแหน่งงานสำหรับการประเมิน (Override Position)</label>
                           <input
                             type="text"
                             value={customPosition}
                             onChange={(e) => setCustomPosition(e.target.value)}
                             placeholder={selectedUserInfo?.position || 'เช่น Senior Developer, Manager'}
-                            className="w-full bg-[#0F172A] border border-slate-700/60 rounded-xl px-4 py-3 text-xs text-slate-200 outline-none focus:border-indigo-500/80 transition-colors"
+                            className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500/80 transition-colors"
                           />
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold">แหล่งที่มาของข้อมูล (Source)</label>
-                          <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800/80 text-[11px] font-mono text-slate-300 flex items-center justify-between">
+                          <label className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-extrabold">แหล่งที่มาของข้อมูล (Source)</label>
+                          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 text-[11px] font-mono text-slate-600 dark:text-slate-300 flex items-center justify-between">
                             <span>Status:</span>
                             <span className={cn(
                               "font-bold uppercase tracking-wider",
-                              jdSource === 'ai_recommended' ? "text-indigo-400" : "text-slate-400"
+                              jdSource === 'ai_recommended' ? "text-indigo-400" : "text-slate-500 dark:text-slate-400"
                             )}>
                               {jdSource === 'ai_recommended' ? '✨ AI Recommended' : '✏️ Manual Entry'}
                             </span>
@@ -1296,21 +1296,21 @@ export default function HrbpPage() {
                       </div>
 
                       <div className="md:col-span-2 space-y-1.5">
-                        <label className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold">หน้าที่รับผิดชอบโดยละเอียด (Raw Job Description Text)</label>
+                        <label className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-extrabold">หน้าที่รับผิดชอบโดยละเอียด (Raw Job Description Text)</label>
                         <textarea
                           rows={6}
                           value={jdText}
                           onChange={(e) => setJdText(e.target.value)}
                           placeholder="กรอกหน้าที่งาน บทบาท ความเชี่ยวชาญ และความคาดหวังที่นี่ หรือกด 'AI แนะนำ JD' เพื่อสร้างเนื้อหาให้โดยอัตโนมัติ..."
-                          className="w-full bg-[#0F172A] border border-slate-700/60 rounded-2xl px-4 py-3 text-xs text-slate-200 outline-none focus:border-indigo-500/80 transition-colors font-sans leading-relaxed resize-none"
+                          className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/60 rounded-2xl px-4 py-3 text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500/80 transition-colors font-sans leading-relaxed resize-none"
                         />
                       </div>
                     </div>
 
                     {/* Target Weights allocation slider list */}
-                    <div className="border-t border-slate-800/60 pt-6 space-y-4">
+                    <div className="border-t border-slate-200 dark:border-slate-800/60 pt-6 space-y-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                        <h4 className="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
                           <Target size={14} className="text-indigo-400" />
                           การกระจายน้ำหนักภาระงานเป้าหมาย (Key Weight Responsibilities Allocation)
                         </h4>
@@ -1341,7 +1341,7 @@ export default function HrbpPage() {
                             </div>
                           ) : (
                             keyResponsibilities.map((w, index) => (
-                              <div key={index} className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl gap-4 hover:border-slate-300 dark:hover:border-slate-700/80 transition-colors">
+                              <div key={index} className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl gap-4 hover:border-slate-300 dark:hover:border-slate-200 dark:border-slate-700/80 transition-colors">
                                 <div className="flex-1 space-y-1">
                                   <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 line-clamp-1">{w.category}</div>
                                   <div className="flex items-center gap-2">
@@ -1370,32 +1370,32 @@ export default function HrbpPage() {
 
                         {/* Add key weights config form */}
                         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 space-y-4">
-                          <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                          <div className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                             ➕ เพิ่มหัวข้อความรับผิดชอบใหม่
                           </div>
                           
                           <div className="space-y-3">
                             <div className="space-y-1">
-                              <span className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">ชื่อหน้าที่ / ลักษณะงานหลัก</span>
+                              <span className="text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">ชื่อหน้าที่ / ลักษณะงานหลัก</span>
                               <input
                                 type="text"
                                 value={newCatName}
                                 onChange={(e) => setNewCatName(e.target.value)}
                                 placeholder="เช่น พัฒนาซอฟต์แวร์, ทำแผนงานบำรุงรักษา, เอกสาร"
-                                className="w-full bg-[#0F172A] border border-slate-700/60 rounded-xl px-3.5 py-2.5 text-xs text-slate-200"
+                                className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-slate-200"
                               />
                             </div>
                             
                             <div className="grid grid-cols-3 gap-2 items-end">
                               <div className="col-span-2 space-y-1">
-                                <span className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">น้ำหนักภาระงาน (%)</span>
+                                <span className="text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">น้ำหนักภาระงาน (%)</span>
                                 <input
                                   type="number"
                                   min="1"
                                   max="100"
                                   value={newCatWeight}
                                   onChange={(e) => setNewCatWeight(parseInt(e.target.value) || 0)}
-                                  className="w-full bg-[#0F172A] border border-slate-700/60 rounded-xl px-3.5 py-2 text-xs text-slate-200"
+                                  className="w-full bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2 text-xs text-slate-800 dark:text-slate-200"
                                 />
                               </div>
                               
@@ -1414,7 +1414,7 @@ export default function HrbpPage() {
                     </div>
 
                     {/* Diagnostic Trigger Buttons */}
-                    <div className="flex items-center justify-between border-t border-slate-800/60 pt-6">
+                    <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800/60 pt-6">
                       <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
                         <Info size={12} className="text-slate-500 shrink-0" />
                         <span>การบันทึก Job Description และสัดส่วนภาระงานมีความจำเป็นก่อนเริ่มต้นประเมินผลประสิทธิภาพ</span>
@@ -1424,7 +1424,7 @@ export default function HrbpPage() {
                         {aiAnalysis && (
                           <button
                             onClick={() => setStep(3)}
-                            className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                            className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
                           >
                             <span>ข้ามไปดูผลลัพธ์ล่าสุด</span>
                             <ArrowRight size={12} />
@@ -1434,7 +1434,7 @@ export default function HrbpPage() {
                         <button
                           onClick={() => handleRunAiAnalysis(true)}
                           disabled={!jdText.trim() || keyResponsibilities.reduce((sum, r) => sum + r.weight, 0) !== 100}
-                          className="px-5 py-3 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 disabled:opacity-50 disabled:pointer-events-none text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-indigo-500/20 active:scale-95 transition-all flex items-center gap-2"
+                          className="px-5 py-3 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 disabled:opacity-50 disabled:pointer-events-none text-[10px] font-black uppercase tracking-wider text-slate-900 dark:text-white shadow-xl shadow-indigo-500/20 active:scale-95 transition-all flex items-center gap-2"
                         >
                           <Sparkles size={14} className="animate-pulse" />
                           <span>เริ่มวิเคราะห์ AI Performance Audit</span>
@@ -1452,23 +1452,23 @@ export default function HrbpPage() {
             {/* STEP 2: CONSOLE WORKFLOW */}
             {/* ========================================================================= */}
             {step === 2 && !isSharedView && (
-              <div className="w-full max-w-4xl mx-auto p-6 rounded-3xl bg-[#0B0F19]/90 border border-slate-800/80 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 space-y-6">
+              <div className="w-full max-w-4xl mx-auto p-6 rounded-3xl bg-slate-50 dark:bg-[#0B0F19]/90 border border-slate-200 dark:border-slate-800/80 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 space-y-6">
                 
                 {/* Embedded Glowing background lines */}
                 <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
                 <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-violet-500/5 rounded-full blur-[100px] pointer-events-none" />
 
-                <div className="flex items-center justify-between pb-4 border-b border-slate-800/60">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800/60">
                   <div className="flex items-center gap-2">
                     <Terminal size={18} className="text-indigo-400 animate-pulse" />
-                    <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
                       AI DIAGNOSTIC CONSOLE AUDITING
                     </h3>
                   </div>
 
                   {/* Engine Model details */}
-                  <div className="flex items-center gap-2 bg-[#0F172A] border border-slate-800 px-3.5 py-1.5 rounded-xl text-[10px] font-mono">
-                    <span className="text-slate-400 uppercase tracking-widest font-semibold shrink-0">Model:</span>
+                  <div className="flex items-center gap-2 bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 px-3.5 py-1.5 rounded-xl text-[10px] font-mono">
+                    <span className="text-slate-500 dark:text-slate-400 uppercase tracking-widest font-semibold shrink-0">Model:</span>
                     <span className="text-indigo-400 font-extrabold shrink-0">{aiModel || 'ตรวจหาความเชื่อมต่อ...'}</span>
                     {aiProvider && (
                       <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider ml-1">({aiProvider})</span>
@@ -1478,12 +1478,12 @@ export default function HrbpPage() {
 
                 {/* real-time connection telemetry indicator */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-[#0F172A]/50 border border-slate-800 p-4 rounded-2xl flex items-center gap-3">
+                  <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 font-bold font-mono text-xs">
                       1
                     </div>
                     <div className="space-y-0.5">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Connection Pipeline</span>
+                      <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block">Connection Pipeline</span>
                       <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                         SECURE ONLINE
@@ -1491,12 +1491,12 @@ export default function HrbpPage() {
                     </div>
                   </div>
 
-                  <div className="bg-[#0F172A]/50 border border-slate-800 p-4 rounded-2xl flex items-center gap-3">
+                  <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 font-bold font-mono text-xs">
                       2
                     </div>
                     <div className="space-y-0.5">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Active Telemetry Step</span>
+                      <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block">Active Telemetry Step</span>
                       <span className="text-xs text-indigo-300 font-bold">
                         {aiStep === 1 && '1. เริ่มต้นวิเคราะห์ข้อมูล'}
                         {aiStep === 2 && '2. ตรวจสอบใบงานพนักงาน'}
@@ -1508,12 +1508,12 @@ export default function HrbpPage() {
                     </div>
                   </div>
 
-                  <div className="bg-[#0F172A]/50 border border-slate-800 p-4 rounded-2xl flex items-center gap-3">
+                  <div className="bg-slate-50 dark:bg-[#0F172A]/50 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 font-bold font-mono text-xs">
                       3
                     </div>
                     <div className="space-y-0.5">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Audit Status</span>
+                      <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block">Audit Status</span>
                       <span className={cn(
                         "text-xs font-bold",
                         isAiAnalyzing ? "text-indigo-400 animate-pulse" : "text-emerald-400"
@@ -1527,7 +1527,7 @@ export default function HrbpPage() {
                 {/* Progress bar */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center text-[10px] font-mono tracking-widest uppercase">
-                    <span className="text-slate-400">Step Progression</span>
+                    <span className="text-slate-500 dark:text-slate-400">Step Progression</span>
                     <span className="text-indigo-400 font-bold">{Math.round((aiStep / 6) * 100)}%</span>
                   </div>
                   <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-full overflow-hidden p-0.5 shadow-inner">
@@ -1540,7 +1540,7 @@ export default function HrbpPage() {
 
                 {/* Step Logs Console Terminal */}
                 <div className="space-y-2">
-                  <span className="text-[10px] text-slate-400 uppercase tracking-widest font-extrabold block">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-extrabold block">
                     Execution Log Feed
                   </span>
 
@@ -1549,7 +1549,7 @@ export default function HrbpPage() {
                       <div 
                         key={index}
                         className={cn(
-                          "flex items-start gap-3 border-l-2 pl-3 py-0.5 hover:bg-slate-200/50 dark:hover:bg-slate-900/50 rounded transition-colors",
+                          "flex items-start gap-3 border-l-2 pl-3 py-0.5 hover:bg-slate-200/50 dark:hover:bg-slate-50 dark:hover:bg-slate-900/50 rounded transition-colors",
                           log.type === 'error' ? "text-rose-600 dark:text-rose-400 border-rose-500 bg-rose-500/5" :
                           log.type === 'success' ? "text-emerald-600 dark:text-emerald-400 border-emerald-500 bg-emerald-500/5" :
                           "text-slate-600 dark:text-slate-300 border-indigo-500 bg-indigo-500/5"
@@ -1569,10 +1569,10 @@ export default function HrbpPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center justify-between border-t border-slate-800/60 pt-6">
+                <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800/60 pt-6">
                   <button
                     onClick={() => setStep(1)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-800 dark:text-slate-200 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
                   >
                     <ArrowLeft size={12} />
                     <span>ย้อนกลับไป Setup / Cancel</span>
@@ -1581,7 +1581,7 @@ export default function HrbpPage() {
                   <button
                     onClick={() => setStep(3)}
                     disabled={isAiAnalyzing || !aiAnalysis}
-                    className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:pointer-events-none text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-indigo-500/20 transition-all flex items-center gap-1.5"
+                    className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:pointer-events-none text-[10px] font-black uppercase tracking-wider text-slate-900 dark:text-white shadow-xl shadow-indigo-500/20 transition-all flex items-center gap-1.5"
                   >
                     <span>ดูสรุปผลลัพธ์ (Step 3)</span>
                     <ChevronRight size={14} />
@@ -1598,7 +1598,7 @@ export default function HrbpPage() {
               <div className="space-y-6 animate-in fade-in duration-300">
                 
                 {/* 3.0 Employee Profile & JD Summary (Performance CV Card) */}
-                <div className="p-6 rounded-3xl bg-slate-50 dark:bg-gradient-to-r dark:from-[#0d1527] dark:to-[#0a0d16] border border-slate-200 dark:border-slate-800/80 shadow-2xl relative overflow-hidden space-y-4">
+                <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-slate-50 dark:bg-gradient-to-r dark:from-[#0d1527] dark:to-[#0a0d16] border border-slate-200 dark:border-slate-800/80 shadow-2xl relative overflow-hidden space-y-4">
                   {/* Subtle design gradients */}
                   <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
                   <div className="absolute bottom-0 left-0 w-36 h-36 bg-pink-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -1937,7 +1937,7 @@ export default function HrbpPage() {
                               "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
                               aiAnalysis.is_public
                                 ? "bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
-                                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-800 dark:text-slate-200"
                             )}
                             title="Toggle public web sharing link access"
                           >
@@ -1948,7 +1948,7 @@ export default function HrbpPage() {
                           {aiAnalysis.share_token && (
                             <button
                               onClick={copyShareLink}
-                              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-800 dark:text-slate-200 transition-colors"
                               title="Copy URL Share Link to Clipboard"
                             >
                               <Copy size={12} />
@@ -1959,7 +1959,7 @@ export default function HrbpPage() {
                         {/* Print Control */}
                         <button
                           onClick={() => window.print()}
-                          className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
+                          className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-900 dark:text-white transition-colors"
                           title="Print / Save PDF Report"
                         >
                           <Printer size={13} />
@@ -1977,7 +1977,7 @@ export default function HrbpPage() {
                           "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                           activeResultsSubTab === 'summary'
                             ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-800 dark:text-slate-200"
                         )}
                       >
                         <Sparkles size={13} />
@@ -1990,7 +1990,7 @@ export default function HrbpPage() {
                           "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                           activeResultsSubTab === 'gaps'
                             ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-800 dark:text-slate-200"
                         )}
                       >
                         <AlertTriangle size={13} />
@@ -2003,7 +2003,7 @@ export default function HrbpPage() {
                           "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                           activeResultsSubTab === 'coaching'
                             ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-800 dark:text-slate-200"
                         )}
                       >
                         <Target size={13} />
@@ -2016,7 +2016,7 @@ export default function HrbpPage() {
                           "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                           activeResultsSubTab === 'logs'
                             ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-800 dark:text-slate-200"
                         )}
                       >
                         <FileText size={13} />
@@ -2029,7 +2029,7 @@ export default function HrbpPage() {
                           "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                           activeResultsSubTab === 'history'
                             ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-800 dark:text-slate-200"
                         )}
                       >
                         <Clock size={13} />
@@ -2277,15 +2277,15 @@ export default function HrbpPage() {
                             <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Audit Diagnostic Step Logs</span>
                             <div className="bg-slate-100 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 h-[200px] overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-600 dark:text-slate-400 flex flex-col gap-2 shadow-inner select-text">
                               <div className="flex items-start gap-3 border-l border-emerald-500/40 pl-3">
-                                <span className="text-slate-400 dark:text-slate-500 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                <span className="text-slate-500 dark:text-slate-400 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
                                 <span className="text-emerald-700 dark:text-emerald-400 font-bold">[INFO] Performance diagnostic process completed.</span>
                               </div>
                               <div className="flex items-start gap-3 border-l border-indigo-500/40 pl-3">
-                                <span className="text-slate-400 dark:text-slate-500 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                <span className="text-slate-500 dark:text-slate-400 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
                                 <span className="text-slate-600 dark:text-slate-300">Fetched employee activities matching scope successfully.</span>
                               </div>
                               <div className="flex items-start gap-3 border-l border-indigo-500/40 pl-3">
-                                <span className="text-slate-400 dark:text-slate-500 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                <span className="text-slate-500 dark:text-slate-400 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
                                 <span className="text-slate-600 dark:text-slate-300">Resolved LLM configurations. Cached and stored.</span>
                               </div>
                             </div>
@@ -2362,7 +2362,7 @@ export default function HrbpPage() {
                                           "px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
                                           record.is_public
                                             ? "bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
-                                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50 hover:text-slate-700 dark:hover:text-slate-200"
+                                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50 hover:text-slate-700 dark:hover:text-slate-800 dark:text-slate-200"
                                         )}
                                       >
                                         {record.is_public ? <Globe size={11} /> : <Lock size={11} />}
@@ -2372,7 +2372,7 @@ export default function HrbpPage() {
                                       {record.is_public && record.share_token && (
                                         <button
                                           onClick={() => copyHistoryShareLink(record.share_token)}
-                                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors border border-slate-200 dark:border-slate-700/50"
+                                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-800 dark:text-slate-200 transition-colors border border-slate-200 dark:border-slate-700/50"
                                           title="Copy URL Share Link to Clipboard"
                                         >
                                           <Copy size={11} />
@@ -2381,7 +2381,7 @@ export default function HrbpPage() {
                                     </div>
 
                                     <button 
-                                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
+                                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
                                       onClick={() => loadHistoryRecord(record)}
                                     >
                                       LOAD
@@ -2400,7 +2400,7 @@ export default function HrbpPage() {
                       <div className="border-t border-slate-200 dark:border-slate-800/60 pt-4 flex justify-between items-center text-xs">
                         <button
                           onClick={() => setStep(1)}
-                          className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                          className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-800 dark:text-slate-200 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
                         >
                           <ArrowLeft size={12} />
                           <span>กลับไปขั้นตอน Setup</span>
@@ -2439,7 +2439,7 @@ export default function HrbpPage() {
                   
                   <button
                     onClick={() => setStep(1)}
-                    className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-all"
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-all"
                   >
                     ย้อนกลับ / Setup Page
                   </button>
@@ -2451,11 +2451,11 @@ export default function HrbpPage() {
                       <Loader2 className="animate-spin text-indigo-400" size={32} />
                     </div>
                   ) : analysisHistory.length === 0 ? (
-                    <div className="text-center p-12 rounded-3xl bg-slate-900/30 border border-slate-800/80 text-xs text-slate-500 italic space-y-4">
+                    <div className="text-center p-12 rounded-3xl bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/80 text-xs text-slate-500 italic space-y-4">
                       <div>ไม่มีประวัติการประเมินมาก่อนสำหรับพนักงานรายนี้ / No history logs found for this employee</div>
                       <button
                         onClick={() => setStep(1)}
-                        className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-indigo-600/20 transition-all inline-block not-italic"
+                        className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[10px] font-black uppercase tracking-wider text-slate-900 dark:text-white shadow-xl shadow-indigo-600/20 transition-all inline-block not-italic"
                       >
                         กำหนดตัวแปรและเริ่มวิเคราะห์ (Setup Page)
                       </button>
@@ -2465,11 +2465,11 @@ export default function HrbpPage() {
                       {analysisHistory.map((record) => (
                         <div 
                           key={record.id} 
-                          className="p-5 rounded-2xl border text-xs flex flex-col gap-4 justify-between transition-all hover:border-indigo-500/40 bg-slate-900/50 border-slate-800/80"
+                          className="p-5 rounded-2xl border text-xs flex flex-col gap-4 justify-between transition-all hover:border-indigo-500/40 bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800/80"
                         >
                           <div className="flex justify-between items-start">
                             <div className="space-y-1">
-                              <span className="font-bold text-slate-200 font-mono tracking-wide text-sm">
+                              <span className="font-bold text-slate-800 dark:text-slate-200 font-mono tracking-wide text-sm">
                                 📅 {record.start_date} ~ {record.end_date}
                               </span>
                               <span className="text-[10px] text-slate-500 block">
@@ -2486,12 +2486,12 @@ export default function HrbpPage() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800/60 font-mono text-xs font-bold text-center">
+                          <div className="grid grid-cols-2 gap-3 bg-white/80 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800/60 font-mono text-xs font-bold text-center">
                             <div>
                               <span className="text-slate-500 uppercase block text-[8px] tracking-widest mb-0.5">ALIGNMENT</span>
                               <span className="text-indigo-400 text-sm">{record.jd_alignment_score || 0}%</span>
                             </div>
-                            <div className="border-l border-slate-800/80">
+                            <div className="border-l border-slate-200 dark:border-slate-800/80">
                               <span className="text-slate-500 uppercase block text-[8px] tracking-widest mb-0.5">BURNOUT</span>
                               <span className={cn(
                                 "text-sm",
@@ -2504,7 +2504,7 @@ export default function HrbpPage() {
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between border-t border-slate-800/60 pt-3">
+                          <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800/60 pt-3">
                             <div className="flex items-center gap-2">
                               {/* Public / Private Toggle */}
                               <button
@@ -2513,7 +2513,7 @@ export default function HrbpPage() {
                                   "px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
                                   record.is_public
                                     ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20"
-                                    : "bg-slate-800 text-slate-400 border border-slate-700/50 hover:text-slate-200"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50 hover:text-slate-800 dark:text-slate-200"
                                 )}
                               >
                                 {record.is_public ? <Globe size={11} /> : <Lock size={11} />}
@@ -2523,7 +2523,7 @@ export default function HrbpPage() {
                               {record.is_public && record.share_token && (
                                 <button
                                   onClick={() => copyHistoryShareLink(record.share_token)}
-                                  className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors border border-slate-700/50"
+                                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 transition-colors border border-slate-200 dark:border-slate-700/50"
                                   title="Copy URL Share Link to Clipboard"
                                 >
                                   <Copy size={11} />
@@ -2532,7 +2532,7 @@ export default function HrbpPage() {
                             </div>
 
                             <button 
-                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
+                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
                               onClick={() => loadHistoryRecord(record)}
                             >
                               LOAD REPORT
@@ -2558,16 +2558,16 @@ export default function HrbpPage() {
           <div className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800/90 shadow-2xl space-y-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl" />
             
-            <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 pb-3">
               <div className="flex items-center gap-2">
                 <UserCheck className="text-indigo-400" size={18} />
-                <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
                   AI Enhance Verification Sign-Off
                 </h3>
               </div>
               <button 
                 onClick={() => setShowAckModal(false)}
-                className="text-slate-400 hover:text-white transition-colors p-1"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white transition-colors p-1"
               >
                 <X size={16} />
               </button>
@@ -2590,7 +2590,7 @@ export default function HrbpPage() {
               <button
                 type="button"
                 onClick={() => setShowAckModal(false)}
-                className="px-4 py-2 rounded-xl text-slate-400 hover:text-slate-200 text-[10px] font-black uppercase tracking-wider"
+                className="px-4 py-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 text-[10px] font-black uppercase tracking-wider"
               >
                 ยกเลิก (Cancel)
               </button>
@@ -2599,7 +2599,7 @@ export default function HrbpPage() {
                 type="button"
                 onClick={handleAcknowledgeAnalysis}
                 disabled={isSubmittingAck}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-[10px] font-black uppercase text-white shadow-xl shadow-indigo-600/20 transition-all flex items-center gap-1.5"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-[10px] font-black uppercase text-slate-900 dark:text-white shadow-xl shadow-indigo-600/20 transition-all flex items-center gap-1.5"
               >
                 {isSubmittingAck ? (
                   <Loader2 size={12} className="animate-spin" />

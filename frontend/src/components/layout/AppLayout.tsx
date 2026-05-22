@@ -5,6 +5,22 @@ import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
 import { useNotification } from '../../context/NotificationContext';
+import { applyTheme, getStoredTheme, nextTheme } from '../../lib/theme';
+
+type SessionUser = { name: string; role: string; empId?: string };
+
+function getSessionUser(): SessionUser | null {
+  try {
+    const session = localStorage.getItem('worklog_session');
+    return session ? JSON.parse(session) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -12,37 +28,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem('sidebar_collapsed');
     return saved === 'true';
   });
-  const [user, setUser] = useState<{ name: string; role: string; empId?: string } | null>(null);
+  const [user] = useState<SessionUser | null>(getSessionUser);
   const navigate = useNavigate();
   const { showToast } = useNotification();
 
-  const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    return saved || 'dark';
-  });
+  const [theme, setTheme] = useState(getStoredTheme);
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === 'light') {
-      root.classList.add('light');
-      root.classList.remove('dark');
-    } else {
-      root.classList.add('dark');
-      root.classList.remove('light');
-    }
-    localStorage.setItem('theme', theme);
+    applyTheme(theme);
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+    setTheme(nextTheme);
   };
-
-  useEffect(() => {
-    const session = localStorage.getItem('worklog_session');
-    if (session) {
-      setUser(JSON.parse(session));
-    }
-  }, []);
 
   // Background runner for pending Google Calendar sync submissions/updates
   useEffect(() => {
@@ -123,9 +121,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             window.location.reload();
           }, 1500);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[AppLayout] Failed to process pending sync:', err);
-        showToast('เกิดข้อผิดพลาดในการบันทึกและซิงค์ GCal: ' + err.message, 'error');
+        showToast('เกิดข้อผิดพลาดในการบันทึกและซิงค์ GCal: ' + getErrorMessage(err), 'error');
       }
     }
 
@@ -179,21 +177,21 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {!isSharedView && (
         <aside 
           className={cn(
-            "fixed inset-y-0 left-0 z-50 w-64 ai-glass border-r border-slate-800/80 flex flex-col transform transition-all duration-300 ease-in-out md:relative md:translate-x-0",
+            "fixed inset-y-0 left-0 z-50 w-64 bg-slate-50/80 dark:bg-[#030712]/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800/80 flex flex-col transform transition-all duration-300 ease-in-out md:relative md:translate-x-0",
             isSidebarOpen ? "translate-x-0" : "-translate-x-full",
             isCollapsed ? "md:w-20" : "md:w-64"
           )}
         >
           <div className={cn(
-            "h-16 flex items-center justify-between border-b border-slate-800/60 bg-slate-950/20 transition-all duration-300",
+            "h-16 flex items-center justify-between border-b border-slate-200 dark:border-slate-800/60 bg-white/50 dark:bg-slate-950/20 transition-all duration-300",
             isCollapsed ? "px-4 justify-center" : "px-6"
           )}>
             <div className="flex items-center">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/20 shrink-0">
-                <Sparkles size={15} className="text-white animate-pulse" />
+                <Sparkles size={15} className="text-slate-900 dark:text-white animate-pulse" />
               </div>
               {!isCollapsed && (
-                <span className="text-base font-extrabold tracking-wider bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent ml-3 whitespace-nowrap animate-fade-in">
+                <span className="text-base font-extrabold tracking-wider bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-300 bg-clip-text text-transparent ml-3 whitespace-nowrap animate-fade-in">
                   IMP WORKLOG
                 </span>
               )}
@@ -203,14 +201,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               {/* Desktop Collapse Button */}
               <button 
                 onClick={toggleCollapse} 
-                className="hidden md:flex items-center justify-center p-1.5 rounded-lg border border-slate-800/80 hover:border-indigo-500/50 bg-slate-900/50 hover:bg-indigo-500/10 text-slate-400 hover:text-indigo-400 transition-all duration-200"
+                className="hidden md:flex items-center justify-center p-1.5 rounded-lg border border-slate-200 hover:border-indigo-500/50 dark:border-slate-800/80 dark:hover:border-indigo-500/50 bg-white hover:bg-indigo-50 dark:bg-slate-900/50 dark:hover:bg-indigo-500/10 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-all duration-200"
                 title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
               >
                 {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
               </button>
 
               {/* Close button for mobile */}
-              <button onClick={toggleSidebar} className="md:hidden text-slate-400 hover:text-white">
+              <button onClick={toggleSidebar} className="md:hidden text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">
                 <X size={20} />
               </button>
             </div>
@@ -218,27 +216,27 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           
           {/* Connection status box */}
           {!isCollapsed ? (
-            <div className="mt-4 mx-4 px-4 py-3.5 rounded-xl bg-slate-950/50 border border-slate-800/80 flex items-center justify-between text-[11px] backdrop-blur-md animate-fade-in">
-              <div className="flex items-center gap-2 text-slate-400 font-mono">
-                <Cpu size={12} className="text-indigo-400 animate-pulse" />
+            <div className="mt-4 mx-4 px-4 py-3.5 rounded-xl bg-white/80 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px] backdrop-blur-md animate-fade-in shadow-sm">
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-mono">
+                <Cpu size={12} className="text-indigo-600 dark:text-indigo-400 animate-pulse" />
                 <span className="font-semibold tracking-wider">AI COPILOT</span>
               </div>
-              <div className="flex items-center gap-1.5 font-bold text-emerald-400 tracking-wider">
-                <span className="ai-pulse-dot" />
+              <div className="flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
                 <span>ONLINE</span>
               </div>
             </div>
           ) : (
             <div 
-              className="mt-4 mx-auto w-10 h-10 rounded-xl bg-slate-950/50 border border-slate-800/80 flex items-center justify-center backdrop-blur-md relative group cursor-pointer"
+              className="mt-4 mx-auto w-10 h-10 rounded-xl bg-white/80 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/80 flex items-center justify-center backdrop-blur-md relative group cursor-pointer shadow-sm"
               title="AI Copilot: Online"
             >
-              <Cpu size={16} className="text-indigo-400 animate-pulse" />
-              <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-emerald-400 border border-[#030712]" />
+              <Cpu size={16} className="text-indigo-600 dark:text-indigo-400 animate-pulse" />
+              <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-emerald-500 border border-white dark:border-[#030712]" />
             </div>
           )}
 
-          <nav className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto">
+          <nav className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto mt-2">
             <NavItem to="/" icon={<LayoutDashboard size={18} />} label="Dashboard" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/log" icon={<PlusCircle size={18} />} label="Log Work" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/calendar" icon={<Calendar size={18} />} label="Calendar" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
@@ -250,11 +248,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </nav>
 
           {/* Logout button at bottom of sidebar */}
-          <div className="p-4 border-t border-slate-800/80 bg-slate-950/20">
+          <div className="p-4 border-t border-slate-200 dark:border-slate-800/80 bg-white/50 dark:bg-slate-950/20">
             <button
               onClick={handleLogout}
               className={cn(
-                "flex items-center rounded-xl text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all text-sm font-semibold tracking-wide w-full",
+                "flex items-center rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20 transition-all text-sm font-semibold tracking-wide w-full",
                 isCollapsed ? "md:justify-center space-x-3 md:space-x-0 py-3" : "space-x-3 px-4 py-3"
               )}
               title={isCollapsed ? "Sign Out" : undefined}
@@ -280,7 +278,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-3">
               <button 
                 onClick={toggleSidebar}
-                className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors shrink-0"
+                className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors shrink-0"
               >
                 <Menu size={24} />
               </button>
@@ -291,7 +289,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           ) : (
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg border border-indigo-400/20 shrink-0">
-                <Sparkles size={14} className="text-white animate-pulse" />
+                <Sparkles size={14} className="text-slate-900 dark:text-white animate-pulse" />
               </div>
               <span className="text-xs font-black tracking-wider uppercase text-slate-800 dark:text-slate-100 ml-1 whitespace-nowrap">
                 IMP WORKLOG - PERFORMANCE DIAGNOSTICS
@@ -361,15 +359,15 @@ function NavItem({ to, icon, label, isCollapsed, onClick }: NavItemProps) {
           "flex items-center rounded-xl transition-all duration-300 group text-sm font-semibold relative overflow-hidden",
           isCollapsed ? "md:justify-center space-x-3 md:space-x-0 py-3" : "space-x-3 px-4 py-3",
           isActive 
-            ? "bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 after:absolute after:left-0 after:top-1/4 after:h-1/2 after:w-1 after:bg-indigo-500 after:rounded-r-full" 
-            : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 border border-transparent"
+            ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/25 after:absolute after:left-0 after:top-1/4 after:h-1/2 after:w-1 after:bg-indigo-600 dark:after:bg-indigo-500 after:rounded-r-full shadow-sm dark:shadow-none" 
+            : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-900 dark:hover:text-white border border-transparent"
         )
       }
       title={isCollapsed ? label : undefined}
     >
       <span className={cn(
         "transition-all duration-300 group-hover:scale-110 shrink-0",
-        "text-slate-400 group-hover:text-indigo-400"
+        "text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
       )}>
         {icon}
       </span>

@@ -169,33 +169,33 @@ export default function DashboardPage() {
         {isLoading ? (
           // Sleek Glass Skeleton Loader
           <div className="space-y-8 animate-pulse">
-            <div className="h-10 w-64 bg-[#1E293B]/40 rounded-lg"></div>
+            <div className="h-10 w-64 bg-slate-100 dark:bg-[#1E293B]/40 rounded-lg"></div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-32 bg-[#1E293B]/40 rounded-2xl border border-slate-700/30"></div>
+                <div key={i} className="h-32 bg-slate-100 dark:bg-[#1E293B]/40 rounded-2xl border border-slate-200 dark:border-slate-700/30"></div>
               ))}
             </div>
-            <div className="h-44 bg-[#1E293B]/40 rounded-2xl border border-slate-700/30"></div>
+            <div className="h-44 bg-slate-100 dark:bg-[#1E293B]/40 rounded-2xl border border-slate-200 dark:border-slate-700/30"></div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 h-80 bg-[#1E293B]/40 rounded-2xl border border-slate-700/30"></div>
-              <div className="h-80 bg-[#1E293B]/40 rounded-2xl border border-slate-700/30"></div>
+              <div className="lg:col-span-2 h-80 bg-slate-100 dark:bg-[#1E293B]/40 rounded-2xl border border-slate-200 dark:border-slate-700/30"></div>
+              <div className="h-80 bg-slate-100 dark:bg-[#1E293B]/40 rounded-2xl border border-slate-200 dark:border-slate-700/30"></div>
             </div>
           </div>
         ) : (
           <>
             {/* Welcoming Header Banner */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800/60 pb-5">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 dark:border-slate-800/60 pb-5">
               <div>
-                <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
                   Welcome back, {user?.name || 'Developer'}!
                 </h1>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                   Here is a professional summary of your logged work activities and attendance.
                 </p>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full self-start md:self-center">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
-                <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest font-mono">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-full self-start md:self-center">
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 animate-pulse"></span>
+                <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest font-mono">
                   Weekly: {startOfWeek} ~ {endOfWeek}
                 </span>
               </div>
@@ -205,25 +205,25 @@ export default function DashboardPage() {
               <KpiCard 
                 title="Total Hours" 
                 value={`${totalHoursThisWeek.toFixed(1)}h`} 
-                icon={<TrendingUp className="text-indigo-400" size={20} />} 
+                icon={<TrendingUp className="text-indigo-600 dark:text-indigo-400" size={20} />} 
                 trend={totalHoursThisWeek >= 40 ? "Goal Met" : "In Progress"} 
-                trendColor={totalHoursThisWeek >= 40 ? "text-emerald-400 bg-emerald-400/10" : "text-amber-400 bg-amber-400/10"}
-                className="border-indigo-500/30 bg-gradient-to-br from-[#1E293B] to-indigo-900/20"
+                trendColor={totalHoursThisWeek >= 40 ? "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-400/10" : "text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-400/10"}
+                className="border-indigo-200 dark:border-indigo-500/30 bg-gradient-to-br from-indigo-50 to-white dark:from-[#1E293B] dark:to-indigo-900/20"
               />
               <KpiCard 
                 title="OT Hours" 
                 value={`${otHoursThisWeek.toFixed(1)}h`} 
-                icon={<TrendingUp className="text-rose-400" size={20} />} 
+                icon={<TrendingUp className="text-rose-600 dark:text-rose-400" size={20} />} 
               />
               <KpiCard 
                 title="Active Projects" 
                 value={String(activeProjectsCount)} 
-                icon={<FolderGit2 className="text-emerald-400" size={20} />} 
+                icon={<FolderGit2 className="text-emerald-600 dark:text-emerald-400" size={20} />} 
               />
               <KpiCard 
                 title="Support Tasks" 
                 value={String(supportTicketsCount)} 
-                icon={<Ticket className="text-amber-400" size={20} />} 
+                icon={<Ticket className="text-amber-600 dark:text-amber-400" size={20} />} 
               />
             </div>
 
@@ -234,13 +234,13 @@ export default function DashboardPage() {
               <div className="lg:col-span-2 space-y-6">
                 
                 {/* Weekly Strip - Moved here to save vertical space */}
-                <div className="ai-glass rounded-2xl p-5 shadow-xl">
+                <div className="ai-glass bg-white dark:bg-[#030712]/50 rounded-2xl p-5 shadow-xl">
                   <div className="flex justify-between items-center mb-5">
-                    <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                      <CalendarIcon size={18} className="text-indigo-400" />
+                    <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                      <CalendarIcon size={18} className="text-indigo-600 dark:text-indigo-400" />
                       <span>This Week's Attendance</span>
                     </h2>
-                    <span className="text-xs text-slate-400 font-mono">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                       {startOfWeek} to {endOfWeek}
                     </span>
                   </div>
@@ -274,20 +274,20 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Recent Entries Table */}
-                <div className="ai-glass rounded-2xl shadow-xl overflow-hidden flex flex-col">
-                  <div className="p-5 border-b border-slate-800/60 flex justify-between items-center bg-slate-900/40">
-                    <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                      <ClipboardList size={18} className="text-indigo-400" />
+                <div className="ai-glass bg-white dark:bg-[#030712]/50 rounded-2xl shadow-xl overflow-hidden flex flex-col">
+                  <div className="p-5 border-b border-slate-200 dark:border-slate-800/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+                    <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                      <ClipboardList size={18} className="text-indigo-600 dark:text-indigo-400" />
                       <span>Recent Work Logs</span>
                     </h2>
                   </div>
                   {entries.length === 0 ? (
                     <div className="p-12 text-center flex flex-col items-center justify-center space-y-4">
-                      <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
+                      <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
                         <ClipboardList size={28} />
                       </div>
-                      <h3 className="text-white font-medium">No work logged yet</h3>
-                      <p className="text-sm text-slate-400 max-w-sm">
+                      <h3 className="text-slate-900 dark:text-white font-medium">No work logged yet</h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm">
                         You haven't recorded any work times yet. Get started by logging your tasks for today.
                       </p>
                       <Link 
@@ -301,7 +301,7 @@ export default function DashboardPage() {
                   ) : (
                     <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
                       <table className="w-full text-sm text-left">
-                        <thead className="text-[10px] text-slate-400 bg-[#0F172A]/80 uppercase border-b border-slate-800/50 sticky top-0 z-10 backdrop-blur-md">
+                        <thead className="text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100/80 dark:bg-[#0F172A]/80 uppercase border-b border-slate-200 dark:border-slate-800/50 sticky top-0 z-10 backdrop-blur-md">
                           <tr>
                             <th className="px-4 py-3 font-medium">Date</th>
                             <th className="px-4 py-3 font-medium">Project</th>
@@ -311,7 +311,7 @@ export default function DashboardPage() {
                             <th className="px-4 py-3 font-medium text-right">Actions</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800/30">
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800/30">
                           {entries.slice(0, 15).map((entry) => (
                             <TableRow 
                               key={entry.id}
@@ -336,8 +336,8 @@ export default function DashboardPage() {
                     </div>
                   )}
                   {entries.length > 15 && (
-                    <div className="p-3 border-t border-slate-700/30 text-center bg-slate-900/40">
-                      <Link to="/reports" className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider">
+                    <div className="p-3 border-t border-slate-200 dark:border-slate-700/30 text-center bg-slate-50 dark:bg-slate-900/40">
+                      <Link to="/reports" className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors uppercase tracking-wider">
                         View all work logs ({entries.length}) →
                       </Link>
                     </div>
@@ -346,12 +346,12 @@ export default function DashboardPage() {
               </div>
               
               {/* Hours by Type Chart */}
-              <div className="ai-glass rounded-2xl p-6 shadow-xl flex flex-col justify-between lg:sticky lg:top-6 self-start">
+              <div className="ai-glass bg-white dark:bg-[#030712]/50 rounded-2xl p-6 shadow-xl flex flex-col justify-between lg:sticky lg:top-6 self-start">
                 <div>
-                  <h2 className="text-lg font-semibold text-white mb-6">Hours Breakdown</h2>
+                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Hours Breakdown</h2>
                   <div className="flex flex-col items-center justify-center py-6">
                     {/* Premium Circle Gauge */}
-                    <div className="relative w-48 h-48 rounded-full border-[14px] border-slate-800 flex items-center justify-center mb-6">
+                    <div className="relative w-48 h-48 rounded-full border-[14px] border-slate-100 dark:border-slate-800 flex items-center justify-center mb-6">
                       <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                         {/* Circle segment 1: Project (Indigo) */}
                         <circle 
@@ -393,10 +393,10 @@ export default function DashboardPage() {
                         />
                       </svg>
                       <div className="text-center z-10">
-                        <div className="text-3xl font-extrabold text-white tracking-tight">
+                        <div className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                           {typeSummary.total.toFixed(1)}h
                         </div>
-                        <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mt-0.5">
+                        <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 mt-0.5">
                           Total Hours
                         </div>
                       </div>
@@ -405,33 +405,33 @@ export default function DashboardPage() {
                 </div>
                 
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center text-sm border-b border-slate-700/30 pb-2">
+                  <div className="flex justify-between items-center text-sm border-b border-slate-200 dark:border-slate-700/30 pb-2">
                     <div className="flex items-center">
                       <span className="w-3 h-3 rounded-full bg-indigo-500 mr-3"></span>
-                      <span className="text-slate-300">Project / Upgrade</span>
+                      <span className="text-slate-700 dark:text-slate-300">Project / Upgrade</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-white font-semibold">{typeSummary.project.toFixed(1)}h</span>
+                      <span className="text-slate-900 dark:text-white font-semibold">{typeSummary.project.toFixed(1)}h</span>
                       <span className="text-slate-500 text-xs ml-2">({typeSummary.pct.project}%)</span>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center text-sm border-b border-slate-700/30 pb-2">
+                  <div className="flex justify-between items-center text-sm border-b border-slate-200 dark:border-slate-700/30 pb-2">
                     <div className="flex items-center">
                       <span className="w-3 h-3 rounded-full bg-emerald-500 mr-3"></span>
-                      <span className="text-slate-300">Support Tasks</span>
+                      <span className="text-slate-700 dark:text-slate-300">Support Tasks</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-white font-semibold">{typeSummary.support.toFixed(1)}h</span>
+                      <span className="text-slate-900 dark:text-white font-semibold">{typeSummary.support.toFixed(1)}h</span>
                       <span className="text-slate-500 text-xs ml-2">({typeSummary.pct.support}%)</span>
                     </div>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center">
                       <span className="w-3 h-3 rounded-full bg-amber-500 mr-3"></span>
-                      <span className="text-slate-300">Management</span>
+                      <span className="text-slate-700 dark:text-slate-300">Management</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-white font-semibold">{typeSummary.management.toFixed(1)}h</span>
+                      <span className="text-slate-900 dark:text-white font-semibold">{typeSummary.management.toFixed(1)}h</span>
                       <span className="text-slate-500 text-xs ml-2">({typeSummary.pct.management}%)</span>
                     </div>
                   </div>
@@ -476,7 +476,7 @@ function KpiCard({
   value, 
   icon, 
   trend, 
-  trendColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", 
+  trendColor = "text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20", 
   className 
 }: { 
   title: string; 
@@ -487,16 +487,16 @@ function KpiCard({
   className?: string; 
 }) {
   return (
-    <div className={cn("ai-glass-interactive rounded-xl p-4 shadow-xl flex flex-col justify-between hover:scale-[1.02] duration-300", className)}>
+    <div className={cn("ai-glass-interactive rounded-xl p-4 shadow-xl flex flex-col justify-between hover:scale-[1.02] duration-300 bg-white/80 dark:bg-slate-950/20", className)}>
       <div className="flex justify-between items-start mb-3">
-        <div className="p-2.5 rounded-lg bg-slate-950/50 border border-slate-800/80 group-hover:scale-110 duration-300">
+        <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/80 group-hover:scale-110 duration-300">
           {icon}
         </div>
         {trend && <span className={cn("text-[9px] font-extrabold px-2 py-0.5 rounded-md border uppercase tracking-wider", trendColor)}>{trend}</span>}
       </div>
       <div>
-        <h3 className="text-2xl font-extrabold text-white tracking-tight mb-0.5 font-mono">{value}</h3>
-        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{title}</p>
+        <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-0.5 font-mono">{value}</h3>
+        <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{title}</p>
       </div>
     </div>
   );
@@ -521,23 +521,23 @@ function DayCard({
     <div className={cn(
       "rounded-xl border p-4 flex flex-col items-center justify-center transition-all duration-300 cursor-pointer hover:border-indigo-500/40 relative overflow-hidden",
       active 
-        ? "ai-glass border-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.15)] ring-1 ring-indigo-500/20" 
-        : "bg-slate-950/40 border-slate-900",
-      isWeekend ? "opacity-40 border-slate-950" : ""
+        ? "ai-glass bg-white dark:bg-slate-950/20 border-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.15)] ring-1 ring-indigo-500/20" 
+        : "bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-900",
+      isWeekend ? "opacity-50 dark:opacity-40 border-slate-200 dark:border-slate-950" : ""
     )}>
       {active && (
         <div className="absolute top-0 right-0 w-1.5 h-1.5 bg-indigo-500 rounded-bl-full shadow-lg shadow-indigo-500/50" />
       )}
-      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">{day}</span>
-      <span className={cn("text-xl font-extrabold mb-3 font-mono", active ? "text-indigo-400" : "text-white")}>{date}</span>
+      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider mb-1">{day}</span>
+      <span className={cn("text-xl font-extrabold mb-3 font-mono", active ? "text-indigo-600 dark:text-indigo-400" : "text-slate-800 dark:text-white")}>{date}</span>
       
-      <div className="w-full h-1.5 rounded-full bg-slate-900 mb-2 overflow-hidden border border-slate-800/40">
+      <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-900 mb-2 overflow-hidden border border-slate-300 dark:border-slate-800/40">
         <div 
-          className={cn("h-full rounded-full transition-all duration-500", active ? "bg-gradient-to-r from-indigo-500 to-violet-500" : "bg-slate-700")} 
+          className={cn("h-full rounded-full transition-all duration-500", active ? "bg-gradient-to-r from-indigo-500 to-violet-500" : "bg-slate-400 dark:bg-slate-700")} 
           style={{ width: `${progress}%` }}
         ></div>
       </div>
-      <span className="text-xs font-semibold text-slate-400 font-mono">{hours}</span>
+      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-mono">{hours}</span>
     </div>
   );
 }
@@ -562,18 +562,18 @@ function TableRow({
   onView?: () => void;
 }) {
   const typeColors = {
-    Project: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20",
-    Support: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-    Management: "text-amber-400 bg-amber-500/10 border-amber-500/20"
+    Project: "text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-400 dark:bg-indigo-500/10 dark:border-indigo-500/20",
+    Support: "text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20",
+    Management: "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-500/10 dark:border-amber-500/20"
   };
 
   return (
-    <tr className="hover:bg-slate-900/35 border-b border-slate-900 transition-colors group">
-      <td className="px-4 py-3 text-slate-400 font-semibold font-mono text-xs whitespace-nowrap">{date}</td>
-      <td className="px-4 py-3 font-bold text-slate-200 whitespace-nowrap">
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-950/80 border border-slate-800/70">{project}</span>
+    <tr className="hover:bg-slate-50 dark:hover:bg-slate-50 dark:hover:bg-slate-900/35 border-b border-slate-200 dark:border-slate-900 transition-colors group">
+      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-semibold font-mono text-xs whitespace-nowrap">{date}</td>
+      <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-800/70">{project}</span>
       </td>
-      <td className="px-4 py-3 text-slate-400 max-w-[150px] text-xs">
+      <td className="px-4 py-3 text-slate-600 dark:text-slate-400 max-w-[150px] text-xs">
         <div className="truncate">{action}</div>
         {actionChannel && (
           <div className="flex flex-wrap gap-1 mt-1">
@@ -582,9 +582,9 @@ function TableRow({
                 key={channel}
                 className={cn(
                   "px-1 py-0.5 rounded-full text-[8px] font-extrabold border shrink-0 uppercase tracking-wider flex items-center gap-0.5",
-                  channel === 'Meeting' && "bg-indigo-500/10 border-indigo-500/25 text-indigo-400",
-                  channel === 'Discuss via phone' && "bg-amber-500/10 border-amber-500/25 text-amber-400",
-                  channel === 'On site' && "bg-rose-500/10 border-rose-500/25 text-rose-400"
+                  channel === 'Meeting' && "bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-500/10 dark:border-indigo-500/25 dark:text-indigo-400",
+                  channel === 'Discuss via phone' && "bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-500/10 dark:border-amber-500/25 dark:text-amber-400",
+                  channel === 'On site' && "bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-500/10 dark:border-rose-500/25 dark:text-rose-400"
                 )}
               >
                 {channel === 'Meeting' && '👥'}
@@ -596,7 +596,7 @@ function TableRow({
           </div>
         )}
       </td>
-      <td className="px-4 py-3 font-extrabold text-white font-mono text-sm">{hours}h</td>
+      <td className="px-4 py-3 font-extrabold text-slate-900 dark:text-white font-mono text-sm">{hours}h</td>
       <td className="px-4 py-3 whitespace-nowrap">
         <span className={cn("px-2 py-0.5 text-[8px] font-extrabold rounded uppercase tracking-wider border", typeColors[type])}>
           {type}
@@ -610,7 +610,7 @@ function TableRow({
                 e.stopPropagation();
                 onView();
               }}
-              className="bg-slate-800/60 hover:bg-slate-800 hover:text-slate-200 border border-slate-700/60 text-slate-400 px-2 py-1 rounded-md cursor-pointer font-bold text-[9px] uppercase tracking-wider transition-all flex items-center gap-1"
+              className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:hover:text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 px-2 py-1 rounded-md cursor-pointer font-bold text-[9px] uppercase tracking-wider transition-all flex items-center gap-1"
               title="ดูใบงานแบบเต็ม"
             >
               <Eye size={10} />
@@ -623,7 +623,7 @@ function TableRow({
                 e.stopPropagation();
                 onEdit();
               }}
-              className="bg-indigo-500/10 hover:bg-indigo-500/25 active:scale-95 border border-indigo-500/30 text-indigo-400 px-2.5 py-1 rounded-md cursor-pointer font-bold text-[9px] uppercase tracking-wider transition-all shadow-sm shadow-indigo-500/5"
+              className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/25 active:scale-95 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-md cursor-pointer font-bold text-[9px] uppercase tracking-wider transition-all shadow-sm shadow-indigo-500/5"
             >
               Edit
             </button>
