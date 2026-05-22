@@ -315,6 +315,7 @@ export default function LogWorkPage() {
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [allUsers, setAllUsers] = useState<string[]>([]);
   const [resolvedUserId, setResolvedUserId] = useState<string>('');
+  const [isCurrentUserChatchawan, setIsCurrentUserChatchawan] = useState<boolean>(false);
 
   // Daily context state
   const [existingEntries, setExistingEntries] = useState<any[]>([]);
@@ -368,6 +369,7 @@ export default function LogWorkPage() {
         // If the logged-in user is Chatchawan, load everyone. Otherwise, only show Chatchawan and ourselves.
         let uniqueNames: string[] = [];
         const isChatchawan = currentCleanName.toLowerCase() === 'chatchawan';
+        setIsCurrentUserChatchawan(isChatchawan);
         
         if (isChatchawan) {
           const { data } = await supabase.from('tb_map_user_role').select('name');
@@ -1268,7 +1270,7 @@ export default function LogWorkPage() {
         <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border dark:border-theme-border/50 rounded-2xl p-6 md:p-8 shadow-xl shadow-black/20">
           
           {/* Date Picker & User Selector */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+          <div className={`grid grid-cols-1 ${isCurrentUserChatchawan ? 'sm:grid-cols-2' : ''} gap-6 mb-8`}>
             <div>
               <label className="block text-sm font-medium text-theme-text-secondary mb-2">เลือกวันที่ / Select Date</label>
               <div className="relative w-full">
@@ -1281,16 +1283,18 @@ export default function LogWorkPage() {
               </div>
             </div>
 
-            <DropdownField
-              label="ผู้ใช้งานจำลองสิทธิ์ / Simulating User"
-              value={selectedUser}
-              onChange={(v) => setSelectedUser(v)}
-              options={allUsers.map((u) => ({
-                value: u,
-                label: `${u}${u.toLowerCase() === (session.nickname || '').split('_')[0].toLowerCase() ? ' (You)' : ''}`
-              }))}
-              placeholder="เลือกผู้ใช้งาน / Select User"
-            />
+            {isCurrentUserChatchawan && (
+              <DropdownField
+                label="ผู้ใช้งานจำลองสิทธิ์ / Simulating User"
+                value={selectedUser}
+                onChange={(v) => setSelectedUser(v)}
+                options={allUsers.map((u) => ({
+                  value: u,
+                  label: `${u}${u.toLowerCase() === (session.nickname || '').split('_')[0].toLowerCase() ? ' (You)' : ''}`
+                }))}
+                placeholder="เลือกผู้ใช้งาน / Select User"
+              />
+            )}
           </div>
 
           <div className="h-px bg-slate-700/50 w-full mb-8"></div>
@@ -1298,23 +1302,70 @@ export default function LogWorkPage() {
           {/* Cascading Logic Area */}
           <div className="space-y-6 mb-8">
             
-            {/* Row 1: Holding & Role Operator */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <DropdownField
-                label="Holding"
-                value={selectedHolding}
-                onChange={setSelectedHolding}
-                options={availableHoldings}
-                placeholder="Select Holding"
-              />
-              <DropdownField
-                label="Role Operator (Department Operator)"
-                value={selectedRoleOperator}
-                onChange={setSelectedRoleOperator}
-                options={availableRoleOperators}
-                disabled={!selectedHolding}
-                placeholder={!selectedHolding ? "Select Holding first" : "Select Role Operator"}
-              />
+            {/* Row 1: Holding & Role Operator — button chips */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-theme-text-secondary mb-2">HOLDING</label>
+                <div className="flex flex-wrap gap-2">
+                  {availableHoldings.length === 0 ? (
+                    <span className="text-xs text-theme-text-secondary italic">กำลังโหลด...</span>
+                  ) : (
+                    availableHoldings.map((h) => {
+                      const isSelected = selectedHolding === h;
+                      return (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => setSelectedHolding(isSelected ? '' : h)}
+                          className={cn(
+                            "px-4 py-2 text-xs font-bold rounded-full transition-all duration-200 border flex items-center gap-1.5 active:scale-95 shadow-sm",
+                            isSelected
+                              ? "bg-gradient-to-r from-violet-500 to-indigo-600 border-indigo-400/30 text-white hover:from-violet-600 hover:to-indigo-700 shadow-indigo-500/20"
+                              : "bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/40 border-theme-border dark:border-theme-border/50 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary/80 hover:border-indigo-400/40"
+                          )}
+                        >
+                          <span className="text-sm">🏢</span>
+                          <span>{h}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className={cn(
+                  "block text-xs font-semibold mb-2",
+                  !selectedHolding ? "text-theme-text-secondary/50" : "text-theme-text-secondary"
+                )}>ROLE OPERATOR (DEPARTMENT OPERATOR)</label>
+                <div className="flex flex-wrap gap-2">
+                  {!selectedHolding ? (
+                    <span className="text-xs text-theme-text-secondary/50 italic">เลือก Holding ก่อน / Select Holding first</span>
+                  ) : availableRoleOperators.length === 0 ? (
+                    <span className="text-xs text-theme-text-secondary italic">กำลังโหลด...</span>
+                  ) : (
+                    availableRoleOperators.map((r) => {
+                      const isSelected = selectedRoleOperator === r;
+                      return (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setSelectedRoleOperator(isSelected ? '' : r)}
+                          className={cn(
+                            "px-4 py-2 text-xs font-bold rounded-full transition-all duration-200 border flex items-center gap-1.5 active:scale-95 shadow-sm",
+                            isSelected
+                              ? "bg-gradient-to-r from-cyan-500 to-teal-600 border-teal-400/30 text-white hover:from-cyan-600 hover:to-teal-700 shadow-teal-500/20"
+                              : "bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/40 border-theme-border dark:border-theme-border/50 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary/80 hover:border-teal-400/40"
+                          )}
+                        >
+                          <span className="text-sm">👤</span>
+                          <span>{r}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Row 2: Project Type & Project Name */}
