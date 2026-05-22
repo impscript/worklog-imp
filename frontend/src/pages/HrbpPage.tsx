@@ -357,6 +357,24 @@ export default function HrbpPage() {
         console.error('Swallowed user details fetch error in shared view:', userErr);
       }
 
+      // Try fetching the user's JD details to show in the shared view
+      try {
+        const { data: jdData } = await supabase
+          .from('tb_user_jd')
+          .select('*')
+          .eq('user_id', report.user_id)
+          .maybeSingle();
+        if (jdData) {
+          setJdText(jdData.jd_text || '');
+          setKeyResponsibilities(jdData.key_responsibilities || []);
+          if (jdData.position_name) {
+            setCustomPosition(jdData.position_name);
+          }
+        }
+      } catch (jdErr) {
+        console.error('Swallowed JD fetch error in shared view:', jdErr);
+      }
+
       // Query work logs to compute total hours and logs count (wrapped in try-catch for unauthenticated users)
       let totalHours = 0;
       let logsCount = 0;
@@ -887,41 +905,41 @@ export default function HrbpPage() {
     if (!text) return null;
     const lines = text.split('\n');
     return (
-      <div className="space-y-4 text-slate-300 text-xs sm:text-sm leading-relaxed font-sans">
+      <div className="space-y-4 text-slate-700 dark:text-slate-300 text-xs sm:text-sm leading-relaxed font-sans">
         {lines.map((line, idx) => {
           const trimmed = line.trim();
           if (trimmed.startsWith('###')) {
             return (
-              <h4 key={idx} className="text-sm font-extrabold text-indigo-400 mt-5 mb-2 border-b border-slate-700/50 pb-1 uppercase tracking-wider">
+              <h4 key={idx} className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 mt-5 mb-2 border-b border-slate-200 dark:border-slate-700/50 pb-1 uppercase tracking-wider">
                 {trimmed.replace('###', '').trim()}
               </h4>
             );
           }
           if (trimmed.startsWith('##')) {
             return (
-              <h3 key={idx} className="text-base font-black text-white mt-6 mb-3 uppercase tracking-wide flex items-center gap-2">
-                <Sparkles className="text-indigo-400" size={16} /> {trimmed.replace('##', '').trim()}
+              <h3 key={idx} className="text-base font-black text-slate-800 dark:text-white mt-6 mb-3 uppercase tracking-wide flex items-center gap-2">
+                <Sparkles className="text-indigo-600 dark:text-indigo-400" size={16} /> {trimmed.replace('##', '').trim()}
               </h3>
             );
           }
           if (trimmed.startsWith('#')) {
             return (
-              <h2 key={idx} className="text-lg font-black text-white mt-8 mb-4 uppercase tracking-widest border-b-2 border-indigo-500 pb-2">
+              <h2 key={idx} className="text-lg font-black text-slate-900 dark:text-white mt-8 mb-4 uppercase tracking-widest border-b-2 border-indigo-500 pb-2">
                 {trimmed.replace('#', '').trim()}
               </h2>
             );
           }
           if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
             return (
-              <div key={idx} className="flex items-start gap-2.5 pl-3 py-0.5 hover:bg-slate-800/10 rounded transition-colors">
-                <span className="text-indigo-400 mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-md shadow-indigo-500/50"></span>
+              <div key={idx} className="flex items-start gap-2.5 pl-3 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800/10 rounded transition-colors">
+                <span className="text-indigo-500 dark:text-indigo-400 mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 shadow-md shadow-indigo-500/50"></span>
                 <span>{trimmed.substring(1).trim()}</span>
               </div>
             );
           }
           if (trimmed.startsWith('>')) {
             return (
-              <blockquote key={idx} className="border-l-4 border-indigo-500 bg-indigo-500/5 pl-4 py-3 rounded-r-xl my-3 text-slate-300 italic font-medium shadow-inner">
+              <blockquote key={idx} className="border-l-4 border-indigo-500 bg-indigo-500/5 dark:bg-indigo-500/5 pl-4 py-3 rounded-r-xl my-3 text-slate-700 dark:text-slate-300 italic font-medium shadow-inner">
                 {trimmed.substring(1).trim()}
               </blockquote>
             );
@@ -1318,14 +1336,14 @@ export default function HrbpPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                           {keyResponsibilities.length === 0 ? (
-                            <div className="text-center p-8 rounded-2xl bg-slate-900/30 border border-dashed border-slate-800/80 text-xs text-slate-500 italic">
+                            <div className="text-center p-8 rounded-2xl bg-slate-50 dark:bg-slate-900/30 border border-dashed border-slate-200 dark:border-slate-800/80 text-xs text-slate-500 italic">
                               ไม่มีหัวข้อความรับผิดชอบ / ยังไม่ได้เพิ่มสัดส่วนงานเป้าหมาย
                             </div>
                           ) : (
                             keyResponsibilities.map((w, index) => (
-                              <div key={index} className="flex items-center justify-between p-3.5 bg-slate-900/40 border border-slate-800/80 rounded-2xl gap-4 hover:border-slate-700/80 transition-colors">
+                              <div key={index} className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-2xl gap-4 hover:border-slate-300 dark:hover:border-slate-700/80 transition-colors">
                                 <div className="flex-1 space-y-1">
-                                  <div className="text-[11px] font-bold text-slate-300 line-clamp-1">{w.category}</div>
+                                  <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 line-clamp-1">{w.category}</div>
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="range"
@@ -1333,7 +1351,7 @@ export default function HrbpPage() {
                                       max="100"
                                       value={w.weight}
                                       onChange={(e) => handleWeightChange(index, parseInt(e.target.value))}
-                                      className="flex-1 h-1.5 rounded-lg bg-slate-800 accent-indigo-500 cursor-pointer"
+                                      className="flex-1 h-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 accent-indigo-500 cursor-pointer"
                                     />
                                     <span className="text-[10px] font-mono font-extrabold text-indigo-400 w-8 text-right">{w.weight}%</span>
                                   </div>
@@ -1351,7 +1369,7 @@ export default function HrbpPage() {
                         </div>
 
                         {/* Add key weights config form */}
-                        <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/80 space-y-4">
+                        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 space-y-4">
                           <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
                             ➕ เพิ่มหัวข้อความรับผิดชอบใหม่
                           </div>
@@ -1406,7 +1424,7 @@ export default function HrbpPage() {
                         {aiAnalysis && (
                           <button
                             onClick={() => setStep(3)}
-                            className="px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                            className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
                           >
                             <span>ข้ามไปดูผลลัพธ์ล่าสุด</span>
                             <ArrowRight size={12} />
@@ -1512,7 +1530,7 @@ export default function HrbpPage() {
                     <span className="text-slate-400">Step Progression</span>
                     <span className="text-indigo-400 font-bold">{Math.round((aiStep / 6) * 100)}%</span>
                   </div>
-                  <div className="w-full h-2.5 bg-slate-900 border border-slate-800/80 rounded-full overflow-hidden p-0.5 shadow-inner">
+                  <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-full overflow-hidden p-0.5 shadow-inner">
                     <div 
                       className="h-full bg-gradient-to-r from-indigo-500 via-indigo-400 to-violet-500 rounded-full transition-all duration-500 ease-out"
                       style={{ width: `${(aiStep / 6) * 100}%` }}
@@ -1526,15 +1544,15 @@ export default function HrbpPage() {
                     Execution Log Feed
                   </span>
 
-                  <div className="w-full h-[280px] bg-[#020617] border border-slate-800 rounded-2xl p-4 font-mono text-xs leading-relaxed overflow-y-auto flex flex-col gap-2.5 shadow-inner select-text">
+                  <div className="w-full h-[280px] bg-slate-100 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 font-mono text-xs leading-relaxed overflow-y-auto flex flex-col gap-2.5 shadow-inner select-text">
                     {aiStepLogs.map((log, index) => (
                       <div 
                         key={index}
                         className={cn(
-                          "flex items-start gap-3 border-l-2 pl-3 py-0.5 hover:bg-slate-900/50 rounded transition-colors",
-                          log.type === 'error' ? "text-rose-400 border-rose-500 bg-rose-500/5" :
-                          log.type === 'success' ? "text-emerald-400 border-emerald-500 bg-emerald-500/5" :
-                          "text-slate-300 border-indigo-500 bg-indigo-500/5"
+                          "flex items-start gap-3 border-l-2 pl-3 py-0.5 hover:bg-slate-200/50 dark:hover:bg-slate-900/50 rounded transition-colors",
+                          log.type === 'error' ? "text-rose-600 dark:text-rose-400 border-rose-500 bg-rose-500/5" :
+                          log.type === 'success' ? "text-emerald-600 dark:text-emerald-400 border-emerald-500 bg-emerald-500/5" :
+                          "text-slate-600 dark:text-slate-300 border-indigo-500 bg-indigo-500/5"
                         )}
                       >
                         <span className="text-slate-500 text-[10px] font-bold shrink-0">[{log.time}]</span>
@@ -1554,7 +1572,7 @@ export default function HrbpPage() {
                 <div className="flex items-center justify-between border-t border-slate-800/60 pt-6">
                   <button
                     onClick={() => setStep(1)}
-                    className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all"
                   >
                     <ArrowLeft size={12} />
                     <span>ย้อนกลับไป Setup / Cancel</span>
@@ -1579,22 +1597,128 @@ export default function HrbpPage() {
             {step === 3 && aiAnalysis && (
               <div className="space-y-6 animate-in fade-in duration-300">
                 
+                {/* 3.0 Employee Profile & JD Summary (Performance CV Card) */}
+                <div className="p-6 rounded-3xl bg-slate-50 dark:bg-gradient-to-r dark:from-[#0d1527] dark:to-[#0a0d16] border border-slate-200 dark:border-slate-800/80 shadow-2xl relative overflow-hidden space-y-4">
+                  {/* Subtle design gradients */}
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-36 h-36 bg-pink-500/5 rounded-full blur-3xl pointer-events-none" />
+                  
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10 pb-4 border-b border-slate-200 dark:border-slate-800/80">
+                    {/* User info left side */}
+                    <div className="flex items-center gap-4">
+                      {/* Avatar */}
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-0.5 shadow-xl shrink-0">
+                        <div className="w-full h-full rounded-2xl bg-white dark:bg-slate-950 flex items-center justify-center font-black text-xl text-slate-800 dark:text-white">
+                          {selectedUserInfo?.full_name ? selectedUserInfo.full_name.charAt(0) : 'E'}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="text-xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+                            {selectedUserInfo?.full_name || 'Employee Name'}
+                          </h2>
+                          {selectedUserInfo?.nickname && (
+                            <span className="px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 text-[10px] font-black uppercase tracking-wider">
+                              ({selectedUserInfo.nickname})
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                          {selectedUserInfo?.position || customPosition || 'General Specialist'}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                          {selectedUserInfo?.department || 'Department'} | ID: {selectedUserInfo?.emp_id || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Stats summary right side */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 font-mono">
+                      <div className="p-3 bg-slate-200/50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800/60 text-center">
+                        <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">ประเมินช่วง / Period</div>
+                        <div className="text-xs font-black text-slate-800 dark:text-white mt-1">
+                          {aiAnalysis.start_date} ~ {aiAnalysis.end_date}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-slate-200/50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800/60 text-center">
+                        <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">ชั่วโมงทำงานจริง / Hours</div>
+                        <div className="text-xs font-black text-indigo-600 dark:text-indigo-400 mt-1 font-mono">
+                          {aiAnalysis.total_hours || 0} ชม. ({aiAnalysis.logs_count || 0} รายการ)
+                        </div>
+                      </div>
+                      <div className="p-3 bg-slate-200/50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800/60 text-center col-span-2 sm:col-span-1">
+                        <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">สถานะการรับรอง / Status</div>
+                        <div className="text-xs font-black mt-1 flex items-center justify-center gap-1">
+                          {aiAnalysis.acknowledged_at ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5"><CheckCircle2 size={12} /> Verified</span>
+                          ) : (
+                            <span className="text-amber-600 dark:text-amber-400 flex items-center gap-0.5"><AlertTriangle size={12} /> Pending</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Job Description (JD) and Target Weights Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10 pt-2">
+                    {/* JD Box */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5 font-mono">
+                          <FileText size={12} />
+                          EXPECTED JOB DESCRIPTION (JD)
+                        </h4>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-white dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/80 text-xs text-slate-700 dark:text-slate-300 leading-relaxed max-h-40 overflow-y-auto scrollbar-thin whitespace-pre-line font-light">
+                        {jdText || 'ไม่มีข้อมูลรายละเอียดงานในระบบ / No Job Description defined.'}
+                      </div>
+                    </div>
+
+                    {/* Target Weights Box */}
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-black uppercase text-pink-600 dark:text-pink-400 tracking-wider flex items-center gap-1.5 font-mono">
+                        <Target size={12} />
+                        TARGET RESPONSIBILITIES &amp; WEIGHTS
+                      </h4>
+                      <div className="p-4 rounded-2xl bg-white dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/80 max-h-40 overflow-y-auto space-y-2">
+                        {keyResponsibilities.length === 0 && chartData.length === 0 ? (
+                          <div className="text-xs text-slate-500 italic">ไม่มีข้อมูลน้ำหนักความรับผิดชอบเป้าหมาย / No target weights defined.</div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {(keyResponsibilities.length > 0 ? keyResponsibilities.map((item: any) => ({ category: item.category, weight: item.weight })) : chartData.map((item: any) => ({ category: item.name, weight: item['Target %'] }))).map((item: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 rounded-xl text-[11px]">
+                                <span className="font-bold text-slate-700 dark:text-slate-300 truncate pr-2" title={item.category}>
+                                  {item.category}
+                                </span>
+                                <span className="text-pink-600 dark:text-pink-400 font-mono font-bold shrink-0">
+                                  {item.weight}%
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* 3.1 Top Highlights Analytics Row (Premium Cards) */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
                   {/* Card 1: Job Description Alignment Score */}
-                  <div className="p-6 rounded-3xl bg-gradient-to-br from-[#0B0F19] to-[#0A0D15] border border-slate-800/80 shadow-2xl relative overflow-hidden flex items-center justify-between">
+                  <div className="p-6 rounded-3xl bg-slate-50 dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-slate-200 dark:border-slate-800/80 shadow-2xl relative overflow-hidden flex items-center justify-between">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
                     
                     <div className="space-y-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Award size={14} className="text-indigo-400" />
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <Award size={14} className="text-indigo-600 dark:text-indigo-400" />
                         JD ALIGNMENT SCORE
                       </span>
-                      <h4 className="text-4xl font-black text-white tracking-tight">
+                      <h4 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight">
                         {aiAnalysis.jd_alignment_score || 0}%
                       </h4>
-                      <p className="text-[10px] text-slate-400">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
                         ระดับความสอดคล้องของพฤติกรรมการทำงานจริงเปรียบเทียบกับ JD คาดหวัง
                       </p>
                     </div>
@@ -1602,7 +1726,7 @@ export default function HrbpPage() {
                     {/* Circular Score Visualizer */}
                     <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
                       <svg className="w-full h-full transform -rotate-90">
-                        <circle cx="40" cy="40" r="32" stroke="#1e293b" strokeWidth="6" fill="transparent" />
+                        <circle cx="40" cy="40" r="32" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="6" fill="transparent" />
                         <circle 
                           cx="40" 
                           cy="40" 
@@ -1615,39 +1739,39 @@ export default function HrbpPage() {
                           strokeLinecap="round"
                         />
                       </svg>
-                      <span className="absolute text-xs font-mono font-black text-indigo-400">
+                      <span className="absolute text-xs font-mono font-black text-indigo-600 dark:text-indigo-400">
                         {aiAnalysis.jd_alignment_score || 0}%
                       </span>
                     </div>
                   </div>
 
                   {/* Card 2: Burnout & Workload Fatigue Risk */}
-                  <div className="p-6 rounded-3xl bg-gradient-to-br from-[#0B0F19] to-[#0A0D15] border border-slate-800/80 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-4">
+                  <div className="p-6 rounded-3xl bg-slate-50 dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-slate-200 dark:border-slate-800/80 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-4">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
                     
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Activity size={14} className="text-rose-400" />
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <Activity size={14} className="text-rose-500 dark:text-rose-400" />
                         BURNOUT / FATIGUE RISK
                       </span>
                       
                       <span className={cn(
                         "px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase font-mono tracking-wider",
-                        (aiAnalysis.burnout_risk_score || 0) > 70 ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" :
-                        (aiAnalysis.burnout_risk_score || 0) > 40 ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                        "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                        (aiAnalysis.burnout_risk_score || 0) > 70 ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20" :
+                        (aiAnalysis.burnout_risk_score || 0) > 40 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" :
+                        "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                       )}>
                         {(aiAnalysis.burnout_risk_score || 0) > 70 ? 'High Risk' : (aiAnalysis.burnout_risk_score || 0) > 40 ? 'Moderate' : 'Low Risk'}
                       </span>
                     </div>
 
                     <div className="space-y-2">
-                      <h4 className="text-4xl font-black text-white tracking-tight">
+                      <h4 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight">
                         {aiAnalysis.burnout_risk_score || 0}%
                       </h4>
                       
                       <div className="space-y-1">
-                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                           <div 
                             className={cn(
                               "h-full rounded-full transition-all duration-500",
@@ -1664,35 +1788,35 @@ export default function HrbpPage() {
                   </div>
 
                   {/* Card 3: Actionable Controls & Sign-off Acknowledgment */}
-                  <div className="p-6 rounded-3xl bg-gradient-to-br from-[#0B0F19] to-[#0A0D15] border border-slate-800/80 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-3">
+                  <div className="p-6 rounded-3xl bg-slate-50 dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-slate-200 dark:border-slate-800/80 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-3">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
                     
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <UserCheck size={14} className="text-indigo-400" />
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <UserCheck size={14} className="text-indigo-600 dark:text-indigo-400" />
                         AUDIT SIGN-OFF &amp; ACKNOWLEDGEMENT
                       </span>
                     </div>
 
-                    <div className="bg-slate-900/60 rounded-2xl p-3.5 border border-slate-800/80 text-[11px]">
+                    <div className="bg-white dark:bg-slate-900/60 rounded-2xl p-3.5 border border-slate-200 dark:border-slate-800/80 text-[11px]">
                       {aiAnalysis.acknowledged_at ? (
-                        <div className="space-y-1 text-slate-300">
-                          <div className="flex items-center gap-1 text-emerald-400 font-extrabold uppercase text-[9px] tracking-widest">
+                        <div className="space-y-1 text-slate-700 dark:text-slate-300">
+                          <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold uppercase text-[9px] tracking-widest">
                             <Check size={12} />
                             <span>VERIFIED BY AI ENHANCE</span>
                           </div>
-                          <div>ลงนามโดย: <span className="text-white font-bold">{aiAnalysis.acknowledged_by}</span></div>
+                          <div>ลงนามโดย: <span className="text-slate-800 dark:text-white font-bold">{aiAnalysis.acknowledged_by}</span></div>
                           <div className="text-[10px] text-slate-500">{new Date(aiAnalysis.acknowledged_at).toLocaleString('th-TH')}</div>
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <p className="text-slate-400 text-[10px] leading-relaxed">
+                          <p className="text-slate-500 dark:text-slate-400 text-[10px] leading-relaxed">
                             รายงานนี้ยังไม่ได้รับการลงนามบันทึกรับทราบผลการประเมินความสามารถเพื่อประกอบคำแนะนำ
                           </p>
                           {!isSharedView && (
                             <button
                               onClick={() => setShowAckModal(true)}
-                              className="w-full py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/20 hover:text-indigo-300 font-black uppercase text-[10px] tracking-wider transition-all flex items-center justify-center gap-1.5"
+                              className="w-full py-2 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 hover:text-indigo-500 font-black uppercase text-[10px] tracking-wider transition-all flex items-center justify-center gap-1.5"
                             >
                               <UserCheck size={12} />
                               <span>ลงนามบันทึกรับทราบผล (Acknowledge)</span>
@@ -1709,9 +1833,9 @@ export default function HrbpPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
                   {/* Left Column: Workload Allocation vs Target BarChart */}
-                  <div className="lg:col-span-1 p-6 rounded-3xl bg-[#0B0F19]/80 border border-slate-800/80 shadow-2xl space-y-4">
-                    <h3 className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800/60 pb-3">
-                      <TrendingUp size={14} className="text-indigo-400" />
+                  <div className="lg:col-span-1 p-6 rounded-3xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800/80 shadow-2xl space-y-4">
+                    <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2 border-b border-slate-200 dark:border-slate-800/60 pb-3">
+                      <TrendingUp size={14} className="text-indigo-600 dark:text-indigo-400" />
                       📊 Actual Distribution vs Target Weights
                     </h3>
 
@@ -1730,9 +1854,23 @@ export default function HrbpPage() {
                               <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} />
                               <YAxis stroke="#64748b" fontSize={9} tickLine={false} />
                               <Tooltip 
-                                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }}
-                                labelStyle={{ color: '#94a3b8', fontSize: 10, fontWeight: 'bold' }}
-                                itemStyle={{ fontSize: 11 }}
+                                content={({ active, payload, label }) => {
+                                  if (active && payload && payload.length) {
+                                    return (
+                                      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-3 rounded-2xl shadow-xl space-y-1 z-30">
+                                        <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 font-mono tracking-wider">{label}</p>
+                                        {payload.map((entry: any, idx: number) => (
+                                          <div key={idx} className="flex items-center gap-2 text-[11px] font-bold">
+                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.fill || entry.color }} />
+                                            <span className="text-slate-600 dark:text-slate-300">{entry.name}:</span>
+                                            <span className="text-slate-950 dark:text-white font-mono font-black ml-auto">{entry.value}%</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                }}
                               />
                               <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: 10 }} />
                               <Bar dataKey="Actual %" fill="#6366f1" radius={[4, 4, 0, 0]} />
@@ -1746,17 +1884,17 @@ export default function HrbpPage() {
                           {chartData.map((item: any, idx: number) => {
                             const diff = Math.round(item['Actual %'] - item['Target %']);
                             return (
-                              <div key={idx} className="p-3 bg-slate-900/40 border border-slate-800/60 rounded-xl flex items-center justify-between text-xs">
+                              <div key={idx} className="p-3 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/60 rounded-xl flex items-center justify-between text-xs">
                                 <div className="space-y-0.5">
-                                  <span className="font-bold text-slate-200 block truncate max-w-[150px]">{item.name}</span>
+                                  <span className="font-bold text-slate-700 dark:text-slate-200 block truncate max-w-[150px]">{item.name}</span>
                                   <span className="text-[10px] text-slate-500 font-mono">จริง: {item['Actual %']}% | เป้าหมาย: {item['Target %']}% ({item['Actual Hours']} ชม.)</span>
                                 </div>
 
                                 <div className={cn(
                                   "px-2 py-0.5 rounded-lg text-[9px] font-bold font-mono tracking-wider",
-                                  diff > 15 ? "bg-amber-500/10 text-amber-400" :
-                                  diff < -15 ? "bg-rose-500/10 text-rose-400" :
-                                  "bg-emerald-500/10 text-emerald-400"
+                                  diff > 15 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                                  diff < -15 ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" :
+                                  "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                 )}>
                                   {diff > 0 ? `+${diff}%` : `${diff}%`}
                                 </div>
@@ -1769,14 +1907,14 @@ export default function HrbpPage() {
                   </div>
 
                   {/* Right Column: Detailed Tabbed reports & diagnostic writeups */}
-                  <div className="lg:col-span-2 p-6 rounded-3xl bg-[#0B0F19]/80 border border-slate-800/80 shadow-2xl flex flex-col gap-6">
+                  <div className="lg:col-span-2 p-6 rounded-3xl bg-slate-50 dark:bg-[#0B0F19]/80 border border-slate-200 dark:border-slate-800/80 shadow-2xl flex flex-col gap-6">
                     
                     {/* Share bar and quick actions */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/60 pb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800/60 pb-4">
                       
                       {/* Telemetry info about the model caching */}
                       <div className="flex flex-col gap-1">
-                        <div className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                        <div className="text-[10px] font-extrabold uppercase text-slate-600 dark:text-slate-400 tracking-wider">
                           Diagnostic Audit Report Summary
                         </div>
                         <div className="flex items-center gap-1.5 text-[9px] text-slate-500 font-mono">
@@ -1784,7 +1922,7 @@ export default function HrbpPage() {
                           <span>|</span>
                           <span>Engine: <strong>{aiAnalysis.model}</strong></span>
                           {aiAnalysis.isCached && (
-                            <span className="text-amber-400 font-bold bg-amber-500/5 px-2 py-0.5 rounded">CACHED</span>
+                            <span className="text-amber-600 dark:text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded">CACHED</span>
                           )}
                         </div>
                       </div>
@@ -1792,14 +1930,14 @@ export default function HrbpPage() {
                       {/* Action buttons */}
                       <div className="flex items-center gap-2">
                         {/* Share link panel */}
-                        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5">
+                        <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5">
                           <button
                             onClick={toggleSharePublicly}
                             className={cn(
                               "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
                               aiAnalysis.is_public
-                                ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20"
-                                : "text-slate-400 hover:text-slate-200"
+                                ? "bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
+                                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                             )}
                             title="Toggle public web sharing link access"
                           >
@@ -1810,7 +1948,7 @@ export default function HrbpPage() {
                           {aiAnalysis.share_token && (
                             <button
                               onClick={copyShareLink}
-                              className="p-1.5 text-slate-400 hover:text-slate-200 transition-colors"
+                              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                               title="Copy URL Share Link to Clipboard"
                             >
                               <Copy size={12} />
@@ -1821,7 +1959,7 @@ export default function HrbpPage() {
                         {/* Print Control */}
                         <button
                           onClick={() => window.print()}
-                          className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white transition-colors"
+                          className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
                           title="Print / Save PDF Report"
                         >
                           <Printer size={13} />
@@ -1830,15 +1968,16 @@ export default function HrbpPage() {
 
                     </div>
 
-                    {/* Tab Header Selector */}
-                    <div className="flex gap-2 border-b border-slate-700/40 pb-3 overflow-x-auto">
+                    {/* Tab Header Selector — only shown in admin view */}
+                    {!isSharedView && (
+                    <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700/40 pb-3 overflow-x-auto">
                       <button
                         onClick={() => setActiveResultsSubTab('summary')}
                         className={cn(
                           "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                           activeResultsSubTab === 'summary'
-                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
-                            : "text-slate-400 hover:text-slate-200"
+                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                         )}
                       >
                         <Sparkles size={13} />
@@ -1850,12 +1989,12 @@ export default function HrbpPage() {
                         className={cn(
                           "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                           activeResultsSubTab === 'gaps'
-                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
-                            : "text-slate-400 hover:text-slate-200"
+                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                         )}
                       >
                         <AlertTriangle size={13} />
-                        <span>Strengths & Gaps</span>
+                        <span>Strengths &amp; Gaps</span>
                       </button>
 
                       <button
@@ -1863,8 +2002,8 @@ export default function HrbpPage() {
                         className={cn(
                           "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                           activeResultsSubTab === 'coaching'
-                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
-                            : "text-slate-400 hover:text-slate-200"
+                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                         )}
                       >
                         <Target size={13} />
@@ -1876,38 +2015,142 @@ export default function HrbpPage() {
                         className={cn(
                           "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
                           activeResultsSubTab === 'logs'
-                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
-                            : "text-slate-400 hover:text-slate-200"
+                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                         )}
                       >
                         <FileText size={13} />
                         <span>Diagnostic Logs</span>
                       </button>
 
-                      {!isSharedView && (
-                        <button
-                          onClick={() => { setActiveResultsSubTab('history'); loadAnalysisHistory(); }}
-                          className={cn(
-                            "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
-                            activeResultsSubTab === 'history'
-                              ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
-                              : "text-slate-400 hover:text-slate-200"
-                          )}
-                        >
-                          <Clock size={13} />
-                          <span>ประวัติการวิเคราะห์</span>
-                        </button>
-                      )}
+                      <button
+                        onClick={() => { setActiveResultsSubTab('history'); loadAnalysisHistory(); }}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                          activeResultsSubTab === 'history'
+                            ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                        )}
+                      >
+                        <Clock size={13} />
+                        <span>ประวัติการวิเคราะห์</span>
+                      </button>
                     </div>
+                    )}
 
-                    {/* Tab display */}
+                    {/* Tab display (admin) / Stacked scroll (shared view) */}
                     <div className="flex-1 min-h-[300px]">
-                      {activeResultsSubTab === 'summary' && (
+
+                      {/* ── SHARED VIEW: stacked scroll layout (no tab clicks needed) ── */}
+                      {isSharedView && (
+                        <div className="space-y-8">
+                          {/* Section 1: Executive Summary */}
+                          <div>
+                            <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-700/40 pb-2">
+                              <Sparkles size={14} /> Executive Summary
+                            </h3>
+                            {aiAnalysis.markdown_executive_summary ? (
+                              renderMarkdown(aiAnalysis.markdown_executive_summary)
+                            ) : (
+                              <div className="text-slate-500 text-xs italic">ไม่มีบทวิเคราะห์หลัก</div>
+                            )}
+                          </div>
+
+                          {/* Section 2: Strengths & Gaps */}
+                          <div className="border-t border-slate-200 dark:border-slate-800/60 pt-6">
+                            <h3 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                              <AlertTriangle size={14} className="text-amber-500" /> Strengths &amp; Execution Gaps
+                            </h3>
+                            <div className="space-y-6">
+                              <div>
+                                <h4 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                  <CheckCircle2 size={14} /> Key Strengths Identified
+                                </h4>
+                                <div className="grid grid-cols-1 gap-2">
+                                  {(aiAnalysis.strengths || []).length === 0 ? (
+                                    <div className="text-xs text-slate-500 italic">ไม่มีบันทึกข้อมูลสมรรถนะเด่น</div>
+                                  ) : aiAnalysis.strengths.map((str: string, i: number) => (
+                                    <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 text-xs text-slate-700 dark:text-slate-300">
+                                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                      <span>{str}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                  <AlertTriangle size={14} /> Key Execution Gaps &amp; Redundancies
+                                </h4>
+                                <div className="grid grid-cols-1 gap-2">
+                                  {(aiAnalysis.improvements || []).length === 0 ? (
+                                    <div className="text-xs text-slate-500 italic font-mono">ไม่มีประเด็นข้อบกพร่อง/ช่องว่างภาระงาน</div>
+                                  ) : aiAnalysis.improvements.map((imp: string, i: number) => (
+                                    <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 text-xs text-slate-700 dark:text-slate-300">
+                                      <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                      <span>{imp}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Section 3: Development Plan */}
+                          {aiAnalysis.development_plan && (
+                            <div className="border-t border-slate-200 dark:border-slate-800/60 pt-6">
+                              <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                                <Target size={14} /> Strategic Development &amp; Action Plan
+                              </h3>
+                              {(() => {
+                                const plan = aiAnalysis.development_plan;
+                                if (typeof plan === 'object' && !Array.isArray(plan)) {
+                                  return (
+                                    <div className="space-y-3">
+                                      {plan.short_term_90_days && (
+                                        <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-2xl p-4">
+                                          <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-indigo-500"></span> Short-Term Goals (90 Days)
+                                          </div>
+                                          <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{plan.short_term_90_days}</p>
+                                        </div>
+                                      )}
+                                      {plan.long_term_goals && (
+                                        <div className="bg-violet-500/5 border border-violet-500/15 rounded-2xl p-4">
+                                          <div className="text-[10px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-violet-500"></span> Long-Term Career Goals
+                                          </div>
+                                          <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{plan.long_term_goals}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                if (Array.isArray(plan)) {
+                                  return (
+                                    <div className="grid grid-cols-1 gap-3">
+                                      {plan.map((act: string, i: number) => (
+                                        <div key={i} className="flex items-start gap-3 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 text-xs text-slate-700 dark:text-slate-300">
+                                          <div className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 font-mono font-bold text-[10px]">{i + 1}</div>
+                                          <div className="flex-1 leading-relaxed">{act}</div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ── ADMIN VIEW: tabbed layout ── */}
+                      {!isSharedView && activeResultsSubTab === 'summary' && (
                         <div className="space-y-4">
                           {aiAnalysis.markdown_executive_summary ? (
                             renderMarkdown(aiAnalysis.markdown_executive_summary)
                           ) : (
-                            <div className="text-slate-400 text-xs sm:text-sm leading-relaxed italic">
+                            <div className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm leading-relaxed italic">
                               ไม่มีบทวิเคราะห์เนื้อหาประเมินความสอดคล้องหลัก
                             </div>
                           )}
@@ -1915,18 +2158,18 @@ export default function HrbpPage() {
                       )}
 
                       {activeResultsSubTab === 'gaps' && (
-                        <div className="space-y-6">
+                        <div className="space-y-6 animate-in fade-in duration-300">
                           <div>
-                            <h4 className="text-xs font-black text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                            <h4 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                               <CheckCircle2 size={16} /> Key Strengths Identified
                             </h4>
                             <div className="grid grid-cols-1 gap-2.5">
                               {(aiAnalysis.strengths || []).length === 0 ? (
-                                <div className="text-xs text-slate-500 italic">ไม่มีบันทึกข้อมูลสมรรถนะเด่นเชิงสถิติ</div>
+                                <div className="text-xs text-slate-500 italic">ไม่มีบันทึกข้อมูลสมรรถนะเด่นเชิงสถวิทยา / No statistical strengths identified.</div>
                               ) : (
                                 aiAnalysis.strengths.map((str: string, i: number) => (
-                                  <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 shadow-sm text-xs text-slate-300">
-                                    <span className="text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                  <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/10 rounded-2xl p-3.5 shadow-sm text-xs text-slate-700 dark:text-slate-300">
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
                                     <span>{str}</span>
                                   </div>
                                 ))
@@ -1934,17 +2177,17 @@ export default function HrbpPage() {
                             </div>
                           </div>
 
-                          <div className="border-t border-slate-800/60 pt-6">
-                            <h4 className="text-xs font-black text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                              <AlertTriangle size={16} /> Key Execution Gaps & Redundancies
+                          <div className="border-t border-slate-200 dark:border-slate-800/60 pt-6">
+                            <h4 className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                              <AlertTriangle size={16} /> Key Execution Gaps &amp; Redundancies
                             </h4>
                             <div className="grid grid-cols-1 gap-2.5">
                               {(aiAnalysis.improvements || []).length === 0 ? (
-                                <div className="text-xs text-slate-500 italic font-mono">ไม่มีประเด็นข้อบกพร่อง/ช่องว่างภาระงาน</div>
+                                <div className="text-xs text-slate-500 italic">ไม่มีประเด็นข้อบกพร่อง/ช่องว่างภาระงาน / No execution gaps identified.</div>
                               ) : (
                                 aiAnalysis.improvements.map((imp: string, i: number) => (
-                                  <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 shadow-sm text-xs text-slate-300">
-                                    <span className="text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                  <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-200 dark:border-amber-500/10 rounded-2xl p-3.5 shadow-sm text-xs text-slate-700 dark:text-slate-300">
+                                    <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
                                     <span>{imp}</span>
                                   </div>
                                 ))
@@ -1954,9 +2197,9 @@ export default function HrbpPage() {
                         </div>
                       )}
 
-                      {activeResultsSubTab === 'coaching' && (
+                      {!isSharedView && activeResultsSubTab === 'coaching' && (
                         <div className="space-y-4">
-                          <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                          <h4 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
                             <Target size={16} /> Strategic Development &amp; Action Plan
                           </h4>
                           {(() => {
@@ -1969,20 +2212,20 @@ export default function HrbpPage() {
                                 <div className="space-y-4">
                                   {plan.short_term_90_days && (
                                     <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-2xl p-4">
-                                      <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                        <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                                      <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
                                         Short-Term Goals (90 Days)
                                       </div>
-                                      <p className="text-xs text-slate-300 leading-relaxed">{plan.short_term_90_days}</p>
+                                      <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{plan.short_term_90_days}</p>
                                     </div>
                                   )}
                                   {plan.long_term_goals && (
                                     <div className="bg-violet-500/5 border border-violet-500/15 rounded-2xl p-4">
-                                      <div className="text-[10px] font-bold text-violet-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                        <span className="w-2 h-2 rounded-full bg-violet-400"></span>
+                                      <div className="text-[10px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-violet-500"></span>
                                         Long-Term Career Goals
                                       </div>
-                                      <p className="text-xs text-slate-300 leading-relaxed">{plan.long_term_goals}</p>
+                                      <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{plan.long_term_goals}</p>
                                     </div>
                                   )}
                                 </div>
@@ -1992,8 +2235,8 @@ export default function HrbpPage() {
                               return (
                                 <div className="grid grid-cols-1 gap-3">
                                   {plan.map((act: string, i: number) => (
-                                    <div key={i} className="flex items-start gap-3 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 shadow-sm text-xs text-slate-300">
-                                      <div className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-mono font-bold text-[10px]">{i + 1}</div>
+                                    <div key={i} className="flex items-start gap-3 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 shadow-sm text-xs text-slate-700 dark:text-slate-300">
+                                      <div className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 font-mono font-bold text-[10px]">{i + 1}</div>
                                       <div className="flex-1 leading-relaxed">{act}</div>
                                     </div>
                                   ))}
@@ -2005,23 +2248,23 @@ export default function HrbpPage() {
                         </div>
                       )}
 
-                      {activeResultsSubTab === 'logs' && (
+                      {!isSharedView && activeResultsSubTab === 'logs' && (
                         <div className="space-y-6 animate-in fade-in duration-300">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-[#0F172A]/60 border border-slate-700/40 rounded-2xl p-4 space-y-2">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Telemetry Parameters</span>
-                              <div className="text-xs text-slate-200 font-mono">
+                            <div className="bg-slate-100 dark:bg-[#0F172A]/60 border border-slate-200 dark:border-slate-700/40 rounded-2xl p-4 space-y-2">
+                              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Telemetry Parameters</span>
+                              <div className="text-xs text-slate-800 dark:text-slate-200 font-mono">
                                 Date Scope: {aiAnalysis.start_date} to {aiAnalysis.end_date}
                               </div>
-                              <div className="text-xs text-slate-400 font-mono">
+                              <div className="text-xs text-slate-500 font-mono">
                                 Total log volume: {aiAnalysis.logs_count || 'N/A'} entries | Effort hours: {aiAnalysis.total_hours ? Number(aiAnalysis.total_hours).toFixed(1) : 'N/A'}h
                               </div>
                             </div>
                             
-                            <div className="bg-[#0F172A]/60 border border-slate-700/40 rounded-2xl p-4 space-y-2">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">LLM Processing Core</span>
-                              <div className="text-xs text-slate-200 font-mono flex items-center gap-1.5">
-                                <Cpu size={12} className="text-indigo-400" />
+                            <div className="bg-slate-100 dark:bg-[#0F172A]/60 border border-slate-200 dark:border-slate-700/40 rounded-2xl p-4 space-y-2">
+                              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">LLM Processing Core</span>
+                              <div className="text-xs text-slate-800 dark:text-slate-200 font-mono flex items-center gap-1.5">
+                                <Cpu size={12} className="text-indigo-600 dark:text-indigo-400" />
                                 <span>{aiAnalysis.model || 'N/A'}</span>
                               </div>
                               <div className="text-[10px] text-slate-500 font-mono">
@@ -2031,19 +2274,19 @@ export default function HrbpPage() {
                           </div>
 
                           <div className="space-y-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Audit Diagnostic Step Logs</span>
-                            <div className="bg-[#020617] border border-slate-800 rounded-2xl p-4 h-[200px] overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-400 flex flex-col gap-2 shadow-inner select-text">
+                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Audit Diagnostic Step Logs</span>
+                            <div className="bg-slate-100 dark:bg-[#020617] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 h-[200px] overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-600 dark:text-slate-400 flex flex-col gap-2 shadow-inner select-text">
                               <div className="flex items-start gap-3 border-l border-emerald-500/40 pl-3">
-                                <span className="text-slate-500 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
-                                <span className="text-emerald-400 font-bold">[INFO] Performance diagnostic process completed.</span>
+                                <span className="text-slate-400 dark:text-slate-500 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                <span className="text-emerald-700 dark:text-emerald-400 font-bold">[INFO] Performance diagnostic process completed.</span>
                               </div>
                               <div className="flex items-start gap-3 border-l border-indigo-500/40 pl-3">
-                                <span className="text-slate-500 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
-                                <span className="text-slate-300">Fetched employee activities matching scope successfully.</span>
+                                <span className="text-slate-400 dark:text-slate-500 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                <span className="text-slate-600 dark:text-slate-300">Fetched employee activities matching scope successfully.</span>
                               </div>
                               <div className="flex items-start gap-3 border-l border-indigo-500/40 pl-3">
-                                <span className="text-slate-500 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
-                                <span className="text-slate-300">Resolved LLM configurations. Cached and stored.</span>
+                                <span className="text-slate-400 dark:text-slate-500 font-bold shrink-0">[{new Date(aiAnalysis.created_at).toLocaleTimeString()}]</span>
+                                <span className="text-slate-600 dark:text-slate-300">Resolved LLM configurations. Cached and stored.</span>
                               </div>
                             </div>
                           </div>
@@ -2052,16 +2295,16 @@ export default function HrbpPage() {
 
                       {activeResultsSubTab === 'history' && !isSharedView && (
                         <div className="space-y-4">
-                          <h4 className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                          <h4 className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
                             <Clock size={16} /> ประวัติรายงานย้อนหลัง (Historical Diagnostics Logs)
                           </h4>
 
                           {isLoadingHistory ? (
                             <div className="flex justify-center p-8">
-                              <Loader2 className="animate-spin text-indigo-400" size={24} />
+                              <Loader2 className="animate-spin text-indigo-600 dark:text-indigo-400" size={24} />
                             </div>
                           ) : analysisHistory.length === 0 ? (
-                            <div className="text-center p-12 rounded-2xl bg-slate-900/30 border border-slate-800/80 text-xs text-slate-500 italic">
+                            <div className="text-center p-12 rounded-2xl bg-slate-100 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800/80 text-xs text-slate-500 italic">
                               ไม่มีประวัติการประเมินมาก่อน / No history logs found
                             </div>
                           ) : (
@@ -2073,13 +2316,13 @@ export default function HrbpPage() {
                                     "p-4 rounded-2xl border text-xs flex flex-col gap-3 justify-between transition-all hover:border-indigo-500/40 cursor-pointer",
                                     aiAnalysis?.id === record.id 
                                       ? "bg-indigo-500/5 border-indigo-500/30 shadow-indigo-500/5 shadow-md"
-                                      : "bg-slate-900/50 border-slate-800/80"
+                                      : "bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-800/80"
                                   )}
                                   onClick={() => loadHistoryRecord(record)}
                                 >
                                   <div className="flex justify-between items-start">
                                     <div className="space-y-0.5">
-                                      <span className="font-bold text-slate-200 font-mono tracking-wide">
+                                      <span className="font-bold text-slate-800 dark:text-slate-200 font-mono tracking-wide">
                                         📅 {record.start_date} ~ {record.end_date}
                                       </span>
                                       <span className="text-[10px] text-slate-500 block">
@@ -2088,39 +2331,38 @@ export default function HrbpPage() {
                                     </div>
 
                                     {record.acknowledged_at && (
-                                      <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider font-mono">
+                                      <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider font-mono">
                                         SIGNED
                                       </span>
                                     )}
                                   </div>
 
-                                  <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800/60 flex items-center justify-around font-mono text-[10px] font-bold">
+                                  <div className="bg-slate-100 dark:bg-slate-950/60 p-2 rounded-xl border border-slate-200 dark:border-slate-800/60 flex items-center justify-around font-mono text-[10px] font-bold">
                                     <div className="text-center">
                                       <span className="text-slate-500 uppercase block text-[8px] tracking-widest mb-0.5">ALIGNMENT</span>
-                                      <span className="text-indigo-400">{record.jd_alignment_score || 0}%</span>
+                                      <span className="text-indigo-600 dark:text-indigo-400">{record.jd_alignment_score || 0}%</span>
                                     </div>
-                                    <div className="text-center border-l border-slate-800/80 pl-3">
+                                    <div className="text-center border-l border-slate-200 dark:border-slate-800/80 pl-3">
                                       <span className="text-slate-500 uppercase block text-[8px] tracking-widest mb-0.5">BURNOUT</span>
                                       <span className={cn(
-                                        (record.burnout_risk_score || 0) > 70 ? "text-rose-400" :
-                                        (record.burnout_risk_score || 0) > 40 ? "text-amber-400" :
-                                        "text-emerald-400"
+                                        (record.burnout_risk_score || 0) > 70 ? "text-rose-600 dark:text-rose-400" :
+                                        (record.burnout_risk_score || 0) > 40 ? "text-amber-600 dark:text-amber-400" :
+                                        "text-emerald-600 dark:text-emerald-400"
                                       )}>
                                         {record.burnout_risk_score || 0}%
                                       </span>
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center justify-between border-t border-slate-800/60 pt-3" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800/60 pt-3" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center gap-2">
-                                      {/* Public / Private Toggle */}
                                       <button
                                         onClick={() => toggleHistoryRecordShare(record.id, record.is_public)}
                                         className={cn(
                                           "px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
                                           record.is_public
-                                            ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20"
-                                            : "bg-slate-800 text-slate-400 border border-slate-700/50 hover:text-slate-200"
+                                            ? "bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
+                                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50 hover:text-slate-700 dark:hover:text-slate-200"
                                         )}
                                       >
                                         {record.is_public ? <Globe size={11} /> : <Lock size={11} />}
@@ -2130,7 +2372,7 @@ export default function HrbpPage() {
                                       {record.is_public && record.share_token && (
                                         <button
                                           onClick={() => copyHistoryShareLink(record.share_token)}
-                                          className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors border border-slate-700/50"
+                                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors border border-slate-200 dark:border-slate-700/50"
                                           title="Copy URL Share Link to Clipboard"
                                         >
                                           <Copy size={11} />
@@ -2155,10 +2397,10 @@ export default function HrbpPage() {
 
                     {/* Step back control */}
                     {!isSharedView && (
-                      <div className="border-t border-slate-800/60 pt-4 flex justify-between items-center text-xs">
+                      <div className="border-t border-slate-200 dark:border-slate-800/60 pt-4 flex justify-between items-center text-xs">
                         <button
                           onClick={() => setStep(1)}
-                          className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                          className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
                         >
                           <ArrowLeft size={12} />
                           <span>กลับไปขั้นตอน Setup</span>
@@ -2166,7 +2408,7 @@ export default function HrbpPage() {
 
                         <button
                           onClick={() => handleRunAiAnalysis(true)}
-                          className="px-4 py-2 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 hover:text-indigo-300 font-black uppercase text-[10px] tracking-wider transition-all flex items-center gap-1.5"
+                          className="px-4 py-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 hover:text-indigo-700 dark:hover:text-indigo-300 font-black uppercase text-[10px] tracking-wider transition-all flex items-center gap-1.5"
                         >
                           <RefreshCw size={12} />
                           <span>สั่งวิเคราะห์สดอีกครั้ง (Force Refresh)</span>
@@ -2183,21 +2425,21 @@ export default function HrbpPage() {
 
             {/* If no analysis runs exist yet and we are in step 3 */}
             {step === 3 && !aiAnalysis && (
-              <div className="w-full max-w-4xl mx-auto p-6 rounded-3xl bg-[#0B0F19]/90 border border-slate-800/80 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 space-y-6">
+              <div className="w-full max-w-4xl mx-auto p-6 rounded-3xl bg-slate-50 dark:bg-[#0B0F19]/90 border border-slate-200 dark:border-slate-800/80 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 space-y-6">
                 <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
                 <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-violet-500/5 rounded-full blur-[100px] pointer-events-none" />
 
-                <div className="flex items-center justify-between pb-4 border-b border-slate-800/60">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800/60">
                   <div className="flex items-center gap-2">
-                    <Clock size={18} className="text-emerald-400" />
-                    <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                    <Clock size={18} className="text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">
                       ประวัติการประเมินย้อนหลัง (HISTORICAL DIAGNOSTICS LOGS)
                     </h3>
                   </div>
                   
                   <button
                     onClick={() => setStep(1)}
-                    className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-[10px] font-black uppercase tracking-wider transition-all"
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-all"
                   >
                     ย้อนกลับ / Setup Page
                   </button>
@@ -2313,7 +2555,7 @@ export default function HrbpPage() {
       {/* ========================================================================= */}
       {showAckModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in">
-          <div className="w-full max-w-md p-6 rounded-3xl bg-[#0B0F19] border border-slate-800/90 shadow-2xl space-y-6 relative overflow-hidden">
+          <div className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-[#0B0F19] border border-slate-200 dark:border-slate-800/90 shadow-2xl space-y-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl" />
             
             <div className="flex items-center justify-between border-b border-slate-800/60 pb-3">
@@ -2331,16 +2573,16 @@ export default function HrbpPage() {
               </button>
             </div>
 
-            <div className="space-y-3.5 text-xs text-slate-300 leading-relaxed">
-              <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 text-indigo-300 flex items-start gap-2.5">
+            <div className="space-y-3.5 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+              <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/10 text-indigo-700 dark:text-indigo-300 flex items-start gap-2.5">
                 <Info size={16} className="shrink-0 mt-0.5" />
                 <span>การลงนามรับทราบนี้ เป็นการยืนยันการรับทราบข้อมูลวิเคราะห์สมรรถนะ แผนการดำเนินงาน และแผนพัฒนาประสิทธิภาพนี้เพื่อประโยชน์ในการเพิ่มศักยภาพพนักงาน</span>
               </div>
               
-              <div className="bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800/80 space-y-2 text-slate-400">
-                <div>ผู้ลงนาม: <span className="text-white font-bold">{sessionUser?.name || 'AI Specialist'}</span></div>
-                <div>ตำแหน่งลงนาม: <span className="text-white font-bold">{sessionUser?.role === 'admin' ? 'AI Enhance Administrator / Super Admin' : 'AI Enhance Associate'}</span></div>
-                <div>รหัสพนักงาน: <span className="text-slate-300 font-mono">{sessionUser?.empId || 'N/A'}</span></div>
+              <div className="bg-slate-100 dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800/80 space-y-2 text-slate-600 dark:text-slate-400">
+                <div>ผู้ลงนาม: <span className="text-slate-900 dark:text-white font-bold">{sessionUser?.name || 'AI Specialist'}</span></div>
+                <div>ตำแหน่งลงนาม: <span className="text-slate-900 dark:text-white font-bold">{sessionUser?.role === 'admin' ? 'AI Enhance Administrator / Super Admin' : 'AI Enhance Associate'}</span></div>
+                <div>รหัสพนักงาน: <span className="text-slate-600 dark:text-slate-300 font-mono">{sessionUser?.empId || 'N/A'}</span></div>
               </div>
             </div>
 
