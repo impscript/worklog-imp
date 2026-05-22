@@ -326,12 +326,6 @@ export default function LogWorkPage() {
   useEffect(() => {
     async function loadUsersAndResolve() {
       try {
-        const { data } = await supabase.from('tb_map_user_role').select('name');
-        let uniqueNames: string[] = [];
-        if (data) {
-          uniqueNames = Array.from(new Set(data.map(d => d.name).filter(Boolean))) as string[];
-        }
-        
         // Calculate clean name for current logged-in user
         let currentCleanName = 'Chatchawan';
         if (session.id) {
@@ -353,12 +347,26 @@ export default function LogWorkPage() {
           currentCleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
         }
         
-        const isThai = /[\u0e00-\u0e7f]/.test(currentCleanName);
-        if (isThai || !currentCleanName.trim()) {
+        let isThai = /[\u0e00-\u0e7f]/.test(currentCleanName);
+        if (isThai) {
+          const fallbackName = session.nickname || '';
+          if (fallbackName && !/[\u0e00-\u0e7f]/.test(fallbackName)) {
+            currentCleanName = fallbackName.includes('_') ? fallbackName.split('_')[0] : fallbackName;
+          } else {
+            currentCleanName = 'Chatchawan';
+          }
+        }
+        if (currentCleanName.includes('.')) {
+          currentCleanName = currentCleanName.split('.')[0];
+        }
+        currentCleanName = currentCleanName.charAt(0).toUpperCase() + currentCleanName.slice(1);
+        
+        if (!currentCleanName.trim()) {
           currentCleanName = 'Chatchawan';
         }
 
-        // Add logged-in user's clean name if not present
+        // We only want the logged-in user and Chatchawan in the list
+        let uniqueNames: string[] = ['Chatchawan'];
         if (!uniqueNames.some(name => name.toLowerCase() === currentCleanName.toLowerCase())) {
           uniqueNames.push(currentCleanName);
         }
@@ -425,8 +433,21 @@ export default function LogWorkPage() {
         cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
       }
       
-      const isThai = /[\u0e00-\u0e7f]/.test(cleanName);
-      if (isThai || !cleanName.trim()) {
+      let isThai = /[\u0e00-\u0e7f]/.test(cleanName);
+      if (isThai) {
+        const fallbackName = session.nickname || '';
+        if (fallbackName && !/[\u0e00-\u0e7f]/.test(fallbackName)) {
+          cleanName = fallbackName.includes('_') ? fallbackName.split('_')[0] : fallbackName;
+        } else {
+          cleanName = 'Chatchawan';
+        }
+      }
+      if (cleanName.includes('.')) {
+        cleanName = cleanName.split('.')[0];
+      }
+      cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+      
+      if (!cleanName.trim()) {
         cleanName = 'Chatchawan';
       }
 
