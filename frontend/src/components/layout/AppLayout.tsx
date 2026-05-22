@@ -2,6 +2,9 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Calendar, FileText, User, PlusCircle, Menu, X, LogOut, Database, Cpu, Sparkles, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { supabase } from '../../lib/supabase';
+import { syncWorklogToGCal } from '../../lib/google-calendar';
+import { useNotification } from '../../context/NotificationContext';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -11,6 +14,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   });
   const [user, setUser] = useState<{ name: string; role: string; empId?: string } | null>(null);
   const navigate = useNavigate();
+  const { showToast } = useNotification();
 
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
@@ -39,6 +43,94 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       setUser(JSON.parse(session));
     }
   }, []);
+
+  // Background runner for pending Google Calendar sync submissions/updates
+  useEffect(() => {
+    async function processPendingSync() {
+      const pendingStr = localStorage.getItem('gcal_pending_sync');
+      if (!pendingStr) return;
+
+      try {
+        const pending = JSON.parse(pendingStr);
+        // Clear immediately to prevent double processing / infinite loops
+        localStorage.removeItem('gcal_pending_sync');
+
+        showToast('กำลังกู้คืนข้อมูลและบันทึกใบงานโดยอัตโนมัติ... / Autocompleting worklog save...', 'info');
+
+        if (pending.action === 'insert') {
+          const insertedIds: string[] = [];
+          for (const row of pending.inserts) {
+            const { data, error } = await supabase
+              .from('col_worklog')
+              .insert(row)
+              .select('id')
+              .maybeSingle();
+
+            if (error) throw error;
+            if (data?.id) insertedIds.push(data.id);
+          }
+
+          // Sync to GCal
+          for (const id of insertedIds) {
+            try {
+              await syncWorklogToGCal(id, 'insert');
+            } catch (syncErr) {
+              console.warn('[GCal] Background sync warning:', syncErr);
+            }
+          }
+
+          showToast('บันทึกใบงานและซิงค์ลง Google Calendar สำเร็จ! / Worklog saved and synced successfully!', 'success');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        } 
+        else if (pending.action === 'update' && pending.logId) {
+          const { error } = await supabase
+            .from('col_worklog')
+            .update(pending.updatePayload)
+            .eq('id', pending.logId);
+
+          if (error) throw error;
+
+          // Insert any remaining segments
+          if (pending.inserts && pending.inserts.length > 0) {
+            for (const row of pending.inserts) {
+              const { data, error: errorNew } = await supabase
+                .from('col_worklog')
+                .insert(row)
+                .select('id')
+                .maybeSingle();
+              if (errorNew) throw errorNew;
+              if (data?.id) {
+                try {
+                  await syncWorklogToGCal(data.id, 'insert');
+                } catch (syncErr) {
+                  console.warn('[GCal] Background sync warning:', syncErr);
+                }
+              }
+            }
+          }
+
+          // Sync the updated entry
+          try {
+            await syncWorklogToGCal(pending.logId, 'update');
+          } catch (syncErr) {
+            console.warn('[GCal] Background sync warning:', syncErr);
+          }
+
+          showToast('อัปเดตใบงานและซิงค์ลง Google Calendar สำเร็จ! / Worklog updated and synced successfully!', 'success');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        }
+      } catch (err: any) {
+        console.error('[AppLayout] Failed to process pending sync:', err);
+        showToast('เกิดข้อผิดพลาดในการบันทึกและซิงค์ GCal: ' + err.message, 'error');
+      }
+    }
+
+    processPendingSync();
+  }, [showToast]);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   

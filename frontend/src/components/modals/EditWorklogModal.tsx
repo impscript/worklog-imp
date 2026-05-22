@@ -3,7 +3,7 @@ import { X, Clock, AlertTriangle, Calendar as CalendarIcon, Zap, ChevronDown, Ch
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 import { cn } from '../../lib/utils';
-import { syncWorklogToGCal } from '../../lib/google-calendar';
+import { syncWorklogToGCal, googleCalendar } from '../../lib/google-calendar';
 
 // Generate Time Options (00:00 to 24:00 - 24 Hours)
 const timeOptions = Array.from({ length: 49 }, (_, i) => {
@@ -750,6 +750,113 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     if (!log) return;
     setShowConfirmModal(false);
     setIsSubmitting(true);
+    try {
+      const { ready } = await googleCalendar.checkSessionReady(log.user_id);
+      if (!ready) {
+        showToast('กำลังเชื่อมต่อ Google Calendar... กรุณารอสักครู่ / Connecting Google Calendar...', 'info');
+
+        let updatePayload: any = {};
+        let inserts: any[] = [];
+
+        if (preview.segments.length > 1) {
+          const segment0 = preview.segments[0];
+          const segment0Prefix = segment0.is_ot ? '[OT]' : '[Normal]';
+          updatePayload = {
+            work_date: segment0.work_date,
+            start_time: segment0.start_time + ':00',
+            end_time: segment0.end_time + ':00',
+            break_time: !segment0.is_ot ? isBreak : false,
+            total_hours: segment0.hours,
+            holding,
+            department_operator: role,
+            project_type: projectType,
+            project_name: projectName,
+            module: module || null,
+            bu,
+            department,
+            action_name: actionName,
+            action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+            description: description ? `${segment0Prefix} ${description}` : `${segment0.is_ot ? 'OT' : 'Normal'} portion`,
+            is_ot: segment0.is_ot,
+            is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt
+          };
+
+          for (let i = 1; i < preview.segments.length; i++) {
+            const segment = preview.segments[i];
+            const segmentPrefix = segment.is_ot ? '[OT]' : '[Normal]';
+            inserts.push({
+              user_id: log.user_id,
+              work_date: segment.work_date,
+              start_time: segment.start_time + ':00',
+              end_time: segment.end_time + ':00',
+              break_time: !segment.is_ot ? isBreak : false,
+              total_hours: segment.hours,
+              holding,
+              department_operator: role,
+              project_type: projectType,
+              project_name: projectName,
+              module: module || null,
+              bu,
+              department,
+              action_name: actionName,
+              action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+              description: description ? `${segmentPrefix} ${description}` : `${segment.is_ot ? 'OT' : 'Normal'} portion`,
+              channel: log.channel || 'Web App',
+              is_ot: segment.is_ot,
+              is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+            });
+          }
+        } else {
+          const segment = preview.segments[0] || {
+            work_date: date,
+            hours: preview.duration,
+            start_time: startTime,
+            end_time: endTime,
+            is_ot: isExplicitOt || isHolidayDate
+          };
+          updatePayload = {
+            work_date: segment.work_date,
+            start_time: segment.start_time + ':00',
+            end_time: segment.end_time + ':00',
+            break_time: isBreak,
+            total_hours: segment.hours,
+            holding,
+            department_operator: role,
+            project_type: projectType,
+            project_name: projectName,
+            module: module || null,
+            bu,
+            department,
+            action_name: actionName,
+            action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+            description,
+            is_ot: segment.is_ot,
+            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+          };
+        }
+
+        const pendingSync = {
+          action: 'update',
+          logId: log.id,
+          updatePayload,
+          inserts
+        };
+
+        localStorage.setItem('gcal_pending_sync', JSON.stringify(pendingSync));
+        localStorage.setItem('gcal_pending_origin', window.location.pathname + window.location.search);
+
+        setTimeout(() => {
+          window.location.href = googleCalendar.getAuthUrl();
+        }, 1000);
+
+        setIsSubmitting(false);
+        onClose();
+        return;
+      }
+    } catch (gcalErr) {
+      console.warn('[GCal] Session check failed, proceeding without redirect:', gcalErr);
+    }
+
     try {
       if (preview.segments.length > 1) {
         // We need to SPLIT this entry!

@@ -1,6 +1,8 @@
 // Google Calendar Service for Worklog NewGen Web App
 // Uses client-side OAuth 2.0 Implicit Flow + Google Calendar API v3 REST
 
+import { supabase } from './supabase';
+
 const GCAL_API_BASE = 'https://www.googleapis.com/calendar/v3';
 const GCAL_CLIENT_ID = '854811423030-gb2805ivlc8psvhg4lsgdike0q7t01it.apps.googleusercontent.com';
 const GCAL_SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email';
@@ -279,6 +281,28 @@ class GoogleCalendarService {
 
     return event;
   }
+
+  async isSyncEnabled(userId: string): Promise<boolean> {
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('gcal_sync_enabled')
+        .eq('id', userId)
+        .maybeSingle();
+      return !!data?.gcal_sync_enabled;
+    } catch {
+      return false;
+    }
+  }
+
+  async checkSessionReady(userId: string): Promise<{ ready: boolean; syncEnabled: boolean }> {
+    const syncEnabled = await this.isSyncEnabled(userId);
+    if (!syncEnabled) {
+      return { ready: true, syncEnabled: false };
+    }
+    const token = this.getAccessToken();
+    return { ready: !!token, syncEnabled: true };
+  }
 }
 
 export const googleCalendar = new GoogleCalendarService();
@@ -286,7 +310,6 @@ export const googleCalendar = new GoogleCalendarService();
 // ==========================================
 // Database Transaction Sync Trigger
 // ==========================================
-import { supabase } from './supabase';
 
 export async function syncWorklogToGCal(logId: string, action: 'insert' | 'update'): Promise<void> {
   try {

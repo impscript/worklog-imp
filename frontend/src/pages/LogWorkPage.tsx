@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
-import { syncWorklogToGCal } from '../lib/google-calendar';
+import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
 
 // Generate Time Options (00:00 to 24:00 - 24 Hours)
 const timeOptions = Array.from({ length: 49 }, (_, i) => {
@@ -1075,6 +1075,89 @@ export default function LogWorkPage() {
           if (createErr) throw new Error('Failed to create mock user: ' + createErr.message);
           userId = newUser?.id;
         }
+      }
+
+      // Check Google Calendar connection readiness BEFORE writing to database
+      try {
+        const { ready } = await googleCalendar.checkSessionReady(userId);
+        if (!ready) {
+          showToast('กำลังเชื่อมต่อ Google Calendar... กรุณารอสักครู่ / Connecting Google Calendar...', 'info');
+          
+          const inserts = [];
+          if (finalSegments.length > 1) {
+            for (let i = 0; i < finalSegments.length; i++) {
+              const segment = finalSegments[i];
+              const segmentPrefix = segment.is_ot ? '[OT]' : '[Normal]';
+              inserts.push({
+                user_id: userId,
+                work_date: segment.work_date,
+                start_time: segment.start_time + ':00',
+                end_time: segment.end_time + ':00',
+                break_time: !segment.is_ot ? isBreak : false,
+                total_hours: segment.hours,
+                holding,
+                department_operator: role,
+                project_type: projectType,
+                project_name: projectName,
+                module: module || null,
+                bu,
+                department,
+                action_name: actionName,
+                action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+                description: description ? `${segmentPrefix} ${description}` : `${segment.is_ot ? 'OT' : 'Normal'} portion`,
+                channel: 'Web App',
+                is_ot: segment.is_ot,
+                is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+              });
+            }
+          } else {
+            const segment = finalSegments[0] || {
+              work_date: date,
+              hours: preview.duration,
+              start_time: timeMode === 'range' ? startTime : '00:00',
+              end_time: timeMode === 'range' ? endTime : '00:00',
+              is_ot: isExplicitOt || isHolidayDate
+            };
+            inserts.push({
+              user_id: userId,
+              work_date: segment.work_date,
+              start_time: segment.start_time + ':00',
+              end_time: segment.end_time + ':00',
+              break_time: timeMode === 'range' ? isBreak : false,
+              total_hours: segment.hours,
+              holding,
+              department_operator: role,
+              project_type: projectType,
+              project_name: projectName,
+              module: module || null,
+              bu,
+              department,
+              action_name: actionName,
+              action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+              description: description,
+              channel: 'Web App',
+              is_ot: segment.is_ot,
+              is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+            });
+          }
+
+          const pendingSync = {
+            action: 'insert',
+            inserts
+          };
+          
+          localStorage.setItem('gcal_pending_sync', JSON.stringify(pendingSync));
+          localStorage.setItem('gcal_pending_origin', window.location.pathname + window.location.search);
+          
+          setTimeout(() => {
+            window.location.href = googleCalendar.getAuthUrl();
+          }, 1000);
+          
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (gcalErr) {
+        console.warn('[GCal] Session check failed, proceeding without redirect:', gcalErr);
       }
 
       if (finalSegments.length > 1) {

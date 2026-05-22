@@ -59,6 +59,16 @@ export default function ProfilePage() {
               
               setGcalSyncEnabled(true);
               setToastMessage('Google Calendar Connected Successfully! 🎉');
+              
+              const origin = localStorage.getItem('gcal_pending_origin');
+              if (origin) {
+                localStorage.removeItem('gcal_pending_origin');
+                setTimeout(() => {
+                  navigate(origin);
+                }, 1200);
+                return;
+              }
+              
               setTimeout(() => setToastMessage(null), 5000);
             }
           } catch (err) {
