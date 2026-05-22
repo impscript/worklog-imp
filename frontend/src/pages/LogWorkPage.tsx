@@ -365,8 +365,20 @@ export default function LogWorkPage() {
           currentCleanName = 'Chatchawan';
         }
 
-        // We only want the logged-in user and Chatchawan in the list
-        let uniqueNames: string[] = ['Chatchawan'];
+        // If the logged-in user is Chatchawan, load everyone. Otherwise, only show Chatchawan and ourselves.
+        let uniqueNames: string[] = [];
+        const isChatchawan = currentCleanName.toLowerCase() === 'chatchawan';
+        
+        if (isChatchawan) {
+          const { data } = await supabase.from('tb_map_user_role').select('name');
+          if (data) {
+            uniqueNames = Array.from(new Set(data.map(d => d.name).filter(Boolean))) as string[];
+          }
+        } else {
+          uniqueNames = ['Chatchawan'];
+        }
+
+        // Always make sure the logged-in user's name is in the list
         if (!uniqueNames.some(name => name.toLowerCase() === currentCleanName.toLowerCase())) {
           uniqueNames.push(currentCleanName);
         }
