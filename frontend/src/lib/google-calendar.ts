@@ -209,6 +209,19 @@ class GoogleCalendarService {
     return await this._request('DELETE', `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`);
   }
 
+  async listEventsForDay(calendarId: string, dateStr: string): Promise<any[]> {
+    const timeMin = `${dateStr}T00:00:00+07:00`;
+    const timeMax = `${dateStr}T23:59:59+07:00`;
+    try {
+      const path = `/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true`;
+      const res = await this._request('GET', path);
+      return res.items || [];
+    } catch (err) {
+      console.warn('[GCal] listEventsForDay failed:', err);
+      return [];
+    }
+  }
+
   // ==========================================
   // Payload Builder
   // ==========================================
@@ -353,32 +366,62 @@ export async function syncWorklogToGCal(logId: string, action: 'insert' | 'updat
       log.action_name || 'Work Log Entry'
     );
 
-    if (action === 'insert' || !log.gcal_event_id) {
+    let eventId = log.gcal_event_id;
+    let finalAction = action;
+
+    // Check if event already exists on Google Calendar by matching summary or content details
+    // to prevent duplicate creation on calendar
+    if (!eventId || finalAction === 'insert') {
+      console.log('[GCal Sync] Checking existing calendar events for date:', log.work_date);
+      const existingEvents = await googleCalendar.listEventsForDay(calendarId, log.work_date);
+      
+      const match = existingEvents.find((evt: any) => {
+        const titleMatch = evt.summary === payload.summary;
+        const descMatch = evt.description && 
+          evt.description.includes(`🎯 Project: ${log.project_name}`) && 
+          evt.description.includes(`⚡ Action: ${log.action_name}`);
+        return titleMatch || descMatch;
+      });
+
+      if (match) {
+        console.log('[GCal Sync] Found matching event on Google Calendar, linking event ID:', match.id);
+        eventId = match.id;
+        finalAction = 'update';
+        
+        // Link and store the event ID in our database
+        await supabase
+          .from('col_worklog')
+          .update({ gcal_event_id: match.id })
+          .eq('id', logId);
+      }
+    }
+
+    if (finalAction === 'insert' || !eventId) {
       // Create new event
       console.log('[GCal Sync] Creating event in Google Calendar...');
-      const eventId = await googleCalendar.createEvent(calendarId, payload);
+      const newEventId = await googleCalendar.createEvent(calendarId, payload);
       
       // Save event ID back to DB
       await supabase
         .from('col_worklog')
-        .update({ gcal_event_id: eventId })
+        .update({ gcal_event_id: newEventId })
         .eq('id', logId);
       
-      console.log('[GCal Sync] Event created successfully:', eventId);
-    } else if (action === 'update' && log.gcal_event_id) {
+      console.log('[GCal Sync] Event created successfully:', newEventId);
+    } else {
       // Update existing event
-      console.log('[GCal Sync] Updating event in Google Calendar:', log.gcal_event_id);
+      console.log('[GCal Sync] Updating event in Google Calendar:', eventId);
       try {
-        await googleCalendar.updateEvent(calendarId, log.gcal_event_id, payload);
+        await googleCalendar.updateEvent(calendarId, eventId, payload);
         console.log('[GCal Sync] Event updated successfully.');
       } catch (err: any) {
         if (err.message && (err.message.includes('Not Found') || err.message.includes('404'))) {
           // Event was deleted, recreate it
           console.warn('[GCal Sync] Event not found on Google Calendar, recreating...');
-          const eventId = await googleCalendar.createEvent(calendarId, payload);
+          const newEventId = await googleCalendar.createEvent(calendarId, payload);
           await supabase
             .from('col_worklog')
-            .update({ gcal_event_id: eventId })
+            .update({ gcal_event_id: newEventId })
             .eq('id', logId);
         } else {
           throw err;
