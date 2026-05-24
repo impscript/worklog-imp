@@ -195,7 +195,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-full self-start md:self-center">
                 <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 animate-pulse"></span>
-                <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest font-mono">
+                <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest font-mono">
                   Weekly: {startOfWeek} ~ {endOfWeek}
                 </span>
               </div>
@@ -301,7 +301,7 @@ export default function DashboardPage() {
                   ) : (
                     <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
                       <table className="w-full text-sm text-left">
-                        <thead className="text-[10px] text-theme-text-secondary bg-theme-surface-tertiary/80 dark:bg-theme-surface-secondary/80 uppercase border-b border-theme-border dark:border-theme-border/50 sticky top-0 z-10 backdrop-blur-md">
+                        <thead className="text-xs text-theme-text-secondary bg-theme-surface-tertiary/80 dark:bg-theme-surface-secondary/80 uppercase border-b border-theme-border dark:border-theme-border/50 sticky top-0 z-10 backdrop-blur-md">
                           <tr>
                             <th className="px-4 py-3 font-medium">Date</th>
                             <th className="px-4 py-3 font-medium">Project</th>
@@ -337,7 +337,7 @@ export default function DashboardPage() {
                   )}
                   {entries.length > 15 && (
                     <div className="p-3 border-t border-theme-border dark:border-theme-border/30 text-center bg-theme-surface-secondary dark:bg-slate-900/40">
-                      <Link to="/reports" className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors uppercase tracking-wider">
+                      <Link to="/reports" className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors uppercase tracking-wider">
                         View all work logs ({entries.length}) →
                       </Link>
                     </div>
@@ -396,7 +396,7 @@ export default function DashboardPage() {
                         <div className="text-3xl font-extrabold text-theme-text tracking-tight">
                           {typeSummary.total.toFixed(1)}h
                         </div>
-                        <div className="text-[10px] uppercase font-bold tracking-wider text-theme-text-secondary mt-0.5">
+                        <div className="text-xs uppercase font-bold tracking-wider text-theme-text-secondary mt-0.5">
                           Total Hours
                         </div>
                       </div>
@@ -492,11 +492,11 @@ function KpiCard({
         <div className="p-2.5 rounded-lg bg-theme-surface-secondary dark:bg-slate-950/50 border border-theme-border dark:border-theme-border/80 group-hover:scale-110 duration-300">
           {icon}
         </div>
-        {trend && <span className={cn("text-[9px] font-extrabold px-2 py-0.5 rounded-md border uppercase tracking-wider", trendColor)}>{trend}</span>}
+        {trend && <span className={cn("text-[11px] font-extrabold px-2 py-0.5 rounded-md border uppercase tracking-wider", trendColor)}>{trend}</span>}
       </div>
       <div>
         <h3 className="text-2xl font-extrabold text-theme-text tracking-tight mb-0.5 font-mono">{value}</h3>
-        <p className="text-[10px] font-semibold text-theme-text-secondary uppercase tracking-wider">{title}</p>
+        <p className="text-xs font-semibold text-theme-text-secondary uppercase tracking-wider">{title}</p>
       </div>
     </div>
   );
@@ -528,7 +528,7 @@ function DayCard({
       {active && (
         <div className="absolute top-0 right-0 w-1.5 h-1.5 bg-indigo-500 rounded-bl-full shadow-lg shadow-indigo-500/50" />
       )}
-      <span className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider mb-1">{day}</span>
+      <span className="text-xs font-bold text-theme-text-muted uppercase tracking-wider mb-1">{day}</span>
       <span className={cn("text-xl font-extrabold mb-3 font-mono", active ? "text-indigo-600 dark:text-indigo-400" : "text-theme-text")}>{date}</span>
       
       <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-900 mb-2 overflow-hidden border border-slate-300 dark:border-theme-border/40">
@@ -571,7 +571,7 @@ function TableRow({
     <tr className="hover:bg-theme-surface-secondary dark:hover:bg-theme-surface-secondary dark:hover:bg-slate-900/35 border-b border-theme-border dark:border-slate-900 transition-colors group">
       <td className="px-4 py-3 text-theme-text-secondary font-semibold font-mono text-xs whitespace-nowrap">{date}</td>
       <td className="px-4 py-3 font-bold text-theme-text whitespace-nowrap">
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-theme-surface-tertiary dark:bg-slate-950/80 border border-slate-300 dark:border-theme-border/70">{project}</span>
+        <span className="text-xs px-1.5 py-0.5 rounded bg-theme-surface-tertiary dark:bg-slate-950/80 border border-slate-300 dark:border-theme-border/70">{project}</span>
       </td>
       <td className="px-4 py-3 text-theme-text-secondary max-w-[150px] text-xs">
         <div className="truncate">{action}</div>
@@ -581,7 +581,7 @@ function TableRow({
               <span 
                 key={channel}
                 className={cn(
-                  "px-1 py-0.5 rounded-full text-[8px] font-extrabold border shrink-0 uppercase tracking-wider flex items-center gap-0.5",
+                  "px-1.5 py-0.5 rounded-full text-[10px] font-extrabold border shrink-0 uppercase tracking-wider flex items-center gap-0.5",
                   channel === 'Meeting' && "bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-500/10 dark:border-indigo-500/25 dark:text-indigo-400",
                   channel === 'Discuss via phone' && "bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-500/10 dark:border-amber-500/25 dark:text-amber-400",
                   channel === 'On site' && "bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-500/10 dark:border-rose-500/25 dark:text-rose-400"
@@ -598,7 +598,7 @@ function TableRow({
       </td>
       <td className="px-4 py-3 font-extrabold text-theme-text font-mono text-sm">{hours}h</td>
       <td className="px-4 py-3 whitespace-nowrap">
-        <span className={cn("px-2 py-0.5 text-[8px] font-extrabold rounded uppercase tracking-wider border", typeColors[type])}>
+        <span className={cn("px-2 py-0.5 text-[10px] font-extrabold rounded uppercase tracking-wider border", typeColors[type])}>
           {type}
         </span>
       </td>
@@ -610,7 +610,7 @@ function TableRow({
                 e.stopPropagation();
                 onView();
               }}
-              className="bg-theme-surface-tertiary hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:hover:text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-theme-border/60 text-theme-text-secondary px-2 py-1 rounded-md cursor-pointer font-bold text-[9px] uppercase tracking-wider transition-all flex items-center gap-1"
+              className="bg-theme-surface-tertiary hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:hover:text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-theme-border/60 text-theme-text-secondary px-2 py-1 rounded-md cursor-pointer font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-1"
               title="ดูใบงานแบบเต็ม"
             >
               <Eye size={10} />
@@ -623,7 +623,7 @@ function TableRow({
                 e.stopPropagation();
                 onEdit();
               }}
-              className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/25 active:scale-95 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-md cursor-pointer font-bold text-[9px] uppercase tracking-wider transition-all shadow-sm shadow-indigo-500/5"
+              className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/25 active:scale-95 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-md cursor-pointer font-bold text-[11px] uppercase tracking-wider transition-all shadow-sm shadow-indigo-500/5"
             >
               Edit
             </button>

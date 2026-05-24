@@ -255,6 +255,35 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   const { showToast } = useNotification();
   const [session] = useState(() => JSON.parse(localStorage.getItem('worklog_session') || '{}'));
 
+  // ── Ownership Guard ──────────────────────────────────────────────────────────
+  // Only the log's owner can edit. Admins who "view as" another user cannot edit
+  // their worklogs either — they should use the admin panel.
+  const isOwner = !log || session?.id === log.user_id;
+
+  if (isOpen && log && !isOwner) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="w-full max-w-md bg-theme-surface-modal border border-theme-border rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+            <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+          <h3 className="text-lg font-black text-theme-text mb-2">ไม่มีสิทธิ์แก้ไขใบงานนี้</h3>
+          <p className="text-sm text-theme-text-secondary mb-6 leading-relaxed">
+            คุณสามารถแก้ไขได้เฉพาะใบงานบันทึกการทำงานของตัวเองเท่านั้น<br/>
+            <span className="text-[11px] font-mono text-theme-text-muted">(You can only edit your own worklogs.)</span>
+          </p>
+          <button
+            onClick={onClose}
+            className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold rounded-xl transition-all active:scale-95"
+          >
+            ปิดหน้าต่าง
+          </button>
+        </div>
+      </div>
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   // Form State
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('08:00');

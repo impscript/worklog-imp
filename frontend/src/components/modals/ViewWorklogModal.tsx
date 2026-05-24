@@ -189,7 +189,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               )}>
                 {(log.is_ot || log.is_implied_ot) ? '⚡ OVERTIME WORK' : '💼 STANDARD WORK'}
               </span>
-              <div className="text-[10px] text-theme-text-muted mt-2 font-mono">Created: {new Date(log.created_at).toLocaleString()}</div>
+              <div className="text-xs text-theme-text-muted mt-2 font-mono">Created: {new Date(log.created_at).toLocaleString()}</div>
             </div>
           </div>
 
@@ -205,19 +205,19 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-[9px] font-bold text-theme-text-muted uppercase block">Holding</span>
+                  <span className="text-[11px] font-bold text-theme-text-muted uppercase block">Holding</span>
                   <span className="text-sm font-bold text-theme-text print:text-black">{log.holding}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] font-bold text-theme-text-muted uppercase block">Business Unit (BU)</span>
+                  <span className="text-[11px] font-bold text-theme-text-muted uppercase block">Business Unit (BU)</span>
                   <span className="text-sm font-bold text-theme-text print:text-black">{log.bu || '-'}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] font-bold text-theme-text-muted uppercase block">Department Operator</span>
+                  <span className="text-[11px] font-bold text-theme-text-muted uppercase block">Department Operator</span>
                   <span className="text-sm font-bold text-theme-text print:text-black">{log.department_operator}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] font-bold text-theme-text-muted uppercase block">Department</span>
+                  <span className="text-[11px] font-bold text-theme-text-muted uppercase block">Department</span>
                   <span className="text-sm font-bold text-theme-text print:text-black">{log.department || '-'}</span>
                 </div>
               </div>
@@ -225,7 +225,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               <div className="border-t border-theme-border pt-3 print:border-slate-200">
                 <span className="text-[9px] font-bold text-theme-text-muted uppercase block">Project Type / Category</span>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className={cn("px-2.5 py-0.5 text-[9px] font-extrabold rounded uppercase tracking-wider border", typeColors[cat])}>
+                  <span className={cn("px-2.5 py-0.5 text-[10px] font-extrabold rounded uppercase tracking-wider border", typeColors[cat])}>
                     {cat}
                   </span>
                   <span className="text-xs text-theme-text-secondary">({log.project_type})</span>
@@ -242,20 +242,20 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-[9px] font-bold text-theme-text-muted uppercase block">วันที่ทำงาน</span>
+                  <span className="text-[11px] font-bold text-theme-text-muted uppercase block">วันที่ทำงาน</span>
                   <span className="text-sm font-bold text-theme-text print:text-black flex items-center gap-1 font-mono">
                     <Calendar size={12} className="text-theme-text-secondary" />
                     {log.work_date}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[9px] font-bold text-theme-text-muted uppercase block">ชั่วโมงการทำงานรวม</span>
+                  <span className="text-[11px] font-bold text-theme-text-muted uppercase block">ชั่วโมงการทำงานรวม</span>
                   <span className="text-sm font-extrabold text-indigo-300 print:text-indigo-600 font-mono">
                     {log.total_hours.toFixed(1)} ชั่วโมง
                   </span>
                 </div>
                 <div>
-                  <span className="text-[9px] font-bold text-theme-text-muted uppercase block">เวลา เริ่ม - สิ้นสุด</span>
+                  <span className="text-[11px] font-bold text-theme-text-muted uppercase block">เวลา เริ่ม - สิ้นสุด</span>
                   <span className="text-sm font-bold text-theme-text print:text-black flex items-center gap-1 font-mono">
                     <Clock size={12} className="text-theme-text-secondary" />
                     {log.start_time.slice(0, 5)} - {log.end_time.slice(0, 5)}
@@ -263,7 +263,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
                 </div>
                 {breakTimeDisplay && (
                   <div>
-                    <span className="text-[9px] font-bold text-theme-text-muted uppercase block">หักช่วงเวลาพัก</span>
+                    <span className="text-[11px] font-bold text-theme-text-muted uppercase block">หักช่วงเวลาพัก</span>
                     <span className="text-sm font-bold text-theme-text print:text-black">
                       {breakTimeDisplay}
                     </span>
@@ -307,7 +307,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
                         <span 
                           key={channel}
                           className={cn(
-                            "px-2 py-0.5 rounded-full text-[9px] font-extrabold border shrink-0 uppercase tracking-wider flex items-center gap-0.5",
+                            "px-2 py-0.5 rounded-full text-[10px] font-extrabold border shrink-0 uppercase tracking-wider flex items-center gap-0.5",
                             channel === 'Meeting' && "bg-indigo-500/10 border-indigo-500/25 text-indigo-400",
                             channel === 'Discuss via phone' && "bg-amber-500/10 border-amber-500/25 text-amber-400",
                             channel === 'On site' && "bg-rose-500/10 border-rose-500/25 text-rose-400"
@@ -327,7 +327,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               </div>
 
               <div className="border-t border-theme-border pt-4 print:border-slate-200">
-                <span className="text-[9px] font-bold text-theme-text-muted uppercase block mb-1.5">รายละเอียดงานปฏิบัติจริง</span>
+                <span className="text-[11px] font-bold text-theme-text-muted uppercase block mb-1.5">รายละเอียดงานปฏิบัติจริง</span>
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/70 border border-theme-border p-4 rounded-xl text-xs text-theme-text leading-relaxed font-sans italic whitespace-pre-wrap print:bg-theme-surface-secondary print:border-slate-300 print:text-black">
                   {log.description ? `"${log.description}"` : 'ไม่มีการระบุรายละเอียดเพิ่มเติม'}
                 </div>
@@ -344,9 +344,9 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
                 <CheckCircle2 size={16} />
               </div>
               <div>
-                <span className="text-[9px] font-bold text-theme-text-secondary uppercase block">สถานะการบันทึก</span>
+                <span className="text-[11px] font-bold text-theme-text-secondary uppercase block">สถานะการบันทึก</span>
                 <span className="text-xs font-bold text-theme-text print:text-black block mt-0.5">บันทึกสำเร็จในระบบเรียบร้อย</span>
-                <div className="flex items-center gap-1 text-[10px] text-theme-text-muted mt-1 font-mono">
+                <div className="flex items-center gap-1 text-xs text-theme-text-muted mt-1 font-mono">
                   <Laptop size={10} />
                   <span>Channel: {log.channel || 'Web App'}</span>
                 </div>
@@ -376,7 +376,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               <span>ลบใบงานนี้ (Delete)</span>
             </button>
           ) : (
-            <div className="text-[10px] text-theme-text-muted font-bold bg-theme-surface-tertiary/40 border border-theme-border px-3 py-1.5 rounded-xl font-mono">
+            <div className="text-xs text-theme-text-muted font-bold bg-theme-surface-tertiary/40 border border-theme-border px-3 py-1.5 rounded-xl font-mono">
               🔒 Read-Only (ผู้ใช้อื่น)
             </div>
           )}

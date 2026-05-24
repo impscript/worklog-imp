@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, ClipboardList, Clock, Eye } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, Plus, ClipboardList, Clock, Eye, RefreshCw, CalendarCheck } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
+import { googleCalendar, syncWorklogToGCal } from '../lib/google-calendar';
 
 interface WorklogEntry {
   id: string;
+  user_id: string;
   work_date: string;
   total_hours: number;
   project_name: string;
@@ -17,6 +19,15 @@ interface WorklogEntry {
   is_ot?: boolean;
   is_implied_ot?: boolean;
   action_channel?: string | null;
+  gcal_event_id?: string | null;
+  start_time?: string;
+  end_time?: string;
+  holding?: string;
+  department_operator?: string;
+  project_type?: string;
+  bu?: string;
+  department?: string;
+  module?: string | null;
 }
 
 export default function CalendarPage() {
@@ -34,6 +45,13 @@ export default function CalendarPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
 
+  // ── GCal Re-Sync State ───────────────────────────────────────────────────────
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; status: string } | null>(null);
+  const [gcalConnected, setGcalConnected] = useState(false);
+  const [gcalSyncEnabled, setGcalSyncEnabled] = useState(false);
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
@@ -44,6 +62,22 @@ export default function CalendarPage() {
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   };
+
+  // Month boundary strings for filtering
+  const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const monthEnd = `${year}-${String(month + 1).padStart(2, '0')}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
+
+  // ── Sync stats for current month (current user only) ─────────────────────────
+  const currentMonthEntries = useMemo(() => {
+    const targetId = selectedUserId || sessionUser?.id;
+    return entries.filter(
+      (e) => e.user_id === targetId && e.work_date >= monthStart && e.work_date <= monthEnd
+    );
+  }, [entries, selectedUserId, sessionUser, monthStart, monthEnd]);
+
+  const syncedCount = useMemo(() => currentMonthEntries.filter((e) => !!e.gcal_event_id).length, [currentMonthEntries]);
+  const unsyncedEntries = useMemo(() => currentMonthEntries.filter((e) => !e.gcal_event_id), [currentMonthEntries]);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
@@ -73,7 +107,7 @@ export default function CalendarPage() {
     async function fetchMonthEntries() {
       try {
         setIsLoading(true);
-        // Fetch all user entries
+        // Fetch all user entries (including gcal_event_id for sync status)
         const { data, error } = await supabase
           .from('col_worklog')
           .select('*')
@@ -118,6 +152,68 @@ export default function CalendarPage() {
     fetchMonthEntries();
     fetchHolidays();
   }, [navigate, selectedDateStr, refreshTrigger, selectedUserId, sessionUser]);
+
+  // ── Check GCal connection whenever session user is loaded ─────────────────────
+  useEffect(() => {
+    if (!sessionUser?.id) return;
+    googleCalendar.checkSessionReady(sessionUser.id).then(({ ready, syncEnabled }) => {
+      setGcalSyncEnabled(syncEnabled);
+      setGcalConnected(syncEnabled && ready);
+    });
+  }, [sessionUser]);
+
+  // ── Month Re-Sync Handler ─────────────────────────────────────────────────────
+  const handleMonthResync = async () => {
+    if (isSyncing) return;
+    if (!gcalConnected) {
+      alert('Google Calendar ยังไม่ได้เชื่อมต่อ หรือ Session หมดอายุ\nกรุณาไปที่ Profile เพื่อ reconnect ก่อนนะคะ');
+      return;
+    }
+
+    const toSync = unsyncedEntries;
+    if (toSync.length === 0) {
+      alert(`✅ ใบงานในเดือนนี้ sync ครบทั้งหมดแล้ว (${syncedCount}/${currentMonthEntries.length} ใบ)`);
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncProgress({ current: 0, total: toSync.length, status: 'กำลังเริ่ม...' });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < toSync.length; i++) {
+      const entry = toSync[i];
+      setSyncProgress({
+        current: i + 1,
+        total: toSync.length,
+        status: `${entry.work_date} — ${entry.project_name.length > 30 ? entry.project_name.slice(0, 30) + '...' : entry.project_name}`
+      });
+
+      try {
+        await syncWorklogToGCal(entry.id, 'insert');
+        successCount++;
+      } catch (err) {
+        console.warn(`[Re-Sync] Failed for entry ${entry.id}:`, err);
+        failCount++;
+      }
+
+      // Small delay to avoid rate limiting Google Calendar API
+      await new Promise((r) => setTimeout(r, 300));
+    }
+
+    setIsSyncing(false);
+    setSyncProgress(null);
+
+    // Refresh entries to update gcal_event_id fields
+    setRefreshTrigger((t) => t + 1);
+
+    const msg = failCount > 0
+      ? `✅ Sync เสร็จ: ${successCount} ใบ สำเร็จ, ${failCount} ใบ ล้มเหลว (ดู console สำหรับรายละเอียด)`
+      : `✅ Sync สำเร็จทั้งหมด ${successCount} ใบ ในเดือน ${monthNames[month]} ${year}`;
+    alert(msg);
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // Calendar calculations
   const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 is Sunday, 1 is Monday, etc.
@@ -216,6 +312,58 @@ export default function CalendarPage() {
                 </div>
               </div>
             )}
+
+            {/* GCal Re-Sync Panel — only shown for own calendar with sync enabled */}
+            {gcalSyncEnabled && selectedUserId === sessionUser?.id && (
+              <div className="flex items-center gap-2">
+                {/* Sync Status Badge */}
+                <div className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold font-mono transition-colors",
+                  syncedCount === currentMonthEntries.length && currentMonthEntries.length > 0
+                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                    : unsyncedEntries.length > 0
+                      ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                      : "bg-theme-surface-tertiary border-theme-border/50 text-theme-text-muted"
+                )}>
+                  <CalendarCheck size={12} />
+                  <span>
+                    {currentMonthEntries.length === 0
+                      ? 'ไม่มีใบงานเดือนนี้'
+                      : `${syncedCount}/${currentMonthEntries.length} synced`
+                    }
+                  </span>
+                  {!gcalConnected && (
+                    <span className="ml-1 text-rose-400">(disconnected)</span>
+                  )}
+                </div>
+
+                {/* Re-Sync Button */}
+                {unsyncedEntries.length > 0 && (
+                  <button
+                    onClick={handleMonthResync}
+                    disabled={isSyncing}
+                    title={`Re-sync ${unsyncedEntries.length} ใบงานที่ยังไม่ได้ sync`}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all active:scale-95",
+                      isSyncing
+                        ? "bg-indigo-500/5 border-indigo-500/10 text-indigo-400/50 cursor-not-allowed"
+                        : gcalConnected
+                          ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 cursor-pointer"
+                          : "bg-rose-500/10 border-rose-500/20 text-rose-400 cursor-pointer"
+                    )}
+                  >
+                    <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
+                    <span>
+                      {isSyncing
+                        ? syncProgress ? `${syncProgress.current}/${syncProgress.total}` : '...'
+                        : `Re-sync ${unsyncedEntries.length}`
+                      }
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+
             <button 
               onClick={today}
               className="px-4 py-2 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl text-sm font-semibold text-theme-text-secondary hover:text-theme-text transition-all hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary"
@@ -234,6 +382,30 @@ export default function CalendarPage() {
               </button>
             </div>
           </div>
+
+          {/* Re-Sync Progress Bar — appears below header during sync */}
+          {isSyncing && syncProgress && (
+            <div className="w-full mt-2 bg-theme-surface-tertiary border border-indigo-500/20 rounded-2xl p-4 shadow-lg animate-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-indigo-400 flex items-center gap-1.5">
+                  <RefreshCw size={11} className="animate-spin" />
+                  กำลัง Sync Google Calendar...
+                </span>
+                <span className="text-[11px] font-mono text-theme-text-secondary">
+                  {syncProgress.current} / {syncProgress.total}
+                </span>
+              </div>
+              <div className="h-1.5 bg-theme-surface-secondary rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-500"
+                  style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-theme-text-muted mt-1.5 truncate font-mono">
+                {syncProgress.status}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Content Layout */}
@@ -430,15 +602,18 @@ export default function CalendarPage() {
                         <Eye size={12} />
                         <span>ดูใบงาน / View</span>
                       </button>
-                      <button
-                        onClick={() => setEditingLog(e)}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider cursor-pointer"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        <span>แก้ไข / Edit</span>
-                      </button>
+                      {/* Only show Edit button for the log owner */}
+                      {sessionUser && (e as any).user_id === sessionUser.id && (
+                        <button
+                          onClick={() => setEditingLog(e)}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider cursor-pointer"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          <span>แก้ไข / Edit</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

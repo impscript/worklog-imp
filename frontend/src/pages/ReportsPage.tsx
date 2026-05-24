@@ -522,13 +522,6 @@ export default function ReportsPage() {
     const user = usersList.find(u => u.id === selectedUser);
     const userLogs = filteredAllEntries.filter(log => log.user_id === selectedUser);
     
-    const totalHours = userLogs.reduce((sum, e) => sum + e.total_hours, 0);
-    const otHours = userLogs.filter(e => e.is_ot || e.is_implied_ot).reduce((sum, e) => sum + e.total_hours, 0);
-    const otRate = totalHours > 0 ? parseFloat(((otHours / totalHours) * 100).toFixed(1)) : 0;
-    const uniqueDatesCount = new Set(userLogs.map(e => e.work_date)).size;
-    const avgHoursPerDay = uniqueDatesCount > 0 ? parseFloat((totalHours / uniqueDatesCount).toFixed(1)) : 0;
-    const uniqueProjectsCount = new Set(userLogs.map(e => e.project_name)).size;
-
     // Date formatting helper
     const formatToMMDD = (dateStr: string) => {
       if (!dateStr) return '';
@@ -550,7 +543,7 @@ export default function ReportsPage() {
       return dateStr;
     };
 
-    // 1. Daily Hours Data (stacked Normal vs OT)
+    // 1. Group by date and calculate initial Normal / OT hours
     const dailyMap: Record<string, { date: string; dateDisplay: string; Normal: number; OT: number }> = {};
     userLogs.forEach(log => {
       const dateStr = log.work_date;
@@ -563,6 +556,18 @@ export default function ReportsPage() {
         dailyMap[dateStr].Normal += log.total_hours;
       }
     });
+
+    // 2. Adjust: if Normal hours in a day exceed 8 hours, split the excess into OT
+    Object.keys(dailyMap).forEach(dateStr => {
+      const day = dailyMap[dateStr];
+      if (day.Normal > 8) {
+        const excess = day.Normal - 8;
+        day.Normal = 8;
+        day.OT += excess;
+      }
+    });
+
+    // Extract daily hours data for chart
     const dailyHoursData = Object.values(dailyMap)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({
@@ -570,6 +575,16 @@ export default function ReportsPage() {
         Normal: parseFloat(d.Normal.toFixed(1)),
         OT: parseFloat(d.OT.toFixed(1))
       }));
+
+    // Calculate adjusted totals from dailyMap
+    const totalHours = Object.values(dailyMap).reduce((sum, d) => sum + d.Normal + d.OT, 0);
+    const otHours = Object.values(dailyMap).reduce((sum, d) => sum + d.OT, 0);
+    const normalHours = Object.values(dailyMap).reduce((sum, d) => sum + d.Normal, 0);
+
+    const otRate = totalHours > 0 ? parseFloat(((otHours / totalHours) * 100).toFixed(1)) : 0;
+    const uniqueDatesCount = Object.keys(dailyMap).length;
+    const avgHoursPerDay = uniqueDatesCount > 0 ? parseFloat((totalHours / uniqueDatesCount).toFixed(1)) : 0;
+    const uniqueProjectsCount = new Set(userLogs.map(e => e.project_name)).size;
 
     // 2. Work Type Breakdown (Pie Chart)
     const typeBreakdown: Record<string, number> = {};
@@ -593,7 +608,6 @@ export default function ReportsPage() {
       .slice(0, 5);
 
     // 4. Normal vs OT Split Data
-    const normalHours = Math.max(0, totalHours - otHours);
     const otSplitData = [
       { name: 'Normal Hours', value: parseFloat(normalHours.toFixed(1)), percentage: totalHours > 0 ? parseFloat(((normalHours / totalHours) * 100).toFixed(1)) : 0 },
       { name: 'Overtime Hours', value: parseFloat(otHours.toFixed(1)), percentage: totalHours > 0 ? parseFloat(((otHours / totalHours) * 100).toFixed(1)) : 0 }
@@ -685,17 +699,13 @@ export default function ReportsPage() {
 
     // 9. Monthly Comparison Data (Normal vs OT comparison by month)
     const monthlyMap: Record<string, { month: string; Normal: number; OT: number }> = {};
-    userLogs.forEach(log => {
-      const dateStr = log.work_date;
-      const monthStr = dateStr.substring(0, 7); // YYYY-MM
+    Object.values(dailyMap).forEach(day => {
+      const monthStr = day.date.substring(0, 7); // YYYY-MM
       if (!monthlyMap[monthStr]) {
         monthlyMap[monthStr] = { month: monthStr, Normal: 0, OT: 0 };
       }
-      if (log.is_ot || log.is_implied_ot) {
-        monthlyMap[monthStr].OT += log.total_hours;
-      } else {
-        monthlyMap[monthStr].Normal += log.total_hours;
-      }
+      monthlyMap[monthStr].Normal += day.Normal;
+      monthlyMap[monthStr].OT += day.OT;
     });
     const formatMonthLabel = (monthStr: string) => {
       const [year, month] = monthStr.split('-');
@@ -849,7 +859,7 @@ export default function ReportsPage() {
         <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {/* Project Name Search (Disabled on Overview) */}
           <div className="flex flex-col">
-            <label className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Project Name</label>
+            <label className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Project Name</label>
             <div className="relative">
               <input 
                 type="text" 
@@ -864,7 +874,7 @@ export default function ReportsPage() {
 
           {/* Date range filter */}
           <div className="flex flex-col">
-            <label className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Date Range</label>
+            <label className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Date Range</label>
             <select
               value={dateFilter}
               onChange={(e: any) => setDateFilter(e.target.value)}
@@ -879,7 +889,7 @@ export default function ReportsPage() {
 
           {/* Type filter */}
           <div className="flex flex-col">
-            <label className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Activity Type</label>
+            <label className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Activity Type</label>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
@@ -895,7 +905,7 @@ export default function ReportsPage() {
           {/* Admin User Filter */}
           {sessionUser?.role === 'admin' && activeTab === 'personal' && (
             <div className="flex flex-col">
-              <label className="text-[10px] font-bold text-amber-400/80 uppercase tracking-widest mb-2 flex items-center gap-1">
+              <label className="text-xs font-bold text-amber-400/80 uppercase tracking-widest mb-2 flex items-center gap-1">
                 Admin: Target User
               </label>
               <select
@@ -914,7 +924,7 @@ export default function ReportsPage() {
           {dateFilter === 'custom' ? (
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col">
-                <label className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1">Start</label>
+                <label className="text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1">Start</label>
                 <input 
                   type="date" 
                   value={customStart}
@@ -923,7 +933,7 @@ export default function ReportsPage() {
                 />
               </div>
               <div className="flex flex-col">
-                <label className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1">End</label>
+                <label className="text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1">End</label>
                 <input 
                   type="date" 
                   value={customEnd}
@@ -977,7 +987,7 @@ export default function ReportsPage() {
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left">
-                      <thead className="text-[10px] text-theme-text-secondary bg-theme-surface-secondary/50 uppercase tracking-widest border-b border-theme-border/50">
+                      <thead className="text-xs text-theme-text-secondary bg-theme-surface-secondary/50 uppercase tracking-widest border-b border-theme-border/50">
                         <tr>
                           <th className="px-6 py-4 font-bold">Date</th>
                           <th className="px-6 py-4 font-bold">Holding</th>
@@ -1005,7 +1015,7 @@ export default function ReportsPage() {
                                 <td className="px-6 py-4 font-mono text-indigo-300">
                                   <div className="font-bold">{e.work_date}</div>
                                   {e.start_time && e.end_time && (
-                                    <div className="text-[10px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
+                                    <div className="text-xs text-slate-500 font-medium mt-1 uppercase tracking-wider">
                                       {e.start_time.slice(0, 5)} → {e.end_time.slice(0, 5)}
                                     </div>
                                   )}
@@ -1016,11 +1026,11 @@ export default function ReportsPage() {
                                 <td className="px-6 py-4 font-bold font-mono text-indigo-200">
                                   {e.total_hours.toFixed(1)}h
                                   {(e.is_ot || e.is_implied_ot) && (
-                                    <span className="ml-1.5 px-1 py-0.5 text-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold rounded">OT</span>
+                                    <span className="ml-1.5 px-1 py-0.5 text-[10px] bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold rounded">OT</span>
                                   )}
                                 </td>
                                 <td className="px-6 py-4">
-                                  <span className={cn("px-2.5 py-1 text-[9px] font-bold rounded-lg border", typeColors[cat])}>
+                                  <span className={cn("px-2.5 py-1 text-[10px] font-bold rounded-lg border", typeColors[cat])}>
                                     {cat}
                                   </span>
                                 </td>
@@ -1042,24 +1052,24 @@ export default function ReportsPage() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                       <div className="grid grid-cols-2 gap-4 text-xs">
                                         <div>
-                                          <span className="text-slate-500 block uppercase font-bold text-[9px] tracking-wider mb-0.5">Holding BU</span>
+                                          <span className="text-slate-500 block uppercase font-bold text-[11px] tracking-wider mb-0.5">Holding BU</span>
                                           <span className="text-theme-text font-semibold font-mono">{e.holding}</span>
                                         </div>
                                         <div>
-                                          <span className="text-slate-500 block uppercase font-bold text-[9px] tracking-wider mb-0.5">Role Operator</span>
+                                          <span className="text-slate-500 block uppercase font-bold text-[11px] tracking-wider mb-0.5">Role Operator</span>
                                           <span className="text-theme-text font-semibold">{e.department_operator}</span>
                                         </div>
                                         <div>
-                                          <span className="text-slate-500 block uppercase font-bold text-[9px] tracking-wider mb-0.5">Project Type</span>
+                                          <span className="text-slate-500 block uppercase font-bold text-[11px] tracking-wider mb-0.5">Project Type</span>
                                           <span className="text-theme-text font-semibold">{e.project_type}</span>
                                         </div>
                                         <div>
-                                          <span className="text-slate-500 block uppercase font-bold text-[9px] tracking-wider mb-0.5">Created At</span>
+                                          <span className="text-slate-500 block uppercase font-bold text-[11px] tracking-wider mb-0.5">Created At</span>
                                           <span className="text-theme-text font-semibold font-mono">{new Date(e.created_at).toLocaleString()}</span>
                                         </div>
                                       </div>
                                       <div>
-                                        <span className="text-[10px] text-slate-500 uppercase font-bold font-mono block mb-1">Work Description</span>
+                                        <span className="text-xs text-slate-500 uppercase font-bold font-mono block mb-1">Work Description</span>
                                         <p className="text-xs text-theme-text-secondary bg-theme-surface-tertiary/60 p-4 rounded-xl border border-theme-border/50 leading-relaxed italic">
                                           {e.description ? `"${e.description}"` : 'No custom description provided.'}
                                         </p>
@@ -1074,16 +1084,19 @@ export default function ReportsPage() {
                                             <Eye size={12} />
                                             <span>เปิดใบงาน (Open)</span>
                                           </button>
-                                          <button
-                                            onClick={(evt) => {
-                                              evt.stopPropagation();
-                                              handleOpenEditModal(e);
-                                            }}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 text-indigo-400 font-bold text-xs rounded-xl transition-all"
-                                          >
-                                            <Edit3 size={12} />
-                                            <span>แก้ไขใบงาน (Edit)</span>
-                                          </button>
+                                          {/* Only show Edit button for the log owner */}
+                                          {sessionUser && e.user_id === sessionUser.id && (
+                                            <button
+                                              onClick={(evt) => {
+                                                evt.stopPropagation();
+                                                handleOpenEditModal(e);
+                                              }}
+                                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 text-indigo-400 font-bold text-xs rounded-xl transition-all"
+                                            >
+                                              <Edit3 size={12} />
+                                              <span>แก้ไขใบงาน (Edit)</span>
+                                            </button>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
