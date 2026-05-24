@@ -222,6 +222,19 @@ class GoogleCalendarService {
     }
   }
 
+  async listEventsForRange(calendarId: string, startDateStr: string, endDateStr: string): Promise<any[]> {
+    const timeMin = `${startDateStr}T00:00:00+07:00`;
+    const timeMax = `${endDateStr}T23:59:59+07:00`;
+    try {
+      const path = `/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&maxResults=250`;
+      const res = await this._request('GET', path);
+      return res.items || [];
+    } catch (err) {
+      console.warn('[GCal] listEventsForRange failed:', err);
+      return [];
+    }
+  }
+
   // ==========================================
   // Payload Builder
   // ==========================================

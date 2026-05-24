@@ -57,6 +57,8 @@ export default function CalendarPage() {
     title: string;
     message: string;
     type: 'success' | 'warning' | 'error' | 'info';
+    isConfirm?: boolean;
+    onConfirm?: () => void;
   } | null>(null);
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -235,6 +237,146 @@ export default function CalendarPage() {
       type: failCount > 0 ? 'warning' : 'success'
     });
   };
+
+  // ── Month Clean & Re-Sync Handler ──────────────────────────────────────────────
+  const handleMonthCleanSync = async () => {
+    if (isSyncing) return;
+    if (!gcalConnected) {
+      setSyncAlert({
+        isOpen: true,
+        title: 'Google Calendar ยังไม่ได้เชื่อมต่อ',
+        message: 'Google Calendar ยังไม่ได้เชื่อมต่อ หรือ Session หมดอายุ\nกรุณาไปที่หน้าข้อมูลส่วนตัว (Profile) เพื่อ Reconnect ก่อนนะคะ',
+        type: 'warning'
+      });
+      return;
+    }
+
+    if (currentMonthEntries.length === 0) {
+      setSyncAlert({
+        isOpen: true,
+        title: 'ไม่มีใบงานในเดือนนี้',
+        message: 'ไม่พบใบงานสำหรับส่งข้อมูลในเดือนนี้',
+        type: 'info'
+      });
+      return;
+    }
+
+    // Show elegant custom confirmation modal
+    setSyncAlert({
+      isOpen: true,
+      title: '⚠️ ยืนยันล้างและซิงค์ใหม่ทั้งเดือน',
+      message: `คุณต้องการล้างข้อมูลใบงานในเดือน ${monthNames[month]} ${year} บน Google Calendar ทั้งหมด แล้วทำการซิงค์ใหม่จากฐานข้อมูลเพื่อแก้ไขปัญหาใบงานซ้ำใช่หรือไม่?\n\n(การดำเนินการนี้จะกรองลบเฉพาะใบงานที่สร้างจากระบบนี้เท่านั้น ไม่ส่งผลต่อรายการปฏิทินส่วนตัวอื่นๆ)`,
+      type: 'warning',
+      isConfirm: true,
+      onConfirm: async () => {
+        setSyncAlert(null); // Close confirmation modal
+        setIsSyncing(true);
+        setSyncProgress({ current: 0, total: 1, status: 'กำลังดึงรายการปฏิทินในเดือนนี้...' });
+
+        try {
+          const userObj = sessionUser;
+          if (!userObj?.id) return;
+          const { data: user } = await supabase
+            .from('users')
+            .select('gcal_calendar_id')
+            .eq('id', userObj.id)
+            .maybeSingle();
+            
+          const calendarId = user?.gcal_calendar_id || 'primary';
+          
+          // 1. Fetch all events for the entire month range from Google Calendar
+          console.log('[Clean Sync] Fetching events for range:', monthStart, 'to', monthEnd);
+          const allEvents = await googleCalendar.listEventsForRange(calendarId, monthStart, monthEnd);
+          
+          // Filter only events created by our app
+          const appEvents = allEvents.filter((evt: any) => {
+            const hasSig = evt.description && (
+              evt.description.includes('Synced from Worklog NewGen Web App') ||
+              evt.description.includes('📋 Worklog Entry')
+            );
+            return hasSig;
+          });
+
+          console.log(`[Clean Sync] Found ${appEvents.length} app events to clean out of ${allEvents.length} total events.`);
+
+          // 2. Delete those matching events from GCal
+          for (let i = 0; i < appEvents.length; i++) {
+            const evt = appEvents[i];
+            setSyncProgress({
+              current: i + 1,
+              total: appEvents.length,
+              status: `🧹 กำลังลบข้อมูลเก่า: ${evt.summary}`
+            });
+            try {
+              await googleCalendar.deleteEvent(calendarId, evt.id);
+            } catch (e) {
+              console.warn('[Clean Sync] Failed to delete event:', evt.id, e);
+            }
+            await new Promise((r) => setTimeout(r, 150));
+          }
+
+          // 3. Clear gcal_event_id in database for currentMonthEntries
+          console.log('[Clean Sync] Resetting gcal_event_id fields in DB...');
+          const entryIds = currentMonthEntries.map(e => e.id);
+          if (entryIds.length > 0) {
+            await supabase
+              .from('col_worklog')
+              .update({ gcal_event_id: null })
+              .in('id', entryIds);
+          }
+
+          // 4. Fresh re-sync of all currentMonthEntries
+          setSyncProgress({ current: 0, total: currentMonthEntries.length, status: 'กำลังเตรียมส่งข้อมูลชุดใหม่...' });
+
+          let successCount = 0;
+          let failCount = 0;
+
+          for (let i = 0; i < currentMonthEntries.length; i++) {
+            const entry = currentMonthEntries[i];
+            setSyncProgress({
+              current: i + 1,
+              total: currentMonthEntries.length,
+              status: `🚀 ซิงค์ใหม่ (${i + 1}/${currentMonthEntries.length}): ${entry.work_date}`
+            });
+
+            try {
+              await syncWorklogToGCal(entry.id, 'insert');
+              successCount++;
+            } catch (err) {
+              console.warn(`[Clean Sync] Re-create failed for entry ${entry.id}:`, err);
+              failCount++;
+            }
+
+            await new Promise((r) => setTimeout(r, 300));
+          }
+
+          // Refresh component entries
+          setRefreshTrigger((t) => t + 1);
+
+          setSyncAlert({
+            isOpen: true,
+            title: failCount > 0 ? 'ล้างและซิงค์ใหม่เสร็จสิ้น (มีข้อผิดพลาดบางส่วน)' : 'ล้างและซิงค์ใหม่สำเร็จแล้ว',
+            message: failCount > 0
+              ? `ระบบทำการล้างและซิงค์ใหม่เรียบร้อยแล้ว:\n\n✅ ซิงค์สำเร็จ: ${successCount} ใบ\n❌ ล้มเหลว: ${failCount} ใบ`
+              : `ระบบล้างและซิงค์ใบงานจำนวนทั้งหมด ${successCount} ใบ ในเดือน ${monthNames[month]} ${year} ใหม่เรียบร้อยแล้ว ปราศจากข้อมูลซ้ำซ้อน 100%`,
+            type: failCount > 0 ? 'warning' : 'success'
+          });
+
+        } catch (err) {
+          console.error('[Clean Sync] Fatal error during clean sync:', err);
+          setSyncAlert({
+            isOpen: true,
+            title: 'เกิดข้อผิดพลาดในการล้างข้อมูล',
+            message: 'เกิดข้อผิดพลาดรุนแรงในการสื่อสารกับ Google Calendar API กรุณาลองใหม่อีกครั้ง',
+            type: 'error'
+          });
+        } finally {
+          setIsSyncing(false);
+          setSyncProgress(null);
+        }
+      }
+    });
+  };
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Calendar calculations
@@ -381,6 +523,26 @@ export default function CalendarPage() {
                         : `Re-sync ${unsyncedEntries.length}`
                       }
                     </span>
+                  </button>
+                )}
+
+                {/* Clean Sync Button (ล้างและซิงค์ใหม่) */}
+                {currentMonthEntries.length > 0 && gcalConnected && (
+                  <button
+                    onClick={handleMonthCleanSync}
+                    disabled={isSyncing}
+                    title="ล้างใบงานบนปฏิทินที่ซ้ำซ้อนและซิงค์ข้อมูลใหม่ทั้งหมดในเดือนนี้"
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all active:scale-95 cursor-pointer",
+                      isSyncing
+                        ? "bg-rose-500/5 border-rose-500/10 text-rose-400/50 cursor-not-allowed"
+                        : "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20"
+                    )}
+                  >
+                    <svg className={cn("w-3.5 h-3.5", isSyncing ? 'animate-spin' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>ล้างและซิงค์ใหม่</span>
                   </button>
                 )}
               </div>
@@ -714,12 +876,31 @@ export default function CalendarPage() {
               {syncAlert.message}
             </p>
 
-            <button
-              onClick={() => setSyncAlert(null)}
-              className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-indigo-500/10 uppercase tracking-wider"
-            >
-              รับทราบ
-            </button>
+            {syncAlert.isConfirm ? (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setSyncAlert(null)}
+                  className="flex-1 py-2.5 border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary text-xs font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={() => {
+                    if (syncAlert.onConfirm) syncAlert.onConfirm();
+                  }}
+                  className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-rose-500/10 cursor-pointer"
+                >
+                  ยืนยัน
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setSyncAlert(null)}
+                className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-indigo-500/10 uppercase tracking-wider cursor-pointer"
+              >
+                รับทราบ
+              </button>
+            )}
           </div>
         </div>
       )}
