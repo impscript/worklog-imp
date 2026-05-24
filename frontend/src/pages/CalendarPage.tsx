@@ -459,7 +459,7 @@ export default function CalendarPage() {
               Visualize logged work hours and activities in a calendar dashboard.
             </p>
           </div>
-          <div className="flex flex-col md:flex-row items-end md:items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto lg:justify-end">
             {sessionUser?.role === 'admin' && (
               <div className="relative w-48">
                 <select
@@ -479,7 +479,7 @@ export default function CalendarPage() {
 
             {/* GCal Re-Sync Panel — only shown for own calendar with sync enabled */}
             {gcalSyncEnabled && selectedUserId === sessionUser?.id && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Sync Status Badge */}
                 <div className={cn(
                   "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold font-mono transition-colors",
@@ -566,31 +566,31 @@ export default function CalendarPage() {
               </button>
             </div>
           </div>
-
-          {/* Re-Sync Progress Bar — appears below header during sync */}
-          {isSyncing && syncProgress && (
-            <div className="w-full mt-2 bg-theme-surface-tertiary border border-indigo-500/20 rounded-2xl p-4 shadow-lg animate-in slide-in-from-top-2 duration-200">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold text-indigo-400 flex items-center gap-1.5">
-                  <RefreshCw size={11} className="animate-spin" />
-                  กำลัง Sync Google Calendar...
-                </span>
-                <span className="text-[11px] font-mono text-theme-text-secondary">
-                  {syncProgress.current} / {syncProgress.total}
-                </span>
-              </div>
-              <div className="h-1.5 bg-theme-surface-secondary rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-500"
-                  style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
-                />
-              </div>
-              <p className="text-[10px] text-theme-text-muted mt-1.5 truncate font-mono">
-                {syncProgress.status}
-              </p>
-            </div>
-          )}
         </div>
+
+        {/* Re-Sync Progress Bar — appears below header during sync */}
+        {isSyncing && syncProgress && (
+          <div className="w-full bg-theme-surface-tertiary border border-indigo-500/20 rounded-2xl p-4 shadow-lg animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-indigo-400 flex items-center gap-1.5">
+                <RefreshCw size={11} className="animate-spin" />
+                กำลัง Sync Google Calendar...
+              </span>
+              <span className="text-[11px] font-mono text-theme-text-secondary">
+                {syncProgress.current} / {syncProgress.total}
+              </span>
+            </div>
+            <div className="h-1.5 bg-theme-surface-secondary rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-500"
+                style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-theme-text-muted mt-1.5 truncate font-mono">
+              {syncProgress.status}
+            </p>
+          </div>
+        )}
 
         {/* Content Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
