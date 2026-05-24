@@ -50,6 +50,14 @@ export default function CalendarPage() {
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; status: string } | null>(null);
   const [gcalConnected, setGcalConnected] = useState(false);
   const [gcalSyncEnabled, setGcalSyncEnabled] = useState(false);
+  
+  // ── Sync Result / Warning Modal State ────────────────────────────────────────
+  const [syncAlert, setSyncAlert] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'warning' | 'error' | 'info';
+  } | null>(null);
   // ─────────────────────────────────────────────────────────────────────────────
 
   const year = currentDate.getFullYear();
@@ -166,13 +174,23 @@ export default function CalendarPage() {
   const handleMonthResync = async () => {
     if (isSyncing) return;
     if (!gcalConnected) {
-      alert('Google Calendar ยังไม่ได้เชื่อมต่อ หรือ Session หมดอายุ\nกรุณาไปที่ Profile เพื่อ reconnect ก่อนนะคะ');
+      setSyncAlert({
+        isOpen: true,
+        title: 'Google Calendar ยังไม่ได้เชื่อมต่อ',
+        message: 'Google Calendar ยังไม่ได้เชื่อมต่อ หรือ Session หมดอายุ\nกรุณาไปที่หน้าข้อมูลส่วนตัว (Profile) เพื่อ Reconnect ก่อนนะคะ',
+        type: 'warning'
+      });
       return;
     }
 
     const toSync = unsyncedEntries;
     if (toSync.length === 0) {
-      alert(`✅ ใบงานในเดือนนี้ sync ครบทั้งหมดแล้ว (${syncedCount}/${currentMonthEntries.length} ใบ)`);
+      setSyncAlert({
+        isOpen: true,
+        title: 'ซิงค์ข้อมูลครบถ้วนแล้ว',
+        message: `ใบงานในเดือนนี้ได้รับการซิงค์ไปยัง Google Calendar ครบทั้งหมดแล้ว (${syncedCount}/${currentMonthEntries.length} ใบ)`,
+        type: 'success'
+      });
       return;
     }
 
@@ -208,10 +226,14 @@ export default function CalendarPage() {
     // Refresh entries to update gcal_event_id fields
     setRefreshTrigger((t) => t + 1);
 
-    const msg = failCount > 0
-      ? `✅ Sync เสร็จ: ${successCount} ใบ สำเร็จ, ${failCount} ใบ ล้มเหลว (ดู console สำหรับรายละเอียด)`
-      : `✅ Sync สำเร็จทั้งหมด ${successCount} ใบ ในเดือน ${monthNames[month]} ${year}`;
-    alert(msg);
+    setSyncAlert({
+      isOpen: true,
+      title: failCount > 0 ? 'ซิงค์เสร็จสิ้น (พบข้อผิดพลาดบางส่วน)' : 'ซิงค์ปฏิทินสำเร็จทั้งหมด',
+      message: failCount > 0
+        ? `ระบบทำการทยอยซิงค์เรียบร้อยแล้ว:\n\n✅ สำเร็จ: ${successCount} ใบ\n❌ ล้มเหลว: ${failCount} ใบ (สามารถตรวจสอบสาเหตุเพิ่มเติมจาก Console ได้)`
+        : `ระบบทำการซิงค์ใบงานจำนวนทั้งหมด ${successCount} ใบ ในเดือน ${monthNames[month]} ${year} เข้าสู่ Google Calendar เรียบร้อยแล้ว`,
+      type: failCount > 0 ? 'warning' : 'success'
+    });
   };
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -652,6 +674,55 @@ export default function CalendarPage() {
           setRefreshTrigger(prev => prev + 1);
         }}
       />
+
+      {/* Premium Notification Modal for Calendar Sync */}
+      {syncAlert?.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-theme-surface-modal border border-theme-border rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200 text-center relative overflow-hidden">
+            {/* Design accents */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+            
+            {/* Status Icons */}
+            <div className="mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center border animate-bounce">
+              {syncAlert.type === 'success' && (
+                <div className="text-emerald-400 bg-emerald-500/10 border-emerald-500/20 p-3 rounded-full">
+                  <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                </div>
+              )}
+              {syncAlert.type === 'warning' && (
+                <div className="text-amber-400 bg-amber-500/10 border-amber-500/20 p-3 rounded-full">
+                  <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                </div>
+              )}
+              {syncAlert.type === 'error' && (
+                <div className="text-rose-400 bg-rose-500/10 border-rose-500/20 p-3 rounded-full">
+                  <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </div>
+              )}
+              {syncAlert.type === 'info' && (
+                <div className="text-indigo-400 bg-indigo-500/10 border-indigo-500/20 p-3 rounded-full">
+                  <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+              )}
+            </div>
+
+            <h3 className="text-base font-black text-theme-text mb-2 tracking-tight">
+              {syncAlert.title}
+            </h3>
+            
+            <p className="text-xs text-theme-text-secondary mb-6 leading-relaxed whitespace-pre-line font-medium">
+              {syncAlert.message}
+            </p>
+
+            <button
+              onClick={() => setSyncAlert(null)}
+              className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-indigo-500/10 uppercase tracking-wider"
+            >
+              รับทราบ
+            </button>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
