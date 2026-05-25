@@ -249,12 +249,12 @@ input, select, textarea {
 }
 
 /* Smooth Futuristic Scrollbar */
-::-webkit-scrollbar {
+::-webkit-scrollbar, .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track, .custom-scrollbar::-webkit-scrollbar-track {
   background: rgba(241, 245, 249, 0.8);
 
   @variant dark {
@@ -262,7 +262,7 @@ input, select, textarea {
   }
 }
 
-::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb, .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(99, 102, 241, 0.2);
   border-radius: 10px;
   border: 1px solid rgba(0, 0, 0, 0.04);
@@ -272,7 +272,7 @@ input, select, textarea {
   }
 }
 
-::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover, .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(99, 102, 241, 0.45);
 }
 

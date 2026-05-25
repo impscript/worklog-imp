@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Eye, EyeOff, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Eye, EyeOff, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, ChevronUp, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
 
-type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings' | 'ai_prompt';
+type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings' | 'ai_prompt' | 'holiday';
 
 export default function AdminPage() {
   const { showToast, showConfirm } = useNotification();
@@ -14,6 +14,7 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editRow, setEditRow] = useState<any | null>(null);
+  const [isMobileTabMenuOpen, setIsMobileTabMenuOpen] = useState(false);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -31,6 +32,7 @@ export default function AdminPage() {
   const [userMappings, setUserMappings] = useState<any[]>([]);
   const [projectStructures, setProjectStructures] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
+  const [holidaysList, setHolidaysList] = useState<any[]>([]);
 
   // Form Field States
   const [formHoldingName, setFormHoldingName] = useState('');
@@ -60,6 +62,53 @@ export default function AdminPage() {
   const [formUserRole, setFormUserRole] = useState('user');
   const [formUserDept, setFormUserDept] = useState('IMP');
 
+  // Holidays Form States
+  const [formHolidayDate, setFormHolidayDate] = useState('');
+  const [formHolidayName, setFormHolidayName] = useState('');
+  const [isHolidayDropdownOpen, setIsHolidayDropdownOpen] = useState(false);
+
+  // Common default Thai public holidays to seed options
+  const defaultHolidayNames = useMemo(() => [
+    'วันขึ้นปีใหม่',
+    'วันตรุษจีน',
+    'วันมาฆบูชา',
+    'วันจักรี',
+    'วันสงกรานต์',
+    'วันแรงงาน',
+    'วันฉัตรมงคล',
+    'วันวิสาขบูชา',
+    'วันเฉลิมพระราชินี',
+    'วันอาสาฬหบูชา',
+    'วันเข้าพรรษา',
+    'วันเฉลิม ร.10',
+    'วันแม่',
+    'วันคล้ายวันสวรรคต ร.9',
+    'วันปิยมหาราช',
+    'วันพ่อ',
+    'วันรัฐธรรมนูญ',
+    'วันสิ้นปี'
+  ], []);
+
+  // Collect unique holiday names from the loaded holidaysList database records
+  const holidaySuggestions = useMemo(() => {
+    const names = new Set(defaultHolidayNames);
+    if (holidaysList && Array.isArray(holidaysList)) {
+      holidaysList.forEach((h: any) => {
+        if (h.name && h.name.trim()) {
+          names.add(h.name.trim());
+        }
+      });
+    }
+    return Array.from(names);
+  }, [holidaysList, defaultHolidayNames]);
+
+  // Filtered list based on current user typed input
+  const filteredHolidaySuggestions = useMemo(() => {
+    const query = formHolidayName.toLowerCase().trim();
+    if (!query) return holidaySuggestions;
+    return holidaySuggestions.filter(name => name.toLowerCase().includes(query));
+  }, [holidaySuggestions, formHolidayName]);
+
   // Load All Master Data from Supabase
   const loadAllData = async () => {
     setIsLoading(true);
@@ -71,7 +120,8 @@ export default function AdminPage() {
         resActions,
         resUserMaps,
         resProjStructs,
-        resUsers
+        resUsers,
+        resHolidays
       ] = await Promise.all([
         supabase.from('tb_master_holding').select('*').order('holding_name'),
         supabase.from('tb_master_role').select('*').order('role_name'),
@@ -79,7 +129,8 @@ export default function AdminPage() {
         supabase.from('tb_master_action').select('*').order('action_category'),
         supabase.from('tb_map_user_role').select('*').order('name'),
         supabase.from('tb_map_project_structure').select('*').order('project_name'),
-        supabase.from('users').select('*').order('nickname')
+        supabase.from('users').select('*').order('nickname'),
+        supabase.from('tb_master_holiday').select('*').order('date', { ascending: false })
       ]);
 
       if (resHoldings.data) setHoldings(resHoldings.data);
@@ -89,6 +140,7 @@ export default function AdminPage() {
       if (resUserMaps.data) setUserMappings(resUserMaps.data);
       if (resProjStructs.data) setProjectStructures(resProjStructs.data);
       if (resUsers.data) setUsersList(resUsers.data);
+      if (resHolidays.data) setHolidaysList(resHolidays.data);
     } catch (err) {
       console.error('Error fetching admin data:', err);
     } finally {
@@ -138,6 +190,11 @@ export default function AdminPage() {
           u.emp_id.toLowerCase().includes(q) ||
           (u.email && u.email.toLowerCase().includes(q))
         );
+      case 'holiday':
+        return holidaysList.filter(h => 
+          h.date.includes(q) || 
+          h.name.toLowerCase().includes(q)
+        );
       default:
         return [];
     }
@@ -145,6 +202,7 @@ export default function AdminPage() {
 
   // Open modal for Create/Edit
   const openModal = (row: any = null) => {
+    setIsHolidayDropdownOpen(false);
     setEditRow(row);
     if (row) {
       // Edit mode pre-fills
@@ -173,6 +231,9 @@ export default function AdminPage() {
         setFormUserEmail(row.email || '');
         setFormUserRole(row.role || 'user');
         setFormUserDept(row.department || 'IMP');
+      } else if (activeTab === 'holiday') {
+        setFormHolidayDate(row.date);
+        setFormHolidayName(row.name);
       }
     } else {
       // Create mode reset
@@ -197,6 +258,8 @@ export default function AdminPage() {
       setFormUserEmail('');
       setFormUserRole('user');
       setFormUserDept('IMP');
+      setFormHolidayDate(new Date().toISOString().split('T')[0]);
+      setFormHolidayName('');
     }
     setIsModalOpen(true);
   };
@@ -281,6 +344,18 @@ export default function AdminPage() {
           const { error } = await supabase.from('users').insert(payload);
           if (error) throw error;
         }
+      } else if (activeTab === 'holiday') {
+        const payload = {
+          date: formHolidayDate,
+          name: formHolidayName
+        };
+        if (editRow) {
+          const { error } = await supabase.from('tb_master_holiday').update({ name: formHolidayName }).eq('date', editRow.date);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('tb_master_holiday').insert(payload);
+          if (error) throw error;
+        }
       }
 
       setIsModalOpen(false);
@@ -312,13 +387,15 @@ export default function AdminPage() {
         activeTab === 'project_type' ? 'tb_master_project_type' :
         activeTab === 'action' ? 'tb_master_action' :
         activeTab === 'map_user' ? 'tb_map_user_role' :
-        activeTab === 'map_project' ? 'tb_map_project_structure' : 'users'
+        activeTab === 'map_project' ? 'tb_map_project_structure' :
+        activeTab === 'holiday' ? 'tb_master_holiday' : 'users'
       );
 
       let deleteOp;
       if (activeTab === 'holding') deleteOp = query.delete().eq('holding_name', row.holding_name);
       else if (activeTab === 'role') deleteOp = query.delete().eq('role_name', row.role_name);
       else if (activeTab === 'project_type') deleteOp = query.delete().eq('type_name', row.type_name);
+      else if (activeTab === 'holiday') deleteOp = query.delete().eq('date', row.date);
       else deleteOp = query.delete().eq('id', row.id);
 
       const { error } = await deleteOp;
@@ -334,16 +411,17 @@ export default function AdminPage() {
     }
   };
 
-  const tabs: { key: TableTab; label: string }[] = [
-    { key: 'holding', label: 'Holdings' },
-    { key: 'role', label: 'Roles' },
-    { key: 'project_type', label: 'Project Types' },
-    { key: 'action', label: 'Actions' },
-    { key: 'map_user', label: 'User Mappings' },
-    { key: 'map_project', label: 'Project Structures' },
-    { key: 'users', label: 'System Users' },
-    { key: 'ai_settings', label: 'AI Settings' },
-    { key: 'ai_prompt', label: 'AI Prompts' }
+  const tabs: { key: TableTab; label: string; icon: any }[] = [
+    { key: 'holding', label: 'Holdings', icon: Database },
+    { key: 'role', label: 'Roles', icon: Shield },
+    { key: 'project_type', label: 'Project Types', icon: Cpu },
+    { key: 'action', label: 'Actions', icon: Activity },
+    { key: 'map_user', label: 'User Mappings', icon: UserCheck },
+    { key: 'map_project', label: 'Project Structures', icon: GitMerge },
+    { key: 'users', label: 'System Users', icon: Users },
+    { key: 'holiday', label: 'Holidays', icon: Calendar },
+    { key: 'ai_settings', label: 'AI Settings', icon: Sliders },
+    { key: 'ai_prompt', label: 'AI Prompts', icon: MessageSquare }
   ];
 
   const filteredData = getFilteredData();
@@ -387,287 +465,373 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Tab Controls */}
-        <div className="flex overflow-x-auto pb-2 border-b border-theme-border/50 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none gap-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => { setActiveTab(tab.key); setSearchQuery(''); }}
-              className={cn(
-                "px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap border shrink-0",
-                activeTab === tab.key 
-                  ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
-                  : "text-theme-text-secondary border-transparent hover:text-theme-text"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          {/* Navigation/Selector Column */}
+          <div className="w-full lg:w-64 shrink-0 space-y-4 lg:sticky lg:top-4 self-start">
+            {/* Desktop Tabs: Vertical List */}
+            <div className="hidden lg:flex flex-col bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/60 border border-theme-border/50 rounded-2xl p-4 shadow-lg space-y-1 max-h-[calc(100vh-160px)] overflow-y-auto custom-scrollbar">
+              <h2 className="px-3 py-2 text-xs font-bold text-theme-text-secondary uppercase tracking-wider mb-2">Master Tables</h2>
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => { setActiveTab(tab.key); setSearchQuery(''); }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all border text-left",
+                      activeTab === tab.key 
+                        ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
+                        : "text-theme-text-secondary border-transparent hover:text-theme-text hover:bg-theme-surface-secondary/40"
+                    )}
+                  >
+                    <Icon size={16} className={cn(activeTab === tab.key ? "text-indigo-400" : "text-theme-text-secondary")} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-        {/* Search Bar */}
-        {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
-          <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-4 shadow-lg flex items-center">
-            <div className="relative w-full md:w-1/3">
-              <input 
-                type="text" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={`Search in ${tabs.find(t => t.key === activeTab)?.label}...`}
-                className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2 pl-10 pr-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-              />
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-secondary" />
+            {/* Mobile Dropdown Tab Selector */}
+            <div className="lg:hidden relative">
+              <label className="block text-xs font-bold text-theme-text-secondary uppercase tracking-wider mb-1.5 ml-1">Select Master Collection</label>
+              <button
+                onClick={() => setIsMobileTabMenuOpen(prev => !prev)}
+                className="w-full flex items-center justify-between bg-theme-surface-tertiary dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-4 py-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
+              >
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const currentTab = tabs.find(t => t.key === activeTab);
+                    const CurrentIcon = currentTab?.icon || Database;
+                    return (
+                      <>
+                        <CurrentIcon size={16} className="text-indigo-400" />
+                        <span>{currentTab?.label}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+                <ChevronDown size={16} className={cn("text-theme-text-secondary transition-transform duration-200", isMobileTabMenuOpen && "rotate-180")} />
+              </button>
+
+              {isMobileTabMenuOpen && (
+                <>
+                  {/* Backdrop */}
+                  <div className="fixed inset-0 z-40" onClick={() => setIsMobileTabMenuOpen(false)} />
+                  <div className="absolute left-0 right-0 mt-2 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary border border-theme-border/80 rounded-xl shadow-2xl p-2 z-50 divide-y divide-theme-border/50 max-h-[320px] overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-150">
+                    {tabs.map((tab) => {
+                      const Icon = tab.icon;
+                      return (
+                        <button
+                          key={tab.key}
+                          onClick={() => {
+                            setActiveTab(tab.key);
+                            setSearchQuery('');
+                            setIsMobileTabMenuOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-lg text-left transition-all",
+                            activeTab === tab.key 
+                              ? "bg-indigo-500/10 text-indigo-400"
+                              : "text-theme-text hover:bg-theme-surface-secondary"
+                          )}
+                        >
+                          <Icon size={16} className={cn(activeTab === tab.key ? "text-indigo-400" : "text-theme-text-secondary")} />
+                          <span>{tab.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Table Content Card */}
-        {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' ? (
-          <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
-            {isLoading ? (
-              <div className="p-16 text-center animate-pulse flex flex-col gap-4">
-                <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded"></div>
-                <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded"></div>
-                <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded"></div>
-              </div>
-            ) : filteredData.length === 0 ? (
-              <div className="p-16 text-center flex flex-col items-center justify-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary flex items-center justify-center text-theme-text-secondary">
-                  <Search size={28} />
+          {/* Table/Content Column */}
+          <div className="flex-1 min-w-0 space-y-6">
+            {/* Search Bar */}
+            {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
+              <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-4 shadow-lg flex items-center">
+                <div className="relative w-full md:w-1/3">
+                  <input 
+                    type="text" 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={`Search in ${tabs.find(t => t.key === activeTab)?.label}...`}
+                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2 pl-10 pr-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
+                  />
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-secondary" />
                 </div>
-                <h3 className="text-theme-text font-medium">No records found</h3>
-                <p className="text-sm text-theme-text-secondary">
-                  Click "+ Add Record" above to populate this master collection.
-                </p>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs text-theme-text-secondary bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 uppercase border-b border-theme-border/50">
-                    {activeTab === 'holding' && (
-                      <tr>
-                        <th className="px-6 py-4 font-semibold">Holding Name</th>
-                        <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                      </tr>
-                    )}
-                    {activeTab === 'role' && (
-                      <tr>
-                        <th className="px-6 py-4 font-semibold">Role Operator Name</th>
-                        <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                      </tr>
-                    )}
-                    {activeTab === 'project_type' && (
-                      <tr>
-                        <th className="px-6 py-4 font-semibold">Project Type Name</th>
-                        <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                      </tr>
-                    )}
-                    {activeTab === 'action' && (
-                      <tr>
-                        <th className="px-6 py-4 font-semibold">Category</th>
-                        <th className="px-6 py-4 font-semibold">Action Name</th>
-                        <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                      </tr>
-                    )}
-                    {activeTab === 'map_user' && (
-                      <tr>
-                        <th className="px-6 py-4 font-semibold">Name</th>
-                        <th className="px-6 py-4 font-semibold">Holding</th>
-                        <th className="px-6 py-4 font-semibold">Department Operator (Role)</th>
-                        <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                      </tr>
-                    )}
-                    {activeTab === 'map_project' && (
-                      <tr>
-                        <th className="px-6 py-4 font-semibold">Holding</th>
-                        <th className="px-6 py-4 font-semibold">Role</th>
-                        <th className="px-6 py-4 font-semibold">Proj Type</th>
-                        <th className="px-6 py-4 font-semibold font-bold">Project Name</th>
-                        <th className="px-6 py-4 font-semibold">Module</th>
-                        <th className="px-6 py-4 font-semibold">BU</th>
-                        <th className="px-6 py-4 font-semibold">Department</th>
-                        <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                      </tr>
-                    )}
-                    {activeTab === 'users' && (
-                      <tr>
-                        <th className="px-6 py-4 font-semibold">Emp ID</th>
-                        <th className="px-6 py-4 font-semibold">Full Name</th>
-                        <th className="px-6 py-4 font-semibold">Nickname</th>
-                        <th className="px-6 py-4 font-semibold">Email</th>
-                        <th className="px-6 py-4 font-semibold">System Role</th>
-                        <th className="px-6 py-4 font-semibold">Dept</th>
-                        <th className="px-6 py-4 font-semibold text-right">Actions</th>
-                      </tr>
-                    )}
-                  </thead>
-                  <tbody className="divide-y divide-theme-border/50">
-                    {paginatedData.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-theme-surface-secondary dark:hover:bg-theme-surface-secondary/30 transition-colors">
+            )}
+
+            {/* Table Content Card */}
+            {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' ? (
+              <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
+                {isLoading ? (
+                  <div className="p-16 text-center animate-pulse flex flex-col gap-4">
+                    <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded"></div>
+                    <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded"></div>
+                    <div className="h-6 w-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary rounded"></div>
+                  </div>
+                ) : filteredData.length === 0 ? (
+                  <div className="p-16 text-center flex flex-col items-center justify-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary flex items-center justify-center text-theme-text-secondary">
+                      <Search size={28} />
+                    </div>
+                    <h3 className="text-theme-text font-medium">No records found</h3>
+                    <p className="text-sm text-theme-text-secondary">
+                      Click "+ Add Record" above to populate this master collection.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="text-xs text-theme-text-secondary bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 uppercase border-b border-theme-border/50">
                         {activeTab === 'holding' && (
-                          <>
-                            <td className="px-6 py-4 font-bold text-theme-text">{row.holding_name}</td>
-                            <td className="px-6 py-4 text-right space-x-2">
-                              <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          </>
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">Holding Name</th>
+                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                          </tr>
                         )}
                         {activeTab === 'role' && (
-                          <>
-                            <td className="px-6 py-4 font-bold text-theme-text">{row.role_name}</td>
-                            <td className="px-6 py-4 text-right space-x-2">
-                              <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          </>
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">Role Operator Name</th>
+                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                          </tr>
                         )}
                         {activeTab === 'project_type' && (
-                          <>
-                            <td className="px-6 py-4 font-bold text-theme-text">{row.type_name}</td>
-                            <td className="px-6 py-4 text-right space-x-2">
-                              <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          </>
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">Project Type Name</th>
+                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                          </tr>
                         )}
                         {activeTab === 'action' && (
-                          <>
-                            <td className="px-6 py-4 text-theme-text-secondary font-semibold">{row.action_category}</td>
-                            <td className="px-6 py-4 font-bold text-theme-text">{row.action_name}</td>
-                            <td className="px-6 py-4 text-right space-x-2">
-                              <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
-                                <Edit2 size={16} />
-                              </button>
-                              <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          </>
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">Category</th>
+                            <th className="px-6 py-4 font-semibold">Action Name</th>
+                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                          </tr>
                         )}
                         {activeTab === 'map_user' && (
-                          <>
-                            <td className="px-6 py-4 font-bold text-theme-text">{row.name}</td>
-                            <td className="px-6 py-4 text-theme-text-secondary">{row.holding}</td>
-                            <td className="px-6 py-4 text-indigo-400 font-semibold">{row.department_operator}</td>
-                            <td className="px-6 py-4 text-right space-x-2">
-                              <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
-                                <Edit2 size={16} />
-                              </button>
-                              <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          </>
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">Name</th>
+                            <th className="px-6 py-4 font-semibold">Holding</th>
+                            <th className="px-6 py-4 font-semibold">Department Operator (Role)</th>
+                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                          </tr>
                         )}
                         {activeTab === 'map_project' && (
-                          <>
-                            <td className="px-6 py-4 text-theme-text-secondary whitespace-nowrap">{row.holding}</td>
-                            <td className="px-6 py-4 text-theme-text-secondary whitespace-nowrap">{row.department_operator}</td>
-                            <td className="px-6 py-4 text-theme-text-secondary whitespace-nowrap">{row.project_type}</td>
-                            <td className="px-6 py-4 font-bold text-theme-text whitespace-nowrap">{row.project_name}</td>
-                            <td className="px-6 py-4 text-theme-text-secondary font-medium whitespace-nowrap">{row.module || '-'}</td>
-                            <td className="px-6 py-4 text-theme-text-secondary whitespace-nowrap">{row.bu}</td>
-                            <td className="px-6 py-4 text-theme-text-secondary whitespace-nowrap">{row.department}</td>
-                            <td className="px-6 py-4 text-right space-x-2">
-                              <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
-                                <Edit2 size={16} />
-                              </button>
-                              <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          </>
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">Project & Module</th>
+                            <th className="px-6 py-4 font-semibold">Allocation & Context</th>
+                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                          </tr>
                         )}
                         {activeTab === 'users' && (
-                          <>
-                            <td className="px-6 py-4 text-theme-text-secondary font-mono">{row.emp_id}</td>
-                            <td className="px-6 py-4 font-bold text-theme-text">{row.full_name}</td>
-                            <td className="px-6 py-4 text-theme-text-secondary">{row.nickname || '-'}</td>
-                            <td className="px-6 py-4 text-theme-text-secondary">{row.email || '-'}</td>
-                            <td className="px-6 py-4">
-                              <span className={cn(
-                                "px-2 py-0.5 text-xs font-semibold rounded-full border",
-                                row.role === 'admin' 
-                                  ? "text-amber-400 bg-amber-400/10 border-amber-400/20"
-                                  : "text-theme-text-secondary bg-slate-400/10 border-slate-400/20"
-                              )}>
-                                {row.role}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-indigo-400 font-semibold">{row.department}</td>
-                            <td className="px-6 py-4 text-right space-x-2">
-                              <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
-                                <Edit2 size={16} />
-                              </button>
-                              <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          </>
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">User Profile</th>
+                            <th className="px-6 py-4 font-semibold">Affiliation & Role</th>
+                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                          </tr>
                         )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                        {activeTab === 'holiday' && (
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">Holiday Date</th>
+                            <th className="px-6 py-4 font-semibold">Holiday Name</th>
+                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                          </tr>
+                        )}
+                      </thead>
+                      <tbody className="divide-y divide-theme-border/50">
+                        {paginatedData.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-theme-surface-secondary dark:hover:bg-theme-surface-secondary/30 transition-colors">
+                            {activeTab === 'holding' && (
+                              <>
+                                <td className="px-6 py-4 font-bold text-theme-text">{row.holding_name}</td>
+                                <td className="px-6 py-4 text-right space-x-2">
+                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                            {activeTab === 'role' && (
+                              <>
+                                <td className="px-6 py-4 font-bold text-theme-text">{row.role_name}</td>
+                                <td className="px-6 py-4 text-right space-x-2">
+                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                            {activeTab === 'project_type' && (
+                              <>
+                                <td className="px-6 py-4 font-bold text-theme-text">{row.type_name}</td>
+                                <td className="px-6 py-4 text-right space-x-2">
+                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                            {activeTab === 'action' && (
+                              <>
+                                <td className="px-6 py-4 text-theme-text-secondary font-semibold">{row.action_category}</td>
+                                <td className="px-6 py-4 font-bold text-theme-text">{row.action_name}</td>
+                                <td className="px-6 py-4 text-right space-x-2">
+                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                            {activeTab === 'map_user' && (
+                              <>
+                                <td className="px-6 py-4 font-bold text-theme-text">{row.name}</td>
+                                <td className="px-6 py-4 text-theme-text-secondary">{row.holding}</td>
+                                <td className="px-6 py-4 text-indigo-400 font-semibold">{row.department_operator}</td>
+                                <td className="px-6 py-4 text-right space-x-2">
+                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                            {activeTab === 'map_project' && (
+                              <>
+                                <td className="px-6 py-4">
+                                  <div className="font-bold text-indigo-400 text-sm">{row.project_name}</div>
+                                  {row.module && <div className="text-xs text-theme-text-secondary mt-0.5">Module: {row.module}</div>}
+                                </td>
+                                <td className="px-6 py-4 text-xs space-y-1">
+                                  <div><span className="text-theme-text-muted font-medium">Holding:</span> <span className="text-theme-text font-semibold">{row.holding}</span></div>
+                                  <div><span className="text-theme-text-muted font-medium">Role:</span> <span className="text-indigo-400 font-semibold">{row.department_operator}</span></div>
+                                  <div><span className="text-theme-text-muted font-medium">Type:</span> <span className="text-theme-text">{row.project_type}</span></div>
+                                  <div><span className="text-theme-text-muted font-medium">BU/Dept:</span> <span className="text-theme-text font-medium">{row.bu} / {row.department}</span></div>
+                                </td>
+                                <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                            {activeTab === 'users' && (
+                              <>
+                                <td className="px-6 py-4">
+                                  <div className="font-bold text-theme-text flex items-center gap-1.5 flex-wrap">
+                                    <span>{row.full_name}</span>
+                                    {row.nickname && <span className="text-xs font-semibold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded">({row.nickname})</span>}
+                                  </div>
+                                  <div className="text-xs font-mono text-theme-text-secondary mt-0.5">ID: {row.emp_id}</div>
+                                  {row.email && <div className="text-xs text-theme-text-muted mt-0.5 font-medium">{row.email}</div>}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="text-xs text-theme-text-secondary mb-1.5">Dept: <span className="font-bold text-theme-text">{row.department}</span></div>
+                                  <span className={cn(
+                                    "px-2 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap",
+                                    row.role === 'admin' 
+                                      ? "text-amber-400 bg-amber-400/10 border-amber-400/20"
+                                      : "text-theme-text-secondary bg-slate-400/10 border-slate-400/20"
+                                  )}>
+                                    {row.role}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                            {activeTab === 'holiday' && (
+                              <>
+                                <td className="px-6 py-4 font-bold text-theme-text font-mono">{row.date}</td>
+                                <td className="px-6 py-4 text-theme-text font-medium">{row.name}</td>
+                                <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-            {/* Pagination Bar */}
-            {!isLoading && totalPages > 1 && (
-              <div className="px-6 py-4 bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 border-t border-theme-border/50 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <span className="text-xs text-theme-text-secondary font-medium font-mono">
-                  Showing {((currentPage - 1) * entriesPerPage) + 1} - {Math.min(currentPage * entriesPerPage, filteredData.length)} of {filteredData.length} entries
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    className="px-3 py-1.5 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 hover:border-theme-border disabled:opacity-40 disabled:cursor-not-allowed text-xs text-theme-text-secondary font-bold rounded-lg transition-all"
-                  >
-                    Previous
-                  </button>
-                  {Array.from({ length: totalPages }).map((_, i) => {
-                    const page = i + 1;
-                    if (totalPages > 6 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
-                      if (page === 2 && currentPage > 3) return <span key={page} className="text-theme-text-secondary text-xs px-1 select-none font-mono">...</span>;
-                      if (page === totalPages - 1 && currentPage < totalPages - 2) return <span key={page} className="text-theme-text-secondary text-xs px-1 select-none font-mono">...</span>;
-                      return null;
-                    }
-                    return (
+                {/* Pagination Bar */}
+                {!isLoading && totalPages > 1 && (
+                  <div className="px-6 py-4 bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 border-t border-theme-border/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <span className="text-xs text-theme-text-secondary font-medium font-mono">
+                      Showing {((currentPage - 1) * entriesPerPage) + 1} - {Math.min(currentPage * entriesPerPage, filteredData.length)} of {filteredData.length} entries
+                    </span>
+                    <div className="flex items-center gap-1.5">
                       <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={cn(
-                          "w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all font-mono border",
-                          currentPage === page
-                            ? "bg-indigo-500 text-theme-text border-transparent shadow-md shadow-indigo-500/10"
-                            : "bg-transparent text-theme-text-secondary border-transparent hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary"
-                        )}
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        className="px-3 py-1.5 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 hover:border-theme-border disabled:opacity-40 disabled:cursor-not-allowed text-xs text-theme-text-secondary font-bold rounded-lg transition-all"
                       >
-                        {page}
+                        Previous
                       </button>
-                    );
-                  })}
-                  <button
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    className="px-3 py-1.5 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 hover:border-theme-border disabled:opacity-40 disabled:cursor-not-allowed text-xs text-theme-text-secondary font-bold rounded-lg transition-all"
-                  >
-                    Next
-                  </button>
-                </div>
+                      {Array.from({ length: totalPages }).map((_, i) => {
+                        const page = i + 1;
+                        if (totalPages > 6 && Math.abs(page - currentPage) > 1 && page !== 1 && page !== totalPages) {
+                          if (page === 2 && currentPage > 3) return <span key={page} className="text-theme-text-secondary text-xs px-1 select-none font-mono">...</span>;
+                          if (page === totalPages - 1 && currentPage < totalPages - 2) return <span key={page} className="text-theme-text-secondary text-xs px-1 select-none font-mono">...</span>;
+                          return null;
+                        }
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={cn(
+                              "w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all font-mono border",
+                              currentPage === page
+                                ? "bg-indigo-500 text-theme-text border-transparent shadow-md shadow-indigo-500/10"
+                                : "bg-transparent text-theme-text-secondary border-transparent hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary"
+                            )}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+                      <button
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        className="px-3 py-1.5 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 hover:border-theme-border disabled:opacity-40 disabled:cursor-not-allowed text-xs text-theme-text-secondary font-bold rounded-lg transition-all"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
+            ) : activeTab === 'ai_settings' ? (
+              <AISettingsManager />
+            ) : (
+              <AIPromptsManager />
             )}
           </div>
-        ) : activeTab === 'ai_settings' ? (
-          <AISettingsManager />
-        ) : (
-          <AIPromptsManager />
-        )}
+        </div>
 
       </div>
 
@@ -965,6 +1129,79 @@ export default function AdminPage() {
                       className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text focus:outline-none"
                       required
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 8: Holiday Form */}
+              {activeTab === 'holiday' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Holiday Date</label>
+                    <input 
+                      type="date" 
+                      value={formHolidayDate}
+                      onChange={(e) => setFormHolidayDate(e.target.value)}
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text focus:outline-none cursor-pointer"
+                      required
+                      disabled={!!editRow}
+                    />
+                    {editRow && <p className="text-[10px] text-amber-400 mt-1">Date is the primary key and cannot be modified.</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Holiday Name</label>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={formHolidayName}
+                        onChange={(e) => {
+                          setFormHolidayName(e.target.value);
+                          setIsHolidayDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsHolidayDropdownOpen(true)}
+                        placeholder="e.g. วันสงกรานต์"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 pr-8 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsHolidayDropdownOpen(prev => !prev)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                      >
+                        <ChevronDown size={14} className={cn("transition-transform duration-200", isHolidayDropdownOpen && "rotate-180")} />
+                      </button>
+                      
+                      {isHolidayDropdownOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setIsHolidayDropdownOpen(false)} 
+                          />
+                          <ul className="absolute left-0 right-0 mt-1 bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 py-1 divide-y divide-theme-border/30 custom-scrollbar animate-in fade-in duration-100">
+                            {filteredHolidaySuggestions.length > 0 ? (
+                              filteredHolidaySuggestions.map((name) => (
+                                <li key={name}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormHolidayName(name);
+                                      setIsHolidayDropdownOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 text-theme-text hover:font-semibold transition-colors cursor-pointer"
+                                  >
+                                    {name}
+                                  </button>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="px-3 py-2 text-[11px] text-theme-text-muted italic">
+                                No matching holidays found. Press Save to use "{formHolidayName}"
+                              </li>
+                            )}
+                          </ul>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

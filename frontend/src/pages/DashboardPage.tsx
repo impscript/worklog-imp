@@ -1,5 +1,23 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, FolderGit2, Ticket, Plus, Calendar as CalendarIcon, ClipboardList, Eye } from 'lucide-react';
+import { 
+  TrendingUp, 
+  FolderGit2, 
+  Ticket, 
+  Plus, 
+  Calendar as CalendarIcon, 
+  CheckCircle2,
+  AlertTriangle,
+  Sparkles,
+  Heart,
+  Activity,
+  UserCheck,
+  Clock,
+  RefreshCw,
+  Flame,
+  Check,
+  ListTodo,
+  Award
+} from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
@@ -39,12 +57,100 @@ export default function DashboardPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const navigate = useNavigate();
 
+  // New States for Actionable Dashboard Redesign
+  const [userJd, setUserJd] = useState<any>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisLogs, setAnalysisLogs] = useState<string[]>([]);
+  const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
+  const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
+
+  const [checkedTasks, setCheckedTasks] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('dashboard_checklist_tasks');
+    return saved ? JSON.parse(saved) : {};
+  });
+
   // Helper: Format date to YYYY-MM-DD
   const formatDateToYMD = (date: Date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
+  };
+
+  const toggleTask = (taskText: string) => {
+    setCheckedTasks(prev => {
+      const updated = { ...prev, [taskText]: !prev[taskText] };
+      localStorage.setItem('dashboard_checklist_tasks', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const fetchJdAndAnalysis = async (userId: string) => {
+    try {
+      const { data: jdData } = await supabase
+        .from('tb_user_jd')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (jdData) setUserJd(jdData);
+
+      const { data: analysisData } = await supabase
+        .from('tb_ai_individual_analysis')
+        .select('*')
+        .eq('user_id', userId)
+        .order('analysis_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (analysisData) setAiAnalysis(analysisData);
+    } catch (err) {
+      console.error('Error fetching JD or AI Analysis:', err);
+    }
+  };
+
+  const getAnalysisDateRange = () => {
+    const today = new Date();
+    const endStr = formatDateToYMD(today);
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    const startStr = formatDateToYMD(thirtyDaysAgo);
+    return { start: startStr, end: endStr };
+  };
+
+  const handleRunDiagnostics = async () => {
+    if (!user) return;
+    setIsAnalyzing(true);
+    setDiagnosticsError(null);
+    setAnalysisLogs([
+      'Initializing diagnostic engine...',
+      'Mapping designated Job Description alignment parameters...'
+    ]);
+    
+    try {
+      const range = getAnalysisDateRange();
+      setAnalysisLogs(prev => [...prev, `Requesting AI review from ${range.start} to ${range.end}...`]);
+      
+      const { error } = await supabase.functions.invoke('analyze-performance', {
+        body: {
+          user_id: user.id,
+          start_date: range.start,
+          end_date: range.end,
+          force_refresh: true
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message || 'AI assessment failed to complete');
+      }
+
+      setAnalysisLogs(prev => [...prev, 'Structuring diagnostics & saving to database...', 'Diagnostics assessment completed successfully!']);
+      await fetchJdAndAnalysis(user.id);
+    } catch (err: any) {
+      console.error('Error running AI diagnostics:', err);
+      setDiagnosticsError(err.message || 'Failed to analyze performance.');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   // Generate week dates (Monday to Sunday)
@@ -104,7 +210,24 @@ export default function DashboardPage() {
       }
     }
 
+    async function fetchHolidays() {
+      try {
+        const { data, error } = await supabase
+          .from('tb_master_holiday')
+          .select('*');
+        if (error) {
+          console.error('Error fetching holidays:', error);
+        } else if (data) {
+          setHolidays(data);
+        }
+      } catch (err) {
+        console.error('Error in fetchHolidays:', err);
+      }
+    }
+
     fetchEntries();
+    fetchHolidays();
+    fetchJdAndAnalysis(session.id);
   }, [navigate, refreshTrigger]);
 
   // Filter entries for this week
@@ -119,6 +242,95 @@ export default function DashboardPage() {
   const supportTicketsCount = thisWeekEntries.filter(
     (e) => e.project_type === 'Support MA' || e.project_type === 'Support Go-Live'
   ).length;
+
+  // Get Cut-off Information (26th of previous month to 25th of current month)
+  const getCutoffInfo = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0-indexed
+    const currentDate = today.getDate();
+    
+    let start: Date;
+    let end: Date;
+    
+    if (currentDate >= 26) {
+      start = new Date(currentYear, currentMonth, 26);
+      end = new Date(currentYear, currentMonth + 1, 25);
+    } else {
+      start = new Date(currentYear, currentMonth - 1, 26);
+      end = new Date(currentYear, currentMonth, 25);
+    }
+    
+    // Total working days in period (excluding weekends and public holidays)
+    let totalWorkingDays = 0;
+    const temp = new Date(start);
+    const endForCalc = today < end ? today : end;
+    
+    while (temp <= endForCalc) {
+      const dayOfWeek = temp.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const formattedDate = formatDateToYMD(temp);
+      const isHoliday = holidays.some(h => h.date === formattedDate);
+      if (!isWeekend && !isHoliday) {
+        totalWorkingDays++;
+      }
+      temp.setDate(temp.getDate() + 1);
+    }
+    
+    // Calculate total hours logged in the current cutoff period
+    const startStr = formatDateToYMD(start);
+    const endStr = formatDateToYMD(end);
+    const cutoffEntries = entries.filter(e => e.work_date >= startStr && e.work_date <= endStr);
+    const loggedHours = cutoffEntries.reduce((sum, e) => sum + e.total_hours, 0);
+    
+    const targetHours = totalWorkingDays * 8;
+    const completionPct = targetHours > 0 ? Math.round((loggedHours / targetHours) * 100) : 0;
+    
+    // Remaining days to end of period
+    const diffTime = end.getTime() - today.getTime();
+    const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    
+    return {
+      start: startStr,
+      end: endStr,
+      daysRemaining,
+      loggedHours,
+      targetHours,
+      completionPct,
+      cutoffEnd: end
+    };
+  };
+
+  // Find missing log weekdays in current period (excluding public holidays)
+  const getMissingLogDays = () => {
+    const cutoff = getCutoffInfo();
+    const today = new Date();
+    const [startY, startM, startD] = cutoff.start.split('-').map(Number);
+    const start = new Date(startY, startM - 1, startD);
+    const end = today < cutoff.cutoffEnd ? today : cutoff.cutoffEnd;
+    
+    const missingDays: string[] = [];
+    const temp = new Date(start);
+    
+    while (temp <= end) {
+      const dayOfWeek = temp.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const formattedDate = formatDateToYMD(temp);
+      const isHoliday = holidays.some(h => h.date === formattedDate);
+      if (!isWeekend && !isHoliday) {
+        const hoursOnDay = entries
+          .filter(e => e.work_date === formattedDate)
+          .reduce((sum, e) => sum + e.total_hours, 0);
+        
+        if (hoursOnDay === 0) {
+          missingDays.push(formattedDate);
+        }
+      }
+      temp.setDate(temp.getDate() + 1);
+    }
+    
+    return missingDays.reverse(); // Show newest missing days first
+  };
 
   // Aggregate Hours by Project Type (all time or this week)
   const computeHoursByType = () => {
@@ -155,12 +367,10 @@ export default function DashboardPage() {
   };
 
   const typeSummary = computeHoursByType();
+  const cutoff = getCutoffInfo();
+  const missingLogDays = getMissingLogDays();
 
-  // Helper for nice date formats
-  const formatTableDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
-  };
+
 
   return (
     <AppLayout>
@@ -273,75 +483,396 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Recent Entries Table */}
-                <div className="ai-glass bg-theme-surface dark:bg-theme-bg-page/50 rounded-2xl shadow-xl overflow-hidden flex flex-col">
-                  <div className="p-5 border-b border-theme-border dark:border-theme-border/60 flex justify-between items-center bg-theme-surface-secondary dark:bg-slate-900/40">
+                {/* Cut-off Tracker & Compliance */}
+                <div className="ai-glass bg-theme-surface dark:bg-theme-bg-page/50 rounded-2xl p-6 shadow-xl flex flex-col space-y-4">
+                  <div className="flex justify-between items-center border-b border-theme-border dark:border-theme-border/60 pb-4">
                     <h2 className="text-base font-semibold text-theme-text flex items-center gap-2">
-                      <ClipboardList size={18} className="text-indigo-600 dark:text-indigo-400" />
-                      <span>Recent Work Logs</span>
+                      <Clock size={18} className="text-indigo-600 dark:text-indigo-400 animate-pulse" />
+                      <span>Cut-off & Submission Compliance</span>
                     </h2>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                      cutoff.daysRemaining <= 3 
+                        ? 'bg-rose-50 border border-rose-200 text-rose-600 dark:bg-rose-500/10 dark:border-rose-500/25 dark:text-rose-400' 
+                        : cutoff.daysRemaining <= 7
+                        ? 'bg-amber-50 border border-amber-200 text-amber-600 dark:bg-amber-500/10 dark:border-amber-500/25 dark:text-amber-400'
+                        : 'bg-emerald-50 border border-emerald-200 text-emerald-600 dark:bg-emerald-500/10 dark:border-emerald-500/25 dark:text-emerald-400'
+                    }`}>
+                      {cutoff.daysRemaining === 0 ? 'Cut-off Today!' : `${cutoff.daysRemaining} days remaining`}
+                    </span>
                   </div>
-                  {entries.length === 0 ? (
-                    <div className="p-12 text-center flex flex-col items-center justify-center space-y-4">
-                      <div className="w-16 h-16 rounded-full bg-theme-surface-tertiary dark:bg-slate-800 flex items-center justify-center text-theme-text-secondary">
-                        <ClipboardList size={28} />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs text-theme-text-secondary font-semibold uppercase tracking-wider">
+                        <span>Submitted Log Hours</span>
+                        <span>{cutoff.completionPct}%</span>
                       </div>
-                      <h3 className="text-theme-text font-medium">No work logged yet</h3>
-                      <p className="text-sm text-theme-text-secondary max-w-sm">
-                        You haven't recorded any work times yet. Get started by logging your tasks for today.
-                      </p>
-                      <Link 
-                        to="/log" 
-                        className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-indigo-500/10 active:scale-[0.98]"
-                      >
-                        <Plus size={16} />
-                        <span>Log First Task</span>
-                      </Link>
+                      <div className="w-full h-3 rounded-full bg-slate-200 dark:bg-slate-900 overflow-hidden border border-slate-300/55 dark:border-theme-border/30">
+                        <div 
+                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-violet-600 transition-all duration-500" 
+                          style={{ width: `${Math.min(100, cutoff.completionPct)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-theme-text-muted mt-1 font-mono">
+                        <span>Period: {cutoff.start} ~ {cutoff.end}</span>
+                        <span>{cutoff.loggedHours.toFixed(1)}h / {cutoff.targetHours}h</span>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
-                      <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-theme-text-secondary bg-theme-surface-tertiary/80 dark:bg-theme-surface-secondary/80 uppercase border-b border-theme-border dark:border-theme-border/50 sticky top-0 z-10 backdrop-blur-md">
-                          <tr>
-                            <th className="px-4 py-3 font-medium">Date</th>
-                            <th className="px-4 py-3 font-medium">Project</th>
-                            <th className="px-4 py-3 font-medium">Action</th>
-                            <th className="px-4 py-3 font-medium">Hours</th>
-                            <th className="px-4 py-3 font-medium">Type</th>
-                            <th className="px-4 py-3 font-medium text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-theme-border dark:divide-theme-border/30">
-                          {entries.slice(0, 15).map((entry) => (
-                            <TableRow 
-                              key={entry.id}
-                              date={formatTableDate(entry.work_date)} 
-                              project={entry.project_name} 
-                              action={entry.description || entry.action_name} 
-                              hours={entry.total_hours.toFixed(1)} 
-                              type={
-                                entry.project_type === 'Support MA' || entry.project_type === 'Support Go-Live' 
-                                  ? 'Support' 
-                                  : entry.project_type === 'Management' 
-                                  ? 'Management' 
-                                  : 'Project'
-                              } 
-                              actionChannel={entry.action_channel}
-                              onEdit={() => setEditingLog(entry)}
-                              onView={() => setViewingLog(entry)}
-                            />
-                          ))}
-                        </tbody>
-                      </table>
+
+                    {/* Missing logs quick action */}
+                    <div className="bg-theme-surface-secondary/50 dark:bg-slate-950/20 rounded-xl p-4 border border-theme-border dark:border-slate-900/60">
+                      <h3 className="text-xs font-bold text-theme-text-muted uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                        <AlertTriangle size={14} className={missingLogDays.length > 0 ? "text-amber-500 animate-bounce" : "text-emerald-500"} />
+                        <span>Missing Log Days</span>
+                      </h3>
+                      {missingLogDays.length === 0 ? (
+                        <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
+                          <CheckCircle2 size={16} />
+                          <span>All weekdays logged. Great job keeping up!</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-xs text-theme-text-secondary mb-2">
+                            Click to log missed weekdays:
+                          </p>
+                          <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto custom-scrollbar pr-1">
+                            {missingLogDays.slice(0, 6).map((dateStr) => {
+                              const [y, m, dayVal] = dateStr.split('-').map(Number);
+                              const d = new Date(y, m - 1, dayVal);
+                              const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                              const displayDate = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+                              return (
+                                <Link
+                                  key={dateStr}
+                                  to={`/log?date=${dateStr}`}
+                                  className="inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 px-2.5 py-1 rounded-lg text-xs font-bold transition-all active:scale-[0.97]"
+                                >
+                                  <Plus size={12} />
+                                  <span>{dayName} {displayDate}</span>
+                                </Link>
+                              );
+                            })}
+                            {missingLogDays.length > 6 && (
+                              <span className="text-xs text-theme-text-muted self-center">
+                                +{missingLogDays.length - 6} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* JD Alignment & Well-being Diagnostics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* JD Alignment Tracker */}
+                  <div className="ai-glass bg-theme-surface dark:bg-theme-bg-page/50 rounded-2xl p-6 shadow-xl flex flex-col space-y-4">
+                    <div className="flex justify-between items-center border-b border-theme-border dark:border-theme-border/60 pb-3">
+                      <h2 className="text-base font-semibold text-theme-text flex items-center gap-2">
+                        <UserCheck size={18} className="text-indigo-600 dark:text-indigo-400" />
+                        <span>JD Alignment Tracker</span>
+                      </h2>
+                      <span className="text-xs text-theme-text-muted font-bold font-mono">
+                        {userJd?.position_name || 'Designated Role'}
+                      </span>
+                    </div>
+
+                    {/* Score section */}
+                    <div className="flex items-center gap-5">
+                      <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
+                        <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                          <circle cx="50" cy="50" r="42" fill="transparent" stroke="var(--theme-border, #e2e8f0)" strokeWidth="8" />
+                          <circle 
+                            cx="50" cy="50" r="42" fill="transparent" 
+                            stroke="#6366f1" strokeWidth="8" 
+                            strokeDasharray={`${2 * Math.PI * 42}`}
+                            strokeDashoffset={`${2 * Math.PI * 42 * (1 - (aiAnalysis?.jd_alignment_score || 0) / 100)}`}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <span className="text-xl font-extrabold text-theme-text font-mono">
+                          {aiAnalysis?.jd_alignment_score || 0}%
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider">
+                          Role Congruence Score
+                        </h3>
+                        <p className="text-xs text-theme-text-muted leading-relaxed">
+                          {aiAnalysis ? (
+                            aiAnalysis.jd_alignment_score >= 80 
+                              ? 'Excellent focus on your primary role objectives.'
+                              : aiAnalysis.jd_alignment_score >= 50
+                              ? 'Moderate alignment. Consider reducing side tasks.'
+                              : 'Low alignment. Discuss responsibilities with your lead.'
+                          ) : (
+                            'AI diagnosis pending. Click "Run Diagnostics" below to calculate.'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Target responsibilities breakdown */}
+                    <div className="space-y-3 pt-2">
+                      <h4 className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider mb-1">
+                        Target Allocation (JD)
+                      </h4>
+                      {userJd?.key_responsibilities && userJd.key_responsibilities.length > 0 ? (
+                        <div className="space-y-2 max-h-[140px] overflow-y-auto custom-scrollbar pr-1">
+                          {userJd.key_responsibilities.map((resp: any, i: number) => {
+                            const targetPct = resp.weight || resp.weight_percentage || 0;
+                            let actualPct = 0;
+                            if (aiAnalysis?.actual_vs_target) {
+                              const found = aiAnalysis.actual_vs_target.find((item: any) => 
+                                item.category?.toLowerCase() === resp.category?.toLowerCase()
+                              );
+                              actualPct = found?.actual || 0;
+                            }
+                            
+                            return (
+                              <div key={i} className="space-y-1">
+                                <div className="flex justify-between text-xs font-medium">
+                                  <span className="text-theme-text truncate max-w-[150px]">{resp.category}</span>
+                                  <span className="text-theme-text-secondary font-mono">
+                                    {actualPct}% <span className="text-theme-text-muted">/ {targetPct}% Target</span>
+                                  </span>
+                                </div>
+                                <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-theme-border/20 flex overflow-hidden">
+                                  <div 
+                                    className="bg-indigo-500/20 h-full"
+                                    style={{ width: `${targetPct}%` }}
+                                  />
+                                  <div 
+                                    className="bg-indigo-500 h-full -ml-[100%]"
+                                    style={{ width: `${actualPct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-theme-text-muted bg-theme-surface-secondary/40 border border-dashed border-theme-border dark:border-slate-800 p-4 rounded-xl text-center">
+                          No specific JD allocation parameters found.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Wellbeing & Burnout Monitor */}
+                  <div className="ai-glass bg-theme-surface dark:bg-theme-bg-page/50 rounded-2xl p-6 shadow-xl flex flex-col space-y-4">
+                    <div className="flex justify-between items-center border-b border-theme-border dark:border-theme-border/60 pb-3">
+                      <h2 className="text-base font-semibold text-theme-text flex items-center gap-2">
+                        <Heart size={18} className="text-rose-600 dark:text-rose-400" />
+                        <span>Well-being & Work-life Balance</span>
+                      </h2>
+                      <span className="text-xs text-theme-text-muted font-bold font-mono">
+                        Fatigue Index
+                      </span>
+                    </div>
+
+                    {/* Score section */}
+                    <div className="flex items-center gap-5">
+                      <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
+                        <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                          <circle cx="50" cy="50" r="42" fill="transparent" stroke="var(--theme-border, #e2e8f0)" strokeWidth="8" />
+                          <circle 
+                            cx="50" cy="50" r="42" fill="transparent" 
+                            stroke={aiAnalysis?.burnout_risk_score >= 70 ? "#f43f5e" : aiAnalysis?.burnout_risk_score >= 40 ? "#f59e0b" : "#10b981"} 
+                            strokeWidth="8" 
+                            strokeDasharray={`${2 * Math.PI * 42}`}
+                            strokeDashoffset={`${2 * Math.PI * 42 * (1 - (aiAnalysis?.burnout_risk_score || 0) / 100)}`}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <span className={`text-xl font-extrabold font-mono ${
+                          aiAnalysis?.burnout_risk_score >= 70 ? "text-rose-500" : aiAnalysis?.burnout_risk_score >= 40 ? "text-amber-500" : "text-emerald-500"
+                        }`}>
+                          {aiAnalysis?.burnout_risk_score || 0}%
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider">
+                          Burnout Risk Score
+                        </h3>
+                        <p className="text-xs text-theme-text-muted leading-relaxed">
+                          {aiAnalysis ? (
+                            aiAnalysis.burnout_risk_score >= 70 
+                              ? 'High Fatigue Risk. Please schedule a workload review with HRBP.'
+                              : aiAnalysis.burnout_risk_score >= 40
+                              ? 'Moderate workload tension. Maintain standard working hours.'
+                              : 'Healthy work patterns. Workload distribution is well-balanced.'
+                          ) : (
+                            'Well-being diagnosis pending. Click "Run Diagnostics" below to calculate.'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Wellbeing indicators */}
+                    <div className="space-y-3 pt-2 flex-grow flex flex-col justify-end">
+                      <h4 className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider mb-1">
+                        Risk Metrics (Last 30 Days)
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-theme-surface-secondary/50 dark:bg-slate-950/20 border border-theme-border dark:border-theme-border/40 p-2.5 rounded-xl flex items-center gap-2">
+                          <Clock size={16} className="text-rose-500 shrink-0" />
+                          <div>
+                            <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">OT hours</p>
+                            <p className="text-xs font-extrabold text-theme-text font-mono">
+                              {entries.filter(e => e.is_ot).reduce((sum, e) => sum + e.total_hours, 0).toFixed(1)}h
+                            </p>
+                          </div>
+                        </div>
+                        <div className="bg-theme-surface-secondary/50 dark:bg-slate-950/20 border border-theme-border dark:border-theme-border/40 p-2.5 rounded-xl flex items-center gap-2">
+                          <Flame size={16} className="text-amber-500 shrink-0" />
+                          <div>
+                            <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Late Logging</p>
+                            <p className="text-xs font-extrabold text-theme-text font-mono">
+                              {entries.filter(e => {
+                                const endHour = parseInt(e.end_time.split(':')[0]);
+                                return endHour >= 19;
+                              }).length} days
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Coaching & Development Action Items */}
+                <div className="ai-glass bg-theme-surface dark:bg-theme-bg-page/50 rounded-2xl p-6 shadow-xl flex flex-col space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-theme-border dark:border-theme-border/60 pb-4">
+                    <h2 className="text-base font-semibold text-theme-text flex items-center gap-2">
+                      <Sparkles size={18} className="text-indigo-600 dark:text-indigo-400" />
+                      <span>AI Development & Weekly Coaching Feedback</span>
+                    </h2>
+                    
+                    <button
+                      onClick={handleRunDiagnostics}
+                      disabled={isAnalyzing}
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-md active:scale-[0.98] disabled:cursor-not-allowed shrink-0"
+                    >
+                      <RefreshCw size={14} className={isAnalyzing ? 'animate-spin' : ''} />
+                      <span>{isAnalyzing ? 'Analyzing Logs...' : 'Run Diagnostics Assessment'}</span>
+                    </button>
+                  </div>
+
+                  {isAnalyzing && (
+                    <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-900 rounded-xl p-4 space-y-3 animate-pulse">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                        <Activity size={14} className="animate-bounce" />
+                        <span>AI Engine is processing your recent work activities...</span>
+                      </div>
+                      <div className="space-y-1.5 font-mono text-[10px] text-theme-text-secondary max-h-[100px] overflow-y-auto">
+                        {analysisLogs.map((log, index) => (
+                          <div key={index} className="flex items-center gap-1.5">
+                            <span className="text-emerald-500 font-bold">✓</span>
+                            <span>{log}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
-                  {entries.length > 15 && (
-                    <div className="p-3 border-t border-theme-border dark:border-theme-border/30 text-center bg-theme-surface-secondary dark:bg-slate-900/40">
-                      <Link to="/reports" className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors uppercase tracking-wider">
-                        View all work logs ({entries.length}) →
-                      </Link>
+
+                  {diagnosticsError && (
+                    <div className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl p-4 text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                      <AlertTriangle size={16} />
+                      <span>Error running assessment: {diagnosticsError}</span>
                     </div>
                   )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    
+                    {/* Actionable Checklist */}
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                        <ListTodo size={14} className="text-indigo-600 dark:text-indigo-400" />
+                        <span>Actionable Development Plan</span>
+                      </h3>
+                      {aiAnalysis?.improvements && aiAnalysis.improvements.length > 0 ? (
+                        <div className="space-y-2">
+                          {aiAnalysis.improvements.map((imp: string, index: number) => {
+                            const isChecked = !!checkedTasks[imp];
+                            return (
+                              <div 
+                                key={index}
+                                onClick={() => toggleTask(imp)}
+                                className={cn(
+                                  "flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none",
+                                  isChecked 
+                                    ? "bg-slate-50 dark:bg-slate-900/30 border-theme-border/60 dark:border-theme-border/20 opacity-60" 
+                                    : "bg-theme-surface-secondary/40 border-theme-border hover:border-indigo-500/30 dark:border-slate-950/20 dark:border-slate-900 dark:hover:border-indigo-500/20"
+                                )}
+                              >
+                                <div className={cn(
+                                  "w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5 transition-all",
+                                  isChecked 
+                                    ? "bg-indigo-600 border-indigo-600 text-white" 
+                                    : "border-slate-300 dark:border-theme-border bg-white dark:bg-slate-950"
+                                )}>
+                                  {isChecked && <Check size={10} strokeWidth={4} />}
+                                </div>
+                                <span className={cn(
+                                  "text-xs font-medium leading-relaxed text-theme-text",
+                                  isChecked && "line-through text-theme-text-muted"
+                                )}>
+                                  {imp}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-theme-text-muted bg-theme-surface-secondary/40 border border-dashed border-theme-border dark:border-slate-800 p-6 rounded-xl text-center">
+                          Run diagnostics to generate your customized AI development plan.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Coaching Summary */}
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                          <Award size={14} className="text-emerald-600 dark:text-emerald-400" />
+                          <span>Identified Professional Strengths</span>
+                        </h3>
+                        {aiAnalysis?.strengths && aiAnalysis.strengths.length > 0 ? (
+                          <div className="space-y-2">
+                            {aiAnalysis.strengths.map((str: string, index: number) => (
+                              <div key={index} className="flex items-start gap-2 bg-emerald-50/50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/10 p-3 rounded-xl">
+                                <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                                <span className="text-xs font-medium text-emerald-800 dark:text-emerald-400 leading-relaxed">
+                                  {str}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-theme-text-muted bg-theme-surface-secondary/40 border border-dashed border-theme-border dark:border-slate-800 p-4 rounded-xl text-center">
+                            No strengths computed. Run diagnostics to retrieve feedback.
+                          </div>
+                        )}
+                      </div>
+
+                      {/* AI Coach reinforced advice */}
+                      {aiAnalysis?.development_plan?.focus_areas && (
+                        <div className="bg-indigo-50/55 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/15 p-4 rounded-xl space-y-1">
+                          <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                            <Sparkles size={12} />
+                            <span>AI Weekly Coach Advice</span>
+                          </h4>
+                          <p className="text-xs text-indigo-800 dark:text-indigo-300/90 leading-relaxed font-medium">
+                            {aiAnalysis.development_plan.focus_areas}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
                 </div>
               </div>
               
@@ -542,94 +1073,4 @@ function DayCard({
   );
 }
 
-function TableRow({ 
-  date, 
-  project, 
-  action, 
-  hours, 
-  type,
-  actionChannel,
-  onEdit,
-  onView
-}: { 
-  date: string; 
-  project: string; 
-  action: string; 
-  hours: string; 
-  type: 'Project' | 'Support' | 'Management'; 
-  actionChannel?: string | null;
-  onEdit?: () => void;
-  onView?: () => void;
-}) {
-  const typeColors = {
-    Project: "text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-400 dark:bg-indigo-500/10 dark:border-indigo-500/20",
-    Support: "text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-500/10 dark:border-emerald-500/20",
-    Management: "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-500/10 dark:border-amber-500/20"
-  };
 
-  return (
-    <tr className="hover:bg-theme-surface-secondary dark:hover:bg-theme-surface-secondary dark:hover:bg-slate-900/35 border-b border-theme-border dark:border-slate-900 transition-colors group">
-      <td className="px-4 py-3 text-theme-text-secondary font-semibold font-mono text-xs whitespace-nowrap">{date}</td>
-      <td className="px-4 py-3 font-bold text-theme-text whitespace-nowrap">
-        <span className="text-xs px-1.5 py-0.5 rounded bg-theme-surface-tertiary dark:bg-slate-950/80 border border-slate-300 dark:border-theme-border/70">{project}</span>
-      </td>
-      <td className="px-4 py-3 text-theme-text-secondary max-w-[150px] text-xs">
-        <div className="truncate">{action}</div>
-        {actionChannel && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {actionChannel.split(',').map((c) => c.trim()).map((channel) => (
-              <span 
-                key={channel}
-                className={cn(
-                  "px-1.5 py-0.5 rounded-full text-[10px] font-extrabold border shrink-0 uppercase tracking-wider flex items-center gap-0.5",
-                  channel === 'Meeting' && "bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-500/10 dark:border-indigo-500/25 dark:text-indigo-400",
-                  channel === 'Discuss via phone' && "bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-500/10 dark:border-amber-500/25 dark:text-amber-400",
-                  channel === 'On site' && "bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-500/10 dark:border-rose-500/25 dark:text-rose-400"
-                )}
-              >
-                {channel === 'Meeting' && '👥'}
-                {channel === 'Discuss via phone' && '📞'}
-                {channel === 'On site' && '📍'}
-                <span>{channel}</span>
-              </span>
-            ))}
-          </div>
-        )}
-      </td>
-      <td className="px-4 py-3 font-extrabold text-theme-text font-mono text-sm">{hours}h</td>
-      <td className="px-4 py-3 whitespace-nowrap">
-        <span className={cn("px-2 py-0.5 text-[10px] font-extrabold rounded uppercase tracking-wider border", typeColors[type])}>
-          {type}
-        </span>
-      </td>
-      <td className="px-4 py-3 whitespace-nowrap text-right">
-        <div className="flex justify-end items-center gap-1.5">
-          {onView && (
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onView();
-              }}
-              className="bg-theme-surface-tertiary hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:hover:text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-theme-border/60 text-theme-text-secondary px-2 py-1 rounded-md cursor-pointer font-bold text-[11px] uppercase tracking-wider transition-all flex items-center gap-1"
-              title="ดูใบงานแบบเต็ม"
-            >
-              <Eye size={10} />
-              <span>View</span>
-            </button>
-          )}
-          {onEdit && (
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/25 active:scale-95 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-md cursor-pointer font-bold text-[11px] uppercase tracking-wider transition-all shadow-sm shadow-indigo-500/5"
-            >
-              Edit
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
-}

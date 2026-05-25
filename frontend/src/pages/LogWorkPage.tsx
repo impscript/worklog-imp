@@ -272,6 +272,11 @@ export default function LogWorkPage() {
   
   // Form State
   const [date, setDate] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return dateParam;
+    }
     const today = new Date();
     const y = today.getFullYear();
     const m = String(today.getMonth() + 1).padStart(2, '0');
@@ -322,6 +327,15 @@ export default function LogWorkPage() {
   const [isHolidayDate, setIsHolidayDate] = useState(false);
   const [holidayName, setHolidayName] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Synchronize URL parameter when search changes
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      setDate(dateParam);
+    }
+  }, [window.location.search]);
 
   // Load unique user list and default selection
   useEffect(() => {
