@@ -57,6 +57,14 @@ function getEndOfWorkdayTime(dateStr: string, isHoliday: boolean): string | null
   return '18:00';
 }
 
+function addMinutesToTime(timeStr: string, mins: number): string {
+  const [h, m] = (timeStr || '00:00').split(':').map(Number);
+  const totalMins = (h * 60 + m + mins + 1440) % 1440;
+  const newH = String(Math.floor(totalMins / 60)).padStart(2, '0');
+  const newM = String(totalMins % 60).padStart(2, '0');
+  return `${newH}:${newM}`;
+}
+
 function calculateSegmentHours(startTime: string, endTime: string, deductLunch = false): number {
   const [startH, startM] = startTime.split(':').map(Number);
   const [endH, endM] = endTime.split(':').map(Number);
@@ -1066,29 +1074,55 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
 
               <div>
                 <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">เวลาเริ่มงาน</label>
-                <select
+                <input
+                  type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                >
+                  list="edit-start-suggestions"
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all [&::-webkit-calendar-picker-indicator]:dark:invert"
+                />
+                <datalist id="edit-start-suggestions">
                   {timeOptions.map((opt) => (
-                    <option key={`start-${opt.value}`} value={opt.value}>{opt.label}</option>
+                    <option key={`edit-start-${opt.value}`} value={opt.value} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               <div>
                 <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">เวลาเลิกงาน</label>
-                <select
+                <input
+                  type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                >
+                  list="edit-end-suggestions"
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all [&::-webkit-calendar-picker-indicator]:dark:invert"
+                />
+                <datalist id="edit-end-suggestions">
                   {timeOptions.map((opt) => (
-                    <option key={`end-${opt.value}`} value={opt.value}>{opt.label}</option>
+                    <option key={`edit-end-${opt.value}`} value={opt.value} />
                   ))}
-                </select>
+                </datalist>
               </div>
+            </div>
+
+            {/* Quick Adjust Buttons */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] uppercase font-bold text-theme-text-muted mr-1 select-none">ปรับเวลา (End Time):</span>
+              {[-30, -10, -5, 5, 10, 15, 30, 60].map((mins) => {
+                const label = mins > 0 
+                  ? `+${mins >= 60 ? `${mins / 60}h` : `${mins}m`}` 
+                  : `${mins === -60 ? '-1h' : `${mins}m`}`;
+                return (
+                  <button
+                    key={`edit-adj-${mins}`}
+                    type="button"
+                    onClick={() => setEndTime(prev => addMinutesToTime(prev, mins))}
+                    className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-theme-border/60 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 text-theme-text-secondary hover:text-indigo-400 transition-all cursor-pointer active:scale-95"
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Overlap & duration summary alerts */}

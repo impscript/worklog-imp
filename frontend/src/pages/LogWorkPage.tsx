@@ -36,6 +36,14 @@ function getEndOfWorkdayTime(dateStr: string, isHoliday: boolean): string | null
   return '18:00';
 }
 
+function addMinutesToTime(timeStr: string, mins: number): string {
+  const [h, m] = (timeStr || '00:00').split(':').map(Number);
+  const totalMins = (h * 60 + m + mins + 1440) % 1440;
+  const newH = String(Math.floor(totalMins / 60)).padStart(2, '0');
+  const newM = String(totalMins % 60).padStart(2, '0');
+  return `${newH}:${newM}`;
+}
+
 function calculateSegmentHours(startTime: string, endTime: string, deductLunch = false): number {
   const [startH, startM] = startTime.split(':').map(Number);
   const [endH, endM] = endTime.split(':').map(Number);
@@ -1554,33 +1562,58 @@ export default function LogWorkPage() {
                 </div>
 
                 {timeMode === 'range' ? (
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1">
-                      <span className="block text-xs text-theme-text-secondary mb-1">เวลาเริ่มต้น / Start Time</span>
-                      <div className="relative">
-                        <select 
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <span className="block text-xs text-theme-text-secondary mb-1">เวลาเริ่มต้น / Start Time</span>
+                        <input 
+                          type="time"
                           value={startTime}
                           onChange={e => { setStartTime(e.target.value); setIsTimeCustomized(true); }}
-                          className="w-full appearance-none bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                        >
-                          {timeOptions.map(t => <option key={`start-${t.value}`} value={t.value}>{t.label}</option>)}
-                        </select>
-                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-secondary pointer-events-none" />
+                          list="start-time-suggestions"
+                          className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer [&::-webkit-calendar-picker-indicator]:dark:invert"
+                        />
+                        <datalist id="start-time-suggestions">
+                          {timeOptions.map(t => <option key={`start-suggest-${t.value}`} value={t.value} />)}
+                        </datalist>
                       </div>
-                    </div>
-                    <span className="text-slate-500 mt-4">-</span>
-                    <div className="flex-1">
-                      <span className="block text-xs text-theme-text-secondary mb-1">เวลาสิ้นสุด / End Time</span>
-                      <div className="relative">
-                        <select 
+                      <span className="text-slate-500 mt-4">-</span>
+                      <div className="flex-1">
+                        <span className="block text-xs text-theme-text-secondary mb-1">เวลาสิ้นสุด / End Time</span>
+                        <input 
+                          type="time"
                           value={endTime}
                           onChange={e => { setEndTime(e.target.value); setIsTimeCustomized(true); }}
-                          className="w-full appearance-none bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                        >
-                          {timeOptions.map(t => <option key={`end-${t.value}`} value={t.value}>{t.label}</option>)}
-                        </select>
-                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-secondary pointer-events-none" />
+                          list="end-time-suggestions"
+                          className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer [&::-webkit-calendar-picker-indicator]:dark:invert"
+                        />
+                        <datalist id="end-time-suggestions">
+                          {timeOptions.map(t => <option key={`end-suggest-${t.value}`} value={t.value} />)}
+                        </datalist>
                       </div>
+                    </div>
+                    
+                    {/* Quick Adjust Buttons */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+                      <span className="text-[10px] uppercase font-bold text-theme-text-muted mr-1 select-none">ปรับเวลา (End Time):</span>
+                      {[-30, -10, -5, 5, 10, 15, 30, 60].map((mins) => {
+                        const label = mins > 0 
+                          ? `+${mins >= 60 ? `${mins / 60}h` : `${mins}m`}` 
+                          : `${mins === -60 ? '-1h' : `${mins}m`}`;
+                        return (
+                          <button
+                            key={`adj-${mins}`}
+                            type="button"
+                            onClick={() => {
+                              setEndTime(prev => addMinutesToTime(prev, mins));
+                              setIsTimeCustomized(true);
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-theme-border/60 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 text-theme-text-secondary hover:text-indigo-400 transition-all cursor-pointer active:scale-95"
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : (
