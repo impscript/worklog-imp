@@ -16,13 +16,28 @@ export default function AdminPage() {
   const [editRow, setEditRow] = useState<any | null>(null);
   const [isMobileTabMenuOpen, setIsMobileTabMenuOpen] = useState(false);
 
+  // Project Structures specific filters
+  const [filterProject, setFilterProject] = useState('');
+  const [filterHolding, setFilterHolding] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterBU, setFilterBU] = useState('');
+
+  const resetFilters = () => {
+    setFilterProject('');
+    setFilterHolding('');
+    setFilterRole('');
+    setFilterType('');
+    setFilterBU('');
+  };
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const entriesPerPage = 10;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchQuery]);
+  }, [activeTab, searchQuery, filterProject, filterHolding, filterRole, filterType, filterBU]);
 
   // Database Data States
   const [holdings, setHoldings] = useState<any[]>([]);
@@ -117,6 +132,32 @@ export default function AdminPage() {
     if (!query) return holidaySuggestions;
     return holidaySuggestions.filter(name => name.toLowerCase().includes(query));
   }, [holidaySuggestions, formHolidayName]);
+
+  // Dynamic unique values for Project Structures filters
+  const uniqueProjects = useMemo(() => {
+    if (!projectStructures || !Array.isArray(projectStructures)) return [];
+    return Array.from(new Set(projectStructures.map(p => p.project_name))).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [projectStructures]);
+
+  const uniqueHoldings = useMemo(() => {
+    if (!projectStructures || !Array.isArray(projectStructures)) return [];
+    return Array.from(new Set(projectStructures.map(p => p.holding))).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [projectStructures]);
+
+  const uniqueRoles = useMemo(() => {
+    if (!projectStructures || !Array.isArray(projectStructures)) return [];
+    return Array.from(new Set(projectStructures.map(p => p.department_operator))).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [projectStructures]);
+
+  const uniqueProjectTypes = useMemo(() => {
+    if (!projectStructures || !Array.isArray(projectStructures)) return [];
+    return Array.from(new Set(projectStructures.map(p => p.project_type))).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [projectStructures]);
+
+  const uniqueBUs = useMemo(() => {
+    if (!projectStructures || !Array.isArray(projectStructures)) return [];
+    return Array.from(new Set(projectStructures.map(p => p.bu))).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [projectStructures]);
 
   // --- Project Structures Auto-editable DDL Cascading Suggestions ---
 
@@ -403,15 +444,25 @@ export default function AdminPage() {
           m.department_operator.toLowerCase().includes(q)
         );
       case 'map_project':
-        return projectStructures.filter(p => 
-          p.project_name.toLowerCase().includes(q) || 
-          p.holding.toLowerCase().includes(q) || 
-          p.department_operator.toLowerCase().includes(q) ||
-          p.project_type.toLowerCase().includes(q) ||
-          (p.module && p.module.toLowerCase().includes(q)) ||
-          p.bu.toLowerCase().includes(q) ||
-          p.department.toLowerCase().includes(q)
-        );
+        return projectStructures.filter(p => {
+          const matchesSearch = !q || (
+            p.project_name.toLowerCase().includes(q) || 
+            p.holding.toLowerCase().includes(q) || 
+            p.department_operator.toLowerCase().includes(q) ||
+            p.project_type.toLowerCase().includes(q) ||
+            (p.module && p.module.toLowerCase().includes(q)) ||
+            p.bu.toLowerCase().includes(q) ||
+            p.department.toLowerCase().includes(q)
+          );
+
+          const matchesHolding = !filterHolding || p.holding === filterHolding;
+          const matchesRole = !filterRole || p.department_operator === filterRole;
+          const matchesType = !filterType || p.project_type === filterType;
+          const matchesProject = !filterProject || p.project_name === filterProject;
+          const matchesBU = !filterBU || p.bu === filterBU;
+
+          return matchesSearch && matchesHolding && matchesRole && matchesType && matchesProject && matchesBU;
+        });
       case 'users':
         return usersList.filter(u => 
           u.full_name.toLowerCase().includes(q) || 
@@ -709,7 +760,7 @@ export default function AdminPage() {
                 return (
                   <button
                     key={tab.key}
-                    onClick={() => { setActiveTab(tab.key); setSearchQuery(''); }}
+                    onClick={() => { setActiveTab(tab.key); setSearchQuery(''); resetFilters(); }}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all border text-left",
                       activeTab === tab.key 
@@ -759,6 +810,7 @@ export default function AdminPage() {
                           onClick={() => {
                             setActiveTab(tab.key);
                             setSearchQuery('');
+                            resetFilters();
                             setIsMobileTabMenuOpen(false);
                           }}
                           className={cn(
@@ -781,19 +833,112 @@ export default function AdminPage() {
 
           {/* Table/Content Column */}
           <div className="flex-1 min-w-0 space-y-6">
-            {/* Search Bar */}
+            {/* Search Bar & Filters */}
             {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
-              <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-4 shadow-lg flex items-center">
-                <div className="relative w-full md:w-1/3">
-                  <input 
-                    type="text" 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={`Search in ${tabs.find(t => t.key === activeTab)?.label}...`}
-                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2 pl-10 pr-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                  />
-                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-secondary" />
+              <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-4 shadow-lg flex flex-col gap-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="relative w-full md:w-1/3">
+                    <input 
+                      type="text" 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={`Search in ${tabs.find(t => t.key === activeTab)?.label}...`}
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2 pl-10 pr-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
+                    />
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-secondary" />
+                  </div>
+                  
+                  {activeTab === 'map_project' && (
+                    (filterProject || filterHolding || filterRole || filterType || filterBU || searchQuery) && (
+                      <button
+                        onClick={() => { setSearchQuery(''); resetFilters(); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition-all self-start md:self-auto"
+                      >
+                        <RotateCcw size={12} />
+                        Clear All Filters
+                      </button>
+                    )
+                  )}
                 </div>
+
+                {activeTab === 'map_project' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-4 border-t border-theme-border/30">
+                    {/* Project Filter */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-theme-text-secondary">Project</label>
+                      <select
+                        value={filterProject}
+                        onChange={(e) => setFilterProject(e.target.value)}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
+                      >
+                        <option value="">All Projects</option>
+                        {uniqueProjects.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Holding Filter */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-theme-text-secondary">Holding</label>
+                      <select
+                        value={filterHolding}
+                        onChange={(e) => setFilterHolding(e.target.value)}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
+                      >
+                        <option value="">All Holdings</option>
+                        {uniqueHoldings.map(h => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Role Filter */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-theme-text-secondary">Role</label>
+                      <select
+                        value={filterRole}
+                        onChange={(e) => setFilterRole(e.target.value)}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
+                      >
+                        <option value="">All Roles</option>
+                        {uniqueRoles.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Type Filter */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-theme-text-secondary">Type</label>
+                      <select
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value)}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
+                      >
+                        <option value="">All Types</option>
+                        {uniqueProjectTypes.map(t => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* BU Filter */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-theme-text-secondary">BU / Dept</label>
+                      <select
+                        value={filterBU}
+                        onChange={(e) => setFilterBU(e.target.value)}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
+                      >
+                        <option value="">All BUs</option>
+                        {uniqueBUs.map(bu => (
+                          <option key={bu} value={bu}>{bu}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
