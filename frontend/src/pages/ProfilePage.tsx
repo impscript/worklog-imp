@@ -45,9 +45,9 @@ export default function ProfilePage() {
           try {
             setIsSyncing(true);
             const conn = await googleCalendar.handleCallbackCode(
-              code, 
+              code as string, 
               window.location.origin + '/profile', 
-              sessionData.id
+              sessionData?.id || ''
             );
             if (conn.connected) {
               setGcalConnected(true);
