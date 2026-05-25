@@ -378,6 +378,7 @@ class GoogleCalendarService {
       isOT ? '🔥 Category: Overtime (OT)' : null,
       entry.description ? `📝 ${entry.description}` : '📝 No description',
       '━━━━━━━━━━━━━━━━━━━━━━━━',
+      `🆔 ID: ${entry.id}`,
       `📌 Synced from Worklog NewGen Web App`
     ].filter(Boolean);
 
@@ -491,11 +492,19 @@ export async function syncWorklogToGCal(logId: string, action: 'insert' | 'updat
       const existingEvents = await googleCalendar.listEventsForDay(log.user_id, calendarId, log.work_date);
       
       const match = existingEvents.find((evt: any) => {
+        // High confidence match: event contains the worklog ID in the description
+        const idMatch = evt.description && evt.description.includes(`🆔 ID: ${log.id}`);
+        
+        // Fallback match for legacy events that don't have the ID in description yet
+        const hasAnyId = evt.description && evt.description.includes('🆔 ID:');
         const titleMatch = evt.summary === payload.summary;
         const descMatch = evt.description && 
           evt.description.includes(`🎯 Project: ${log.project_name}`) && 
           evt.description.includes(`⚡ Action: ${log.action_name}`);
-        return titleMatch || descMatch;
+        
+        const fallbackMatch = !hasAnyId && (titleMatch || descMatch);
+        
+        return idMatch || fallbackMatch;
       });
 
       if (match) {
