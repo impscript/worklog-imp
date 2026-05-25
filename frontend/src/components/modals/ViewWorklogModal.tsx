@@ -39,7 +39,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
       // 1. Delete from Google Calendar if event exists and calendar sync is configured
       if (log.gcal_event_id) {
         try {
-          const token = googleCalendar.getAccessToken();
+          const token = await googleCalendar.getAccessTokenAsync(log.user_id);
           if (token) {
             // Fetch user calendar settings
             const { data: user } = await supabase
@@ -51,7 +51,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
             if (user?.gcal_sync_enabled) {
               const calendarId = user.gcal_calendar_id || 'primary';
               console.log('[GCal Sync] Deleting event from Google Calendar:', log.gcal_event_id);
-              await googleCalendar.deleteEvent(calendarId, log.gcal_event_id);
+              await googleCalendar.deleteEvent(log.user_id, calendarId, log.gcal_event_id);
               console.log('[GCal Sync] Google Calendar event deleted successfully');
             }
           }

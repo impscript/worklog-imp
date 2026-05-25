@@ -67,6 +67,15 @@ export default function AdminPage() {
   const [formHolidayName, setFormHolidayName] = useState('');
   const [isHolidayDropdownOpen, setIsHolidayDropdownOpen] = useState(false);
 
+  // Project Structures Form - Project Name Auto-editable DDL States
+  const [isProjNameDropdownOpen, setIsProjNameDropdownOpen] = useState(false);
+  const [isModuleDropdownOpen, setIsModuleDropdownOpen] = useState(false);
+  const [isBUDropdownOpen, setIsBUDropdownOpen] = useState(false);
+  const [isDeptDropdownOpen, setIsDeptDropdownOpen] = useState(false);
+  const [isHoldingDropdownOpen, setIsHoldingDropdownOpen] = useState(false);
+  const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+
   // Common default Thai public holidays to seed options
   const defaultHolidayNames = useMemo(() => [
     'วันขึ้นปีใหม่',
@@ -108,6 +117,226 @@ export default function AdminPage() {
     if (!query) return holidaySuggestions;
     return holidaySuggestions.filter(name => name.toLowerCase().includes(query));
   }, [holidaySuggestions, formHolidayName]);
+
+  // --- Project Structures Auto-editable DDL Cascading Suggestions ---
+
+  // 1. Holding Suggestions (from master holdings)
+  const holdingSuggestions = useMemo(() => {
+    if (holdings && Array.isArray(holdings)) {
+      return holdings.map(h => h.holding_name).sort((a, b) => a.localeCompare(b));
+    }
+    return [];
+  }, [holdings]);
+
+  const filteredHoldingSuggestions = useMemo(() => {
+    const query = formStructHolding.toLowerCase().trim();
+    if (!query) return holdingSuggestions;
+    return holdingSuggestions.filter(name => name.toLowerCase().includes(query));
+  }, [holdingSuggestions, formStructHolding]);
+
+  // 2. Role Suggestions (Cascaded from Holding)
+  const roleSuggestions = useMemo(() => {
+    const selHolding = formStructHolding.trim().toLowerCase();
+    const rolesSet = new Set<string>();
+    
+    // Find roles mapped under this holding in existing structures
+    if (selHolding && projectStructures && Array.isArray(projectStructures)) {
+      projectStructures.forEach((p: any) => {
+        if (p.holding && p.holding.trim().toLowerCase() === selHolding && p.department_operator) {
+          rolesSet.add(p.department_operator.trim());
+        }
+      });
+    }
+    // Fallback to all master roles if no matches
+    if (rolesSet.size === 0 && roles && Array.isArray(roles)) {
+      roles.forEach((r: any) => {
+        if (r.role_name) rolesSet.add(r.role_name.trim());
+      });
+    }
+    return Array.from(rolesSet).sort((a, b) => a.localeCompare(b));
+  }, [roles, projectStructures, formStructHolding]);
+
+  const filteredRoleSuggestions = useMemo(() => {
+    const query = formStructRole.toLowerCase().trim();
+    if (!query) return roleSuggestions;
+    return roleSuggestions.filter(name => name.toLowerCase().includes(query));
+  }, [roleSuggestions, formStructRole]);
+
+  // 3. Project Type Suggestions (Cascaded from Holding + Role)
+  const typeSuggestions = useMemo(() => {
+    const selHolding = formStructHolding.trim().toLowerCase();
+    const selRole = formStructRole.trim().toLowerCase();
+    const typesSet = new Set<string>();
+    
+    // Find project types mapped under this holding + role combination in existing structures
+    if (projectStructures && Array.isArray(projectStructures)) {
+      projectStructures.forEach((p: any) => {
+        const matchesHolding = !selHolding || (p.holding && p.holding.trim().toLowerCase() === selHolding);
+        const matchesRole = !selRole || (p.department_operator && p.department_operator.trim().toLowerCase() === selRole);
+        if (matchesHolding && matchesRole && p.project_type) {
+          typesSet.add(p.project_type.trim());
+        }
+      });
+    }
+    // Fallback to all master project types if no matches
+    if (typesSet.size === 0 && projectTypes && Array.isArray(projectTypes)) {
+      projectTypes.forEach((t: any) => {
+        if (t.type_name) typesSet.add(t.type_name.trim());
+      });
+    }
+    return Array.from(typesSet).sort((a, b) => a.localeCompare(b));
+  }, [projectTypes, projectStructures, formStructHolding, formStructRole]);
+
+  const filteredTypeSuggestions = useMemo(() => {
+    const query = formStructType.toLowerCase().trim();
+    if (!query) return typeSuggestions;
+    return typeSuggestions.filter(name => name.toLowerCase().includes(query));
+  }, [typeSuggestions, formStructType]);
+
+  // 4. Project Name Suggestions (Cascaded from Holding + Role + Project Type)
+  const projNameSuggestions = useMemo(() => {
+    const selHolding = formStructHolding.trim().toLowerCase();
+    const selRole = formStructRole.trim().toLowerCase();
+    const selType = formStructType.trim().toLowerCase();
+    const names = new Set<string>();
+    
+    if (projectStructures && Array.isArray(projectStructures)) {
+      projectStructures.forEach((p: any) => {
+        const matchesHolding = !selHolding || (p.holding && p.holding.trim().toLowerCase() === selHolding);
+        const matchesRole = !selRole || (p.department_operator && p.department_operator.trim().toLowerCase() === selRole);
+        const matchesType = !selType || (p.project_type && p.project_type.trim().toLowerCase() === selType);
+        if (matchesHolding && matchesRole && matchesType && p.project_name && p.project_name.trim()) {
+          names.add(p.project_name.trim());
+        }
+      });
+      // Fallback to all unique project names globally if no matches with current filters
+      if (names.size === 0) {
+        projectStructures.forEach((p: any) => {
+          if (p.project_name && p.project_name.trim()) {
+            names.add(p.project_name.trim());
+          }
+        });
+      }
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [projectStructures, formStructHolding, formStructRole, formStructType]);
+
+  const filteredProjNameSuggestions = useMemo(() => {
+    const query = formStructProjName.toLowerCase().trim();
+    if (!query) return projNameSuggestions;
+    return projNameSuggestions.filter(name => name.toLowerCase().includes(query));
+  }, [projNameSuggestions, formStructProjName]);
+
+  // 5. Module Suggestions (Cascaded from Holding + Role + Type + Project Name)
+  const moduleSuggestions = useMemo(() => {
+    const selHolding = formStructHolding.trim().toLowerCase();
+    const selRole = formStructRole.trim().toLowerCase();
+    const selType = formStructType.trim().toLowerCase();
+    const selProj = formStructProjName.trim().toLowerCase();
+    const modules = new Set<string>();
+    
+    if (projectStructures && Array.isArray(projectStructures)) {
+      projectStructures.forEach((p: any) => {
+        const matchesHolding = !selHolding || (p.holding && p.holding.trim().toLowerCase() === selHolding);
+        const matchesRole = !selRole || (p.department_operator && p.department_operator.trim().toLowerCase() === selRole);
+        const matchesType = !selType || (p.project_type && p.project_type.trim().toLowerCase() === selType);
+        const matchesProj = !selProj || (p.project_name && p.project_name.trim().toLowerCase() === selProj);
+        
+        if (matchesHolding && matchesRole && matchesType && matchesProj && p.module && p.module.trim()) {
+          modules.add(p.module.trim());
+        }
+      });
+      // Fallback
+      if (modules.size === 0) {
+        projectStructures.forEach((p: any) => {
+          if (p.module && p.module.trim()) {
+            modules.add(p.module.trim());
+          }
+        });
+      }
+    }
+    return Array.from(modules).sort((a, b) => a.localeCompare(b));
+  }, [projectStructures, formStructHolding, formStructRole, formStructType, formStructProjName]);
+
+  const filteredModuleSuggestions = useMemo(() => {
+    const query = formStructModule.toLowerCase().trim();
+    if (!query) return moduleSuggestions;
+    return moduleSuggestions.filter(m => m.toLowerCase().includes(query));
+  }, [moduleSuggestions, formStructModule]);
+
+  // 6. Business Unit (BU) Suggestions (Cascaded from Holding + Role + Type + Project Name)
+  const buSuggestions = useMemo(() => {
+    const selHolding = formStructHolding.trim().toLowerCase();
+    const selRole = formStructRole.trim().toLowerCase();
+    const selType = formStructType.trim().toLowerCase();
+    const selProj = formStructProjName.trim().toLowerCase();
+    const bus = new Set<string>();
+    
+    if (projectStructures && Array.isArray(projectStructures)) {
+      projectStructures.forEach((p: any) => {
+        const matchesHolding = !selHolding || (p.holding && p.holding.trim().toLowerCase() === selHolding);
+        const matchesRole = !selRole || (p.department_operator && p.department_operator.trim().toLowerCase() === selRole);
+        const matchesType = !selType || (p.project_type && p.project_type.trim().toLowerCase() === selType);
+        const matchesProj = !selProj || (p.project_name && p.project_name.trim().toLowerCase() === selProj);
+        
+        if (matchesHolding && matchesRole && matchesType && matchesProj && p.bu && p.bu.trim()) {
+          bus.add(p.bu.trim());
+        }
+      });
+      // Fallback
+      if (bus.size === 0) {
+        projectStructures.forEach((p: any) => {
+          if (p.bu && p.bu.trim()) {
+            bus.add(p.bu.trim());
+          }
+        });
+      }
+    }
+    return Array.from(bus).sort((a, b) => a.localeCompare(b));
+  }, [projectStructures, formStructHolding, formStructRole, formStructType, formStructProjName]);
+
+  const filteredBUSuggestions = useMemo(() => {
+    const query = formStructBU.toLowerCase().trim();
+    if (!query) return buSuggestions;
+    return buSuggestions.filter(b => b.toLowerCase().includes(query));
+  }, [buSuggestions, formStructBU]);
+
+  // 7. Department Name Suggestions (Cascaded from Holding + Role + Type + Project Name)
+  const deptSuggestions = useMemo(() => {
+    const selHolding = formStructHolding.trim().toLowerCase();
+    const selRole = formStructRole.trim().toLowerCase();
+    const selType = formStructType.trim().toLowerCase();
+    const selProj = formStructProjName.trim().toLowerCase();
+    const depts = new Set<string>();
+    
+    if (projectStructures && Array.isArray(projectStructures)) {
+      projectStructures.forEach((p: any) => {
+        const matchesHolding = !selHolding || (p.holding && p.holding.trim().toLowerCase() === selHolding);
+        const matchesRole = !selRole || (p.department_operator && p.department_operator.trim().toLowerCase() === selRole);
+        const matchesType = !selType || (p.project_type && p.project_type.trim().toLowerCase() === selType);
+        const matchesProj = !selProj || (p.project_name && p.project_name.trim().toLowerCase() === selProj);
+        
+        if (matchesHolding && matchesRole && matchesType && matchesProj && p.department && p.department.trim()) {
+          depts.add(p.department.trim());
+        }
+      });
+      // Fallback
+      if (depts.size === 0) {
+        projectStructures.forEach((p: any) => {
+          if (p.department && p.department.trim()) {
+            depts.add(p.department.trim());
+          }
+        });
+      }
+    }
+    return Array.from(depts).sort((a, b) => a.localeCompare(b));
+  }, [projectStructures, formStructHolding, formStructRole, formStructType, formStructProjName]);
+
+  const filteredDeptSuggestions = useMemo(() => {
+    const query = formStructDept.toLowerCase().trim();
+    if (!query) return deptSuggestions;
+    return deptSuggestions.filter(d => d.toLowerCase().includes(query));
+  }, [deptSuggestions, formStructDept]);
 
   // Load All Master Data from Supabase
   const loadAllData = async () => {
@@ -203,6 +432,10 @@ export default function AdminPage() {
   // Open modal for Create/Edit
   const openModal = (row: any = null) => {
     setIsHolidayDropdownOpen(false);
+    setIsProjNameDropdownOpen(false);
+    setIsModuleDropdownOpen(false);
+    setIsBUDropdownOpen(false);
+    setIsDeptDropdownOpen(false);
     setEditRow(row);
     if (row) {
       // Edit mode pre-fills
@@ -245,9 +478,9 @@ export default function AdminPage() {
       setFormMapUserName('');
       setFormMapHolding(holdings[0]?.holding_name || '');
       setFormMapRole(roles[0]?.role_name || '');
-      setFormStructHolding(holdings[0]?.holding_name || '');
-      setFormStructRole(roles[0]?.role_name || '');
-      setFormStructType(projectTypes[0]?.type_name || '');
+      setFormStructHolding('');
+      setFormStructRole('');
+      setFormStructType('');
       setFormStructProjName('');
       setFormStructModule('');
       setFormStructBU('');
@@ -838,7 +1071,10 @@ export default function AdminPage() {
       {/* CRUD Overlay Modal Drawer */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/80 rounded-2xl p-6 md:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 text-theme-text">
+          <div className={cn(
+            "w-full bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/80 rounded-2xl p-6 md:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 text-theme-text",
+            (activeTab === 'map_project' || activeTab === 'users') ? "max-w-2xl" : "max-w-lg"
+          )}>
             <button 
               onClick={() => setIsModalOpen(false)}
               className="absolute top-5 right-5 text-theme-text-secondary hover:text-theme-text"
@@ -978,95 +1214,481 @@ export default function AdminPage() {
 
               {/* Tab 6: Project Structure Form */}
               {activeTab === 'map_project' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-2 pb-24">
                   <div>
                     <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Holding</label>
-                    <select
-                      value={formStructHolding}
-                      onChange={(e) => setFormStructHolding(e.target.value)}
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                      required
-                    >
-                      {holdings.map(h => (
-                        <option key={h.holding_name} value={h.holding_name}>{h.holding_name}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={formStructHolding}
+                        onChange={(e) => {
+                          setFormStructHolding(e.target.value);
+                          setIsHoldingDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsHoldingDropdownOpen(true)}
+                        placeholder="e.g. Double A"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 pr-12 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        required
+                      />
+                      {formStructHolding && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormStructHolding('');
+                            setIsHoldingDropdownOpen(true);
+                          }}
+                          className="absolute right-7 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsHoldingDropdownOpen(prev => !prev)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                      >
+                        <ChevronDown size={14} className={cn("transition-transform duration-200", isHoldingDropdownOpen && "rotate-180")} />
+                      </button>
+                      
+                      {isHoldingDropdownOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setIsHoldingDropdownOpen(false)} 
+                          />
+                          <ul className="absolute left-0 right-0 mt-1 bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 py-1 divide-y divide-theme-border/30 custom-scrollbar animate-in fade-in duration-100">
+                            {filteredHoldingSuggestions.length > 0 ? (
+                              filteredHoldingSuggestions.map((name) => (
+                                <li key={name}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormStructHolding(name);
+                                      setIsHoldingDropdownOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 text-theme-text hover:font-semibold transition-colors cursor-pointer whitespace-normal break-words"
+                                  >
+                                    {name}
+                                  </button>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="px-3 py-2 text-[11px] text-theme-text-muted italic">
+                                No matching holdings found. Press Save to use "{formStructHolding}"
+                              </li>
+                            )}
+                          </ul>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Role Operator</label>
-                    <select
-                      value={formStructRole}
-                      onChange={(e) => setFormStructRole(e.target.value)}
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                      required
-                    >
-                      {roles.map(r => (
-                        <option key={r.role_name} value={r.role_name}>{r.role_name}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={formStructRole}
+                        onChange={(e) => {
+                          setFormStructRole(e.target.value);
+                          setIsRoleDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsRoleDropdownOpen(true)}
+                        placeholder="e.g. IMP"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 pr-12 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        required
+                      />
+                      {formStructRole && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormStructRole('');
+                            setIsRoleDropdownOpen(true);
+                          }}
+                          className="absolute right-7 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsRoleDropdownOpen(prev => !prev)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                      >
+                        <ChevronDown size={14} className={cn("transition-transform duration-200", isRoleDropdownOpen && "rotate-180")} />
+                      </button>
+                      
+                      {isRoleDropdownOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setIsRoleDropdownOpen(false)} 
+                          />
+                          <ul className="absolute left-0 right-0 mt-1 bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 py-1 divide-y divide-theme-border/30 custom-scrollbar animate-in fade-in duration-100">
+                            {filteredRoleSuggestions.length > 0 ? (
+                              filteredRoleSuggestions.map((name) => (
+                                <li key={name}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormStructRole(name);
+                                      setIsRoleDropdownOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 text-theme-text hover:font-semibold transition-colors cursor-pointer whitespace-normal break-words"
+                                  >
+                                    {name}
+                                  </button>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="px-3 py-2 text-[11px] text-theme-text-muted italic">
+                                No matching roles found. Press Save to use "{formStructRole}"
+                              </li>
+                            )}
+                          </ul>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Project Type</label>
-                    <select
-                      value={formStructType}
-                      onChange={(e) => setFormStructType(e.target.value)}
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                      required
-                    >
-                      {projectTypes.map(t => (
-                        <option key={t.type_name} value={t.type_name}>{t.type_name}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={formStructType}
+                        onChange={(e) => {
+                          setFormStructType(e.target.value);
+                          setIsTypeDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsTypeDropdownOpen(true)}
+                        placeholder="e.g. Support Go-Live"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 pr-12 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        required
+                      />
+                      {formStructType && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormStructType('');
+                            setIsTypeDropdownOpen(true);
+                          }}
+                          className="absolute right-7 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsTypeDropdownOpen(prev => !prev)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                      >
+                        <ChevronDown size={14} className={cn("transition-transform duration-200", isTypeDropdownOpen && "rotate-180")} />
+                      </button>
+                      
+                      {isTypeDropdownOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setIsTypeDropdownOpen(false)} 
+                          />
+                          <ul className="absolute left-0 right-0 mt-1 bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 py-1 divide-y divide-theme-border/30 custom-scrollbar animate-in fade-in duration-100">
+                            {filteredTypeSuggestions.length > 0 ? (
+                              filteredTypeSuggestions.map((name) => (
+                                <li key={name}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormStructType(name);
+                                      setIsTypeDropdownOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 text-theme-text hover:font-semibold transition-colors cursor-pointer whitespace-normal break-words"
+                                  >
+                                    {name}
+                                  </button>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="px-3 py-2 text-[11px] text-theme-text-muted italic">
+                                No matching types found. Press Save to use "{formStructType}"
+                              </li>
+                            )}
+                          </ul>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Project Name</label>
-                    <input 
-                      type="text" 
-                      value={formStructProjName}
-                      onChange={(e) => setFormStructProjName(e.target.value)}
-                      placeholder="e.g. ERP - Netsuite"
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      required
-                    />
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={formStructProjName}
+                        onChange={(e) => {
+                          setFormStructProjName(e.target.value);
+                          setIsProjNameDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsProjNameDropdownOpen(true)}
+                        placeholder="e.g. ERP - Netsuite"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 pr-12 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        required
+                      />
+                      {formStructProjName && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormStructProjName('');
+                            setIsProjNameDropdownOpen(true);
+                          }}
+                          className="absolute right-7 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsProjNameDropdownOpen(prev => !prev)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                      >
+                        <ChevronDown size={14} className={cn("transition-transform duration-200", isProjNameDropdownOpen && "rotate-180")} />
+                      </button>
+                      
+                      {isProjNameDropdownOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setIsProjNameDropdownOpen(false)} 
+                          />
+                          <ul className="absolute left-0 right-0 mt-1 bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 py-1 divide-y divide-theme-border/30 custom-scrollbar animate-in fade-in duration-100">
+                            {filteredProjNameSuggestions.length > 0 ? (
+                              filteredProjNameSuggestions.map((name) => (
+                                <li key={name}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormStructProjName(name);
+                                      setIsProjNameDropdownOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 text-theme-text hover:font-semibold transition-colors cursor-pointer whitespace-normal break-words"
+                                  >
+                                    {name}
+                                  </button>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="px-3 py-2 text-[11px] text-theme-text-muted italic">
+                                No matching projects found. Press Save to use "{formStructProjName}"
+                              </li>
+                            )}
+                          </ul>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Module (Optional)</label>
-                    <input 
-                      type="text" 
-                      value={formStructModule}
-                      onChange={(e) => setFormStructModule(e.target.value)}
-                      placeholder="e.g. Item Master"
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    />
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={formStructModule}
+                        onChange={(e) => {
+                          setFormStructModule(e.target.value);
+                          setIsModuleDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsModuleDropdownOpen(true)}
+                        placeholder="e.g. Item Master"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 pr-12 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      {formStructModule && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormStructModule('');
+                            setIsModuleDropdownOpen(true);
+                          }}
+                          className="absolute right-7 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsModuleDropdownOpen(prev => !prev)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                      >
+                        <ChevronDown size={14} className={cn("transition-transform duration-200", isModuleDropdownOpen && "rotate-180")} />
+                      </button>
+                      
+                      {isModuleDropdownOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setIsModuleDropdownOpen(false)} 
+                          />
+                          <ul className="absolute left-0 right-0 mt-1 bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 py-1 divide-y divide-theme-border/30 custom-scrollbar animate-in fade-in duration-100">
+                            {filteredModuleSuggestions.length > 0 ? (
+                              filteredModuleSuggestions.map((name) => (
+                                <li key={name}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormStructModule(name);
+                                      setIsModuleDropdownOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 text-theme-text hover:font-semibold transition-colors cursor-pointer whitespace-normal break-words"
+                                  >
+                                    {name}
+                                  </button>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="px-3 py-2 text-[11px] text-theme-text-muted italic">
+                                No matching modules found. Press Save to use "{formStructModule}"
+                              </li>
+                            )}
+                          </ul>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Business Unit (BU)</label>
-                    <input 
-                      type="text" 
-                      value={formStructBU}
-                      onChange={(e) => setFormStructBU(e.target.value)}
-                      placeholder="e.g. Master Data"
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      required
-                    />
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={formStructBU}
+                        onChange={(e) => {
+                          setFormStructBU(e.target.value);
+                          setIsBUDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsBUDropdownOpen(true)}
+                        placeholder="e.g. Master Data"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 pr-12 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        required
+                      />
+                      {formStructBU && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormStructBU('');
+                            setIsBUDropdownOpen(true);
+                          }}
+                          className="absolute right-7 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsBUDropdownOpen(prev => !prev)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                      >
+                        <ChevronDown size={14} className={cn("transition-transform duration-200", isBUDropdownOpen && "rotate-180")} />
+                      </button>
+                      
+                      {isBUDropdownOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setIsBUDropdownOpen(false)} 
+                          />
+                          <ul className="absolute left-0 right-0 bottom-full mb-1 bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 py-1 divide-y divide-theme-border/30 custom-scrollbar animate-in fade-in duration-100">
+                            {filteredBUSuggestions.length > 0 ? (
+                              filteredBUSuggestions.map((name) => (
+                                <li key={name}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormStructBU(name);
+                                      setIsBUDropdownOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 text-theme-text hover:font-semibold transition-colors cursor-pointer whitespace-normal break-words"
+                                  >
+                                    {name}
+                                  </button>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="px-3 py-2 text-[11px] text-theme-text-muted italic">
+                                No matching BUs found. Press Save to use "{formStructBU}"
+                              </li>
+                            )}
+                          </ul>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Department Name</label>
-                    <input 
-                      type="text" 
-                      value={formStructDept}
-                      onChange={(e) => setFormStructDept(e.target.value)}
-                      placeholder="e.g. IT"
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      required
-                    />
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={formStructDept}
+                        onChange={(e) => {
+                          setFormStructDept(e.target.value);
+                          setIsDeptDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsDeptDropdownOpen(true)}
+                        placeholder="e.g. IT"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 pr-12 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        required
+                      />
+                      {formStructDept && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormStructDept('');
+                            setIsDeptDropdownOpen(true);
+                          }}
+                          className="absolute right-7 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsDeptDropdownOpen(prev => !prev)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-theme-text cursor-pointer rounded"
+                      >
+                        <ChevronDown size={14} className={cn("transition-transform duration-200", isDeptDropdownOpen && "rotate-180")} />
+                      </button>
+                      
+                      {isDeptDropdownOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setIsDeptDropdownOpen(false)} 
+                          />
+                          <ul className="absolute left-0 right-0 bottom-full mb-1 bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-50 py-1 divide-y divide-theme-border/30 custom-scrollbar animate-in fade-in duration-100">
+                            {filteredDeptSuggestions.length > 0 ? (
+                              filteredDeptSuggestions.map((name) => (
+                                <li key={name}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormStructDept(name);
+                                      setIsDeptDropdownOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 text-theme-text hover:font-semibold transition-colors cursor-pointer whitespace-normal break-words"
+                                  >
+                                    {name}
+                                  </button>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="px-3 py-2 text-[11px] text-theme-text-muted italic">
+                                No matching departments found. Press Save to use "{formStructDept}"
+                              </li>
+                            )}
+                          </ul>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Tab 7: System Users Form */}
               {activeTab === 'users' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-2">
                   <div>
                     <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Employee ID</label>
                     <input 

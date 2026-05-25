@@ -33,7 +33,52 @@ export default function ProfilePage() {
     setSession(sessionData);
 
 
-    // Handle Google Calendar redirect callback hash
+    // Handle Google Calendar redirect callback code (offline access)
+    if (window.location.search) {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      if (code) {
+        // Clear query parameters from address bar immediately
+        window.history.replaceState(null, "", window.location.pathname);
+        
+        async function processOAuthCallbackCode() {
+          try {
+            setIsSyncing(true);
+            const conn = await googleCalendar.handleCallbackCode(
+              code, 
+              window.location.origin + '/profile', 
+              sessionData.id
+            );
+            if (conn.connected) {
+              setGcalConnected(true);
+              setGcalEmail(conn.email || '');
+              setGcalSyncEnabled(true);
+              setToastMessage('Google Calendar Connected Successfully! 🎉');
+              
+              const origin = localStorage.getItem('gcal_pending_origin');
+              if (origin) {
+                localStorage.removeItem('gcal_pending_origin');
+                setTimeout(() => {
+                  navigate(origin);
+                }, 1200);
+                return;
+              }
+              
+              setTimeout(() => setToastMessage(null), 5000);
+            }
+          } catch (err) {
+            console.error('Failed to parse Google OAuth callback code:', err);
+            setToastMessage('Failed to connect Google Calendar.');
+            setTimeout(() => setToastMessage(null), 5000);
+          } finally {
+            setIsSyncing(false);
+          }
+        }
+        processOAuthCallbackCode();
+      }
+    }
+
+    // Handle Google Calendar redirect callback hash (Legacy fallback)
     if (window.location.hash) {
       const hash = window.location.hash;
       if (hash.includes('access_token')) {
@@ -113,9 +158,12 @@ export default function ProfilePage() {
           setGcalSyncEnabled(dbUser.gcal_sync_enabled || false);
           setGcalEmail(dbUser.gcal_email || '');
           setGcalCalendarId(dbUser.gcal_calendar_id || 'primary');
-          
-          // Keep connected state true if user enabled sync, even if session token temporarily expired
           setGcalConnected(dbUser.gcal_sync_enabled || false);
+
+          if (dbUser.gcal_sync_enabled) {
+            // Attempt to silently refresh token in the background so the UI updates
+            await googleCalendar.getAccessTokenAsync(sessionData.id);
+          }
         }
       } catch (err) {
         console.error('Error loading profile data:', err);

@@ -49,7 +49,6 @@ export default function CalendarPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; status: string } | null>(null);
   const [gcalConnected, setGcalConnected] = useState(false);
-  const [gcalSyncEnabled, setGcalSyncEnabled] = useState(false);
   
   // ── Sync Result / Warning Modal State ────────────────────────────────────────
   const [syncAlert, setSyncAlert] = useState<{
@@ -167,10 +166,15 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!sessionUser?.id) return;
     googleCalendar.checkSessionReady(sessionUser.id).then(({ ready, syncEnabled }) => {
-      setGcalSyncEnabled(syncEnabled);
       setGcalConnected(syncEnabled && ready);
     });
   }, [sessionUser]);
+
+  // ── Google Calendar Connect/OAuth Redirection ──────────────────────────────
+  const handleConnectGCal = () => {
+    localStorage.setItem('gcal_pending_origin', '/calendar');
+    window.location.href = googleCalendar.getAuthUrl();
+  };
 
   // ── Month Re-Sync Handler ─────────────────────────────────────────────────────
   const handleMonthResync = async () => {
@@ -179,8 +183,12 @@ export default function CalendarPage() {
       setSyncAlert({
         isOpen: true,
         title: 'Google Calendar ยังไม่ได้เชื่อมต่อ',
-        message: 'Google Calendar ยังไม่ได้เชื่อมต่อ หรือ Session หมดอายุ\nกรุณาไปที่หน้าข้อมูลส่วนตัว (Profile) เพื่อ Reconnect ก่อนนะคะ',
-        type: 'warning'
+        message: 'Google Calendar ยังไม่ได้เชื่อมต่อ หรือ Session หมดอายุ\nต้องการเชื่อมต่อระบบ Google Calendar ตอนนี้เลยหรือไม่?',
+        type: 'warning',
+        isConfirm: true,
+        onConfirm: () => {
+          handleConnectGCal();
+        }
       });
       return;
     }
@@ -245,8 +253,12 @@ export default function CalendarPage() {
       setSyncAlert({
         isOpen: true,
         title: 'Google Calendar ยังไม่ได้เชื่อมต่อ',
-        message: 'Google Calendar ยังไม่ได้เชื่อมต่อ หรือ Session หมดอายุ\nกรุณาไปที่หน้าข้อมูลส่วนตัว (Profile) เพื่อ Reconnect ก่อนนะคะ',
-        type: 'warning'
+        message: 'Google Calendar ยังไม่ได้เชื่อมต่อ หรือ Session หมดอายุ\nต้องการเชื่อมต่อระบบ Google Calendar ตอนนี้เลยหรือไม่?',
+        type: 'warning',
+        isConfirm: true,
+        onConfirm: () => {
+          handleConnectGCal();
+        }
       });
       return;
     }
@@ -286,7 +298,7 @@ export default function CalendarPage() {
           
           // 1. Fetch all events for the entire month range from Google Calendar
           console.log('[Clean Sync] Fetching events for range:', monthStart, 'to', monthEnd);
-          const allEvents = await googleCalendar.listEventsForRange(calendarId, monthStart, monthEnd);
+          const allEvents = await googleCalendar.listEventsForRange(userObj.id, calendarId, monthStart, monthEnd);
           
           // Filter only events created by our app
           const appEvents = allEvents.filter((evt: any) => {
@@ -308,7 +320,7 @@ export default function CalendarPage() {
               status: `🧹 กำลังลบข้อมูลเก่า: ${evt.summary}`
             });
             try {
-              await googleCalendar.deleteEvent(calendarId, evt.id);
+              await googleCalendar.deleteEvent(userObj.id, calendarId, evt.id);
             } catch (e) {
               console.warn('[Clean Sync] Failed to delete event:', evt.id, e);
             }
@@ -477,75 +489,82 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* GCal Re-Sync Panel — only shown for own calendar with sync enabled */}
-            {gcalSyncEnabled && selectedUserId === sessionUser?.id && (
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Sync Status Badge */}
-                <div className={cn(
-                  "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold font-mono transition-colors",
-                  syncedCount === currentMonthEntries.length && currentMonthEntries.length > 0
-                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                    : unsyncedEntries.length > 0
-                      ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
-                      : "bg-theme-surface-tertiary border-theme-border/50 text-theme-text-muted"
-                )}>
-                  <CalendarCheck size={12} />
-                  <span>
-                    {currentMonthEntries.length === 0
-                      ? 'ไม่มีใบงานเดือนนี้'
-                      : `${syncedCount}/${currentMonthEntries.length} synced`
-                    }
-                  </span>
-                  {!gcalConnected && (
-                    <span className="ml-1 text-rose-400">(disconnected)</span>
-                  )}
-                </div>
-
-                {/* Re-Sync Button */}
-                {unsyncedEntries.length > 0 && (
+            {/* Google Calendar Connection / Sync Actions — only shown for own calendar */}
+            {selectedUserId === sessionUser?.id && (
+              <>
+                {!gcalConnected ? (
                   <button
-                    onClick={handleMonthResync}
-                    disabled={isSyncing}
-                    title={`Re-sync ${unsyncedEntries.length} ใบงานที่ยังไม่ได้ sync`}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all active:scale-95",
-                      isSyncing
-                        ? "bg-indigo-500/5 border-indigo-500/10 text-indigo-400/50 cursor-not-allowed"
-                        : gcalConnected
-                          ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 cursor-pointer"
-                          : "bg-rose-500/10 border-rose-500/20 text-rose-400 cursor-pointer"
-                    )}
+                    onClick={handleConnectGCal}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-indigo-500/30 text-xs font-bold bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 active:scale-95 transition-all cursor-pointer shadow-md shadow-indigo-500/5 animate-pulse"
                   >
-                    <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-                    <span>
-                      {isSyncing
-                        ? syncProgress ? `${syncProgress.current}/${syncProgress.total}` : '...'
-                        : `Re-sync ${unsyncedEntries.length}`
-                      }
-                    </span>
+                    <CalendarCheck size={14} className="text-indigo-400 shrink-0" />
+                    <span>Connect Google Calendar</span>
                   </button>
-                )}
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Sync Status Badge */}
+                    <div className={cn(
+                      "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold font-mono transition-colors",
+                      syncedCount === currentMonthEntries.length && currentMonthEntries.length > 0
+                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                        : unsyncedEntries.length > 0
+                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                          : "bg-theme-surface-tertiary border-theme-border/50 text-theme-text-muted"
+                    )}>
+                      <CalendarCheck size={12} />
+                      <span>
+                        {currentMonthEntries.length === 0
+                          ? 'ไม่มีใบงานเดือนนี้'
+                          : `${syncedCount}/${currentMonthEntries.length} synced`
+                        }
+                      </span>
+                    </div>
 
-                {/* Clean Sync Button (ล้างและซิงค์ใหม่) */}
-                {currentMonthEntries.length > 0 && gcalConnected && (
-                  <button
-                    onClick={handleMonthCleanSync}
-                    disabled={isSyncing}
-                    title="ล้างใบงานบนปฏิทินที่ซ้ำซ้อนและซิงค์ข้อมูลใหม่ทั้งหมดในเดือนนี้"
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all active:scale-95 cursor-pointer",
-                      isSyncing
-                        ? "bg-rose-500/5 border-rose-500/10 text-rose-400/50 cursor-not-allowed"
-                        : "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20"
+                    {/* Re-Sync Button */}
+                    {unsyncedEntries.length > 0 && (
+                      <button
+                        onClick={handleMonthResync}
+                        disabled={isSyncing}
+                        title={`Re-sync ${unsyncedEntries.length} ใบงานที่ยังไม่ได้ sync`}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all active:scale-95 cursor-pointer",
+                          isSyncing
+                            ? "bg-indigo-500/5 border-indigo-500/10 text-indigo-400/50 cursor-not-allowed"
+                            : "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
+                        )}
+                      >
+                        <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
+                        <span>
+                          {isSyncing
+                            ? syncProgress ? `${syncProgress.current}/${syncProgress.total}` : '...'
+                            : `Re-sync ${unsyncedEntries.length}`
+                          }
+                        </span>
+                      </button>
                     )}
-                  >
-                    <svg className={cn("w-3.5 h-3.5", isSyncing ? 'animate-spin' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    <span>ล้างและซิงค์ใหม่</span>
-                  </button>
+
+                    {/* Clean Sync Button (ล้างและซิงค์ใหม่) */}
+                    {currentMonthEntries.length > 0 && (
+                      <button
+                        onClick={handleMonthCleanSync}
+                        disabled={isSyncing}
+                        title="ล้างใบงานบนปฏิทินที่ซ้ำซ้อนและซิงค์ข้อมูลใหม่ทั้งหมดในเดือนนี้"
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all active:scale-95 cursor-pointer",
+                          isSyncing
+                            ? "bg-rose-500/5 border-rose-500/10 text-rose-400/50 cursor-not-allowed"
+                            : "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20"
+                        )}
+                      >
+                        <svg className={cn("w-3.5 h-3.5", isSyncing ? 'animate-spin' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span>ล้างและซิงค์ใหม่</span>
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
 
             <button 
