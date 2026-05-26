@@ -150,6 +150,12 @@ export function useAuth() {
         const department = employeeData.Department || employeeData.department || 'IMP';
         const position = employeeData.Position || employeeData.position || 'Specialist';
         const phone = employeeData.Sim_Number || employeeData.phone || '';
+        
+        // Extract new profile fields
+        const roleStartDate = employeeData.StartDate ? employeeData.StartDate.split('T')[0] : null;
+        const employeeLevel = employeeData.LevelName || 'Senior';
+        const companyCode = employeeData.Company_Code || '';
+        const companyName = employeeData.CompanyName || '';
 
         // Upsert corporate profile dynamically (Just-In-Time provisioning)
         const { data: upsertedUser, error: upsertErr } = await supabase
@@ -162,6 +168,10 @@ export function useAuth() {
             department: department,
             position: position,
             phone: phone,
+            employee_level: employeeLevel,
+            role_start_date: roleStartDate,
+            company_code: companyCode,
+            company_name: companyName,
             status: 'Active',
             updated_at: new Date().toISOString()
           }, { onConflict: 'emp_id' })

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Eye, EyeOff, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, ChevronUp, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Eye, EyeOff, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
@@ -2505,205 +2505,227 @@ function AISettingsManager() {
 // AI PROMPT TEMPLATES MANAGER
 // ─────────────────────────────────────────────────────────────
 
-const PROMPT_DEFAULTS = {
-  prompt_enhance_system: `You are an expert HR Coach and Technical Writer helper. Your job is to rewrite raw employee work logs into professional, business-oriented descriptions.`,
+// const PROMPT_DEFAULTS = {
+//   prompt_enhance_system: `You are an expert HR Coach and Technical Writer helper. Your job is to rewrite raw employee work logs into professional, business-oriented descriptions.`,
+// 
+//   prompt_enhance_user: `Context details:
+// - Project Name: {project_name}
+// - Category/Action: {action_name}
+// - Duration of task: {duration} hours
+// 
+// RAW WORK LOG DESCRIPTION TO REPHRASE:
+// {description}
+// 
+// INSTRUCTION:
+// Politely rephrase this work log in the same language it was written (Thai or English) to sound extremely professional, emphasizing business impact, cost-saving, time efficiency, and strategic execution. Keep it concise (1-3 sentences). Only return the final refined description text. Do not include prefix comments like "Here is the rephrased text:" or similar.`,
+// 
+//   prompt_audit_system: `You are a professional HR diagnostic agent analyzing employee performance and workload. You must STRICTLY return a JSON object containing the exact keys requested. Do not return markdown wrapped JSON blocks.`,
+// 
+//   prompt_audit_user: `[EMPLOYEE PROFILE]
+// Name: {employee_name}
+// Position: {position}
+// Role: {role}
+// Department: {department}
+// 
+// [TARGET JOB DESCRIPTION]
+// {job_description}
+// 
+// [ACTUAL LOGGED WORK DATA (Past {duration_days} Days)]
+// Total effort hours logged: {total_hours} hours
+// Average hours per day: {avg_hours_per_day} hours
+// Key tasks done:
+// {worklog_summary}
+// 
+// INSTRUCTION:
+// Compare the actual logged work data against the employee's Job Description (JD). Assess how aligned their activities are to their core responsibilities, and analyze if they show signs of workload overloading or underutilization.
+// 
+// Strictly return a raw JSON object (no markdown wrapping) matching this schema:
+// {
+//   "jd_alignment_score": integer (0 to 100),
+//   "burnout_risk_score": integer (0 to 100),
+//   "workload_allocation": [
+//     {
+//       "category": "string",
+//       "target_weight_pct": number,
+//       "actual_weight_pct": number,
+//       "evaluation": "Aligned | Overloaded | Underutilized"
+//     }
+//   ],
+//   "strengths": ["string"],
+//   "improvements": ["string"],
+//   "development_plan": {
+//     "short_term_90_days": "string",
+//     "long_term_goals": "string"
+//   },
+//   "markdown_executive_summary": "string (beautifully formatted markdown summary)"
+// }`,
+// };
 
-  prompt_enhance_user: `Context details:
-- Project Name: {project_name}
-- Category/Action: {action_name}
-- Duration of task: {duration} hours
-
-RAW WORK LOG DESCRIPTION TO REPHRASE:
-{description}
-
-INSTRUCTION:
-Politely rephrase this work log in the same language it was written (Thai or English) to sound extremely professional, emphasizing business impact, cost-saving, time efficiency, and strategic execution. Keep it concise (1-3 sentences). Only return the final refined description text. Do not include prefix comments like "Here is the rephrased text:" or similar.`,
-
-  prompt_audit_system: `You are a professional HR diagnostic agent analyzing employee performance and workload. You must STRICTLY return a JSON object containing the exact keys requested. Do not return markdown wrapped JSON blocks.`,
-
-  prompt_audit_user: `[EMPLOYEE PROFILE]
-Name: {employee_name}
-Position: {position}
-Role: {role}
-Department: {department}
-
-[TARGET JOB DESCRIPTION]
-{job_description}
-
-[ACTUAL LOGGED WORK DATA (Past {duration_days} Days)]
-Total effort hours logged: {total_hours} hours
-Average hours per day: {avg_hours_per_day} hours
-Key tasks done:
-{worklog_summary}
-
-INSTRUCTION:
-Compare the actual logged work data against the employee's Job Description (JD). Assess how aligned their activities are to their core responsibilities, and analyze if they show signs of workload overloading or underutilization.
-
-Strictly return a raw JSON object (no markdown wrapping) matching this schema:
-{
-  "jd_alignment_score": integer (0 to 100),
-  "burnout_risk_score": integer (0 to 100),
-  "workload_allocation": [
-    {
-      "category": "string",
-      "target_weight_pct": number,
-      "actual_weight_pct": number,
-      "evaluation": "Aligned | Overloaded | Underutilized"
-    }
-  ],
-  "strengths": ["string"],
-  "improvements": ["string"],
-  "development_plan": {
-    "short_term_90_days": "string",
-    "long_term_goals": "string"
-  },
-  "markdown_executive_summary": "string (beautifully formatted markdown summary)"
-}`,
-};
-
-const PROMPT_SECTIONS = [
-  {
-    id: 'enhance',
-    label: '✍️ Worklog Enhancement',
-    description: 'ปรับปรุงการเขียนใบงานให้เป็นมืออาชีพ — AI Polish feature',
-    color: 'indigo',
-    fields: [
-      {
-        key: 'prompt_enhance_system',
-        label: 'System Prompt',
-        hint: 'กำหนดบทบาทของ AI (ห้ามลบ {variables})',
-        rows: 3,
-      },
-      {
-        key: 'prompt_enhance_user',
-        label: 'User Prompt Template',
-        hint: 'Variables: {project_name}, {action_name}, {duration}, {description}',
-        rows: 10,
-      },
-    ],
-  },
-  {
-    id: 'audit',
-    label: '📊 Individual Performance Analysis',
-    description: 'วิเคราะห์พนักงานรายบุคคล เทียบกับ JD — หน้า Reports Individual',
-    color: 'violet',
-    fields: [
-      {
-        key: 'prompt_audit_system',
-        label: 'System Prompt',
-        hint: 'กำหนดบทบาทของ AI — ควรให้ return JSON เสมอ',
-        rows: 3,
-      },
-      {
-        key: 'prompt_audit_user',
-        label: 'User Prompt Template',
-        hint: 'Variables: {employee_name}, {position}, {role}, {department}, {job_description}, {duration_days}, {total_hours}, {avg_hours_per_day}, {worklog_summary}',
-        rows: 14,
-      },
-    ],
-  },
-];
+// const PROMPT_SECTIONS = [
+//   {
+//     id: 'enhance',
+//     label: '✍️ Worklog Enhancement',
+//     description: 'ปรับปรุงการเขียนใบงานให้เป็นมืออาชีพ — AI Polish feature',
+//     color: 'indigo',
+//     fields: [
+//       {
+//         key: 'prompt_enhance_system',
+//         label: 'System Prompt',
+//         hint: 'กำหนดบทบาทของ AI (ห้ามลบ {variables})',
+//         rows: 3,
+//       },
+//       {
+//         key: 'prompt_enhance_user',
+//         label: 'User Prompt Template',
+//         hint: 'Variables: {project_name}, {action_name}, {duration}, {description}',
+//         rows: 10,
+//       },
+//     ],
+//   },
+//   {
+//     id: 'audit',
+//     label: '📊 Individual Performance Analysis',
+//     description: 'วิเคราะห์พนักงานรายบุคคล เทียบกับ JD — หน้า Reports Individual',
+//     color: 'violet',
+//     fields: [
+//       {
+//         key: 'prompt_audit_system',
+//         label: 'System Prompt',
+//         hint: 'กำหนดบทบาทของ AI — ควรให้ return JSON เสมอ',
+//         rows: 3,
+//       },
+//       {
+//         key: 'prompt_audit_user',
+//         label: 'User Prompt Template',
+//         hint: 'Variables: {employee_name}, {position}, {role}, {department}, {job_description}, {duration_days}, {total_hours}, {avg_hours_per_day}, {worklog_summary}',
+//         rows: 14,
+//       },
+//     ],
+//   },
+// ];
 
 function AIPromptsManager() {
-  const { showToast, showConfirm } = useNotification();
-  const [prompts, setPrompts] = useState<{ [key: string]: string }>(
-    Object.fromEntries(Object.keys(PROMPT_DEFAULTS).map((k) => [k, '']))
-  );
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [collapsed, setCollapsed] = useState<{ [id: string]: boolean }>({});
-  const [dbError, setDbError] = useState<string | null>(null);
+  const { showToast } = useNotification();
 
+  // ── Legacy Worklog Enhancement prompts (tb_system_config) ──────────
+  const LEGACY_DEFAULTS = {
+    prompt_enhance_system: `You are an expert HR Coach and Technical Writer helper. Your job is to rewrite raw employee work logs into professional, business-oriented descriptions.`,
+    prompt_enhance_user: `Context details:\n- Project Name: {project_name}\n- Category/Action: {action_name}\n- Duration of task: {duration} hours\n\nRAW WORK LOG DESCRIPTION TO REPHRASE:\n{description}\n\nINSTRUCTION:\nPolitely rephrase this work log in the same language it was written (Thai or English) to sound extremely professional, emphasizing business impact, cost-saving, time efficiency, and strategic execution. Keep it concise (1-3 sentences). Only return the final refined description text. Do not include prefix comments like "Here is the rephrased text:" or similar.`,
+  };
+  const [legacyPrompts, setLegacyPrompts] = useState<{ [key: string]: string }>(LEGACY_DEFAULTS);
+  const [savingLegacy, setSavingLegacy] = useState(false);
+
+  // ── AI Prompt Templates (tb_ai_prompt_templates) ──────────────────
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null);
+
+  // ── Load everything on mount ───────────────────────────────────────
   useEffect(() => {
-    fetchPrompts();
+    fetchLegacyPrompts();
+    fetchTemplates();
   }, []);
 
-  const fetchPrompts = async () => {
-    try {
-      setLoading(true);
-      setDbError(null);
-      const keys = Object.keys(PROMPT_DEFAULTS);
-      const { data, error } = await supabase
-        .from('tb_system_config')
-        .select('config_key, config_value')
-        .in('config_key', keys);
-      if (error) throw error;
-
-      const map: { [key: string]: string } = { ...PROMPT_DEFAULTS };
-      (data || []).forEach((row) => {
-        if (row.config_value) map[row.config_key] = row.config_value;
-      });
-      setPrompts(map);
-    } catch (err: any) {
-      setDbError('ไม่สามารถโหลด prompt templates ได้: ' + err.message);
-    } finally {
-      setLoading(false);
+  const fetchLegacyPrompts = async () => {
+    const keys = Object.keys(LEGACY_DEFAULTS);
+    const { data } = await supabase
+      .from('tb_system_config')
+      .select('config_key, config_value')
+      .in('config_key', keys);
+    if (data) {
+      const map: { [k: string]: string } = { ...LEGACY_DEFAULTS };
+      data.forEach(r => { if (r.config_value) map[r.config_key] = r.config_value; });
+      setLegacyPrompts(map);
     }
   };
 
-  const handleSave = async () => {
+  const handleSaveLegacy = async () => {
     try {
-      setSaving(true);
-      const rows = Object.entries(prompts).map(([key, val]) => ({
-        config_key: key,
-        config_value: val,
-      }));
+      setSavingLegacy(true);
+      const rows = Object.entries(legacyPrompts).map(([key, val]) => ({ config_key: key, config_value: val }));
       const { error } = await supabase.from('tb_system_config').upsert(rows);
       if (error) throw error;
-      showToast('บันทึก Prompt Templates สำเร็จ!', 'success');
+      showToast('บันทึก Worklog Enhancement prompt สำเร็จ', 'success');
     } catch (err: any) {
       showToast('บันทึกไม่สำเร็จ: ' + err.message, 'error');
     } finally {
-      setSaving(false);
+      setSavingLegacy(false);
     }
   };
 
-  const handleReset = (sectionId: string) => {
-    const section = PROMPT_SECTIONS.find((s) => s.id === sectionId);
-    if (!section) return;
-    showConfirm({
-      title: `รีเซ็ต "${section.label}" กลับค่าเริ่มต้น?`,
-      message: 'การเปลี่ยนแปลงปัจจุบันจะหายไป',
-      confirmText: 'รีเซ็ต',
-      cancelText: 'ยกเลิก',
-      type: 'danger',
-    }).then((confirmed) => {
-      if (!confirmed) return;
-      const reset: { [key: string]: string } = { ...prompts };
-      section.fields.forEach((f) => {
-        reset[f.key] = PROMPT_DEFAULTS[f.key as keyof typeof PROMPT_DEFAULTS];
-      });
-      setPrompts(reset);
-      showToast(`รีเซ็ต "${section.label}" เป็นค่าเริ่มต้นแล้ว`, 'info');
-    });
+  const fetchTemplates = async () => {
+    try {
+      setLoadingTemplates(true);
+      const { data, error } = await supabase
+        .from('tb_ai_prompt_templates')
+        .select('*')
+        .order('sort_order', { ascending: true });
+      if (error) throw error;
+      setTemplates(data || []);
+    } catch (err: any) {
+      showToast('โหลด templates ไม่สำเร็จ: ' + err.message, 'error');
+    } finally {
+      setLoadingTemplates(false);
+    }
   };
 
-  const toggleCollapse = (id: string) =>
-    setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
+  const handleEditTemplate = (tmpl: any) => {
+    setEditingTemplate({ ...tmpl });
+    setExpandedTemplateId(tmpl.id);
+  };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4 text-theme-text-secondary">
-        <RefreshCw className="animate-spin" size={32} />
-        <p className="text-sm">กำลังโหลด Prompt Templates...</p>
-      </div>
-    );
-  }
+  const handleSaveTemplate = async () => {
+    if (!editingTemplate) return;
+    try {
+      setSavingTemplate(true);
+      const { error } = await supabase
+        .from('tb_ai_prompt_templates')
+        .update({
+          name: editingTemplate.name,
+          description: editingTemplate.description,
+          system_prompt: editingTemplate.system_prompt,
+          user_prompt_template: editingTemplate.user_prompt_template,
+          is_active: editingTemplate.is_active,
+          cadence_aware: editingTemplate.cadence_aware,
+          requires_level: editingTemplate.requires_level,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editingTemplate.id);
+      if (error) throw error;
+      showToast(`บันทึก template "${editingTemplate.name}" สำเร็จ`, 'success');
+      setEditingTemplate(null);
+      fetchTemplates();
+    } catch (err: any) {
+      showToast('บันทึกไม่สำเร็จ: ' + err.message, 'error');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
 
-  if (dbError) {
-    return (
-      <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-8 flex gap-4 items-start">
-        <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={22} />
-        <div>
-          <p className="text-red-300 font-semibold mb-1">เกิดข้อผิดพลาด</p>
-          <p className="text-red-400 text-sm">{dbError}</p>
-        </div>
-      </div>
-    );
-  }
+  const handleToggleActive = async (tmpl: any) => {
+    try {
+      const { error } = await supabase
+        .from('tb_ai_prompt_templates')
+        .update({ is_active: !tmpl.is_active, updated_at: new Date().toISOString() })
+        .eq('id', tmpl.id);
+      if (error) throw error;
+      showToast(`${!tmpl.is_active ? 'เปิด' : 'ปิด'} template "${tmpl.name}" แล้ว`, 'success');
+      fetchTemplates();
+    } catch (err: any) {
+      showToast('อัปเดตสถานะไม่สำเร็จ: ' + err.message, 'error');
+    }
+  };
+
+  const VARIABLE_HINTS: Record<string, string[]> = {
+    master: ['{{EMPLOYEE_NAME}}','{{EMPLOYEE_NICKNAME}}','{{EMPLOYEE_ROLE}}','{{EMPLOYEE_DEPARTMENT}}','{{TOTAL_HOURS}}','{{AVG_HOURS_PER_DAY}}','{{OT_RATE}}','{{DURATION_DAYS}}','{{INDIVIDUAL_WORKLOG_JSON_OR_CSV}}','{{INDIVIDUAL_JD_DATA}}','{{KEY_RESPONSIBILITIES_JSON}}'],
+    individual_coach: ['{{TODAY}}','{{CADENCE_TYPE}}','{{PERIOD_LABEL}}','{{PERIOD_START_DATE}}','{{PERIOD_END_DATE}}','{{EMPLOYEE_NAME}}','{{EMPLOYEE_NICKNAME}}','{{EMPLOYEE_ROLE}}','{{EMPLOYEE_LEVEL}}','{{YEARS_IN_ROLE}}','{{MANAGER_NAME}}','{{EMPLOYEE_DEPARTMENT}}','{{TOTAL_HOURS}}','{{AVG_HOURS_PER_DAY}}','{{OT_RATE}}','{{DURATION_DAYS}}','{{LOGS_COUNT}}','{{INDIVIDUAL_WORKLOG_JSON_OR_CSV}}','{{INDIVIDUAL_JD_DATA}}','{{KEY_RESPONSIBILITIES_JSON}}','{{PREVIOUS_PERIOD_SUMMARY}}','{{CADENCE_INSTRUCTION}}','{{ROLE_LEVEL_INSTRUCTION}}'],
+  };
 
   return (
     <div className="space-y-6">
+
       {/* Header */}
       <div className="bg-gradient-to-br from-violet-500/10 to-indigo-500/10 border border-violet-500/20 rounded-2xl p-6">
         <div className="flex items-start gap-4">
@@ -2713,129 +2735,231 @@ function AIPromptsManager() {
           <div>
             <h2 className="text-lg font-bold text-theme-text">AI Prompt Templates</h2>
             <p className="text-sm text-theme-text-secondary mt-1 leading-relaxed">
-              ตั้งค่า prompt ที่ใช้ใน AI features ทั้งหมด — การเปลี่ยนแปลงจะมีผลกับการวิเคราะห์ครั้งถัดไปทันที
+              จัดการ Prompt ที่ระบบ AI ใช้วิเคราะห์ — มี 2 ส่วน: <strong>Analyst Templates</strong> (วิเคราะห์พนักงาน) และ <strong>Enhancement Prompt</strong> (ปรับปรุงการเขียนใบงาน)
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
-              <span className="inline-flex items-center gap-1.5 text-xs bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25 rounded-full px-3 py-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400"></span>
-                ✍️ Worklog Enhancement
+              <span className="inline-flex items-center gap-1.5 text-xs bg-violet-500/15 text-violet-300 border border-violet-500/25 rounded-full px-3 py-1">
+                🎯 Analyst Templates — จาก tb_ai_prompt_templates
               </span>
-              <span className="inline-flex items-center gap-1.5 text-xs bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/25 rounded-full px-3 py-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 dark:bg-violet-400"></span>
-                📊 Performance Analysis
+              <span className="inline-flex items-center gap-1.5 text-xs bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 rounded-full px-3 py-1">
+                ✍️ Enhancement — จาก tb_system_config
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Prompt Sections */}
-      {PROMPT_SECTIONS.map((section) => {
-        const isCollapsed = collapsed[section.id];
-        const colorMap: { [c: string]: string } = {
-          indigo: 'from-indigo-500/10 to-indigo-500/5 border-indigo-500/25',
-          violet: 'from-violet-500/10 to-violet-500/5 border-violet-500/25',
-        };
-        const accentMap: { [c: string]: string } = {
-          indigo: 'text-indigo-400 bg-indigo-500/15 border-indigo-500/25',
-          violet: 'text-violet-400 bg-violet-500/15 border-violet-500/25',
-        };
-        const btnMap: { [c: string]: string } = {
-          indigo: 'border-indigo-500/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/15',
-          violet: 'border-violet-500/40 text-violet-700 dark:text-violet-300 hover:bg-violet-500/15',
-        };
-        const ringMap: { [c: string]: string } = {
-          indigo: 'focus:ring-indigo-500',
-          violet: 'focus:ring-violet-500',
-        };
-        return (
-          <div
-            key={section.id}
-            className={`bg-gradient-to-br ${colorMap[section.color]} border rounded-2xl overflow-hidden transition-all`}
-          >
-            {/* Section Header */}
-            <button
-              onClick={() => toggleCollapse(section.id)}
-              className="w-full flex items-center justify-between px-6 py-4 hover:bg-theme-surface/5 transition-colors group"
-            >
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${accentMap[section.color]}`}>
-                  {section.label}
-                </span>
-                <span className="text-theme-text-secondary text-sm hidden md:block">{section.description}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleReset(section.id); }}
-                  className={`hidden group-hover:inline-flex items-center gap-1.5 text-xs px-3 py-1.5 border rounded-lg transition-colors ${btnMap[section.color]}`}
-                  title="รีเซ็ตเป็นค่าเริ่มต้น"
-                >
-                  <RotateCcw size={12} />
-                  <span>Reset Default</span>
-                </button>
-                {isCollapsed ? (
-                  <ChevronDown size={18} className="text-theme-text-secondary" />
-                ) : (
-                  <ChevronUp size={18} className="text-theme-text-secondary" />
-                )}
-              </div>
-            </button>
+      {/* ── SECTION 1: Analyst Templates ─────────────────────────────── */}
+      <div className="bg-theme-surface-tertiary border border-theme-border/50 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-theme-border/40 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-theme-text flex items-center gap-2">
+              <span className="text-violet-400">🎯</span> Analyst Templates
+            </h3>
+            <p className="text-xs text-theme-text-secondary mt-0.5">Template ที่ใช้ใน HRBP Analysis — เลือกได้ก่อน Run Analysis</p>
+          </div>
+          <button onClick={fetchTemplates} className="p-2 rounded-xl hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text transition-all">
+            <RefreshCw size={15} className={loadingTemplates ? 'animate-spin' : ''} />
+          </button>
+        </div>
 
-            {/* Section Fields */}
-            {!isCollapsed && (
-              <div className="px-6 pb-6 space-y-5">
-                {section.fields.map((field) => (
-                  <div key={field.key}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-sm font-semibold text-theme-text">
-                        {field.label}
-                      </label>
-                      <span className="text-xs text-theme-text-secondary font-mono">{field.key}</span>
+        {loadingTemplates ? (
+          <div className="p-10 text-center text-theme-text-secondary text-sm animate-pulse">กำลังโหลด templates...</div>
+        ) : templates.length === 0 ? (
+          <div className="p-10 text-center text-theme-text-secondary text-sm">
+            ไม่พบ templates — กรุณารัน <code className="font-mono bg-theme-surface-secondary px-1.5 py-0.5 rounded text-xs">migration_analyst_templates.sql</code> ใน Supabase SQL Editor
+          </div>
+        ) : (
+          <div className="divide-y divide-theme-border/30">
+            {templates.map(tmpl => {
+              const isEditing = editingTemplate?.id === tmpl.id;
+              const isExpanded = expandedTemplateId === tmpl.id;
+              const current = isEditing ? editingTemplate : tmpl;
+              return (
+                <div key={tmpl.id} className="transition-all">
+                  {/* Template Row Header */}
+                  <div className="px-6 py-4 flex items-center gap-4">
+                    <span className="text-2xl">{tmpl.icon || '🤖'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-theme-text text-sm">{tmpl.name}</span>
+                        <code className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded">{tmpl.template_key}</code>
+                        {tmpl.cadence_aware && <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">Cadence-aware</span>}
+                        {tmpl.requires_level && <span className="text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/20 px-1.5 py-0.5 rounded">Level-aware</span>}
+                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-semibold', tmpl.is_active ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20')}>
+                          {tmpl.is_active ? '● Active' : '○ Inactive'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-theme-text-secondary mt-0.5 line-clamp-1">{tmpl.description}</p>
                     </div>
-                    <p className="text-xs text-theme-text-secondary mb-2">{field.hint}</p>
-                    <textarea
-                      value={prompts[field.key] || ''}
-                      onChange={(e) =>
-                        setPrompts((prev) => ({ ...prev, [field.key]: e.target.value }))
-                      }
-                      rows={field.rows}
-                      className={`w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-sm font-mono leading-relaxed placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:border-transparent resize-y transition-all ${ringMap[section.color]}`}
-                      spellCheck={false}
-                    />
-                    <div className="flex justify-end mt-1">
-                      <span className="text-xs text-theme-text-secondary">
-                        {(prompts[field.key] || '').length} chars
-                      </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleToggleActive(tmpl)}
+                        className={cn('p-1.5 rounded-lg text-xs font-semibold transition-all border', tmpl.is_active ? 'text-rose-400 border-rose-500/20 hover:bg-rose-500/10' : 'text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10')}
+                        title={tmpl.is_active ? 'Deactivate' : 'Activate'}
+                      >
+                        {tmpl.is_active ? <X size={14} /> : <Check size={14} />}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (isEditing) { setEditingTemplate(null); setExpandedTemplateId(null); }
+                          else { handleEditTemplate(tmpl); }
+                        }}
+                        className="p-1.5 rounded-lg text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/10 transition-all"
+                        title="Edit Template"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => setExpandedTemplateId(isExpanded && !isEditing ? null : tmpl.id)}
+                        className="p-1.5 rounded-lg text-theme-text-secondary border border-theme-border/50 hover:bg-theme-surface-secondary transition-all"
+                        title="Preview"
+                      >
+                        <ChevronDown size={14} className={cn('transition-transform', isExpanded && 'rotate-180')} />
+                      </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
 
-      {/* Save Button */}
-      <div className="flex justify-end gap-3 pt-2">
-        <button
-          onClick={fetchPrompts}
-          disabled={saving}
-          className="px-5 py-2.5 border border-theme-border hover:border-theme-text-secondary text-theme-text-secondary hover:text-theme-text rounded-xl font-semibold text-sm transition-all flex items-center gap-2 disabled:opacity-40"
-        >
-          <RefreshCw size={15} />
-          <span>โหลดใหม่</span>
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 text-theme-text rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-violet-900/30 active:scale-95"
-        >
-          {saving ? (
-            <><RefreshCw className="animate-spin" size={15} /><span>กำลังบันทึก...</span></>
-          ) : (
-            <><Save size={15} /><span>บันทึก Templates</span></>
-          )}
-        </button>
+                  {/* Expanded Edit / Preview */}
+                  {isExpanded && (
+                    <div className="px-6 pb-6 space-y-4 bg-theme-surface/30">
+                      {/* Variable hints */}
+                      <div className="bg-theme-surface-secondary rounded-xl p-3 border border-theme-border/30">
+                        <p className="text-xs font-semibold text-theme-text-secondary mb-1.5">📌 Available Variables:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {(VARIABLE_HINTS[tmpl.template_key] || []).map(v => (
+                            <code key={v} className="text-[10px] font-mono bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded">{v}</code>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Name & Description */}
+                      {isEditing && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Template Name</label>
+                            <input
+                              value={current.name}
+                              onChange={e => setEditingTemplate((p: any) => ({ ...p, name: e.target.value }))}
+                              className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2 px-3 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Description</label>
+                            <input
+                              value={current.description || ''}
+                              onChange={e => setEditingTemplate((p: any) => ({ ...p, description: e.target.value }))}
+                              className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2 px-3 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* System Prompt */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <label className="text-sm font-semibold text-theme-text">System Prompt</label>
+                          <span className="text-xs text-theme-text-secondary font-mono">{(current.system_prompt || '').length} chars</span>
+                        </div>
+                        <textarea
+                          value={current.system_prompt || ''}
+                          onChange={e => isEditing && setEditingTemplate((p: any) => ({ ...p, system_prompt: e.target.value }))}
+                          readOnly={!isEditing}
+                          rows={8}
+                          className={cn(
+                            'w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-xs font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all',
+                            !isEditing && 'opacity-70 cursor-default'
+                          )}
+                          spellCheck={false}
+                        />
+                      </div>
+
+                      {/* User Prompt Template */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <label className="text-sm font-semibold text-theme-text">User Prompt Template</label>
+                          <span className="text-xs text-theme-text-secondary font-mono">{(current.user_prompt_template || '').length} chars</span>
+                        </div>
+                        <textarea
+                          value={current.user_prompt_template || ''}
+                          onChange={e => isEditing && setEditingTemplate((p: any) => ({ ...p, user_prompt_template: e.target.value }))}
+                          readOnly={!isEditing}
+                          rows={12}
+                          className={cn(
+                            'w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-xs font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all',
+                            !isEditing && 'opacity-70 cursor-default'
+                          )}
+                          spellCheck={false}
+                        />
+                      </div>
+
+                      {/* Save / Cancel */}
+                      {isEditing && (
+                        <div className="flex justify-end gap-3">
+                          <button
+                            onClick={() => { setEditingTemplate(null); setExpandedTemplateId(null); }}
+                            className="px-5 py-2.5 border border-theme-border text-theme-text-secondary hover:text-theme-text rounded-xl font-semibold text-sm transition-all"
+                          >
+                            ยกเลิก
+                          </button>
+                          <button
+                            onClick={handleSaveTemplate}
+                            disabled={savingTemplate}
+                            className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
+                          >
+                            {savingTemplate ? <><RefreshCw size={14} className="animate-spin" /><span>กำลังบันทึก...</span></> : <><Save size={14} /><span>บันทึก Template</span></>}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── SECTION 2: Legacy Worklog Enhancement ────────────────────── */}
+      <div className="bg-gradient-to-br from-indigo-500/10 to-indigo-500/5 border border-indigo-500/25 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-indigo-500/20 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-theme-text flex items-center gap-2">
+              <span>✍️</span> Worklog Enhancement Prompt
+            </h3>
+            <p className="text-xs text-theme-text-secondary mt-0.5">ปรับปรุงการเขียนใบงานให้เป็นมืออาชีพ — เก็บใน tb_system_config</p>
+          </div>
+        </div>
+        <div className="px-6 py-5 space-y-5">
+          {[
+            { key: 'prompt_enhance_system', label: 'System Prompt', hint: 'กำหนดบทบาทของ AI', rows: 3 },
+            { key: 'prompt_enhance_user', label: 'User Prompt Template', hint: 'Variables: {project_name}, {action_name}, {duration}, {description}', rows: 10 },
+          ].map(field => (
+            <div key={field.key}>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="text-sm font-semibold text-theme-text">{field.label}</label>
+                <span className="text-xs text-theme-text-secondary font-mono">{(legacyPrompts[field.key] || '').length} chars</span>
+              </div>
+              <p className="text-xs text-theme-text-secondary mb-2">{field.hint}</p>
+              <textarea
+                value={legacyPrompts[field.key] || ''}
+                onChange={e => setLegacyPrompts(p => ({ ...p, [field.key]: e.target.value }))}
+                rows={field.rows}
+                className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-sm font-mono leading-relaxed placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y transition-all"
+                spellCheck={false}
+              />
+            </div>
+          ))}
+          <div className="flex justify-end">
+            <button
+              onClick={handleSaveLegacy}
+              disabled={savingLegacy}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
+            >
+              {savingLegacy ? <><RefreshCw size={14} className="animate-spin" /><span>กำลังบันทึก...</span></> : <><Save size={14} /><span>บันทึก Enhancement Prompt</span></>}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

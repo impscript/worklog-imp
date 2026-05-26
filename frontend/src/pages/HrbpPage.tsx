@@ -30,6 +30,9 @@ interface UserProfile {
   role: string;
   department: string;
   position?: string;
+  employee_level?: string;
+  role_start_date?: string;
+  manager_name?: string;
 }
 
 interface KeyResponsibility {
@@ -85,6 +88,23 @@ export default function HrbpPage() {
   const [newCatName, setNewCatName] = useState('');
   const [newCatWeight, setNewCatWeight] = useState<number>(10);
 
+  // AI Prompt Template & Custom Overrides
+  const [templateId, setTemplateId] = useState<string>('master');
+  const [cadenceType, setCadenceType] = useState<'weekly' | 'monthly' | 'quarterly' | 'auto'>('auto');
+  const [employeeLevel, setEmployeeLevel] = useState<string>('');
+  const [managerName, setManagerName] = useState<string>('');
+
+  const selectedUserInfo = useMemo(() => {
+    return usersList.find(u => u.id === selectedUser);
+  }, [usersList, selectedUser]);
+
+  useEffect(() => {
+    if (selectedUserInfo) {
+      setEmployeeLevel(selectedUserInfo.employee_level || 'Senior');
+      setManagerName(selectedUserInfo.manager_name || '');
+    }
+  }, [selectedUserInfo]);
+
   // Shared View / Public Share Link
   const [isSharedView, setIsSharedView] = useState<boolean>(false);
 
@@ -123,10 +143,6 @@ export default function HrbpPage() {
       }
     };
   }, []);
-
-  const selectedUserInfo = useMemo(() => {
-    return usersList.find(u => u.id === selectedUser);
-  }, [usersList, selectedUser]);
 
   // Load Session and Initial Users
   useEffect(() => {
@@ -197,22 +213,21 @@ export default function HrbpPage() {
     if (selectedUser && !isSharedView) {
       loadJdAndAnalysis();
     }
-  }, [selectedUser, dateFilter, customStart, customEnd]);
+  }, [selectedUser, dateFilter, customStart, customEnd, templateId]);
 
   // Load historical diagnostic entries
   const loadAnalysisHistory = async () => {
-    if (!selectedUser) return;
     try {
       setIsLoadingHistory(true);
-      const { data, error } = await supabase
+      const { data, error: err } = await supabase
         .from('tb_ai_individual_analysis')
         .select('*')
         .eq('user_id', selectedUser)
         .order('analysis_date', { ascending: false });
 
-      if (error) throw error;
+      if (err) throw err;
       setAnalysisHistory(data || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error loading analysis history:', err);
     } finally {
       setIsLoadingHistory(false);
@@ -271,6 +286,7 @@ export default function HrbpPage() {
         .eq('user_id', selectedUser)
         .eq('start_date', startDate)
         .eq('end_date', endDate)
+        .eq('template_id', templateId)
         .gte('created_at', yesterday.toISOString())
         .order('created_at', { ascending: false })
         .limit(1)
@@ -291,8 +307,15 @@ export default function HrbpPage() {
           is_public: cached.is_public,
           acknowledged_at: cached.acknowledged_at,
           acknowledged_by: cached.acknowledged_by,
+          template_id: cached.template_id,
           jd_alignment_score: cached.jd_alignment_score,
           burnout_risk_score: cached.burnout_risk_score,
+          reflection_level: cached.reflection_level,
+          value_mix: cached.value_mix,
+          headline_insight: cached.headline_insight,
+          coaching_guide: cached.coaching_guide,
+          well_being_signal: cached.well_being_signal,
+          message_to_employee: cached.message_to_employee,
           workload_allocation: cached.actual_vs_target,
           strengths: cached.strengths,
           improvements: cached.improvements,
@@ -699,7 +722,11 @@ export default function HrbpPage() {
           user_id: selectedUser,
           start_date: startDate,
           end_date: endDate,
-          force_refresh: forceRefresh
+          force_refresh: forceRefresh,
+          template_id: templateId,
+          cadence_type: cadenceType === 'auto' ? undefined : cadenceType,
+          employee_level: employeeLevel || undefined,
+          manager_name: managerName || undefined
         }
       });
 
@@ -1092,6 +1119,57 @@ export default function HrbpPage() {
                 
                 {/* Left Side: Setup Parameters & User Select */}
                 <div className="lg:col-span-1 space-y-6">
+                  {/* Analysis Mode / Template Selector */}
+                  <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 border border-theme-border/80 shadow-2xl space-y-4">
+                    <h3 className="text-xs font-black text-theme-text-secondary uppercase tracking-wider flex items-center gap-2">
+                      <Sparkles size={14} className="text-indigo-400 animate-pulse" />
+                      0. รูปแบบการวิเคราะห์ (Analysis Mode)
+                    </h3>
+                    <div className="grid grid-cols-1 gap-2.5">
+                      <button
+                        onClick={() => {
+                          setTemplateId('master');
+                          setAiAnalysis(null);
+                        }}
+                        className={cn(
+                          "p-4 rounded-2xl border text-left transition-all flex flex-col gap-1.5 relative overflow-hidden",
+                          templateId === 'master'
+                            ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
+                            : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-theme-border hover:border-indigo-500/40 hover:text-theme-text"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 font-bold text-sm">
+                          <span>📊</span>
+                          <span>HRBP Diagnostics (Standard)</span>
+                        </div>
+                        <p className="text-[10px] text-theme-text-secondary leading-relaxed">
+                          การวิเคราะห์มาตรฐาน: JD Alignment, Burnout Risk, Workload Allocation เหมาะสำหรับการมอนิเตอร์และรีพอร์ตทั่วไป
+                        </p>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setTemplateId('individual_coach');
+                          setAiAnalysis(null);
+                        }}
+                        className={cn(
+                          "p-4 rounded-2xl border text-left transition-all flex flex-col gap-1.5 relative overflow-hidden",
+                          templateId === 'individual_coach'
+                            ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
+                            : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-theme-border hover:border-indigo-500/40 hover:text-theme-text"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 font-bold text-sm">
+                          <span>🎯</span>
+                          <span>Executive Coach (5-Lens & 1:1 Guide)</span>
+                        </div>
+                        <p className="text-[10px] text-theme-text-secondary leading-relaxed">
+                          วิเคราะห์เชิงลึก 5 มิติ: Value Mix, Work Style, Reflection และคำถาม Coaching 1:1 ไกด์นำทางสำหรับหัวหน้างาน
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Select Employee */}
                   <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 border border-theme-border/80 shadow-2xl space-y-4 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl" />
@@ -1135,6 +1213,34 @@ export default function HrbpPage() {
                             <span className="text-indigo-400 font-bold">{selectedUserInfo.position || 'General Staff'}</span>
                           </div>
                         </div>
+
+                        {templateId === 'individual_coach' && (
+                          <div className="bg-indigo-950/10 border border-indigo-500/10 rounded-2xl p-4 space-y-3.5 animate-in fade-in duration-200">
+                            <div className="space-y-1.5">
+                              <label className="text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold">Employee Level (สำหรับ Coach Mode)</label>
+                              <select
+                                value={employeeLevel}
+                                onChange={(e) => setEmployeeLevel(e.target.value)}
+                                className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border/60 rounded-xl px-3 py-2 text-xs text-theme-text outline-none focus:border-indigo-500/80"
+                              >
+                                <option value="Junior">Junior / General Staff</option>
+                                <option value="Senior">Senior / Specialist</option>
+                                <option value="Manager">Manager / Section Mgr.</option>
+                                <option value="Director">Director / Department Head</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold">Manager Name (ผู้รายงานการประเมิน)</label>
+                              <input
+                                type="text"
+                                placeholder="ระบุชื่อผู้ประเมิน"
+                                value={managerName}
+                                onChange={(e) => setManagerName(e.target.value)}
+                                className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border/60 rounded-xl px-3 py-2 text-xs text-theme-text outline-none focus:border-indigo-500/80"
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         <div className="p-3.5 bg-indigo-950/20 border border-indigo-900/30 rounded-2xl flex items-center justify-between text-xs">
                           <div className="space-y-0.5">
@@ -1211,6 +1317,29 @@ export default function HrbpPage() {
                             }}
                             className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border/60 rounded-xl px-3 py-2 text-xs text-theme-text"
                           />
+                        </div>
+                      </div>
+                    )}
+
+                    {templateId === 'individual_coach' && (
+                      <div className="space-y-2 pt-3 border-t border-theme-border/60">
+                        <label className="text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold block">Cadence (รอบการประเมินของโค้ช)</label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {(['auto', 'weekly', 'monthly', 'quarterly'] as const).map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setCadenceType(c)}
+                              className={cn(
+                                "px-1.5 py-2 rounded-xl text-[9px] font-black uppercase transition-all tracking-wider border",
+                                cadenceType === c
+                                  ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
+                                  : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-transparent hover:border-theme-border hover:text-theme-text"
+                              )}
+                            >
+                              {c === 'auto' ? 'Auto ⏱️' : c === 'weekly' ? 'Week' : c === 'monthly' ? 'Month' : 'Quarter'}
+                            </button>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -1701,133 +1830,225 @@ export default function HrbpPage() {
                       </div>
                     </div>
                   </div>
-                </div>
-
-                {/* 3.1 Top Highlights Analytics Row (Premium Cards) */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  
-                  {/* Card 1: Job Description Alignment Score */}
-                  <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex items-center justify-between">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-                    
-                    <div className="space-y-2">
-                      <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-1.5">
-                        <Award size={14} className="text-indigo-600 dark:text-indigo-400" />
-                        JD ALIGNMENT SCORE
-                      </span>
-                      <h4 className="text-4xl font-black text-theme-text tracking-tight">
-                        {aiAnalysis.jd_alignment_score || 0}%
-                      </h4>
-                      <p className="text-[10px] text-theme-text-secondary">
-                        ระดับความสอดคล้องของพฤติกรรมการทำงานจริงเปรียบเทียบกับ JD คาดหวัง
-                      </p>
-                    </div>
-
-                    {/* Circular Score Visualizer */}
-                    <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
-                      <svg className="w-full h-full transform -rotate-90">
-                        <circle cx="40" cy="40" r="32" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="6" fill="transparent" />
-                        <circle 
-                          cx="40" 
-                          cy="40" 
-                          r="32" 
-                          stroke="#6366f1" 
-                          strokeWidth="6" 
-                          fill="transparent" 
-                          strokeDasharray={`${2 * Math.PI * 32}`}
-                          strokeDashoffset={`${2 * Math.PI * 32 * (1 - (aiAnalysis.jd_alignment_score || 0) / 100)}`}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <span className="absolute text-xs font-mono font-black text-indigo-600 dark:text-indigo-400">
-                        {aiAnalysis.jd_alignment_score || 0}%
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Card 2: Burnout & Workload Fatigue Risk */}
-                  <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-4">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-1.5">
-                        <Activity size={14} className="text-rose-500 dark:text-rose-400" />
-                        BURNOUT / FATIGUE RISK
-                      </span>
-                      
-                      <span className={cn(
-                        "px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase font-mono tracking-wider",
-                        (aiAnalysis.burnout_risk_score || 0) > 70 ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20" :
-                        (aiAnalysis.burnout_risk_score || 0) > 40 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" :
-                        "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                      )}>
-                        {(aiAnalysis.burnout_risk_score || 0) > 70 ? 'High Risk' : (aiAnalysis.burnout_risk_score || 0) > 40 ? 'Moderate' : 'Low Risk'}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      <h4 className="text-4xl font-black text-theme-text tracking-tight">
-                        {aiAnalysis.burnout_risk_score || 0}%
-                      </h4>
-                      
-                      <div className="space-y-1">
-                        <div className="w-full h-1.5 bg-slate-200 dark:bg-theme-surface-tertiary rounded-full overflow-hidden">
-                          <div 
-                            className={cn(
-                              "h-full rounded-full transition-all duration-500",
-                              (aiAnalysis.burnout_risk_score || 0) > 70 ? "bg-rose-500" :
-                              (aiAnalysis.burnout_risk_score || 0) > 40 ? "bg-amber-500" :
-                              "bg-emerald-500"
-                            )}
-                            style={{ width: `${aiAnalysis.burnout_risk_score || 0}%` }}
+                </div>                {/* 3.1 Top Highlights Analytics Row (Premium Cards) */}
+                {aiAnalysis.template_id === 'individual_coach' ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Card 1: Job Description Alignment Score */}
+                    <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex items-center justify-between">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-1.5">
+                          <Award size={14} className="text-indigo-600 dark:text-indigo-400" />
+                          JD ALIGNMENT SCORE
+                        </span>
+                        <h4 className="text-4xl font-black text-theme-text tracking-tight">
+                          {aiAnalysis.jd_alignment_score || 0}%
+                        </h4>
+                        <p className="text-[10px] text-theme-text-secondary">
+                          ระดับความสอดคล้องตามกรอบ 5-Lens เปรียบเทียบสัดส่วนจริงกับ JD คาดหวัง
+                        </p>
+                      </div>
+                      <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
+                        <svg className="w-full h-full transform -rotate-90">
+                          <circle cx="40" cy="40" r="32" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="6" fill="transparent" />
+                          <circle 
+                            cx="40" 
+                            cy="40" 
+                            r="32" 
+                            stroke="#6366f1" 
+                            strokeWidth="6" 
+                            fill="transparent" 
+                            strokeDasharray={`${2 * Math.PI * 32}`}
+                            strokeDashoffset={`${2 * Math.PI * 32 * (1 - (aiAnalysis.jd_alignment_score || 0) / 100)}`}
+                            strokeLinecap="round"
                           />
-                        </div>
-                        <span className="text-[9px] text-theme-text-secondary">ประเมินจากความสม่ำเสมอ ชั่วโมงโอที และความแปรปรวนในกิจกรรมรายวัน</span>
+                        </svg>
+                        <span className="absolute text-xs font-mono font-black text-indigo-600 dark:text-indigo-400">
+                          {aiAnalysis.jd_alignment_score || 0}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Reflection Maturity */}
+                    <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-4">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-1.5 font-mono">
+                          <Sparkles size={14} className="text-violet-500 dark:text-violet-400" />
+                          REFLECTION MATURITY
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase font-mono tracking-wider bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
+                          Level {aiAnalysis.reflection_level || 1}/4
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-xl font-black text-theme-text tracking-tight">
+                          {aiAnalysis.reflection_level === 4 ? 'Reflective Practitioner 🌟' :
+                           aiAnalysis.reflection_level === 3 ? 'Result Oriented 🎯' :
+                           aiAnalysis.reflection_level === 2 ? 'Process Thinker ⚙️' :
+                           'Activity Logger 📝'}
+                        </h4>
+                        <p className="text-[10px] text-theme-text-secondary leading-relaxed">
+                          ระดับคุณภาพการเขียนสะท้อนผลลัพธ์และความคิดสร้างสรรค์ในใบงานจริง
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Well-being Signal */}
+                    <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-4">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-1.5 font-mono">
+                          <Activity size={14} className="text-rose-500 dark:text-rose-400" />
+                          WELL-BEING SIGNAL
+                        </span>
+                        {aiAnalysis.well_being_signal && (
+                          <span className={cn(
+                            "px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase font-mono tracking-wider",
+                            aiAnalysis.well_being_signal.level === 'red' ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20" :
+                            aiAnalysis.well_being_signal.level === 'yellow' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" :
+                            "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                          )}>
+                            {aiAnalysis.well_being_signal.level.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-xl font-black text-theme-text tracking-tight capitalize">
+                          {aiAnalysis.well_being_signal?.risk_type === 'none' ? 'Perfect Health' : aiAnalysis.well_being_signal?.risk_type || 'Healthy'}
+                        </h4>
+                        <p className="text-[10px] text-theme-text-secondary leading-relaxed">
+                          ระดับสุขภาวะและความเครียด วิเคราะห์ความสอดคล้องกับ burnout risk ({aiAnalysis.burnout_risk_score}%)
+                        </p>
                       </div>
                     </div>
                   </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Card 1: Job Description Alignment Score */}
+                    <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex items-center justify-between">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+                      
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-1.5">
+                          <Award size={14} className="text-indigo-600 dark:text-indigo-400" />
+                          JD ALIGNMENT SCORE
+                        </span>
+                        <h4 className="text-4xl font-black text-theme-text tracking-tight">
+                          {aiAnalysis.jd_alignment_score || 0}%
+                        </h4>
+                        <p className="text-[10px] text-theme-text-secondary">
+                          ระดับความสอดคล้องของพฤติกรรมการทำงานจริงเปรียบเทียบกับ JD คาดหวัง
+                        </p>
+                      </div>
 
-                  {/* Card 3: Actionable Controls & Sign-off Acknowledgment */}
-                  <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-3">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-1.5">
-                        <UserCheck size={14} className="text-indigo-600 dark:text-indigo-400" />
-                        AUDIT SIGN-OFF &amp; ACKNOWLEDGEMENT
-                      </span>
+                      {/* Circular Score Visualizer */}
+                      <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
+                        <svg className="w-full h-full transform -rotate-90">
+                          <circle cx="40" cy="40" r="32" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth="6" fill="transparent" />
+                          <circle 
+                            cx="40" 
+                            cy="40" 
+                            r="32" 
+                            stroke="#6366f1" 
+                            strokeWidth="6" 
+                            fill="transparent" 
+                            strokeDasharray={`${2 * Math.PI * 32}`}
+                            strokeDashoffset={`${2 * Math.PI * 32 * (1 - (aiAnalysis.jd_alignment_score || 0) / 100)}`}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <span className="absolute text-xs font-mono font-black text-indigo-600 dark:text-indigo-400">
+                          {aiAnalysis.jd_alignment_score || 0}%
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="bg-theme-surface dark:bg-theme-surface-secondary/60 rounded-2xl p-3.5 border border-theme-border/80 text-[11px]">
-                      {aiAnalysis.acknowledged_at ? (
-                        <div className="space-y-1 text-theme-text">
-                          <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold uppercase text-[9px] tracking-widest">
-                            <Check size={12} />
-                            <span>VERIFIED BY AI ENHANCE</span>
+                    {/* Card 2: Burnout & Workload Fatigue Risk */}
+                    <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-4">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-1.5">
+                          <Activity size={14} className="text-rose-500 dark:text-rose-400" />
+                          BURNOUT / FATIGUE RISK
+                        </span>
+                        
+                        <span className={cn(
+                          "px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase font-mono tracking-wider",
+                          (aiAnalysis.burnout_risk_score || 0) > 70 ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20" :
+                          (aiAnalysis.burnout_risk_score || 0) > 40 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" :
+                          "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                        )}>
+                          {(aiAnalysis.burnout_risk_score || 0) > 70 ? 'High Risk' : (aiAnalysis.burnout_risk_score || 0) > 40 ? 'Moderate' : 'Low Risk'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h4 className="text-4xl font-black text-theme-text tracking-tight">
+                          {aiAnalysis.burnout_risk_score || 0}%
+                        </h4>
+                        
+                        <div className="space-y-1">
+                          <div className="w-full h-1.5 bg-slate-200 dark:bg-theme-surface-tertiary rounded-full overflow-hidden">
+                            <div 
+                              className={cn(
+                                "h-full rounded-full transition-all duration-500",
+                                (aiAnalysis.burnout_risk_score || 0) > 70 ? "bg-rose-500" :
+                                (aiAnalysis.burnout_risk_score || 0) > 40 ? "bg-amber-500" :
+                                "bg-emerald-500"
+                              )}
+                              style={{ width: `${aiAnalysis.burnout_risk_score || 0}%` }}
+                            />
                           </div>
-                          <div>ลงนามโดย: <span className="text-theme-text font-bold">{aiAnalysis.acknowledged_by}</span></div>
-                          <div className="text-[10px] text-theme-text-secondary">{new Date(aiAnalysis.acknowledged_at).toLocaleString('th-TH')}</div>
+                          <span className="text-[9px] text-theme-text-secondary">ประเมินจากความสม่ำเสมอ ชั่วโมงโอที และความแปรปรวนในกิจกรรมรายวัน</span>
                         </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <p className="text-theme-text-secondary text-[10px] leading-relaxed">
-                            รายงานนี้ยังไม่ได้รับการลงนามบันทึกรับทราบผลการประเมินความสามารถเพื่อประกอบคำแนะนำ
-                          </p>
-                          {!isSharedView && (
-                            <button
-                              onClick={() => setShowAckModal(true)}
-                              className="w-full py-2 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 hover:text-indigo-500 font-black uppercase text-[10px] tracking-wider transition-all flex items-center justify-center gap-1.5"
-                            >
-                              <UserCheck size={12} />
-                              <span>ลงนามบันทึกรับทราบผล (Acknowledge)</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
+                      </div>
+                    </div>
+
+                    {/* Card 3: Actionable Controls & Sign-off Acknowledgment */}
+                    <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex flex-col justify-between gap-3">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest flex items-center gap-1.5">
+                          <UserCheck size={14} className="text-indigo-600 dark:text-indigo-400" />
+                          AUDIT SIGN-OFF &amp; ACKNOWLEDGEMENT
+                        </span>
+                      </div>
+
+                      <div className="bg-theme-surface dark:bg-theme-surface-secondary/60 rounded-2xl p-3.5 border border-theme-border/80 text-[11px]">
+                        {aiAnalysis.acknowledged_at ? (
+                          <div className="space-y-1 text-theme-text">
+                            <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold uppercase text-[9px] tracking-widest">
+                              <Check size={12} />
+                              <span>VERIFIED BY AI ENHANCE</span>
+                            </div>
+                            <div>ลงนามโดย: <span className="text-theme-text font-bold">{aiAnalysis.acknowledged_by}</span></div>
+                            <div className="text-[10px] text-theme-text-secondary">{new Date(aiAnalysis.acknowledged_at).toLocaleString('th-TH')}</div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="text-theme-text-secondary text-[10px] leading-relaxed">
+                              รายงานนี้ยังไม่ได้รับการลงนามบันทึกรับทราบผลการประเมินความสามารถเพื่อประกอบคำแนะนำ
+                            </p>
+                            {!isSharedView && (
+                              <button
+                                onClick={() => setShowAckModal(true)}
+                                className="w-full py-2 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 hover:text-indigo-500 font-black uppercase text-[10px] tracking-wider transition-all flex items-center justify-center gap-1.5"
+                              >
+                                <UserCheck size={12} />
+                                <span>ลงนามบันทึกรับทราบผล (Acknowledge)</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
+                )}
 
-                </div>
+
 
                 {/* 3.2 Main Content Split Layout */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1971,44 +2192,115 @@ export default function HrbpPage() {
                     {/* Tab Header Selector — only shown in admin view */}
                     {!isSharedView && (
                     <div className="flex gap-2 border-b border-theme-border/40 pb-3 overflow-x-auto">
-                      <button
-                        onClick={() => setActiveResultsSubTab('summary')}
-                        className={cn(
-                          "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
-                          activeResultsSubTab === 'summary'
-                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                            : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
-                        )}
-                      >
-                        <Sparkles size={13} />
-                        <span>Executive Summary</span>
-                      </button>
+                      {aiAnalysis.template_id === 'individual_coach' ? (
+                        <>
+                          <button
+                            onClick={() => setActiveResultsSubTab('summary')}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                              activeResultsSubTab === 'summary'
+                                ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
+                            )}
+                          >
+                            <Sparkles size={13} />
+                            <span>5-Lens Summary</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => setActiveResultsSubTab('coaching')}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                              activeResultsSubTab === 'coaching'
+                                ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
+                            )}
+                          >
+                            <Target size={13} />
+                            <span>Coaching 1:1 Guide</span>
+                          </button>
 
-                      <button
-                        onClick={() => setActiveResultsSubTab('gaps')}
-                        className={cn(
-                          "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
-                          activeResultsSubTab === 'gaps'
-                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                            : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
-                        )}
-                      >
-                        <AlertTriangle size={13} />
-                        <span>Strengths &amp; Gaps</span>
-                      </button>
+                          <button
+                            onClick={() => setActiveResultsSubTab('gaps')}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                              activeResultsSubTab === 'gaps'
+                                ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
+                            )}
+                          >
+                            <Award size={13} />
+                            <span>Action Plan &amp; Strengths</span>
+                          </button>
 
-                      <button
-                        onClick={() => setActiveResultsSubTab('coaching')}
-                        className={cn(
-                          "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
-                          activeResultsSubTab === 'coaching'
-                            ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                            : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
-                        )}
-                      >
-                        <Target size={13} />
-                        <span>Development Plan</span>
-                      </button>
+                          <button
+                            onClick={() => setActiveResultsSubTab('well_being' as any)}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                              activeResultsSubTab === ('well_being' as any)
+                                ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
+                            )}
+                          >
+                            <Activity size={13} />
+                            <span>Risk &amp; Well-being</span>
+                          </button>
+
+                          <button
+                            onClick={() => setActiveResultsSubTab('message' as any)}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                              activeResultsSubTab === ('message' as any)
+                                ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
+                            )}
+                          >
+                            <FileText size={13} />
+                            <span>Direct Message</span>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setActiveResultsSubTab('summary')}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                              activeResultsSubTab === 'summary'
+                                ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
+                            )}
+                          >
+                            <Sparkles size={13} />
+                            <span>Executive Summary</span>
+                          </button>
+
+                          <button
+                            onClick={() => setActiveResultsSubTab('gaps')}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                              activeResultsSubTab === 'gaps'
+                                ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
+                            )}
+                          >
+                            <AlertTriangle size={13} />
+                            <span>Strengths &amp; Gaps</span>
+                          </button>
+
+                          <button
+                            onClick={() => setActiveResultsSubTab('coaching')}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                              activeResultsSubTab === 'coaching'
+                                ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
+                            )}
+                          >
+                            <Target size={13} />
+                            <span>Development Plan</span>
+                          </button>
+                        </>
+                      )}
 
                       <button
                         onClick={() => setActiveResultsSubTab('logs')}
@@ -2041,38 +2333,401 @@ export default function HrbpPage() {
                     {/* Tab display (admin) / Stacked scroll (shared view) */}
                     <div className="flex-1 min-h-[300px]">
 
-                      {/* ── SHARED VIEW: stacked scroll layout (no tab clicks needed) ── */}
+                      {/* ── SHARED VIEW: stacked scroll layout ── */}
                       {isSharedView && (
                         <div className="space-y-8">
-                          {/* Section 1: Executive Summary */}
-                          <div>
-                            <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
-                              <Sparkles size={14} /> Executive Summary
-                            </h3>
-                            {aiAnalysis.markdown_executive_summary ? (
-                              renderMarkdown(aiAnalysis.markdown_executive_summary)
-                            ) : (
-                              <div className="text-theme-text-secondary text-xs italic">ไม่มีบทวิเคราะห์หลัก</div>
-                            )}
-                          </div>
+                          {aiAnalysis.template_id === 'individual_coach' ? (
+                            <>
+                              {/* Coach Stacked: 5-Lens Summary */}
+                              <div>
+                                <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                  <Sparkles size={14} /> 5-Lens Executive Summary
+                                </h3>
+                                {aiAnalysis.markdown_executive_summary ? (
+                                  renderMarkdown(aiAnalysis.markdown_executive_summary)
+                                ) : (
+                                  <div className="text-theme-text-secondary text-xs italic">ไม่มีบทวิเคราะห์หลัก</div>
+                                )}
+                              </div>
 
-                          {/* Section 2: Strengths & Gaps */}
-                          <div className="border-t border-theme-border/60 pt-6">
-                            <h3 className="text-xs font-black text-theme-text uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                              <AlertTriangle size={14} className="text-amber-500" /> Strengths &amp; Execution Gaps
-                            </h3>
-                            <div className="space-y-6">
+                              {/* Coach Stacked: Coaching Guide */}
+                              {aiAnalysis.coaching_guide && (
+                                <div className="border-t border-theme-border/60 pt-6 space-y-3">
+                                  <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                    <Target size={14} /> 1:1 Coaching Conversation Guide
+                                  </h3>
+                                  <div className="space-y-3 text-xs">
+                                    <div className="p-3.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
+                                      <strong className="block text-emerald-500 font-mono text-[9px] uppercase tracking-widest mb-1">Opening Question</strong>
+                                      <p className="font-semibold">"{aiAnalysis.coaching_guide.opening_question}"</p>
+                                    </div>
+                                    <div className="p-3.5 bg-indigo-500/5 border border-indigo-500/20 rounded-xl space-y-2">
+                                      <strong className="block text-indigo-400 font-mono text-[9px] uppercase tracking-widest">Exploration</strong>
+                                      {(aiAnalysis.coaching_guide.exploration_questions || []).map((q: string, idx: number) => (
+                                        <p key={idx} className="font-semibold">"{idx+1}. {q}"</p>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {/* Standard Stacked */}
+                              <div>
+                                <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                  <Sparkles size={14} /> Executive Summary
+                                </h3>
+                                {aiAnalysis.markdown_executive_summary ? (
+                                  renderMarkdown(aiAnalysis.markdown_executive_summary)
+                                ) : (
+                                  <div className="text-theme-text-secondary text-xs italic">ไม่มีบทวิเคราะห์หลัก</div>
+                                )}
+                              </div>
+
+                              <div className="border-t border-theme-border/60 pt-6">
+                                <h3 className="text-xs font-black text-theme-text uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                                  <AlertTriangle size={14} className="text-amber-500" /> Strengths &amp; Execution Gaps
+                                </h3>
+                                <div className="space-y-6">
+                                  <div>
+                                    <h4 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                      <CheckCircle2 size={14} /> Key Strengths Identified
+                                    </h4>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      {(aiAnalysis.strengths || []).length === 0 ? (
+                                        <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลสมรรถนะเด่น</div>
+                                      ) : aiAnalysis.strengths.map((str: string, i: number) => (
+                                        <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
+                                          <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                          <span>{str}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <h4 className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                      <AlertTriangle size={14} /> Key Execution Gaps &amp; Redundancies
+                                    </h4>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      {(aiAnalysis.improvements || []).length === 0 ? (
+                                        <div className="text-xs text-theme-text-secondary italic font-mono">ไม่มีประเด็นข้อบกพร่อง/ช่องว่างภาระงาน</div>
+                                      ) : aiAnalysis.improvements.map((imp: string, i: number) => (
+                                        <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
+                                          <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                          <span>{imp}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ── ADMIN VIEW: tabbed layout ── */}
+                      {!isSharedView && activeResultsSubTab === 'summary' && (
+                        <div className="space-y-4 animate-in fade-in duration-300">
+                          {aiAnalysis.markdown_executive_summary ? (
+                            renderMarkdown(aiAnalysis.markdown_executive_summary)
+                          ) : (
+                            <div className="text-theme-text-secondary text-xs sm:text-sm leading-relaxed italic">
+                              ไม่มีบทวิเคราะห์เนื้อหาประเมินความสอดคล้องหลัก
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Tab panels for individual_coach template */}
+                      {!isSharedView && aiAnalysis.template_id === 'individual_coach' && (
+                        <>
+                          {/* Coaching Guide Tab */}
+                          {activeResultsSubTab === 'coaching' && (
+                            <div className="space-y-5 animate-in fade-in duration-300">
+                              <div className="flex justify-between items-center border-b border-theme-border/60 pb-3">
+                                <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                                  <Target size={15} /> Coaching Conversation Guide (1:1 คู่มือคำถามชวนคุย)
+                                </h4>
+                                <button
+                                  onClick={() => {
+                                    const guide = aiAnalysis.coaching_guide;
+                                    if (!guide) return;
+                                    const text = `=== 1:1 Coaching Conversation Guide ===
+[Opening]: ${guide.opening_question || ''}
+[Exploration]:
+${(guide.exploration_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).join('\n')}
+[Insight]:
+${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).join('\n')}
+[Commitment]: ${guide.commitment_question || ''}`;
+                                    navigator.clipboard.writeText(text);
+                                    showToast('คัดลอกคู่มือ Coaching Guide สำเร็จแล้ว!', 'success');
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[10px] font-bold tracking-wider flex items-center gap-1.5 transition-all"
+                                >
+                                  <Copy size={11} />
+                                  <span>Copy Guide</span>
+                                </button>
+                              </div>
+
+                              {aiAnalysis.coaching_guide ? (
+                                <div className="space-y-4 text-xs leading-relaxed">
+                                  <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 shadow-sm space-y-1.5">
+                                    <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest font-mono">1. Opening &amp; Psychological Safety (Warm-up)</span>
+                                    <p className="text-theme-text font-semibold">"{aiAnalysis.coaching_guide.opening_question}"</p>
+                                  </div>
+
+                                  <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/15 shadow-sm space-y-3">
+                                    <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest font-mono block">2. Exploration &amp; Deep-Dive Questions (ชวนคุยเจาะลึกภาระงานจริง)</span>
+                                    <div className="space-y-2">
+                                      {(aiAnalysis.coaching_guide.exploration_questions || []).map((q: string, i: number) => (
+                                        <div key={i} className="flex items-start gap-2.5">
+                                          <span className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-mono font-bold text-[10px] shrink-0 mt-0.5">{i+1}</span>
+                                          <span className="font-semibold text-theme-text">"{q}"</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  <div className="p-4 rounded-2xl bg-purple-500/5 border border-purple-500/15 shadow-sm space-y-3">
+                                    <span className="text-[9px] font-bold text-purple-400 uppercase tracking-widest font-mono block">3. Prompting Insight (ชวนสะท้อนความตระหนักรู้และแนวคิด)</span>
+                                    <div className="space-y-2">
+                                      {(aiAnalysis.coaching_guide.insight_questions || []).map((q: string, i: number) => (
+                                        <div key={i} className="flex items-start gap-2.5">
+                                          <span className="w-5 h-5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center font-mono font-bold text-[10px] shrink-0 mt-0.5">{i+1}</span>
+                                          <span className="font-semibold text-theme-text">"{q}"</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  <div className="p-4 rounded-2xl bg-pink-500/5 border border-pink-500/20 shadow-sm space-y-1.5">
+                                    <span className="text-[9px] font-bold text-pink-500 uppercase tracking-widest font-mono">4. Closing &amp; Commitment to Action (ปิดและตั้งข้อตกลงร่วมกัน)</span>
+                                    <p className="text-theme-text font-semibold">"{aiAnalysis.coaching_guide.commitment_question}"</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-xs text-theme-text-secondary italic">ไม่มีข้อมูลไกด์คำถามโค้ชชิ่ง</div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Action Plan & Strengths Tab */}
+                          {activeResultsSubTab === 'gaps' && (
+                            <div className="space-y-6 animate-in fade-in duration-300">
+                              {/* Strengths */}
+                              <div>
+                                <h4 className="text-xs font-black text-emerald-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                  <CheckCircle2 size={15} /> Lens 1 &amp; 3: Key Strengths (จุดเด่นหลักและการต่อยอด)
+                                </h4>
+                                <div className="grid grid-cols-1 gap-3.5 text-xs">
+                                  {(aiAnalysis.strengths || []).length === 0 ? (
+                                    <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลจุดเด่น</div>
+                                  ) : (
+                                    aiAnalysis.strengths.map((s: any, i: number) => {
+                                      const item = typeof s === 'string' ? { title: s, evidence: '', amplify: '' } : s;
+                                      return (
+                                        <div key={i} className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 space-y-2 shadow-sm">
+                                          <div className="flex items-center gap-2">
+                                            <span className="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-[10px]">{i + 1}</span>
+                                            <span className="font-extrabold text-theme-text text-sm">{item.title}</span>
+                                          </div>
+                                          {item.evidence && (
+                                            <p className="text-theme-text-secondary pl-7">
+                                              <strong>Evidence:</strong> <span className="font-light">{item.evidence}</span>
+                                            </p>
+                                          )}
+                                          {item.amplify && (
+                                            <p className="text-emerald-600 dark:text-emerald-400 pl-7">
+                                              <strong>How to Amplify:</strong> <span className="font-semibold">{item.amplify}</span>
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Improvements */}
+                              <div className="border-t border-theme-border/60 pt-5">
+                                <h4 className="text-xs font-black text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                  <AlertTriangle size={15} /> Opportunities for Development (โอกาสพัฒนาและความสำเร็จ)
+                                </h4>
+                                <div className="grid grid-cols-1 gap-3.5 text-xs">
+                                  {(aiAnalysis.improvements || []).length === 0 ? (
+                                    <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลจุดพัฒนา</div>
+                                  ) : (
+                                    aiAnalysis.improvements.map((imp: any, i: number) => {
+                                      const item = typeof imp === 'string' ? { observation: imp, evidence: '', recommended_action: '', success_indicator: '' } : imp;
+                                      return (
+                                        <div key={i} className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 space-y-2 shadow-sm">
+                                          <div className="flex items-center gap-2">
+                                            <span className="w-5 h-5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-[10px]">{i + 1}</span>
+                                            <span className="font-extrabold text-theme-text text-sm">{item.observation}</span>
+                                          </div>
+                                          {item.evidence && (
+                                            <p className="text-theme-text-secondary pl-7">
+                                              <strong>Evidence:</strong> <span className="font-light">{item.evidence}</span>
+                                            </p>
+                                          )}
+                                          {item.recommended_action && (
+                                            <p className="text-theme-text pl-7">
+                                              <strong>Action:</strong> <span className="font-semibold text-indigo-400">{item.recommended_action}</span>
+                                            </p>
+                                          )}
+                                          {item.success_indicator && (
+                                            <p className="text-amber-600 dark:text-amber-400 pl-7">
+                                              <strong>Success Metric:</strong> <span className="font-semibold">{item.success_indicator}</span>
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* priorities */}
+                              {aiAnalysis.development_plan?.priorities && (
+                                <div className="border-t border-theme-border/60 pt-5">
+                                  <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                    <Target size={15} /> Action Priorities (3 ลำดับความสำคัญเร่งด่วน)
+                                  </h4>
+                                  <div className="grid grid-cols-1 gap-3 text-xs">
+                                    {(aiAnalysis.development_plan.priorities || []).map((p: any, i: number) => (
+                                      <div key={i} className="bg-indigo-500/5 border border-indigo-500/15 rounded-2xl p-4 space-y-2">
+                                        <div className="flex items-center justify-between border-b border-indigo-500/10 pb-1.5">
+                                          <span className="font-extrabold text-indigo-400 flex items-center gap-2">
+                                            <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-[10px]">{i+1}</span>
+                                            <span>{p.title}</span>
+                                          </span>
+                                        </div>
+                                        <p className="text-theme-text-secondary"><strong>Why it matters:</strong> {p.why_matters}</p>
+                                        <p className="text-theme-text"><strong>Specific Action:</strong> {p.specific_action}</p>
+                                        <p className="text-emerald-400 font-semibold"><strong>Metric:</strong> {p.success_metric}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Risk & Well-being Tab */}
+                          {activeResultsSubTab === ('well_being' as any) && (
+                            <div className="space-y-5 animate-in fade-in duration-300">
+                              <h4 className="text-xs font-black text-rose-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <Activity size={15} /> Well-being Indicator &amp; Flags (วิเคราะห์สุขภาวะและ burnout risk)
+                              </h4>
+
+                              {aiAnalysis.well_being_signal ? (
+                                <div className="space-y-4 text-xs leading-relaxed">
+                                  <div className={cn(
+                                    "p-5 rounded-3xl border shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 overflow-hidden relative",
+                                    aiAnalysis.well_being_signal.level === 'red' ? "bg-rose-500/10 border-rose-500/30" :
+                                    aiAnalysis.well_being_signal.level === 'yellow' ? "bg-amber-500/10 border-amber-500/30" :
+                                    "bg-emerald-500/10 border-emerald-500/30"
+                                  )}>
+                                    <div className="space-y-1">
+                                      <span className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-widest block">Risk Assessment Level</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-2xl font-black text-theme-text capitalize">
+                                          {aiAnalysis.well_being_signal.risk_type === 'none' ? 'Perfect Health' : aiAnalysis.well_being_signal.risk_type}
+                                        </span>
+                                        <span className={cn(
+                                          "px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider font-mono",
+                                          aiAnalysis.well_being_signal.level === 'red' ? "bg-rose-500 text-white animate-pulse" :
+                                          aiAnalysis.well_being_signal.level === 'yellow' ? "bg-amber-500 text-black" :
+                                          "bg-emerald-500 text-white"
+                                        )}>
+                                          {aiAnalysis.well_being_signal.level.toUpperCase()}
+                                        </span>
+                                      </div>
+                                      {aiAnalysis.well_being_signal.urgency_days && (
+                                        <span className="text-xs text-rose-400 font-semibold block mt-1">
+                                          ⚠️ แนะนำคุยเพื่อช่วยเหลือหรือชี้แจงภายใน {aiAnalysis.well_being_signal.urgency_days} วัน
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-center font-black text-4xl shrink-0">
+                                      {aiAnalysis.well_being_signal.level === 'red' ? '🚨' : aiAnalysis.well_being_signal.level === 'yellow' ? '⚠️' : '✅'}
+                                    </div>
+                                  </div>
+
+                                  <div className="p-4 rounded-2xl bg-theme-surface dark:bg-theme-bg-page/60 border border-theme-border/80 space-y-2">
+                                    <span className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-widest font-mono block">Evidence (หลักฐานข้อบ่งชี้ทางพฤติกรรม)</span>
+                                    <p className="font-light text-theme-text">{aiAnalysis.well_being_signal.evidence}</p>
+                                  </div>
+
+                                  <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/15 space-y-2">
+                                    <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest font-mono block">Recommended Actions for Manager (คำสั่งการหัวหน้างาน)</span>
+                                    <p className="font-semibold text-theme-text">{aiAnalysis.well_being_signal.manager_action}</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-xs text-theme-text-secondary italic">ไม่มีข้อมูลวิเคราะห์สุขภาวะ</div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Direct Message Tab */}
+                          {activeResultsSubTab === ('message' as any) && (
+                            <div className="space-y-4 animate-in fade-in duration-300">
+                              <div className="flex justify-between items-center border-b border-theme-border/60 pb-3">
+                                <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                                  <FileText size={15} /> Empathetic Feedback Message (ร่างข้อความสำหรับส่งให้พนักงาน)
+                                </h4>
+                                <button
+                                  onClick={() => {
+                                    if (!aiAnalysis.message_to_employee) return;
+                                    navigator.clipboard.writeText(aiAnalysis.message_to_employee);
+                                    showToast('คัดลอกข้อความร่างเรียบร้อยแล้ว!', 'success');
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-[10px] font-bold tracking-wider flex items-center gap-1.5 transition-all"
+                                >
+                                  <Copy size={11} />
+                                  <span>Copy Message</span>
+                                </button>
+                              </div>
+
+                              {aiAnalysis.message_to_employee ? (
+                                <div className="p-6 rounded-3xl bg-indigo-500/5 border border-indigo-500/20 shadow-lg relative max-w-2xl mx-auto space-y-4 text-xs">
+                                  <span className="text-5xl text-indigo-500/20 font-black absolute top-2 left-4 select-none pointer-events-none">“</span>
+                                  
+                                  <p className="leading-relaxed text-theme-text font-semibold relative z-10 pl-6 pr-4 whitespace-pre-line">
+                                    {aiAnalysis.message_to_employee}
+                                  </p>
+
+                                  <div className="flex justify-end pt-2 text-[10px] text-theme-text-secondary font-mono italic">
+                                    — สามารถส่งข้อความนี้ทาง Chat หรือ Email เพื่อเป็นการสนับสนุนหลังการพูดคุยแบบ 1:1
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-xs text-theme-text-secondary italic">ไม่มีข้อมูลร่างข้อความสำหรับพนักงาน</div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Standard tab panels for master template */}
+                      {!isSharedView && aiAnalysis.template_id !== 'individual_coach' && (
+                        <>
+                          {activeResultsSubTab === 'gaps' && (
+                            <div className="space-y-6 animate-in fade-in duration-300">
                               <div>
                                 <h4 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                  <CheckCircle2 size={14} /> Key Strengths Identified
+                                  <CheckCircle2 size={14} /> Core Strengths &amp; Achievements
                                 </h4>
                                 <div className="grid grid-cols-1 gap-2">
                                   {(aiAnalysis.strengths || []).length === 0 ? (
-                                    <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลสมรรถนะเด่น</div>
-                                  ) : aiAnalysis.strengths.map((str: string, i: number) => (
+                                    <div className="text-xs text-theme-text-secondary italic font-mono">ไม่มีข้อมูลจุดแข็ง</div>
+                                  ) : (aiAnalysis.strengths || []).map((str: any, i: number) => (
                                     <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
                                       <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
-                                      <span>{str}</span>
+                                      <span>{typeof str === 'string' ? str : str.title || JSON.stringify(str)}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -2093,8 +2748,7 @@ export default function HrbpPage() {
                                 </div>
                               </div>
                             </div>
-                          </div>
-
+          )}
                           {/* Section 3: Development Plan */}
                           {aiAnalysis.development_plan && (
                             <div className="border-t border-theme-border/60 pt-6">
@@ -2141,7 +2795,7 @@ export default function HrbpPage() {
                               })()}
                             </div>
                           )}
-                        </div>
+                        </>
                       )}
 
                       {/* ── ADMIN VIEW: tabbed layout ── */}
