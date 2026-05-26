@@ -147,10 +147,10 @@ export default function ProfilePage() {
           });
         }
 
-        // 3. Fetch Google Calendar Settings from DB
+        // 3. Fetch Google Calendar Settings & HR profile details from DB
         const { data: dbUser } = await supabase
           .from('users')
-          .select('gcal_sync_enabled, gcal_email, gcal_calendar_id')
+          .select('gcal_sync_enabled, gcal_email, gcal_calendar_id, employee_level, role_start_date, company_name, manager_name')
           .eq('id', sessionData.id)
           .maybeSingle();
 
@@ -159,6 +159,15 @@ export default function ProfilePage() {
           setGcalEmail(dbUser.gcal_email || '');
           setGcalCalendarId(dbUser.gcal_calendar_id || 'primary');
           setGcalConnected(dbUser.gcal_sync_enabled || false);
+          
+          // Merge DB profile details into session state so it's easily accessible in rendering
+          setSession((prev: any) => ({
+            ...prev,
+            employee_level: dbUser.employee_level,
+            role_start_date: dbUser.role_start_date,
+            company_name: dbUser.company_name,
+            manager_name: dbUser.manager_name
+          }));
 
           if (dbUser.gcal_sync_enabled) {
             // Attempt to silently refresh token in the background so the UI updates
@@ -281,7 +290,7 @@ export default function ProfilePage() {
                 <p className="text-sm text-theme-text-secondary mt-0.5">{session?.email}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 max-w-sm pt-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-2xl pt-2">
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Employee ID</span>
                   <span className="text-sm font-semibold text-theme-text font-mono mt-0.5 block">{session?.empId || 'EMP-XXXXX'}</span>
@@ -290,6 +299,43 @@ export default function ProfilePage() {
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Nickname</span>
                   <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.name?.split(' ')[0] || 'User'}</span>
                 </div>
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Level</span>
+                  <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.employee_level || 'N/A'}</span>
+                </div>
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Company</span>
+                  <span className="text-sm font-semibold text-theme-text mt-0.5 block truncate" title={session?.company_name}>{session?.company_name || 'N/A'}</span>
+                </div>
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Start Date</span>
+                  <span className="text-sm font-semibold text-theme-text mt-0.5 block">
+                    {session?.role_start_date ? new Date(session.role_start_date).toLocaleDateString('th-TH', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    }) : 'N/A'}
+                  </span>
+                </div>
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Tenure (อายุงาน)</span>
+                  <span className="text-sm font-semibold text-theme-text mt-0.5 block">
+                    {session?.role_start_date ? (
+                      (() => {
+                        const start = new Date(session.role_start_date);
+                        const diffMs = new Date().getTime() - start.getTime();
+                        const years = diffMs / (1000 * 60 * 60 * 24 * 365.25);
+                        return `${years.toFixed(1)} ปี`;
+                      })()
+                    ) : 'N/A'}
+                  </span>
+                </div>
+                {session?.manager_name && (
+                  <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3 col-span-2 sm:col-span-3">
+                    <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Manager Name</span>
+                    <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.manager_name}</span>
+                  </div>
+                )}
               </div>
             </div>
 

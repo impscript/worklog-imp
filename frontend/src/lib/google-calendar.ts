@@ -401,11 +401,20 @@ class GoogleCalendarService {
       }
     };
 
-    // OT Event visual highlight -> Set colorId to 11 (Tomato red)
+    // Assign colorId based on event category
+    // Google Calendar API Color IDs:
+    // '9' = Blueberry/Blue (Project)
+    // '2' = Sage/Green (Support)
+    // '6' = Tangerine/Orange (OT)
+    // '5' = Banana/Yellow (Fallback for other types)
     if (isOT) {
-      event.colorId = '11';
+      event.colorId = '6'; // Orange
+    } else if (projectType.toLowerCase() === 'project') {
+      event.colorId = '9'; // Blue
+    } else if (projectType.toLowerCase() === 'support') {
+      event.colorId = '2'; // Green
     } else {
-      event.colorId = '5';
+      event.colorId = '5'; // Fallback Yellow
     }
 
     return event;
