@@ -94,6 +94,20 @@ export default function HrbpPage() {
   const [employeeLevel, setEmployeeLevel] = useState<string>('');
   const [managerName, setManagerName] = useState<string>('');
 
+  // Delete history record states
+  const [deleteRecordId, setDeleteRecordId] = useState<string | null>(null);
+  const [isDeletingRecord, setIsDeletingRecord] = useState<boolean>(false);
+
+  // View mode for 5-Lens Dashboard
+  const [viewMode, setViewMode] = useState<'manager' | 'employee'>('manager');
+
+  useEffect(() => {
+    if (viewMode === 'employee' && (activeResultsSubTab === 'coaching' || activeResultsSubTab === 'well_being' as any)) {
+      setActiveResultsSubTab('summary');
+    }
+  }, [viewMode, activeResultsSubTab]);
+
+
   const selectedUserInfo = useMemo(() => {
     return usersList.find(u => u.id === selectedUser);
   }, [usersList, selectedUser]);
@@ -223,6 +237,7 @@ export default function HrbpPage() {
         .from('tb_ai_individual_analysis')
         .select('*')
         .eq('user_id', selectedUser)
+        .eq('template_id', templateId)
         .order('analysis_date', { ascending: false });
 
       if (err) throw err;
@@ -417,14 +432,24 @@ export default function HrbpPage() {
         console.log('Skipping log metrics calculation in shared view (read-only):', logsErr);
       }
 
+      setTemplateId(report.template_id || 'master');
+      setViewMode('employee');
+
       setAiAnalysis({
         id: report.id,
         share_token: report.share_token,
         is_public: report.is_public,
         acknowledged_at: report.acknowledged_at,
         acknowledged_by: report.acknowledged_by,
+        template_id: report.template_id,
         jd_alignment_score: report.jd_alignment_score,
         burnout_risk_score: report.burnout_risk_score,
+        reflection_level: report.reflection_level,
+        value_mix: report.value_mix,
+        headline_insight: report.headline_insight,
+        coaching_guide: report.coaching_guide,
+        well_being_signal: report.well_being_signal,
+        message_to_employee: report.message_to_employee,
         workload_allocation: report.actual_vs_target,
         strengths: report.strengths,
         improvements: report.improvements,
@@ -465,6 +490,12 @@ export default function HrbpPage() {
         is_public: record.is_public,
         acknowledged_at: record.acknowledged_at,
         acknowledged_by: record.acknowledged_by,
+        template_id: record.template_id,
+        reflection_level: record.reflection_level,
+        value_mix: record.value_mix,
+        coaching_guide: record.coaching_guide,
+        well_being_signal: record.well_being_signal,
+        message_to_employee: record.message_to_employee,
         jd_alignment_score: record.jd_alignment_score,
         burnout_risk_score: record.burnout_risk_score,
         workload_allocation: record.actual_vs_target,
@@ -491,6 +522,12 @@ export default function HrbpPage() {
         is_public: record.is_public,
         acknowledged_at: record.acknowledged_at,
         acknowledged_by: record.acknowledged_by,
+        template_id: record.template_id,
+        reflection_level: record.reflection_level,
+        value_mix: record.value_mix,
+        coaching_guide: record.coaching_guide,
+        well_being_signal: record.well_being_signal,
+        message_to_employee: record.message_to_employee,
         jd_alignment_score: record.jd_alignment_score,
         burnout_risk_score: record.burnout_risk_score,
         workload_allocation: record.actual_vs_target,
@@ -511,6 +548,32 @@ export default function HrbpPage() {
       showToast('โหลดผลวิเคราะห์ย้อนหลังสำเร็จ (ไม่มีข้อมูลชั่วโมงงาน)', 'warning');
     }
   };
+
+  const handleDeleteRecord = async () => {
+    if (!deleteRecordId) return;
+    setIsDeletingRecord(true);
+    try {
+      const { error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .delete()
+        .eq('id', deleteRecordId);
+
+      if (error) throw error;
+
+      showToast('ลบประวัติการประเมินสำเร็จ', 'success');
+      setAnalysisHistory(prev => prev.filter(r => r.id !== deleteRecordId));
+      if (aiAnalysis?.id === deleteRecordId) {
+        setAiAnalysis(null);
+      }
+    } catch (err: any) {
+      console.error('Error deleting record:', err);
+      showToast('ไม่สามารถลบประวัติการประเมินได้: ' + err.message, 'error');
+    } finally {
+      setIsDeletingRecord(false);
+      setDeleteRecordId(null);
+    }
+  };
+
 
   // Recommendations: Pos + weights
   const recommendJd = async () => {
@@ -793,6 +856,12 @@ export default function HrbpPage() {
         is_public: data.is_public,
         acknowledged_at: data.acknowledged_at,
         acknowledged_by: data.acknowledged_by,
+        template_id: data.template_id || templateId,
+        reflection_level: data.reflection_level,
+        value_mix: data.value_mix,
+        coaching_guide: data.coaching_guide,
+        well_being_signal: data.well_being_signal,
+        message_to_employee: data.message_to_employee,
         jd_alignment_score: data.jd_alignment_score,
         burnout_risk_score: data.burnout_risk_score,
         workload_allocation: data.workload_allocation,
@@ -1905,20 +1974,21 @@ export default function HrbpPage() {
                         {aiAnalysis.well_being_signal && (
                           <span className={cn(
                             "px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase font-mono tracking-wider",
+                            viewMode === 'employee' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" :
                             aiAnalysis.well_being_signal.level === 'red' ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20" :
                             aiAnalysis.well_being_signal.level === 'yellow' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" :
                             "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                           )}>
-                            {aiAnalysis.well_being_signal.level.toUpperCase()}
+                            {viewMode === 'employee' ? 'ACTIVE CARE' : aiAnalysis.well_being_signal.level.toUpperCase()}
                           </span>
                         )}
                       </div>
                       <div className="space-y-1">
                         <h4 className="text-xl font-black text-theme-text tracking-tight capitalize">
-                          {aiAnalysis.well_being_signal?.risk_type === 'none' ? 'Perfect Health' : aiAnalysis.well_being_signal?.risk_type || 'Healthy'}
+                          {viewMode === 'employee' ? 'Supportive Care Active' : (aiAnalysis.well_being_signal?.risk_type === 'none' ? 'Perfect Health' : aiAnalysis.well_being_signal?.risk_type || 'Healthy')}
                         </h4>
                         <p className="text-[10px] text-theme-text-secondary leading-relaxed">
-                          ระดับสุขภาวะและความเครียด วิเคราะห์ความสอดคล้องกับ burnout risk ({aiAnalysis.burnout_risk_score}%)
+                          {viewMode === 'employee' ? 'ระดับสุขภาวะและการดูแลความสมดุลในการทำงาน (Work-Life Balance)' : `ระดับสุขภาวะและความเครียด วิเคราะห์ความสอดคล้องกับ burnout risk (${aiAnalysis.burnout_risk_score}%)`}
                         </p>
                       </div>
                     </div>
@@ -2177,6 +2247,34 @@ export default function HrbpPage() {
                           )}
                         </div>
 
+                        {/* View mode switcher */}
+                        {aiAnalysis.template_id === 'individual_coach' && (
+                          <div className="flex items-center bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-xl p-0.5 font-mono text-[9px] font-bold">
+                            <button
+                              onClick={() => setViewMode('manager')}
+                              className={cn(
+                                "px-2.5 py-1.5 rounded-lg transition-all",
+                                viewMode === 'manager'
+                                  ? "bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-black"
+                                  : "text-theme-text-secondary hover:text-theme-text"
+                              )}
+                            >
+                              Manager View
+                            </button>
+                            <button
+                              onClick={() => setViewMode('employee')}
+                              className={cn(
+                                "px-2.5 py-1.5 rounded-lg transition-all",
+                                viewMode === 'employee'
+                                  ? "bg-violet-600/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 font-black"
+                                  : "text-theme-text-secondary hover:text-theme-text"
+                              )}
+                            >
+                              Employee View
+                            </button>
+                          </div>
+                        )}
+
                         {/* Print Control */}
                         <button
                           onClick={() => window.print()}
@@ -2185,6 +2283,7 @@ export default function HrbpPage() {
                         >
                           <Printer size={13} />
                         </button>
+
                       </div>
 
                     </div>
@@ -2207,18 +2306,20 @@ export default function HrbpPage() {
                             <span>5-Lens Summary</span>
                           </button>
                           
-                          <button
-                            onClick={() => setActiveResultsSubTab('coaching')}
-                            className={cn(
-                              "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
-                              activeResultsSubTab === 'coaching'
-                                ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                                : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
-                            )}
-                          >
-                            <Target size={13} />
-                            <span>Coaching 1:1 Guide</span>
-                          </button>
+                          {viewMode === 'manager' && (
+                            <button
+                              onClick={() => setActiveResultsSubTab('coaching')}
+                              className={cn(
+                                "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                                activeResultsSubTab === 'coaching'
+                                  ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                  : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
+                              )}
+                            >
+                              <Target size={13} />
+                              <span>Coaching 1:1 Guide</span>
+                            </button>
+                          )}
 
                           <button
                             onClick={() => setActiveResultsSubTab('gaps')}
@@ -2233,18 +2334,20 @@ export default function HrbpPage() {
                             <span>Action Plan &amp; Strengths</span>
                           </button>
 
-                          <button
-                            onClick={() => setActiveResultsSubTab('well_being' as any)}
-                            className={cn(
-                              "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
-                              activeResultsSubTab === ('well_being' as any)
-                                ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
-                                : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
-                            )}
-                          >
-                            <Activity size={13} />
-                            <span>Risk &amp; Well-being</span>
-                          </button>
+                          {viewMode === 'manager' && (
+                            <button
+                              onClick={() => setActiveResultsSubTab('well_being' as any)}
+                              className={cn(
+                                "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap",
+                                activeResultsSubTab === ('well_being' as any)
+                                  ? "bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                                  : "text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text"
+                              )}
+                            >
+                              <Activity size={13} />
+                              <span>Risk &amp; Well-being</span>
+                            </button>
+                          )}
 
                           <button
                             onClick={() => setActiveResultsSubTab('message' as any)}
@@ -2350,23 +2453,137 @@ export default function HrbpPage() {
                                 )}
                               </div>
 
-                              {/* Coach Stacked: Coaching Guide */}
-                              {aiAnalysis.coaching_guide && (
+                              {/* Coach Stacked: Value Mix */}
+                              {aiAnalysis.value_mix && (
+                                <div className="border-t border-theme-border/60 pt-6 space-y-4">
+                                  <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                    <Activity size={14} /> Value Mix & Contribution (สัดส่วนลักษณะงาน)
+                                  </h3>
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                                    <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-xl p-3 text-center">
+                                      <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Strategic</span>
+                                      <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">{aiAnalysis.value_mix.strategic || 0}%</span>
+                                    </div>
+                                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3 text-center">
+                                      <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Tactical</span>
+                                      <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{aiAnalysis.value_mix.tactical || 0}%</span>
+                                    </div>
+                                    <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 text-center">
+                                      <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Operational</span>
+                                      <span className="text-lg font-black text-amber-600 dark:text-amber-400">{aiAnalysis.value_mix.operational || 0}%</span>
+                                    </div>
+                                    <div className="bg-rose-500/5 border border-rose-500/10 rounded-xl p-3 text-center">
+                                      <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Reactive</span>
+                                      <span className="text-lg font-black text-rose-600 dark:text-rose-400">{aiAnalysis.value_mix.reactive || 0}%</span>
+                                    </div>
+                                  </div>
+                                  <div className="w-full h-3 bg-slate-200 dark:bg-theme-surface-tertiary rounded-full overflow-hidden flex font-mono text-[9px] font-bold text-white text-center">
+                                    {aiAnalysis.value_mix.strategic > 0 && (
+                                      <div style={{ width: `${aiAnalysis.value_mix.strategic}%` }} className="bg-indigo-600 flex items-center justify-center" title="Strategic">
+                                        S
+                                      </div>
+                                    )}
+                                    {aiAnalysis.value_mix.tactical > 0 && (
+                                      <div style={{ width: `${aiAnalysis.value_mix.tactical}%` }} className="bg-emerald-600 flex items-center justify-center" title="Tactical">
+                                        T
+                                      </div>
+                                    )}
+                                    {aiAnalysis.value_mix.operational > 0 && (
+                                      <div style={{ width: `${aiAnalysis.value_mix.operational}%` }} className="bg-amber-600 flex items-center justify-center" title="Operational">
+                                        O
+                                      </div>
+                                    )}
+                                    {aiAnalysis.value_mix.reactive > 0 && (
+                                      <div style={{ width: `${aiAnalysis.value_mix.reactive}%` }} className="bg-rose-600 flex items-center justify-center" title="Reactive">
+                                        R
+                                      </div>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-theme-text-secondary leading-relaxed">
+                                    * <strong>S: Strategic</strong> (คิดค้น วางแผน วิเคราะห์), <strong>T: Tactical</strong> (ลงมือทำโครงการ นำความคิดไปปฏิบัติ), <strong>O: Operational</strong> (งานประจำ รูทีน), <strong>R: Reactive</strong> (งานแก้ปัญหาเฉพาะหน้า งานด่วนแทรก)
+                                  </p>
+                                </div>
+                              )}
+
+
+                              {/* Coach Stacked: Strengths & Dev Areas */}
+                              <div className="border-t border-theme-border/60 pt-6 space-y-4">
+                                <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                  <Award size={14} /> Key Strengths & Opportunities for Development
+                                </h3>
+                                <div className="space-y-4 text-xs">
+                                  <div>
+                                    <h4 className="text-[11px] font-bold text-emerald-500 mb-2">Key Strengths</h4>
+                                    <div className="space-y-2">
+                                      {(aiAnalysis.strengths || []).map((s: any, i: number) => {
+                                        const item = typeof s === 'string' ? { title: s, evidence: '', amplify: '' } : s;
+                                        return (
+                                          <div key={i} className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
+                                            <div className="font-bold text-theme-text">{i+1}. {item.title}</div>
+                                            {item.evidence && <p className="text-theme-text-secondary mt-1 text-[11px]"><strong>Evidence:</strong> {item.evidence}</p>}
+                                            {item.amplify && <p className="text-emerald-600 dark:text-emerald-400 mt-0.5 text-[11px]"><strong>Amplify:</strong> {item.amplify}</p>}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <h4 className="text-[11px] font-bold text-amber-500 mb-2">Opportunities for Development</h4>
+                                    <div className="space-y-2">
+                                      {(aiAnalysis.improvements || []).map((imp: any, i: number) => {
+                                        const item = typeof imp === 'string' ? { observation: imp, evidence: '', recommended_action: '', success_indicator: '' } : imp;
+                                        return (
+                                          <div key={i} className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3">
+                                            <div className="font-bold text-theme-text">{i+1}. {item.observation}</div>
+                                            {item.evidence && <p className="text-theme-text-secondary mt-1 text-[11px]"><strong>Evidence:</strong> {item.evidence}</p>}
+                                            {item.recommended_action && <p className="text-theme-text mt-0.5 text-[11px]"><strong>Action:</strong> {item.recommended_action}</p>}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Coach Stacked: Development Priorities */}
+                              {aiAnalysis.development_plan?.priorities && (
                                 <div className="border-t border-theme-border/60 pt-6 space-y-3">
                                   <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
-                                    <Target size={14} /> 1:1 Coaching Conversation Guide
+                                    <Target size={14} /> Action Priorities (ลำดับความสำคัญ)
                                   </h3>
                                   <div className="space-y-3 text-xs">
-                                    <div className="p-3.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
-                                      <strong className="block text-emerald-500 font-mono text-[9px] uppercase tracking-widest mb-1">Opening Question</strong>
-                                      <p className="font-semibold">"{aiAnalysis.coaching_guide.opening_question}"</p>
-                                    </div>
-                                    <div className="p-3.5 bg-indigo-500/5 border border-indigo-500/20 rounded-xl space-y-2">
-                                      <strong className="block text-indigo-400 font-mono text-[9px] uppercase tracking-widest">Exploration</strong>
-                                      {(aiAnalysis.coaching_guide.exploration_questions || []).map((q: string, idx: number) => (
-                                        <p key={idx} className="font-semibold">"{idx+1}. {q}"</p>
-                                      ))}
-                                    </div>
+                                    {aiAnalysis.development_plan.priorities.map((p: any, i: number) => (
+                                      <div key={i} className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3">
+                                        <div className="font-bold text-indigo-400">{i+1}. {p.title}</div>
+                                        <p className="text-theme-text-secondary mt-1"><strong>Action:</strong> {p.specific_action}</p>
+                                        <p className="text-emerald-400"><strong>Metric:</strong> {p.success_metric}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Coach Stacked: Well-being Indicator */}
+                              {aiAnalysis.well_being_signal && (
+                                <div className="border-t border-theme-border/60 pt-6 space-y-3">
+                                  <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                    <Activity size={14} /> Well-being Care Signal
+                                  </h3>
+                                  <div className="p-4 rounded-xl border text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
+                                    <div className="font-bold text-sm text-theme-text">Health Status: Active Care Active</div>
+                                    <p className="text-theme-text-secondary mt-1"><strong>Observation:</strong> {aiAnalysis.well_being_signal.evidence}</p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Coach Stacked: Direct Message to Employee */}
+                              {aiAnalysis.message_to_employee && (
+                                <div className="border-t border-theme-border/60 pt-6 space-y-3">
+                                  <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                    <FileText size={14} /> Direct Message to Employee
+                                  </h3>
+                                  <div className="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/20 text-xs italic text-theme-text leading-relaxed whitespace-pre-line">
+                                    "{aiAnalysis.message_to_employee}"
                                   </div>
                                 </div>
                               )}
@@ -2799,7 +3016,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                       )}
 
                       {/* ── ADMIN VIEW: tabbed layout ── */}
-                      {!isSharedView && activeResultsSubTab === 'summary' && (
+                      {!isSharedView && aiAnalysis.template_id !== 'individual_coach' && activeResultsSubTab === 'summary' && (
                         <div className="space-y-4">
                           {aiAnalysis.markdown_executive_summary ? (
                             renderMarkdown(aiAnalysis.markdown_executive_summary)
@@ -2811,7 +3028,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                         </div>
                       )}
 
-                      {activeResultsSubTab === 'gaps' && (
+                      {!isSharedView && aiAnalysis.template_id !== 'individual_coach' && activeResultsSubTab === 'gaps' && (
                         <div className="space-y-6 animate-in fade-in duration-300">
                           <div>
                             <h4 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
@@ -2851,7 +3068,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                         </div>
                       )}
 
-                      {!isSharedView && activeResultsSubTab === 'coaching' && (
+                      {!isSharedView && aiAnalysis.template_id !== 'individual_coach' && activeResultsSubTab === 'coaching' && (
                         <div className="space-y-4">
                           <h4 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
                             <Target size={16} /> Strategic Development &amp; Action Plan
@@ -3034,12 +3251,22 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                       )}
                                     </div>
 
-                                    <button 
-                                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-theme-text font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
-                                      onClick={() => loadHistoryRecord(record)}
-                                    >
-                                      LOAD
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                      <button 
+                                        className="p-1.5 rounded-lg bg-rose-600/10 hover:bg-rose-600/20 text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors border border-rose-500/20"
+                                        onClick={() => setDeleteRecordId(record.id)}
+                                        title="ลบรายงานนี้ / Delete report"
+                                      >
+                                        <Trash2 size={11} />
+                                      </button>
+                                      <button 
+                                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-theme-text font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
+                                        onClick={() => loadHistoryRecord(record)}
+                                      >
+                                        LOAD
+                                      </button>
+                                    </div>
+
                                   </div>
                                 </div>
                               ))}
@@ -3185,12 +3412,21 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                               )}
                             </div>
 
-                            <button 
-                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-theme-text font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
-                              onClick={() => loadHistoryRecord(record)}
-                            >
-                              LOAD REPORT
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                className="p-1.5 rounded-lg bg-rose-600/10 hover:bg-rose-600/20 text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors border border-rose-500/20"
+                                onClick={() => setDeleteRecordId(record.id)}
+                                title="ลบรายงานนี้ / Delete report"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                              <button 
+                                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-theme-text font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
+                                onClick={() => loadHistoryRecord(record)}
+                              >
+                                LOAD REPORT
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -3267,6 +3503,45 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
           </div>
         </div>
       )}
+
+      {deleteRecordId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in">
+          <div className="w-full max-w-md p-6 rounded-3xl bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border/90 shadow-2xl space-y-6 relative overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-2 text-rose-500 pb-3 border-b border-theme-border/60">
+              <AlertTriangle size={20} />
+              <h3 className="text-sm font-black uppercase tracking-wider">
+                ยืนยันการลบประวัติการวิเคราะห์
+              </h3>
+            </div>
+            <p className="text-xs text-theme-text-secondary leading-relaxed">
+              คุณต้องการลบประวัติการประเมินนี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteRecordId(null)}
+                className="px-4 py-2 rounded-xl text-theme-text-secondary hover:text-theme-text text-[10px] font-black uppercase tracking-wider"
+              >
+                ยกเลิก (Cancel)
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteRecord}
+                disabled={isDeletingRecord}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-[10px] font-black uppercase text-theme-text shadow-xl shadow-rose-600/20 transition-all flex items-center gap-1.5"
+              >
+                {isDeletingRecord ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Trash2 size={12} />
+                )}
+                <span>ยืนยันลบข้อมูล</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
     </AppLayout>
   );

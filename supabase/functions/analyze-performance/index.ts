@@ -215,16 +215,80 @@ ${weightsText}
     if (action === 'enhance_description') {
       const { description, project_name, action_name, duration } = body;
 
-      const systemPrompt = configs.prompt_enhance_system ||
-        `You are an expert HR Coach and Technical Writer. Rewrite raw work logs into professional, business-oriented descriptions. Result must be in Thai language.`;
+      const isMeeting = /meeting|discuss|sync|ประชุม|คุย/i.test(action_name || '') || /ประชุม|คุย/i.test(description || '');
 
-      const rawUserTemplate = configs.prompt_enhance_user ||
-        `Context:\n- Project: {project_name}\n- Category: {action_name}\n- Duration: {duration} hours\n\nRAW LOG:\n{description}\n\nINSTRUCTION: Rephrase professionally in the same language (Thai/English). Keep 1-3 sentences. Return only the final text.`;
+      const systemPrompt = configs.prompt_enhance_system ||
+        `You are an expert HR Coach, Work Measurement Specialist, and Executive Technical Writer.
+Rephrase raw work logs into professional, business-oriented descriptions in Thai language, and estimate the standard time duration required for the task.
+You must return your output strictly in JSON format.`;
+
+      let defaultUserTemplate = '';
+      if (isMeeting) {
+        defaultUserTemplate = `Context:
+- Project: {project_name}
+- Category: {action_name}
+- Actual Duration Spent: {duration} hours
+
+RAW LOG (Meeting):
+{description}
+
+INSTRUCTION:
+1. Rephrase this raw meeting log professionally in Thai, structured under these headers:
+   - [วัตถุประสงค์และบทบาท]: 
+   - [ข้อสรุป]: 
+   - [Next Steps]:
+2. Estimate the "Standard Time" (ช่วงเวลามาตรฐานเป็นชั่วโมง เช่น min: 1.0, max: 2.0) ที่ปกติงานประชุมลักษณะนี้ควรใช้
+3. Compare the Actual Duration Spent ({duration} hours) against this standard range and evaluate:
+   - "มาก" (หากเวลาที่ใช้จริง มากกว่า max)
+   - "น้อย" (หากเวลาที่ใช้จริง น้อยกว่า min)
+   - "ดี" (หากเวลาที่ใช้จริง อยู่ในช่วง [min, max] หรือสอดคล้องอย่างสมเหตุสมผล)
+4. Provide a 1-2 sentence constructive reasoning ("time_assessment_reason") in Thai.
+
+You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap in markdown block, do NOT write other text):
+{
+  "enhanced_text": "Polished text in Thai...",
+  "standard_time_min": number,
+  "standard_time_max": number,
+  "time_assessment": "มาก" | "น้อย" | "ดี",
+  "time_assessment_reason": "คำอธิบายวิเคราะห์ความเหมาะสมของเวลาเป็นภาษาไทย..."
+}`;
+      } else {
+        defaultUserTemplate = `Context:
+- Project: {project_name}
+- Category: {action_name}
+- Actual Duration Spent: {duration} hours
+
+RAW LOG (Task/Work):
+{description}
+
+INSTRUCTION:
+1. Rephrase this raw work log professionally in Thai, structured under these headers:
+   - [งานที่ทำ]: 
+   - [ผลลัพธ์และเป้าหมาย]: 
+   - [Next Steps]:
+2. Estimate the "Standard Time" (ช่วงเวลามาตรฐานเป็นชั่วโมง เช่น min: 2.0, max: 4.0) ที่ปกติงานลักษณะนี้ควรใช้
+3. Compare the Actual Duration Spent ({duration} hours) against this standard range and evaluate:
+   - "มาก" (หากเวลาที่ใช้จริง มากกว่า max)
+   - "น้อย" (หากเวลาที่ใช้จริง น้อยกว่า min)
+   - "ดี" (หากเวลาที่ใช้จริง อยู่ในช่วง [min, max] หรือสอดคล้องอย่างสมเหตุสมผล)
+4. Provide a 1-2 sentence constructive reasoning ("time_assessment_reason") in Thai.
+
+You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap in markdown block, do NOT write other text):
+{
+  "enhanced_text": "Polished text in Thai...",
+  "standard_time_min": number,
+  "standard_time_max": number,
+  "time_assessment": "มาก" | "น้อย" | "ดี",
+  "time_assessment_reason": "คำอธิบายวิเคราะห์ความเหมาะสมของเวลาเป็นภาษาไทย..."
+}`;
+      }
+
+      const rawUserTemplate = configs.prompt_enhance_user || defaultUserTemplate;
 
       const userPrompt = rawUserTemplate
         .replace('{project_name}', project_name || 'N/A')
         .replace('{action_name}', action_name || 'N/A')
-        .replace('{duration}', duration ? String(duration) : 'N/A')
+        .replace(/{duration}/g, duration ? String(duration) : 'N/A')
         .replace('{description}', description || '(Empty)');
 
       const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
@@ -232,11 +296,38 @@ ${weightsText}
       );
 
       const aiResult = await response.json();
-      let enhancedText = aiResult.choices?.[0]?.message?.content || '';
-      enhancedText = enhancedText.replace(/^```[a-zA-Z]*/, '').replace(/```$/, '').trim();
+      let rawContent = aiResult.choices?.[0]?.message?.content || '';
+      rawContent = rawContent.replace(/^```json/, '').replace(/^```/, '').replace(/```$/, '').trim();
+
+      let parsed = {
+        enhanced_text: rawContent,
+        standard_time_min: null,
+        standard_time_max: null,
+        time_assessment: null,
+        time_assessment_reason: null
+      };
+
+      try {
+        const jsonParsed = JSON.parse(rawContent);
+        if (jsonParsed.enhanced_text) {
+          parsed = {
+            enhanced_text: jsonParsed.enhanced_text,
+            standard_time_min: jsonParsed.standard_time_min,
+            standard_time_max: jsonParsed.standard_time_max,
+            time_assessment: jsonParsed.time_assessment,
+            time_assessment_reason: jsonParsed.time_assessment_reason
+          };
+        }
+      } catch (err) {
+        console.warn('Failed to parse AI response as JSON:', err, 'Raw content was:', rawContent);
+      }
 
       return new Response(JSON.stringify({
-        enhanced_text: enhancedText,
+        enhanced_text: parsed.enhanced_text,
+        standard_time_min: parsed.standard_time_min,
+        standard_time_max: parsed.standard_time_max,
+        time_assessment: parsed.time_assessment,
+        time_assessment_reason: parsed.time_assessment_reason,
         actualModel,
         provider,
         fallbackOccurred,
@@ -247,24 +338,47 @@ ${weightsText}
     }
 
     // ── DEFAULT: Performance Diagnostics ─────────────────────────────────────
-    const { user_id, start_date, end_date, force_refresh } = body;
+    const {
+      user_id,
+      start_date,
+      end_date,
+      force_refresh,
+      template_id = 'master',       // 'master' | 'individual_coach'
+      cadence_type,                  // 'weekly' | 'monthly' | 'quarterly'
+      employee_level,                // override
+      manager_name                   // override
+    } = body;
+
     if (!user_id || !start_date || !end_date) {
       throw new Error('Missing required fields: user_id, start_date, end_date');
     }
 
     // Check cache
     if (!force_refresh) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+
       const { data: existingReport } = await supabase
         .from('tb_ai_individual_analysis')
         .select('*')
         .eq('user_id', user_id)
-        .gte('start_date', start_date)
-        .lte('end_date', end_date)
-        .order('analysis_date', { ascending: false })
+        .eq('start_date', start_date)
+        .eq('end_date', end_date)
+        .eq('template_id', template_id)
+        .gte('created_at', yesterday.toISOString())
+        .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (existingReport) {
+        const { data: logs } = await supabase
+          .from('col_worklog')
+          .select('total_hours')
+          .eq('user_id', user_id)
+          .gte('work_date', start_date)
+          .lte('work_date', end_date);
+        const totalHours = (logs || []).reduce((sum: number, e: any) => sum + Number(e.total_hours || 0), 0);
+
         return new Response(JSON.stringify({
           id: existingReport.id,
           created_at: existingReport.created_at,
@@ -273,18 +387,28 @@ ${weightsText}
           expires_at: existingReport.expires_at,
           acknowledged_at: existingReport.acknowledged_at,
           acknowledged_by: existingReport.acknowledged_by,
+          template_id: existingReport.template_id,
           jd_alignment_score: existingReport.jd_alignment_score,
           burnout_risk_score: existingReport.burnout_risk_score,
+          reflection_level: existingReport.reflection_level,
+          value_mix: existingReport.value_mix,
+          overall_health: existingReport.overall_health,
           workload_allocation: existingReport.actual_vs_target,
+          headline_insight: existingReport.headline_insight,
           strengths: existingReport.strengths,
           improvements: existingReport.improvements,
+          coaching_guide: existingReport.coaching_guide,
           development_plan: existingReport.development_plan,
+          well_being_signal: existingReport.well_being_signal,
+          message_to_employee: existingReport.message_to_employee,
           markdown_executive_summary: existingReport.raw_ai_report,
           cached: true,
           actualModel: existingReport.engine_model || model,
           provider,
           fallbackOccurred: false,
           modelsTried: [existingReport.engine_model || model],
+          totalHours,
+          logsCount: logs?.length || 0,
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
@@ -294,7 +418,7 @@ ${weightsText}
     let jdText = "ไม่ได้ระบุ Job Description";
     let keyResponsibilities: any[] = [];
 
-    const { data: userJd } = await supabase.from('tb_user_jd').select('*').eq('user_id', user_id).single();
+    const { data: userJd } = await supabase.from('tb_user_jd').select('*').eq('user_id', user_id).maybeSingle();
     if (userJd) {
       jdText = userJd.jd_text;
       keyResponsibilities = userJd.key_responsibilities || [];
@@ -303,84 +427,138 @@ ${weightsText}
     // Fetch worklogs
     const { data: logs } = await supabase
       .from('col_worklog')
-      .select('project_name, action_name, description, total_hours')
+      .select('project_name, action_name, description, total_hours, work_date, is_ot')
       .eq('user_id', user_id)
       .gte('work_date', start_date)
       .lte('work_date', end_date);
 
-    let totalHours = 0;
-    const aggregatedLogs = aggregateWorklogs(logs || [], (h) => { totalHours += h; });
+    if (!logs || logs.length === 0) {
+      return new Response(JSON.stringify({
+        error: 'No logs found',
+        message: 'ไม่พบข้อมูลบันทึกเวลาทำงานของพนักงานในช่วงเวลาที่เลือก'
+      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Fetch prompt template
+    const { data: template, error: templateErr } = await supabase
+      .from('tb_ai_prompt_templates')
+      .select('*')
+      .eq('template_key', template_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (templateErr) throw new Error(`Template query error: ${templateErr.message}`);
+    if (!template) {
+      throw new Error(`Prompt template "${template_id}" not found or inactive. Please check Admin → AI Prompts.`);
+    }
+
+    // Log Aggregation
+    const totalHours = logs.reduce((s: number, l: any) => s + (parseFloat(l.total_hours) || 0), 0);
+    const otLogs = logs.filter((l: any) => l.is_ot);
+    const otHours = otLogs.reduce((s: number, l: any) => s + (parseFloat(l.total_hours) || 0), 0);
+    const otRate = totalHours > 0 ? Math.round((otHours / totalHours) * 100) : 0;
+
+    const aggregatedGroups: Record<string, any> = {};
+    logs.forEach((l: any) => {
+      const key = `${l.project_name || 'General'} | ${l.action_name || 'Task'}`;
+      if (!aggregatedGroups[key]) {
+        aggregatedGroups[key] = { project: l.project_name || 'General', action: l.action_name || 'Task', hours: 0, descriptions: new Set<string>() };
+      }
+      aggregatedGroups[key].hours += parseFloat(l.total_hours) || 0;
+      if (l.description?.trim()) aggregatedGroups[key].descriptions.add(l.description.trim().substring(0, 120));
+    });
+
+    const aggregatedLogsText = Object.values(aggregatedGroups)
+      .sort((a: any, b: any) => b.hours - a.hours)
+      .map((g: any) => {
+        const pct = totalHours > 0 ? ((g.hours / totalHours) * 100).toFixed(1) : '0.0';
+        const samples = Array.from(g.descriptions).slice(0, 3).join('; ');
+        return `- Project: ${g.project} | Action: ${g.action} → ${g.hours.toFixed(1)} hrs (${pct}%)${samples ? ` | Samples: "${samples}"` : ''}`;
+      }).join('\n');
+
     const durationDays = Math.round((new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 3600 * 24)) + 1;
-    const avgHoursPerDay = (totalHours / durationDays).toFixed(2);
+    const avgHoursPerDay = (totalHours / durationDays).toFixed(1);
 
-    const weightSummary = keyResponsibilities.length > 0
-      ? keyResponsibilities.map((r: any) => `- ${r.category}: เป้าหมาย ${r.weight}%`).join('\n')
-      : 'ไม่ได้กำหนด target weights';
+    // Fetch Previous Period Summary
+    const prevEnd = new Date(start_date);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - durationDays);
 
-    const systemPrompt = configs.prompt_audit_system ||
-      `คุณคือผู้เชี่ยวชาญ HR วิเคราะห์ผลการปฏิบัติงานพนักงานอย่างเป็นระบบ ตอบเป็น raw JSON เท่านั้น ห้ามครอบด้วย markdown`;
+    const { data: prevAnalysis } = await supabase
+      .from('tb_ai_individual_analysis')
+      .select('jd_alignment_score, burnout_risk_score, raw_ai_report, headline_insight, cadence_type')
+      .eq('user_id', user_id)
+      .eq('template_id', template_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    const rawAuditTemplate = configs.prompt_audit_user || '';
-    let userPrompt: string;
+    const previousPeriodSummary = prevAnalysis
+      ? `Period ก่อนหน้า: JD Alignment ${prevAnalysis.jd_alignment_score}/100, Burnout Risk ${prevAnalysis.burnout_risk_score}/100. ${prevAnalysis.headline_insight || 'ไม่มีข้อมูลเพิ่มเติม'}`
+      : 'ไม่มีข้อมูล period ก่อนหน้าสำหรับเปรียบเทียบ';
 
-    if (rawAuditTemplate) {
-      userPrompt = rawAuditTemplate
-        .replace('{employee_name}', userProfile?.full_name || 'ไม่ระบุ')
-        .replace('{position}', userJd?.position_name || userProfile?.position || 'General Staff')
-        .replace('{role}', userProfile?.role || 'ไม่ระบุ')
-        .replace('{department}', userProfile?.department || 'ไม่ระบุ')
-        .replace('{job_description}', jdText)
-        .replace('{weight_summary}', weightSummary)
-        .replace('{duration_days}', String(durationDays))
-        .replace('{total_hours}', String(totalHours))
-        .replace('{avg_hours_per_day}', String(avgHoursPerDay))
-        .replace('{worklog_summary}', aggregatedLogs);
-    } else {
-      userPrompt = `[ข้อมูลพนักงาน]
-ชื่อ: ${userProfile?.full_name || 'ไม่ระบุ'}
-ตำแหน่ง: ${userJd?.position_name || userProfile?.position || 'General Staff'}
-แผนก: ${userProfile?.department || 'ไม่ระบุ'}
+    const resolvedLevel = employee_level || userProfile?.employee_level || 'Senior';
+    const resolvedManager = manager_name || userProfile?.manager_name || 'หัวหน้างาน';
 
-[Job Description เป้าหมาย]
-${jdText}
+    const cadenceResolved = cadence_type || detectCadence(durationDays);
+    const periodLabel = buildPeriodLabel(cadenceResolved, start_date, end_date);
 
-[เป้าหมายสัดส่วนงาน (Target Weights)]
-${weightSummary}
+    const cadenceInstructions: Record<string, string> = {
+      weekly: 'CADENCE = Weekly → เน้น tactical observation และ immediate adjustment. ระบุ Coaching Question 2-3 ข้อสำหรับ 1:1 สัปดาห์นี้โดยเฉพาะ',
+      monthly: 'CADENCE = Monthly → เน้น pattern emergence และ habit formation. Compare กับ previous month ถ้ามี. Identify trend ที่ก่อตัว (positive/negative)',
+      quarterly: 'CADENCE = Quarterly → เน้น development planning และ career trajectory. ประเมิน Skill development. Review ว่า JD ยัง fit งานจริงหรือไม่. Recommendation for next quarter'
+    };
 
-[งานที่บันทึกจริง (ย้อนหลัง ${durationDays} วัน)]
-รวมทั้งหมด: ${totalHours} ชั่วโมง | เฉลี่ยต่อวัน: ${avgHoursPerDay} ชั่วโมง
-${aggregatedLogs}
+    const levelInstructions: Record<string, string> = {
+      Director: 'EMPLOYEE_LEVEL = Director → เน้น Leadership Effectiveness, Delegation Quality, Strategic Time Investment. ระวัง "Leadership Trap" (จมงาน operational). ประเมิน Coaching Time ที่ใช้พัฒนาทีม',
+      Manager: 'EMPLOYEE_LEVEL = Manager/Lead → เน้น Team Output, Project Delivery, People Development. Balance ระหว่าง Doing และ Managing',
+      Senior: 'EMPLOYEE_LEVEL = Senior → เน้น Technical Depth, Mentoring, Initiative Taking. ดูว่าเริ่ม transition สู่ leadership หรือยัง',
+      Junior: 'EMPLOYEE_LEVEL = Junior → เน้น Skill Building, Learning Velocity, Task Mastery. ระวัง Overload หรือ Under-challenge'
+    };
 
-คำสั่ง: วิเคราะห์และเปรียบเทียบงานที่ทำจริงกับ JD และ target weights
-ตอบเป็น raw JSON ภาษาไทย ดังนี้:
-{
-  "jd_alignment_score": <0-100 ความสอดคล้องกับ JD>,
-  "burnout_risk_score": <0-100 ความเสี่ยง burnout>,
-  "workload_allocation": [
-    {
-      "category": "ชื่อหมวดงาน (ตรงกับ target weights)",
-      "target_weight_pct": <เปอร์เซ็นต์เป้าหมาย>,
-      "actual_weight_pct": <เปอร์เซ็นต์จริงจากชั่วโมง>,
-      "evaluation": "สอดคล้อง | เกินเป้า | ต่ำกว่าเป้า"
-    }
-  ],
-  "strengths": ["จุดเด่นที่ 1", "จุดเด่นที่ 2"],
-  "improvements": ["สิ่งที่ควรปรับปรุงที่ 1", "สิ่งที่ 2"],
-  "development_plan": {
-    "short_term_90_days": "แผนพัฒนาระยะสั้น 90 วัน (เชิงปฏิบัติ)",
-    "long_term_goals": "เป้าหมายการเติบโตระยะยาว"
-  },
-  "markdown_executive_summary": "## สรุปผลการวิเคราะห์\\n\\n**ความสอดคล้องกับ JD:** ...\\n\\n**ความเสี่ยง Burnout:** ...\\n\\n**การกระจายงาน:**\\n- ...\\n\\n**จุดเด่น:**\\n- ...\\n\\n**ข้อแนะนำ:**\\n- ..."
-}`;
-    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    const yearsInRole = userProfile?.role_start_date 
+      ? ((new Date().getTime() - new Date(userProfile.role_start_date).getTime()) / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1) 
+      : 'N/A';
 
-    // Log prompts before calling
-    console.log(`[PROMPT:audit] employee=${userProfile?.full_name} period=${start_date}~${end_date} logs=${logs?.length} hours=${totalHours}`);
+    const keyResponsibilitiesJson = JSON.stringify(
+      keyResponsibilities.length > 0 ? keyResponsibilities : [{ category: 'Core Responsibilities', weight: 100 }]
+    );
+
+    const userPromptFilled = template.user_prompt_template
+      .replace(/{{TODAY}}/g, todayStr)
+      .replace(/{{CADENCE_TYPE}}/g, cadenceResolved.toUpperCase())
+      .replace(/{{PERIOD_START_DATE}}/g, start_date)
+      .replace(/{{PERIOD_END_DATE}}/g, end_date)
+      .replace(/{{PERIOD_LABEL}}/g, periodLabel)
+      .replace(/{{EMPLOYEE_NAME}}/g, userProfile?.full_name || 'Teammate')
+      .replace(/{{EMPLOYEE_NICKNAME}}/g, userProfile?.nickname || 'N/A')
+      .replace(/{{EMPLOYEE_ROLE}}/g, userProfile?.position || 'General Staff')
+      .replace(/{{EMPLOYEE_LEVEL}}/g, resolvedLevel)
+      .replace(/{{YEARS_IN_ROLE}}/g, String(yearsInRole))
+      .replace(/{{MANAGER_NAME}}/g, resolvedManager)
+      .replace(/{{EMPLOYEE_DEPARTMENT}}/g, userProfile?.department || 'N/A')
+      .replace(/{{TOTAL_HOURS}}/g, totalHours.toFixed(1))
+      .replace(/{{AVG_HOURS_PER_DAY}}/g, avgHoursPerDay)
+      .replace(/{{OT_RATE}}/g, String(otRate))
+      .replace(/{{DURATION_DAYS}}/g, String(durationDays))
+      .replace(/{{LOGS_COUNT}}/g, String(logs.length))
+      .replace(/{{INDIVIDUAL_WORKLOG_JSON_OR_CSV}}/g, aggregatedLogsText)
+      .replace(/{{INDIVIDUAL_JD_DATA}}/g, jdText)
+      .replace(/{{KEY_RESPONSIBILITIES_JSON}}/g, keyResponsibilitiesJson)
+      .replace(/{{PREVIOUS_PERIOD_SUMMARY}}/g, previousPeriodSummary)
+      .replace(/{{CADENCE_INSTRUCTION}}/g, cadenceInstructions[cadenceResolved] || cadenceInstructions.monthly)
+      .replace(/{{ROLE_LEVEL_INSTRUCTION}}/g, levelInstructions[resolvedLevel] || levelInstructions.Senior);
+
+    const systemPrompt = template.system_prompt;
+
+    console.log(`[PROMPT:audit] template=${template_id} employee=${userProfile?.full_name} period=${start_date}~${end_date} logs=${logs.length} hours=${totalHours}`);
     console.log(`[PROMPT:audit:system] ${systemPrompt.substring(0, 150)}`);
-    console.log(`[PROMPT:audit:user] ${userPrompt.substring(0, 300)}...`);
+    console.log(`[PROMPT:audit:user] ${userPromptFilled.substring(0, 300)}...`);
 
     const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
-      endpoint, llmHeaders, provider, model, systemPrompt, userPrompt, true
+      endpoint, llmHeaders, provider, model, systemPrompt, userPromptFilled, true
     );
 
     console.log('[AI] callLlmWithFallback returned successfully.');
@@ -397,22 +575,43 @@ ${aggregatedLogs}
     const parsedReport = JSON.parse(content);
     console.log('[AI] Successfully parsed content JSON.');
 
+    const isCoachTemplate = template_id === 'individual_coach';
+
+    const dbRecord = {
+      user_id,
+      analysis_date: todayStr,
+      start_date,
+      end_date,
+      template_id,
+      cadence_type: cadenceResolved,
+      engine_model: actualModel || model,
+
+      // Common fields
+      jd_alignment_score: parsedReport.jd_alignment_score || 0,
+      burnout_risk_score: parsedReport.burnout_risk_score || 0,
+      actual_vs_target: parsedReport.workload_allocation || parsedReport.actual_vs_target || [],
+      strengths: isCoachTemplate
+        ? (parsedReport.strengths || []).map((s: any) => typeof s === 'string' ? s : JSON.stringify(s))
+        : (parsedReport.strengths || []),
+      improvements: isCoachTemplate
+        ? (parsedReport.improvements || []).map((i: any) => typeof i === 'string' ? i : JSON.stringify(i))
+        : (parsedReport.improvements || []),
+      development_plan: parsedReport.development_plan || {},
+      raw_ai_report: parsedReport.markdown_executive_summary || '',
+
+      // Extended fields
+      reflection_level: parsedReport.reflection_level || null,
+      value_mix: parsedReport.value_mix || null,
+      headline_insight: parsedReport.headline_insight || null,
+      coaching_guide: parsedReport.coaching_guide || null,
+      well_being_signal: parsedReport.well_being_signal || null,
+      message_to_employee: parsedReport.message_to_employee || null,
+    };
+
     console.log('[AI] Inserting report into tb_ai_individual_analysis...');
     const { data: insertedRow, error: insertError } = await supabase
       .from('tb_ai_individual_analysis')
-      .insert({
-        user_id,
-        analysis_date: new Date().toISOString().split('T')[0],
-        start_date,
-        end_date,
-        jd_alignment_score: parsedReport.jd_alignment_score || 0,
-        burnout_risk_score: parsedReport.burnout_risk_score || 0,
-        actual_vs_target: parsedReport.workload_allocation || [],
-        strengths: parsedReport.strengths || [],
-        improvements: parsedReport.improvements || [],
-        development_plan: parsedReport.development_plan || {},
-        raw_ai_report: parsedReport.markdown_executive_summary || 'ไม่มีสรุปผล',
-      })
+      .insert(dbRecord)
       .select('*')
       .single();
 
@@ -420,29 +619,37 @@ ${aggregatedLogs}
       console.error('Failed to insert analysis history:', insertError.message);
     }
 
-    return new Response(JSON.stringify({
+    const responsePayload = {
       ...parsedReport,
       id: insertedRow?.id,
       created_at: insertedRow?.created_at,
       share_token: insertedRow?.share_token,
-      is_public: insertedRow?.is_public,
+      is_public: insertedRow?.is_public || false,
       expires_at: insertedRow?.expires_at,
       acknowledged_at: insertedRow?.acknowledged_at,
       acknowledged_by: insertedRow?.acknowledged_by,
+      template_id,
+      cadence_type: cadenceResolved,
+      workload_allocation: parsedReport.workload_allocation || parsedReport.actual_vs_target || [],
+      markdown_executive_summary: parsedReport.markdown_executive_summary || '',
       cached: false,
       actualModel,
       provider,
       fallbackOccurred,
       modelsTried,
-      logsCount: logs?.length || 0,
+      logsCount: logs.length,
       totalHours,
       ...(includeDebug ? {
         debug_prompts: {
           system: systemPrompt,
-          user: userPrompt,
+          user: userPromptFilled,
         }
       } : {}),
-    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    };
+
+    return new Response(JSON.stringify(responsePayload), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
 
   } catch (error: any) {
     console.error('Edge function error:', error.message);
@@ -453,17 +660,18 @@ ${aggregatedLogs}
   }
 });
 
-function aggregateWorklogs(logs: any[], onAddHours: (h: number) => void): string {
-  const map = new Map<string, { hours: number; descList: Set<string> }>();
-  logs.forEach(log => {
-    const key = `${log.project_name} > ${log.action_name}`;
-    if (!map.has(key)) map.set(key, { hours: 0, descList: new Set() });
-    const val = map.get(key)!;
-    val.hours += Number(log.total_hours || 0);
-    onAddHours(Number(log.total_hours || 0));
-    if (log.description) val.descList.add(log.description.substring(0, 80));
-  });
-  return Array.from(map.entries())
-    .map(([k, v]) => `- [${k}]: รวม ${v.hours.toFixed(1)} ชม. (${Array.from(v.descList).slice(0, 3).join(', ')})`)
-    .join('\n');
+function detectCadence(durationDays: number): string {
+  if (durationDays <= 9) return 'weekly';
+  if (durationDays <= 35) return 'monthly';
+  return 'quarterly';
 }
+
+function buildPeriodLabel(cadence: string, start: string, end: string): string {
+  const s = new Date(start);
+  const e = new Date(end);
+  const monthTh = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  if (cadence === 'weekly') return `สัปดาห์ ${start} ถึง ${end}`;
+  if (cadence === 'monthly') return `${monthTh[s.getMonth()]} ${s.getFullYear() + 543}`;
+  return `${monthTh[s.getMonth()]}–${monthTh[e.getMonth()]} ${s.getFullYear() + 543}`;
+}
+

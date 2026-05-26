@@ -299,6 +299,34 @@ export default function LogWorkPage() {
   const [isTimeCustomized, setIsTimeCustomized] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
 
+  const getWorklogGuide = () => {
+    const isMeeting = /meeting|discuss|sync|ประชุม|คุย/i.test(actionName || '');
+    if (isMeeting) {
+      return {
+        placeholder: "เช่น:\n[วัตถุประสงค์]: ประชุมอัปเดตความคืบหน้าโปรเจกต์ X และปัญหาคอขวดของทีม\n[บทบาทของคุณ]: เป็นผู้ดำเนินการประชุม (Lead) / เข้าร่วมและเสนอแนะ\n[ข้อสรุป]: ตัดสินใจเลื่อนกำหนดการ Deploy เป็นวันที่ 30 และเปลี่ยนทีมดูแลระบบคลาวด์\n[Next Steps]: ส่งอีเมลสรุปรายงานให้ผู้รับผิดชอบ และนัดหมายตรวจสอบระบบอีกครั้งในวันจันทร์หน้า",
+        guide: "💡 สำหรับการประชุม: ควรสรุป วัตถุประสงค์ | บทบาทของคุณ (เช่น Lead/Participant) | ข้อสรุป | และ Action Items ถัดไป",
+        template: "[วัตถุประสงค์]: \n[บทบาทของคุณ]: \n[ข้อสรุป]: \n[Next Steps]: "
+      };
+    } else {
+      return {
+        placeholder: "เช่น:\n[งานที่ทำ]: พัฒนาโมดูลชำระเงินและเชื่อมต่อกับ API ของธนาคาร\n[ผลลัพธ์/เป้าหมาย]: ทำเสร็จสมบูรณ์ 100% ตามแผน สามารถกดชำระเงินและออกใบเสร็จได้สำเร็จ\n[KPI/ผลกระทบ]: ลดระยะเวลารอทำรายการของลูกค้าลง 30% สอดคล้องกับ KPI ปรับปรุง UX\n[Next Steps]: นัดทีม QA ทดสอบการจำลองชำระเงินในสภาพแวดล้อมจำลอง (Staging) วันพรุ่งนี้",
+        guide: "💡 สำหรับงานทั่วไป: ควรสรุป งานที่ทำ | ผลสัมฤทธิ์หรือเป้าหมายที่สำเร็จ | KPI/ผลกระทบเชิงธุรกิจที่เกี่ยวข้อง | และขั้นตอนถัดไป",
+        template: "[งานที่ทำ]: \n[ผลลัพธ์/เป้าหมาย]: \n[KPI/ผลกระทบ]: \n[Next Steps]: "
+      };
+    }
+  };
+
+  const handleInjectTemplate = (templateText: string) => {
+    if (!description.trim()) {
+      setDescription(templateText);
+    } else {
+      setDescription(prev => {
+        const separator = prev.endsWith('\n') ? '' : '\n';
+        return prev + separator + templateText;
+      });
+    }
+  };
+
   // Time Mode State
   const [timeMode, setTimeMode] = useState<'range' | 'duration'>('range');
   const [durationHours, setDurationHours] = useState<number>(2);
@@ -315,9 +343,20 @@ export default function LogWorkPage() {
   const [actionName, setActionName] = useState<string>('');
   const [selectedActionChannels, setSelectedActionChannels] = useState<string[]>([]);
 
-  // Auto-calculated fields
   const [bu, setBu] = useState<string>('');
   const [department, setDepartment] = useState<string>('');
+
+  const [timeAssessment, setTimeAssessment] = useState<{
+    standardTimeMin: number | null;
+    standardTimeMax: number | null;
+    timeAssessment: 'มาก' | 'น้อย' | 'ดี' | null;
+    timeAssessmentReason: string | null;
+  } | null>(null);
+
+  // Reset time assessment on input change
+  useEffect(() => {
+    setTimeAssessment(null);
+  }, [actionName, durationHours, startTime, endTime, timeMode]);
 
   // Supabase Data State
   const [mapUserRole, setMapUserRole] = useState<any[]>([]);
@@ -988,7 +1027,17 @@ export default function LogWorkPage() {
       
       if (data?.enhanced_text) {
         setDescription(data.enhanced_text);
-        showToast('รายละเอียดงานได้รับการขัดเกลาด้วย AI เรียบร้อย! / Work description successfully polished by AI', 'success');
+        if (data.standard_time_min !== undefined && data.standard_time_min !== null) {
+          setTimeAssessment({
+            standardTimeMin: data.standard_time_min,
+            standardTimeMax: data.standard_time_max,
+            timeAssessment: data.time_assessment,
+            timeAssessmentReason: data.time_assessment_reason
+          });
+        } else {
+          setTimeAssessment(null);
+        }
+        showToast('รายละเอียดงานได้รับการขัดเกลาด้วย AI และประเมินเวลาเรียบร้อย! / Work description polished & time assessed by AI', 'success');
       } else {
         showToast('ไม่สามารถขัดเกลาคำได้ กรุณาลองอีกครั้ง / Failed to rephrase description, please try again', 'error');
       }
@@ -1691,50 +1740,138 @@ export default function LogWorkPage() {
 
           {/* Description */}
           <div className="mb-8">
-            <label className="block text-sm font-medium text-theme-text-secondary mb-2">รายละเอียดงาน / Work Description</label>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <label className="block text-sm font-semibold text-theme-text-secondary">
+                รายละเอียดงาน / Work Description <span className="text-rose-400">*</span>
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleInjectTemplate("[วัตถุประสงค์]: \n[บทบาทของคุณ]: \n[ข้อสรุป]: \n[Next Steps]: ")}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg border border-indigo-500/20 transition-all flex items-center gap-1.5"
+                >
+                  📝 เทมเพลตประชุม
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInjectTemplate("[งานที่ทำ]: \n[ผลลัพธ์/เป้าหมาย]: \n[KPI/ผลกระทบ]: \n[Next Steps]: ")}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/20 transition-all flex items-center gap-1.5"
+                >
+                  ⚙️ เทมเพลตงานทั่วไป
+                </button>
+              </div>
+            </div>
+
+            {/* Guide Info Box */}
+            <div className="mb-3 p-3 rounded-xl bg-indigo-500/5 dark:bg-slate-900/30 border border-indigo-500/10 dark:border-indigo-500/5 text-xs text-theme-text-secondary leading-relaxed flex items-start gap-2 shadow-sm">
+              <span className="text-indigo-400 shrink-0">💡</span>
+              <p className="font-medium text-theme-text-secondary">
+                {getWorklogGuide().guide}
+              </p>
+            </div>
+
             <textarea 
-              rows={4}
+              rows={6}
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="What did you work on today?"
-              className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg p-4 text-theme-text placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none mb-3"
+              placeholder="กรอกรายละเอียดงานของคุณที่นี่..."
+              className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg p-4 text-theme-text placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none mb-2 font-sans text-xs leading-relaxed"
             ></textarea>
-            
-            {/* AI Enhancement Container */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 gap-3 shadow-inner">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl shrink-0">
-                  <Sparkles size={16} className={cn("animate-pulse", isEnhancing && "animate-spin")} />
-                </div>
-                <div>
-                  <span className="text-[10px] text-indigo-400 uppercase font-black tracking-widest block mb-0.5">ขัดเกลาคำด้วย AI / AI Sparkle</span>
-                  <span className="text-xs text-theme-text-secondary leading-normal block">
-                    ช่วยเกลาคำอธิบายงานให้ออกมาในแง่บวก เห็นภาพความสำเร็จ ประหยัดเวลา และประหยัดต้นทุนสำหรับผู้บริหาร
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleEnhanceDescription}
-                disabled={isEnhancing}
-                className={cn(
-                  "px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 disabled:bg-theme-surface-tertiary dark:bg-theme-surface-tertiary disabled:text-slate-500 disabled:border-theme-border dark:border-theme-border/50 text-theme-text text-xs font-bold rounded-xl border border-indigo-500/30 shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95 transition-all",
-                  isEnhancing && "cursor-not-allowed"
-                )}
-              >
-                {isEnhancing ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>กำลังขัดเกลา...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={13} />
-                    <span>ยกระดับด้วย AI / AI Polish</span>
-                  </>
-                )}
-              </button>
+
+            {/* Guide Key Suggest list */}
+            <div className="mb-3 p-3.5 rounded-xl bg-slate-50/50 dark:bg-slate-900/20 border border-theme-border/60 text-[11px] text-theme-text-muted leading-relaxed space-y-1 shadow-sm">
+              <span className="font-bold text-theme-text-secondary uppercase tracking-wider block mb-1">📌 แนวทางการบันทึกผลงาน (ไกด์ไลน์เพื่อความชัดเจน):</span>
+              <ul className="list-disc list-inside space-y-1">
+                <li><strong className="text-theme-text-secondary">สิ่งที่ทำ:</strong> อธิบายรายละเอียดว่าทำอะไรให้ชัดเจน (คนนอกหรือผู้บริหารอ่านแล้วเข้าใจได้ทันที)</li>
+                <li><strong className="text-theme-text-secondary">ผลลัพธ์ที่ได้:</strong> ระบุผลลัพธ์ที่เป็นรูปธรรม ชิ้นงาน ผลประชุม หรือ KPI/เป้าหมายที่เกี่ยวข้อง</li>
+                <li><strong className="text-theme-text-secondary">ความคืบหน้า & ขั้นตอนถัดไป:</strong> ทำได้เสร็จทั้งหมด หรือเหลืออีกกี่ % และคาดว่าจะเสร็จในอีกกี่วัน (Next Step)</li>
+              </ul>
             </div>
+            
+            {/* AI Enhancement Container - Restricted to Chatchawan only */}
+            {isCurrentUserChatchawan && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 gap-3 shadow-inner">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl shrink-0">
+                    <Sparkles size={16} className={cn("animate-pulse", isEnhancing && "animate-spin")} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-indigo-400 uppercase font-black tracking-widest block mb-0.5">ขัดเกลาคำด้วย AI / AI Sparkle</span>
+                    <span className="text-xs text-theme-text-secondary leading-normal block">
+                      ช่วยเกลาคำอธิบายงานให้ออกมาในแง่บวก เห็นภาพความสำเร็จ ประหยัดเวลา และประหยัดต้นทุนสำหรับผู้บริหาร
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleEnhanceDescription}
+                  disabled={isEnhancing}
+                  className={cn(
+                    "px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 disabled:bg-theme-surface-tertiary dark:bg-theme-surface-tertiary disabled:text-slate-500 disabled:border-theme-border dark:border-theme-border/50 text-theme-text text-xs font-bold rounded-xl border border-indigo-500/30 shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95 transition-all",
+                    isEnhancing && "cursor-not-allowed"
+                  )}
+                >
+                  {isEnhancing ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>กำลังขัดเกลา...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={13} />
+                      <span>ยกระดับด้วย AI / AI Polish</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+            {/* AI Time Assessment Result Card */}
+            {timeAssessment && (
+              <div className="mt-4 p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-theme-border dark:border-theme-border/60 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-center justify-between border-b border-theme-border dark:border-theme-border/30 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Clock size={16} className="text-indigo-500" />
+                    <span className="text-xs font-black uppercase tracking-wider text-theme-text-secondary">AI Time Efficiency Assessment</span>
+                  </div>
+                  {timeAssessment.timeAssessment === 'ดี' && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 uppercase tracking-wider">
+                      🟢 เหมาะสม (Good)
+                    </span>
+                  )}
+                  {timeAssessment.timeAssessment === 'มาก' && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/10 text-rose-500 border border-rose-500/20 uppercase tracking-wider">
+                      🔴 ใช้เวลามาก (Too Much)
+                    </span>
+                  )}
+                  {timeAssessment.timeAssessment === 'น้อย' && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-500 border border-amber-500/20 uppercase tracking-wider">
+                      🟡 ใช้เวลาน้อย (Too Little)
+                    </span>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-theme-text-muted block text-[10px] font-bold uppercase tracking-wider mb-0.5">เวลามาตรฐาน (Standard Time)</span>
+                    <span className="font-extrabold text-theme-text">
+                      {timeAssessment.standardTimeMin?.toFixed(1)} - {timeAssessment.standardTimeMax?.toFixed(1)} ชั่วโมง
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-theme-text-muted block text-[10px] font-bold uppercase tracking-wider mb-0.5">เวลาที่บันทึก (Your Logged Time)</span>
+                    <span className="font-extrabold text-indigo-500">
+                      {(preview.normalHours + preview.otHours).toFixed(1)} ชั่วโมง
+                    </span>
+                  </div>
+                </div>
+
+                {timeAssessment.timeAssessmentReason && (
+                  <div className="text-xs text-theme-text-secondary leading-relaxed bg-theme-surface-secondary/40 p-3 rounded-xl border border-theme-border/20 font-medium">
+                    {timeAssessment.timeAssessmentReason}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Actions */}

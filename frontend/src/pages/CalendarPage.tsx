@@ -281,6 +281,7 @@ export default function CalendarPage() {
       type: 'warning',
       isConfirm: true,
       onConfirm: async () => {
+        if (isSyncing) return;
         setSyncAlert(null); // Close confirmation modal
         setIsSyncing(true);
         setSyncProgress({ current: 0, total: 1, status: 'กำลังดึงรายการปฏิทินในเดือนนี้...' });
@@ -905,7 +906,9 @@ export default function CalendarPage() {
                 </button>
                 <button
                   onClick={() => {
-                    if (syncAlert.onConfirm) syncAlert.onConfirm();
+                    const cb = syncAlert.onConfirm;
+                    setSyncAlert(null);
+                    if (cb) cb();
                   }}
                   className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-rose-500/10 cursor-pointer"
                 >

@@ -611,6 +611,16 @@ export default function DashboardPage() {
                             'AI diagnosis pending. Click "Run Diagnostics" below to calculate.'
                           )}
                         </p>
+                        {aiAnalysis?.reflection_level && (
+                          <div className="mt-2 text-[10px] text-indigo-500 font-bold bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-lg inline-block font-mono">
+                            Maturity: {aiAnalysis.reflection_level}/4 ({
+                              aiAnalysis.reflection_level === 4 ? 'Reflective Practitioner 🌟' :
+                              aiAnalysis.reflection_level === 3 ? 'Result Oriented 🎯' :
+                              aiAnalysis.reflection_level === 2 ? 'Process Thinker ⚙️' :
+                              'Activity Logger 📝'
+                            })
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -661,15 +671,15 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* Wellbeing & Burnout Monitor */}
+                  {/* Wellbeing & Balance Monitor */}
                   <div className="ai-glass bg-theme-surface dark:bg-theme-bg-page/50 rounded-2xl p-6 shadow-xl flex flex-col space-y-4">
                     <div className="flex justify-between items-center border-b border-theme-border dark:border-theme-border/60 pb-3">
                       <h2 className="text-base font-semibold text-theme-text flex items-center gap-2">
-                        <Heart size={18} className="text-rose-600 dark:text-rose-400" />
-                        <span>Well-being & Work-life Balance</span>
+                        <Heart size={18} className="text-emerald-500" />
+                        <span>Work-Life Balance &amp; Health</span>
                       </h2>
                       <span className="text-xs text-theme-text-muted font-bold font-mono">
-                        Fatigue Index
+                        Balance Score
                       </span>
                     </div>
 
@@ -680,27 +690,27 @@ export default function DashboardPage() {
                           <circle cx="50" cy="50" r="42" fill="transparent" stroke="var(--theme-border, #e2e8f0)" strokeWidth="8" />
                           <circle 
                             cx="50" cy="50" r="42" fill="transparent" 
-                            stroke={aiAnalysis?.burnout_risk_score >= 70 ? "#f43f5e" : aiAnalysis?.burnout_risk_score >= 40 ? "#f59e0b" : "#10b981"} 
+                            stroke={(100 - (aiAnalysis?.burnout_risk_score || 0)) <= 30 ? "#f43f5e" : (100 - (aiAnalysis?.burnout_risk_score || 0)) <= 60 ? "#f59e0b" : "#10b981"} 
                             strokeWidth="8" 
                             strokeDasharray={`${2 * Math.PI * 42}`}
-                            strokeDashoffset={`${2 * Math.PI * 42 * (1 - (aiAnalysis?.burnout_risk_score || 0) / 100)}`}
+                            strokeDashoffset={`${2 * Math.PI * 42 * (1 - (100 - (aiAnalysis?.burnout_risk_score || 0)) / 100)}`}
                             strokeLinecap="round"
                           />
                         </svg>
                         <span className={`text-xl font-extrabold font-mono ${
-                          aiAnalysis?.burnout_risk_score >= 70 ? "text-rose-500" : aiAnalysis?.burnout_risk_score >= 40 ? "text-amber-500" : "text-emerald-500"
+                          (100 - (aiAnalysis?.burnout_risk_score || 0)) <= 30 ? "text-rose-500" : (100 - (aiAnalysis?.burnout_risk_score || 0)) <= 60 ? "text-amber-500" : "text-emerald-500"
                         }`}>
-                          {aiAnalysis?.burnout_risk_score || 0}%
+                          {100 - (aiAnalysis?.burnout_risk_score || 0)}%
                         </span>
                       </div>
                       <div className="space-y-1">
                         <h3 className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider">
-                          Burnout Risk Score
+                          Balance &amp; Energy Index
                         </h3>
                         <p className="text-xs text-theme-text-muted leading-relaxed">
                           {aiAnalysis ? (
                             aiAnalysis.burnout_risk_score >= 70 
-                              ? 'High Fatigue Risk. Please schedule a workload review with HRBP.'
+                              ? 'High fatigue warning. Rest and request a workload review.'
                               : aiAnalysis.burnout_risk_score >= 40
                               ? 'Moderate workload tension. Maintain standard working hours.'
                               : 'Healthy work patterns. Workload distribution is well-balanced.'
@@ -741,6 +751,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
+
                 </div>
 
                 {/* AI Coaching & Development Action Items */}
@@ -793,44 +804,54 @@ export default function DashboardPage() {
                         <ListTodo size={14} className="text-indigo-600 dark:text-indigo-400" />
                         <span>Actionable Development Plan</span>
                       </h3>
-                      {aiAnalysis?.improvements && aiAnalysis.improvements.length > 0 ? (
-                        <div className="space-y-2">
-                          {aiAnalysis.improvements.map((imp: string, index: number) => {
-                            const isChecked = !!checkedTasks[imp];
-                            return (
-                              <div 
-                                key={index}
-                                onClick={() => toggleTask(imp)}
-                                className={cn(
-                                  "flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none",
-                                  isChecked 
-                                    ? "bg-slate-50 dark:bg-slate-900/30 border-theme-border/60 dark:border-theme-border/20 opacity-60" 
-                                    : "bg-theme-surface-secondary/40 border-theme-border hover:border-indigo-500/30 dark:border-slate-950/20 dark:border-slate-900 dark:hover:border-indigo-500/20"
-                                )}
-                              >
-                                <div className={cn(
-                                  "w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5 transition-all",
-                                  isChecked 
-                                    ? "bg-indigo-600 border-indigo-600 text-white" 
-                                    : "border-slate-300 dark:border-theme-border bg-white dark:bg-slate-950"
-                                )}>
-                                  {isChecked && <Check size={10} strokeWidth={4} />}
-                                </div>
-                                <span className={cn(
-                                  "text-xs font-medium leading-relaxed text-theme-text",
-                                  isChecked && "line-through text-theme-text-muted"
-                                )}>
-                                  {imp}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-theme-text-muted bg-theme-surface-secondary/40 border border-dashed border-theme-border dark:border-slate-800 p-6 rounded-xl text-center">
-                          Run diagnostics to generate your customized AI development plan.
-                        </div>
-                      )}
+                      {(() => {
+                        const items = aiAnalysis?.template_id === 'individual_coach'
+                          ? (aiAnalysis.development_plan?.priorities || []).map((p: any) => `${p.title}: ${p.specific_action}`)
+                          : (aiAnalysis?.improvements || []);
+                        
+                        if (items.length > 0) {
+                          return (
+                            <div className="space-y-2">
+                              {items.map((imp: string, index: number) => {
+                                const isChecked = !!checkedTasks[imp];
+                                return (
+                                  <div 
+                                    key={index}
+                                    onClick={() => toggleTask(imp)}
+                                    className={cn(
+                                      "flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none",
+                                      isChecked 
+                                        ? "bg-slate-50 dark:bg-slate-900/30 border-theme-border/60 dark:border-theme-border/20 opacity-60" 
+                                        : "bg-theme-surface-secondary/40 border-theme-border hover:border-indigo-500/30 dark:border-slate-950/20 dark:border-slate-900 dark:hover:border-indigo-500/20"
+                                    )}
+                                  >
+                                    <div className={cn(
+                                      "w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5 transition-all",
+                                      isChecked 
+                                        ? "bg-indigo-600 border-indigo-600 text-white" 
+                                        : "border-slate-300 dark:border-theme-border bg-white dark:bg-slate-950"
+                                    )}>
+                                      {isChecked && <Check size={10} strokeWidth={4} />}
+                                    </div>
+                                    <span className={cn(
+                                      "text-xs font-medium leading-relaxed text-theme-text",
+                                      isChecked && "line-through text-theme-text-muted"
+                                    )}>
+                                      {imp}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="text-xs text-theme-text-muted bg-theme-surface-secondary/40 border border-dashed border-theme-border dark:border-slate-800 p-6 rounded-xl text-center">
+                              Run diagnostics to generate your customized AI development plan.
+                            </div>
+                          );
+                        }
+                      })()}
                     </div>
 
                     {/* Coaching Summary */}
@@ -859,14 +880,16 @@ export default function DashboardPage() {
                       </div>
 
                       {/* AI Coach reinforced advice */}
-                      {aiAnalysis?.development_plan?.focus_areas && (
+                      {((aiAnalysis?.template_id === 'individual_coach'
+                        ? aiAnalysis.message_to_employee
+                        : aiAnalysis?.development_plan?.focus_areas)) && (
                         <div className="bg-indigo-50/55 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/15 p-4 rounded-xl space-y-1">
                           <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
                             <Sparkles size={12} />
-                            <span>AI Weekly Coach Advice</span>
+                            <span>{aiAnalysis?.template_id === 'individual_coach' ? 'สาส์นจาก AI Coach' : 'AI Weekly Coach Advice'}</span>
                           </h4>
-                          <p className="text-xs text-indigo-800 dark:text-indigo-300/90 leading-relaxed font-medium">
-                            {aiAnalysis.development_plan.focus_areas}
+                          <p className="text-xs text-indigo-800 dark:text-indigo-300/90 leading-relaxed font-medium whitespace-pre-line">
+                            {aiAnalysis?.template_id === 'individual_coach' ? aiAnalysis.message_to_employee : aiAnalysis.development_plan.focus_areas}
                           </p>
                         </div>
                       )}
@@ -967,7 +990,58 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Value Mix Section */}
+                {aiAnalysis?.value_mix && (
+                  <div className="mt-6 border-t border-theme-border dark:border-theme-border/30 pt-4 space-y-3">
+                    <h3 className="text-xs font-black text-theme-text uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                      <Sparkles size={13} className="text-indigo-500" />
+                      <span>Value Mix &amp; Contribution</span>
+                    </h3>
+                    <div className="w-full h-3 bg-slate-200 dark:bg-theme-surface-tertiary rounded-full overflow-hidden flex font-mono text-[9px] font-bold text-white text-center border border-slate-300/40 dark:border-theme-border/20">
+                      {aiAnalysis.value_mix.strategic > 0 && (
+                        <div style={{ width: `${aiAnalysis.value_mix.strategic}%` }} className="bg-indigo-600 flex items-center justify-center" title="Strategic">
+                          S
+                        </div>
+                      )}
+                      {aiAnalysis.value_mix.tactical > 0 && (
+                        <div style={{ width: `${aiAnalysis.value_mix.tactical}%` }} className="bg-emerald-600 flex items-center justify-center" title="Tactical">
+                          T
+                        </div>
+                      )}
+                      {aiAnalysis.value_mix.operational > 0 && (
+                        <div style={{ width: `${aiAnalysis.value_mix.operational}%` }} className="bg-amber-600 flex items-center justify-center" title="Operational">
+                          O
+                        </div>
+                      )}
+                      {aiAnalysis.value_mix.reactive > 0 && (
+                        <div style={{ width: `${aiAnalysis.value_mix.reactive}%` }} className="bg-rose-600 flex items-center justify-center" title="Reactive">
+                          R
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] font-mono font-semibold">
+                      <div className="flex items-center justify-between text-indigo-600 dark:text-indigo-400">
+                        <span>Strategic:</span>
+                        <span>{aiAnalysis.value_mix.strategic || 0}%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
+                        <span>Tactical:</span>
+                        <span>{aiAnalysis.value_mix.tactical || 0}%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-amber-600 dark:text-amber-500">
+                        <span>Operational:</span>
+                        <span>{aiAnalysis.value_mix.operational || 0}%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-rose-600 dark:text-rose-400">
+                        <span>Reactive:</span>
+                        <span>{aiAnalysis.value_mix.reactive || 0}%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
+
             </div>
             
             {/* Floating Action Button */}
