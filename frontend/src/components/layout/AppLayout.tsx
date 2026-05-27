@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, User, PlusCircle, Menu, X, LogOut, Database, Cpu, Sparkles, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
@@ -179,12 +179,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           )}>
             <div className="flex items-center">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/20 shrink-0">
-                <Sparkles size={15} className="text-slate-900 dark:text-white animate-pulse" />
+                <span className="text-sm font-black tracking-tighter">MOS</span>
               </div>
               {!isCollapsed && (
-                <span className="text-base font-extrabold tracking-wider bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-300 bg-clip-text text-transparent ml-3 whitespace-nowrap animate-fade-in">
-                  IMP WORKLOG
-                </span>
+                <div className="ml-3 flex flex-col justify-center animate-fade-in">
+                  <span className="text-sm font-black tracking-wider bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-300 bg-clip-text text-transparent leading-none">
+                    MOS
+                  </span>
+                  <span className="text-[7.5px] font-semibold text-theme-text-secondary uppercase tracking-widest leading-none mt-0.5 whitespace-nowrap">
+                    Management Operating System
+                  </span>
+                </div>
               )}
             </div>
 
@@ -278,12 +283,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </h2>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg border border-indigo-400/20 shrink-0">
-                <Sparkles size={14} className="text-slate-900 dark:text-white animate-pulse" />
+                <span className="text-xs font-black tracking-tighter">MOS</span>
               </div>
               <span className="text-xs font-black tracking-wider uppercase text-theme-text ml-1 whitespace-nowrap">
-                IMP WORKLOG - PERFORMANCE DIAGNOSTICS
+                MOS - PERFORMANCE DIAGNOSTICS
               </span>
             </div>
           )}

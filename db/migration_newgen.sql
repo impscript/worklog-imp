@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS public.tb_map_project_structure (
   project_name TEXT NOT NULL,
   module TEXT,
   bu TEXT NOT NULL,
-  department TEXT NOT NULL
+  department TEXT NOT NULL,
+  project_description TEXT
 );
 
 -- 3. Users Table (อิงจาก IDMS Employee Profile)

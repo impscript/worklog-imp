@@ -339,7 +339,8 @@ export default function LogWorkPage() {
   const [projectType, setProjectType] = useState<string>('');
   const [projectName, setProjectName] = useState<string>('');
   const [selectedProjectKey, setSelectedProjectKey] = useState<string>('');
-  const [module, setModule] = useState<string>('');
+
+   const [module, setModule] = useState<string>('');
   const [actionName, setActionName] = useState<string>('');
   const [selectedActionChannels, setSelectedActionChannels] = useState<string[]>([]);
 
@@ -634,6 +635,17 @@ export default function LogWorkPage() {
       )
     );
   }, [mapProjectStructure, mapUserRole]);
+
+  const selectedProjectDescription = useMemo(() => {
+    if (!selectedProjectKey) return null;
+    const [pName, pHolding, pRole] = selectedProjectKey.split('|');
+    const matched = allowedProjects.find(p =>
+      p.project_name === pName &&
+      p.holding === pHolding &&
+      p.department_operator === pRole
+    );
+    return matched?.project_description || null;
+  }, [selectedProjectKey, allowedProjects]);
 
   const availableHoldings = useMemo(() => {
     return Array.from(new Set(allowedProjects.map(p => p.holding).filter(Boolean))).sort() as string[];
@@ -1479,6 +1491,33 @@ export default function LogWorkPage() {
               />
             </div>
 
+            {selectedProjectDescription && (
+              <div className="p-4 rounded-xl bg-indigo-500/5 dark:bg-indigo-500/5 border border-indigo-500/10 dark:border-indigo-500/10 text-xs text-theme-text-secondary leading-relaxed flex flex-col gap-1.5 shadow-sm mt-2">
+                <div className="flex items-center gap-1.5 font-bold text-indigo-400">
+                  <span>📖 Project Background & Objectives:</span>
+                </div>
+                <p className="font-normal text-theme-text-secondary italic">
+                  {selectedProjectDescription}
+                </p>
+                <div className="flex justify-end mt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!description.includes(`[Project Context]: ${selectedProjectDescription}`)) {
+                        setDescription(prev => {
+                          const prefix = prev.trim() ? `${prev}\n\n` : '';
+                          return `${prefix}[Project Context]: ${selectedProjectDescription}\n`;
+                        });
+                      }
+                    }}
+                    className="px-2 py-1 text-[10px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded border border-indigo-500/20 transition-all cursor-pointer"
+                  >
+                    ➕ แทรกบริบทโปรเจกต์ลงรายละเอียดงาน / Insert Context
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Business Unit & Department — auto-derived (with module) or selectable (no module or multi-option module) */}
             {projectName && (() => {
               const showDropdowns = noModuleMode || (
@@ -1758,6 +1797,13 @@ export default function LogWorkPage() {
                   className="px-2.5 py-1 text-[11px] font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/20 transition-all flex items-center gap-1.5"
                 >
                   ⚙️ เทมเพลตงานทั่วไป
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInjectTemplate("[Plan]: \n[Action]: \n[Result]: \n[Impact]: \n[Lesson Learned]: ")}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded-lg border border-violet-500/20 transition-all flex items-center gap-1.5"
+                >
+                  🎯 เทมเพลต PARIL (ทดลอง)
                 </button>
               </div>
             </div>

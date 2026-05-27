@@ -355,7 +355,7 @@ class GoogleCalendarService {
     return { date, time: t };
   }
 
-  buildEventPayload(entry: any, projectTitle: string, actionName: string) {
+  buildEventPayload(entry: any, projectTitle: string, actionName: string, projectDescription?: string) {
     const isOT = entry.is_ot === true || entry.is_ot === 'true';
     const projectType = entry.project_type || 'Task';
     
@@ -371,6 +371,7 @@ class GoogleCalendarService {
       '📋 Worklog Entry',
       '━━━━━━━━━━━━━━━━━━━━━━━━',
       `🎯 Project: ${projectTitle}`,
+      projectDescription ? `📖 Project Background: ${projectDescription}` : null,
       entry.module ? `📦 Module: ${entry.module}` : null,
       entry.bu || entry.department ? `🏢 BU: ${entry.bu || 'N/A'} | Dept: ${entry.department || 'N/A'}` : null,
       `⏱ Hours: ${Number(entry.total_hours).toFixed(1)}h (${entry.start_time.slice(0, 5)} - ${entry.end_time.slice(0, 5)})`,
@@ -484,11 +485,32 @@ export async function syncWorklogToGCal(logId: string, action: 'insert' | 'updat
 
     const calendarId = user.gcal_calendar_id || 'primary';
 
-    // 4. Build event payload
+    // 4. Fetch project description
+    let projectDescription = '';
+    if (log.project_name) {
+      try {
+        const { data: projData } = await supabase
+          .from('tb_map_project_structure')
+          .select('project_description')
+          .eq('project_name', log.project_name)
+          .eq('holding', log.holding)
+          .eq('department_operator', log.department_operator)
+          .limit(1)
+          .maybeSingle();
+        if (projData?.project_description) {
+          projectDescription = projData.project_description;
+        }
+      } catch (err) {
+        console.warn('[GCal Sync] Failed to fetch project description context:', err);
+      }
+    }
+
+    // 5. Build event payload
     const payload = googleCalendar.buildEventPayload(
       log,
       log.project_name || 'Work Log',
-      log.action_name || 'Work Log Entry'
+      log.action_name || 'Work Log Entry',
+      projectDescription
     );
 
     let eventId = log.gcal_event_id;

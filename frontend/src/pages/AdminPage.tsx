@@ -73,6 +73,7 @@ export default function AdminPage() {
   const [formStructModule, setFormStructModule] = useState('');
   const [formStructBU, setFormStructBU] = useState('');
   const [formStructDept, setFormStructDept] = useState('');
+  const [formStructDescription, setFormStructDescription] = useState('');
 
   // Users Form States
   const [formUserEmpId, setFormUserEmpId] = useState('');
@@ -385,7 +386,7 @@ export default function AdminPage() {
   }, [deptSuggestions, formStructDept]);
 
   const handleExportProjectStructures = () => {
-    const headers = ['holding', 'department_operator', 'project_type', 'project_name', 'module', 'bu', 'department'];
+    const headers = ['holding', 'department_operator', 'project_type', 'project_name', 'module', 'bu', 'department', 'project_description'];
     const csvContent = [
       headers.join(','),
       ...projectStructures.map(row => 
@@ -472,7 +473,8 @@ export default function AdminPage() {
             project_name: rowObj.project_name,
             module: rowObj.module || null,
             bu: rowObj.bu,
-            department: rowObj.department
+            department: rowObj.department,
+            project_description: rowObj.project_description || null
           });
         }
 
@@ -682,6 +684,7 @@ export default function AdminPage() {
         setFormStructModule(row.module || '');
         setFormStructBU(row.bu);
         setFormStructDept(row.department);
+        setFormStructDescription(row.project_description || '');
       } else if (activeTab === 'users') {
         setFormUserEmpId(row.emp_id);
         setFormUserFullName(row.full_name);
@@ -710,6 +713,7 @@ export default function AdminPage() {
       setFormStructModule('');
       setFormStructBU('');
       setFormStructDept('');
+      setFormStructDescription('');
       setFormUserEmpId(`EMP-${Math.floor(Math.random() * 90000 + 10000)}`);
       setFormUserFullName('');
       setFormUserNickname('');
@@ -777,7 +781,8 @@ export default function AdminPage() {
           project_name: formStructProjName,
           module: formStructModule || null,
           bu: formStructBU,
-          department: formStructDept
+          department: formStructDept,
+          project_description: formStructDescription || null
         };
         if (editRow) {
           const { error } = await supabase.from('tb_map_project_structure').update(payload).eq('id', editRow.id);
@@ -1290,6 +1295,7 @@ export default function AdminPage() {
                                 <td className="px-6 py-4">
                                   <div className="font-bold text-indigo-400 text-sm">{row.project_name}</div>
                                   {row.module && <div className="text-xs text-theme-text-secondary mt-0.5">Module: {row.module}</div>}
+                                  {row.project_description && <div className="text-[11px] text-theme-text-muted mt-1 italic line-clamp-2 max-w-[200px]" title={row.project_description}>{row.project_description}</div>}
                                 </td>
                                 <td className="px-6 py-4 text-xs space-y-1">
                                   <div><span className="text-theme-text-muted font-medium">Holding:</span> <span className="text-theme-text font-semibold">{row.holding}</span></div>
@@ -2030,6 +2036,16 @@ export default function AdminPage() {
                         </>
                       )}
                     </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Project Background / Description</label>
+                    <textarea 
+                      value={formStructDescription}
+                      onChange={(e) => setFormStructDescription(e.target.value)}
+                      placeholder="Enter project background info, objectives, or external context..."
+                      rows={3}
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                    />
                   </div>
                 </div>
               )}
