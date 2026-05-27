@@ -359,19 +359,24 @@ class GoogleCalendarService {
     const isOT = entry.is_ot === true || entry.is_ot === 'true';
     const projectType = entry.project_type || 'Task';
     
-    // Format Title: (Project Type) Description / Module
-    const shortDesc = entry.description 
-      ? (entry.description.length > 60 ? entry.description.substring(0, 60) + '...' : entry.description)
-      : (entry.module ? `${entry.module} - ${actionName}` : actionName);
+    // Format Title: (Type) Project Name - Action Name / Module (instead of using the long description)
+    const titleText = entry.module 
+      ? `${projectTitle} (${entry.module}) - ${actionName}`
+      : `${projectTitle} - ${actionName}`;
       
     const typeLabel = isOT ? `OT / ${projectType}` : projectType;
-    const summary = `(${typeLabel}) ${shortDesc}`;
+    const summary = `(${typeLabel}) ${titleText}`;
+
+    const hasProjectBackgroundInDesc = entry.description && (
+      entry.description.toLowerCase().includes('project background') || 
+      entry.description.toLowerCase().includes('projectbackground')
+    );
 
     const lines = [
       '📋 Worklog Entry',
       '━━━━━━━━━━━━━━━━━━━━━━━━',
       `🎯 Project: ${projectTitle}`,
-      projectDescription ? `📖 Project Background: ${projectDescription}` : null,
+      (projectDescription && !hasProjectBackgroundInDesc) ? `📖 Project Background: ${projectDescription}` : null,
       entry.module ? `📦 Module: ${entry.module}` : null,
       entry.bu || entry.department ? `🏢 BU: ${entry.bu || 'N/A'} | Dept: ${entry.department || 'N/A'}` : null,
       `⏱ Hours: ${Number(entry.total_hours).toFixed(1)}h (${entry.start_time.slice(0, 5)} - ${entry.end_time.slice(0, 5)})`,
