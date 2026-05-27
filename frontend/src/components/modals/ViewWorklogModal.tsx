@@ -1,6 +1,6 @@
 import { Zap, X, Calendar, Clock, Briefcase, Tag, Layers, Printer, CheckCircle2, Laptop, AlertTriangle, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 import { googleCalendar } from '../../lib/google-calendar';
@@ -16,6 +16,25 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
   const [showConfirm, setShowConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { showToast } = useNotification();
+  const [employeeProfile, setEmployeeProfile] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (isOpen && log?.user_id) {
+      const fetchEmployeeProfile = async () => {
+        const { data } = await supabase
+          .from('users')
+          .select('full_name, position, employee_level')
+          .eq('id', log.user_id)
+          .maybeSingle();
+        if (data) {
+          setEmployeeProfile(data);
+        }
+      };
+      fetchEmployeeProfile();
+    } else {
+      setEmployeeProfile(null);
+    }
+  }, [isOpen, log?.user_id]);
 
   // Get current logged-in user from localStorage to verify ownership
   const sessionStr = localStorage.getItem('worklog_session');
@@ -169,14 +188,14 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
           </div>
         </div>
 
-        {/* Modal Content - Styled like a Premium Job Card / Invoice */}
-        <div className="p-8 overflow-y-auto space-y-6 flex-1 text-theme-text-secondary print:overflow-visible print:p-0 print:text-black">
+        {/* Modal Content - Styled like a Premium Job Card / Invoice (Screen Only) */}
+        <div className="p-8 overflow-y-auto space-y-6 flex-1 text-theme-text-secondary print:hidden">
           
           {/* Printable Job Ticket Header */}
-          <div className="flex justify-between items-start border-b border-theme-border pb-6 print:border-slate-300">
+          <div className="flex justify-between items-start border-b border-theme-border pb-6">
             <div>
-              <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest print:text-indigo-600">Work Log Ticket</span>
-              <h1 className="text-2xl font-black text-theme-text mt-1 print:text-black">JOB REPORT CARD</h1>
+              <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Management Operating System</span>
+              <h1 className="text-2xl font-black text-theme-text mt-1">JOB REPORT CARD</h1>
               <p className="text-xs text-theme-text-secondary mt-1 font-mono">ID: {log.id}</p>
             </div>
             
@@ -184,8 +203,8 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               <span className={cn(
                 "px-3 py-1 text-xs font-black rounded-full border uppercase tracking-wider",
                 (log.is_ot || log.is_implied_ot)
-                  ? "bg-amber-500/10 border-amber-500/25 text-amber-400 print:border-amber-600 print:text-amber-600"
-                  : "bg-indigo-500/10 border-indigo-500/25 text-indigo-400 print:border-indigo-600 print:text-indigo-600"
+                  ? "bg-amber-500/10 border-amber-500/25 text-amber-400"
+                  : "bg-indigo-500/10 border-indigo-500/25 text-indigo-400"
               )}>
                 {(log.is_ot || log.is_implied_ot) ? '⚡ OVERTIME WORK' : '💼 STANDARD WORK'}
               </span>
@@ -194,11 +213,11 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
           </div>
 
           {/* Job Details Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border p-6 rounded-2xl print:bg-theme-surface-secondary print:border-slate-300 print:grid-cols-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border p-6 rounded-2xl">
             
             {/* Left Column: Organization Structure & Classification */}
             <div className="space-y-4">
-              <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5 print:text-indigo-600">
+              <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
                 <Layers size={14} />
                 <span>โครงสร้างองค์กรและการจำแนก</span>
               </h3>
@@ -206,23 +225,23 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-[11px] font-bold text-theme-text-muted uppercase block">Holding</span>
-                  <span className="text-sm font-bold text-theme-text print:text-black">{log.holding}</span>
+                  <span className="text-sm font-bold text-theme-text">{log.holding}</span>
                 </div>
                 <div>
                   <span className="text-[11px] font-bold text-theme-text-muted uppercase block">Business Unit (BU)</span>
-                  <span className="text-sm font-bold text-theme-text print:text-black">{log.bu || '-'}</span>
+                  <span className="text-sm font-bold text-theme-text">{log.bu || '-'}</span>
                 </div>
                 <div>
                   <span className="text-[11px] font-bold text-theme-text-muted uppercase block">Department Operator</span>
-                  <span className="text-sm font-bold text-theme-text print:text-black">{log.department_operator}</span>
+                  <span className="text-sm font-bold text-theme-text">{log.department_operator}</span>
                 </div>
                 <div>
                   <span className="text-[11px] font-bold text-theme-text-muted uppercase block">Department</span>
-                  <span className="text-sm font-bold text-theme-text print:text-black">{log.department || '-'}</span>
+                  <span className="text-sm font-bold text-theme-text">{log.department || '-'}</span>
                 </div>
               </div>
 
-              <div className="border-t border-theme-border pt-3 print:border-slate-200">
+              <div className="border-t border-theme-border pt-3">
                 <span className="text-[9px] font-bold text-theme-text-muted uppercase block">Project Type / Category</span>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={cn("px-2.5 py-0.5 text-[10px] font-extrabold rounded uppercase tracking-wider border", typeColors[cat])}>
@@ -235,7 +254,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
 
             {/* Right Column: Date, Time & Project Info */}
             <div className="space-y-4">
-              <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5 print:text-indigo-600">
+              <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
                 <Calendar size={14} />
                 <span>เวลาปฏิบัติงานและโครงการ</span>
               </h3>
@@ -243,20 +262,20 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-[11px] font-bold text-theme-text-muted uppercase block">วันที่ทำงาน</span>
-                  <span className="text-sm font-bold text-theme-text print:text-black flex items-center gap-1 font-mono">
+                  <span className="text-sm font-bold text-theme-text flex items-center gap-1 font-mono">
                     <Calendar size={12} className="text-theme-text-secondary" />
                     {log.work_date}
                   </span>
                 </div>
                 <div>
                   <span className="text-[11px] font-bold text-theme-text-muted uppercase block">ชั่วโมงการทำงานรวม</span>
-                  <span className="text-sm font-extrabold text-indigo-300 print:text-indigo-600 font-mono">
+                  <span className="text-sm font-extrabold text-indigo-300 font-mono">
                     {log.total_hours.toFixed(1)} ชั่วโมง
                   </span>
                 </div>
                 <div>
                   <span className="text-[11px] font-bold text-theme-text-muted uppercase block">เวลา เริ่ม - สิ้นสุด</span>
-                  <span className="text-sm font-bold text-theme-text print:text-black flex items-center gap-1 font-mono">
+                  <span className="text-sm font-bold text-theme-text flex items-center gap-1 font-mono">
                     <Clock size={12} className="text-theme-text-secondary" />
                     {log.start_time.slice(0, 5)} - {log.end_time.slice(0, 5)}
                   </span>
@@ -264,16 +283,16 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
                 {breakTimeDisplay && (
                   <div>
                     <span className="text-[11px] font-bold text-theme-text-muted uppercase block">หักช่วงเวลาพัก</span>
-                    <span className="text-sm font-bold text-theme-text print:text-black">
+                    <span className="text-sm font-bold text-theme-text">
                       {breakTimeDisplay}
                     </span>
                   </div>
                 )}
               </div>
 
-              <div className="border-t border-theme-border pt-3 print:border-slate-200">
+              <div className="border-t border-theme-border pt-3">
                 <span className="text-[9px] font-bold text-theme-text-muted uppercase block">ชื่อโครงการ (Project Name)</span>
-                <span className="text-sm font-black text-theme-text print:text-black block mt-0.5">{log.project_name}</span>
+                <span className="text-sm font-black text-theme-text block mt-0.5">{log.project_name}</span>
                 {log.module && (
                   <span className="text-xs text-theme-text-secondary block font-medium mt-0.5">Module: {log.module}</span>
                 )}
@@ -284,16 +303,16 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
 
           {/* Action & Description Panel */}
           <div className="space-y-4">
-            <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5 print:text-indigo-600">
+            <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
               <Briefcase size={14} />
               <span>การปฏิบัติงานและรายละเอียดงาน</span>
             </h3>
 
-            <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border p-6 rounded-2xl space-y-4 print:bg-theme-surface print:border-slate-300">
+            <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border p-6 rounded-2xl space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <span className="text-[9px] font-bold text-theme-text-muted uppercase block">กิจกรรมหลัก (Action Name)</span>
-                  <span className="text-sm font-extrabold text-theme-text print:text-black flex items-center gap-1.5 mt-1">
+                  <span className="text-sm font-extrabold text-theme-text flex items-center gap-1.5 mt-1">
                     <Tag size={12} className="text-indigo-400" />
                     {log.action_name}
                   </span>
@@ -326,9 +345,9 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
                 </div>
               </div>
 
-              <div className="border-t border-theme-border pt-4 print:border-slate-200">
+              <div className="border-t border-theme-border pt-4">
                 <span className="text-[11px] font-bold text-theme-text-muted uppercase block mb-1.5">รายละเอียดงานปฏิบัติจริง</span>
-                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/70 border border-theme-border p-4 rounded-xl text-xs text-theme-text leading-relaxed font-sans italic whitespace-pre-wrap print:bg-theme-surface-secondary print:border-slate-300 print:text-black">
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/70 border border-theme-border p-4 rounded-xl text-xs text-theme-text leading-relaxed font-sans italic whitespace-pre-wrap">
                   {log.description ? `"${log.description}"` : 'ไม่มีการระบุรายละเอียดเพิ่มเติม'}
                 </div>
               </div>
@@ -336,16 +355,16 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
           </div>
 
           {/* Sync status and Sign-off */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-theme-border print:border-slate-200 print:grid-cols-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-theme-border">
             
             {/* Sync status */}
-            <div className="flex items-start gap-3 bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border p-4 rounded-xl print:bg-none print:border-none print:p-0">
+            <div className="flex items-start gap-3 bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border p-4 rounded-xl">
               <div className="p-2 bg-emerald-500/10 border border-emerald-500/25 rounded-lg text-emerald-400 shrink-0">
                 <CheckCircle2 size={16} />
               </div>
               <div>
                 <span className="text-[11px] font-bold text-theme-text-secondary uppercase block">สถานะการบันทึก</span>
-                <span className="text-xs font-bold text-theme-text print:text-black block mt-0.5">บันทึกสำเร็จในระบบเรียบร้อย</span>
+                <span className="text-xs font-bold text-theme-text block mt-0.5">บันทึกสำเร็จในระบบเรียบร้อย</span>
                 <div className="flex items-center gap-1 text-xs text-theme-text-muted mt-1 font-mono">
                   <Laptop size={10} />
                   <span>Channel: {log.channel || 'Web App'}</span>
@@ -353,15 +372,94 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               </div>
             </div>
 
-            {/* Print Signature block (only visible when printing or in summary) */}
-            <div className="hidden print:flex flex-col justify-end items-end text-right">
-              <div className="w-48 border-b border-black/80 mt-12 mb-2"></div>
-              <span className="text-xs font-bold text-black uppercase mr-8">ผู้บันทึกการปฏิบัติงาน</span>
-              <span className="text-[10px] text-theme-text-muted mr-12">({log.department_operator})</span>
-            </div>
-
           </div>
 
+        </div>
+
+        {/* PRINT-ONLY Optimized A4 Document Layout */}
+        <div className="hidden print:block p-0 text-black space-y-3 font-sans text-xs">
+          {/* Header Zone */}
+          <div className="flex justify-between items-start border-b-2 border-slate-900 pb-2">
+            <div>
+              <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Management Operating System</span>
+              <h1 className="text-lg font-extrabold text-black">JOB REPORT CARD</h1>
+              <p className="text-[8px] text-slate-500 font-mono mt-0.5">ID: {log.id}</p>
+            </div>
+            <div className="text-right">
+              <span className="inline-block border border-slate-950 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">
+                {(log.is_ot || log.is_implied_ot) ? '⚡ OVERTIME WORK' : '💼 STANDARD WORK'}
+              </span>
+              <div className="text-[8px] text-slate-500 mt-1 font-mono font-medium">Created: {new Date(log.created_at).toLocaleString()}</div>
+            </div>
+          </div>
+
+          {/* Metadata Grid (Compact Table Matrix) */}
+          <table className="w-full border-collapse border border-slate-300 text-[10px] leading-tight">
+            <tbody>
+              <tr>
+                <td className="border border-slate-300 px-2.5 py-1.5 bg-slate-50 font-bold w-1/4">Holding</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 w-1/4 font-semibold">{log.holding}</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 bg-slate-50 font-bold w-1/4">วันที่ทำงาน</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 w-1/4 font-mono font-semibold">{log.work_date}</td>
+              </tr>
+              <tr>
+                <td className="border border-slate-300 px-2.5 py-1.5 bg-slate-50 font-bold">Business Unit (BU)</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 w-1/4">{log.bu || '-'}</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 bg-slate-50 font-bold">ชั่วโมงทำงานรวม</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 w-1/4 font-mono font-bold">{log.total_hours.toFixed(1)} ชั่วโมง</td>
+              </tr>
+              <tr>
+                <td className="border border-slate-300 px-2.5 py-1.5 bg-slate-50 font-bold">Dept Operator</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 w-1/4 font-semibold">{log.department_operator}</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 bg-slate-50 font-bold">เวลา เริ่ม - สิ้นสุด</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 w-1/4 font-mono font-semibold">{log.start_time.slice(0, 5)} - {log.end_time.slice(0, 5)}</td>
+              </tr>
+              <tr>
+                <td className="border border-slate-300 px-2.5 py-1.5 bg-slate-50 font-bold">Department</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 w-1/4">{log.department || '-'}</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 bg-slate-50 font-bold">หักช่วงเวลาพัก</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 w-1/4 font-semibold">{breakTimeDisplay || 'ไม่มี'}</td>
+              </tr>
+              <tr>
+                <td className="border border-slate-300 px-2.5 py-1.5 bg-slate-50 font-bold">Project / Module</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 font-bold text-slate-800" colSpan={3}>
+                  {log.project_name} {log.module ? `(Module: ${log.module})` : ''}
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-slate-300 px-2.5 py-1.5 bg-slate-50 font-bold">กิจกรรมหลัก (Action)</td>
+                <td className="border border-slate-300 px-2.5 py-1.5 text-slate-800" colSpan={3}>
+                  {log.action_name} {log.action_channel ? ` | ช่องทาง: ${log.action_channel}` : ''}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Description Section */}
+          <div className="space-y-1">
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-700">รายละเอียดงานปฏิบัติจริง</h3>
+            <div className="border border-slate-300 p-3 rounded bg-white text-[10px] leading-normal font-sans italic whitespace-pre-wrap">
+              {log.description ? `"${log.description}"` : 'ไม่มีการระบุรายละเอียดเพิ่มเติม'}
+            </div>
+          </div>
+
+          {/* Footer Sync & Signatures */}
+          <div className="flex justify-between items-end pt-4 border-t border-slate-300 mt-2">
+            <div className="text-[8px] text-slate-500 font-mono space-y-0.5">
+              <div>System Status: บันทึกสำเร็จในระบบเรียบร้อย</div>
+              <div>Source Channel: {log.channel || 'Web App'}</div>
+            </div>
+            
+            <div className="text-right">
+              <div className="w-40 border-b border-slate-400 mb-1"></div>
+              <div className="text-[10px] font-bold text-slate-800">
+                {employeeProfile?.full_name || 'ผู้บันทึกการปฏิบัติงาน'}
+              </div>
+              <div className="text-[9px] text-slate-500 font-medium">
+                {employeeProfile?.position || log.department_operator} ({log.department_operator})
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Modal Footer (hidden when printing) */}
