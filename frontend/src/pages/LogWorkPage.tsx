@@ -929,6 +929,22 @@ export default function LogWorkPage() {
     }
   }, [availableModules, module]);
 
+  // Auto-select Business Unit (BU) if only 1 option is available
+  useEffect(() => {
+    const buOpts = noModuleMode ? availableBUs : availableBUsForModule;
+    if (buOpts.length === 1 && !bu) {
+      setBu(buOpts[0]);
+    }
+  }, [noModuleMode, availableBUs, availableBUsForModule, bu]);
+
+  // Auto-select Target Department if only 1 option is available
+  useEffect(() => {
+    const deptOpts = noModuleMode ? availableDepts : availableDeptsForModule;
+    if (deptOpts.length === 1 && !department) {
+      setDepartment(deptOpts[0]);
+    }
+  }, [noModuleMode, availableDepts, availableDeptsForModule, department]);
+
   // Calculate live preview calculations (Overlap, Normal, OT, Implied OT)
   const preview = useMemo(() => {
     if (timeMode === 'duration') {

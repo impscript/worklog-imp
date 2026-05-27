@@ -219,7 +219,7 @@ ${weightsText}
 
       const systemPrompt = configs.prompt_enhance_system ||
         `You are an expert HR Coach, Work Measurement Specialist, and Executive Technical Writer.
-Rephrase raw work logs into professional, business-oriented descriptions in Thai language, and estimate the standard time duration required for the task.
+Rephrase raw work logs into highly detailed, professional, business-oriented descriptions in Thai language to maximize business impact, and estimate the standard time duration required for the task.
 You must return your output strictly in JSON format.`;
 
       let defaultUserTemplate = '';
@@ -233,20 +233,28 @@ RAW LOG (Meeting):
 {description}
 
 INSTRUCTION:
-1. Rephrase this raw meeting log professionally in Thai, structured under these headers:
-   - [วัตถุประสงค์และบทบาท]: 
-   - [ข้อสรุป]: 
-   - [Next Steps]:
-2. Estimate the "Standard Time" (ช่วงเวลามาตรฐานเป็นชั่วโมง เช่น min: 1.0, max: 2.0) ที่ปกติงานประชุมลักษณะนี้ควรใช้
-3. Compare the Actual Duration Spent ({duration} hours) against this standard range and evaluate:
+1. Rephrase, polish, and significantly expand this raw meeting log in Thai to showcase high business impact, professional terminology, and value.
+2. You can write long and detailed descriptions to make the work look highly impactful ("เขียนยาวๆ และเพิ่มรายละเอียดให้มี impact มากยิ่งขึ้น").
+3. Detect the structure/headings in the RAW LOG:
+   - If Meeting structure is used (contains วัตถุประสงค์, บทบาทของคุณ, ข้อสรุป, Next Steps, etc.): Use these headings.
+   - If other headers are found, preserve and expand them accordingly.
+4. You MUST ALWAYS include the "[Project Background]" heading as the very first section in the "enhanced_text" output.
+5. Apply the following headings in the "enhanced_text" output:
+   - [Project Background]: (ภูมิหลังและบริบทของโครงการหรือกิจกรรมนี้ อธิบายที่มาที่ไปและความเชื่อมโยงเชิงกลยุทธ์อย่างมืออาชีพ)
+   - [วัตถุประสงค์และบทบาท]: (จุดประสงค์หลักของการประชุมและบทบาทหน้าที่ของเราในที่ประชุมอย่างละเอียดและมีพลัง)
+   - [ข้อสรุป]: (มติ สาระสำคัญ ผลสรุป และประเด็นตัดสินใจสำคัญจากการประชุมอย่างละเอียดและชัดเจน)
+   - [Next Steps]: (แผนการดำเนินงานและสิ่งที่จะต้องทำต่อหลังจากการประชุม)
+
+6. Estimate the "Standard Time" (ช่วงเวลามาตรฐานเป็นชั่วโมง เช่น min: 1.0, max: 2.0) ที่ปกติงานประชุมลักษณะนี้ควรใช้
+7. Compare the Actual Duration Spent ({duration} hours) against this standard range and evaluate:
    - "มาก" (หากเวลาที่ใช้จริง มากกว่า max)
    - "น้อย" (หากเวลาที่ใช้จริง น้อยกว่า min)
    - "ดี" (หากเวลาที่ใช้จริง อยู่ในช่วง [min, max] หรือสอดคล้องอย่างสมเหตุสมผล)
-4. Provide a 1-2 sentence constructive reasoning ("time_assessment_reason") in Thai.
+8. Provide a 1-2 sentence constructive reasoning ("time_assessment_reason") in Thai.
 
 You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap in markdown block, do NOT write other text):
 {
-  "enhanced_text": "Polished text in Thai...",
+  "enhanced_text": "Polished text in Thai with [Project Background] and the other headings...",
   "standard_time_min": number,
   "standard_time_max": number,
   "time_assessment": "มาก" | "น้อย" | "ดี",
@@ -262,21 +270,30 @@ RAW LOG (Task/Work):
 {description}
 
 INSTRUCTION:
-1. Rephrase and expand this raw work log professionally in Thai to showcase high business impact, professional terminology, and value, while strictly preserving these four headings in the output:
-   - [งานที่ทำ]: (ขยายความสิ่งที่ทำให้ออกมาเป็นขั้นเป็นตอน ชัดเจน เป็นมืออาชีพ)
-   - [ผลลัพธ์ที่ได้]: (วิเคราะห์และสรุปผลสำเร็จ ชิ้นงานที่เกิดประโยชน์ หรือข้อดีที่สำเร็จอย่างเป็นรูปธรรม)
-   - [KPI/เป้าหมาย]: (วิเคราะห์ความเกี่ยวข้องกับ KPI, เป้าหมายองค์กร หรือคุณค่าทางธุรกิจที่ได้รับ)
-   - [Next Steps]: (แผนงานขั้นตอนถัดไป ความคืบหน้า หรือระยะเวลาที่คาดว่าต้องใช้เพิ่มเติม)
-2. Estimate the "Standard Time" (ช่วงเวลามาตรฐานเป็นชั่วโมง เช่น min: 2.0, max: 4.0) ที่ปกติงานลักษณะนี้ควรใช้
-3. Compare the Actual Duration Spent ({duration} hours) against this standard range and evaluate:
+1. Rephrase, polish, and significantly expand this raw work log in Thai to showcase high business impact, professional terminology, and value.
+2. You can write long and detailed descriptions to make the work look highly impactful ("เขียนยาวๆ และเพิ่มรายละเอียดให้มี impact มากยิ่งขึ้น").
+3. Detect the structure/headings in the RAW LOG:
+   - If PARIL structure is used (contains Plan, Action, Result, Impact, Lesson Learned): Preserve these headings and expand each section.
+   - If General Task structure is used (contains งานที่ทำ, ผลลัพธ์ที่ได้, KPI/เป้าหมาย, Next Steps) or no headers are found: Use the General Task headings.
+4. You MUST ALWAYS include the "[Project Background]" heading as the very first section in the "enhanced_text" output.
+5. Apply the following headings in the "enhanced_text" output:
+   - [Project Background]: (ภูมิหลังและบริบทของโครงการหรือกิจกรรมนี้ อธิบายที่มาที่ไปและความเชื่อมโยงเชิงกลยุทธ์อย่างมืออาชีพ)
+   - [งานที่ทำ]: (ขยายความสิ่งที่ปฏิบัติอย่างละเอียด เป็นขั้นตอน ชัดเจน และเป็นมืออาชีพ)
+   - [ผลลัพธ์ที่ได้]: (วิเคราะห์และสรุปผลสำเร็จอย่างเป็นรูปธรรม ชิ้นงาน ผลกระทบเชิงบวก และคุณค่าที่เกิดขึ้น)
+   - [KPI/เป้าหมาย]: (วิเคราะห์และเชื่อมโยงกับ KPI หรือเป้าหมายองค์กรอย่างมีพลัง)
+   - [Next Steps]: (แผนงานขั้นตอนถัดไป ความคืบหน้า หรือการดำเนินการลำดับถัดไป)
+   (Note: If PARIL structure was detected, use [Project Background] followed by [Plan], [Action], [Result], [Impact], [Lesson Learned] instead).
+
+6. Estimate the "Standard Time" (ช่วงเวลามาตรฐานเป็นชั่วโมง เช่น min: 2.0, max: 4.0) ที่ปกติงานลักษณะนี้ควรใช้
+7. Compare the Actual Duration Spent ({duration} hours) against this standard range and evaluate:
    - "มาก" (หากเวลาที่ใช้จริง มากกว่า max)
    - "น้อย" (หากเวลาที่ใช้จริง น้อยกว่า min)
    - "ดี" (หากเวลาที่ใช้จริง อยู่ในช่วง [min, max] หรือสอดคล้องอย่างสมเหตุสมผล)
-4. Provide a 1-2 sentence constructive reasoning ("time_assessment_reason") in Thai.
+8. Provide a 1-2 sentence constructive reasoning ("time_assessment_reason") in Thai.
 
 You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap in markdown block, do NOT write other text):
 {
-  "enhanced_text": "Polished text in Thai with the 4 headers...",
+  "enhanced_text": "Polished text in Thai with [Project Background] and the other headings...",
   "standard_time_min": number,
   "standard_time_max": number,
   "time_assessment": "มาก" | "น้อย" | "ดี",
