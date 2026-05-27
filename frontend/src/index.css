@@ -324,14 +324,28 @@ input, select, textarea {
   }
 
   /* Hide background application elements */
-  #root > *:not(.print-backdrop),
+  aside,
   header,
   footer,
-  aside,
   nav,
   .print-hidden,
   button,
   .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset layout height and overflow to allow printing nested modal correctly */
+  html, body, #root, .h-screen, main, .flex-1, .overflow-hidden, .overflow-auto {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+
+  /* Hide the actual page layout content, showing ONLY the modal container */
+  .flex-1.overflow-auto.p-4.md\:p-8 > *:not(.print-backdrop),
+  .flex-1.overflow-auto.p-4.md\:p-8 > div:not(.print-backdrop),
+  main > *:not(.print-backdrop) {
     display: none !important;
   }
 
