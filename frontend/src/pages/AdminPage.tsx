@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Eye, EyeOff, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
@@ -2378,6 +2378,13 @@ const PROVIDER_PRESET_MODELS: Record<string, { id: string; label: string }[]> = 
     { id: 'meta-llama/llama-3-8b-instruct', label: 'Llama 3 8B (Paid/Stable)' },
     { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' }
   ],
+  cloudflare: [
+    { id: '@cf/meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B (Free · เร็ว)' },
+    { id: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', label: 'Llama 3.3 70B Fast (Free)' },
+    { id: '@cf/qwen/qwen2.5-72b-instruct', label: 'Qwen 2.5 72B (Free · แม่นยำ)' },
+    { id: '@cf/google/gemma-7b-it', label: 'Gemma 7B (Free)' },
+    { id: '@cf/mistral/mistral-7b-instruct-v0.2', label: 'Mistral 7B (Free)' },
+  ],
   gemini: [
     { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
     { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }
@@ -2397,6 +2404,8 @@ function AISettingsManager() {
     gemini_api_key: '',
     openrouter_api_key: '',
     opencode_api_key: '',
+    cloudflare_account_id: '',
+    cloudflare_api_token: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -2404,10 +2413,20 @@ function AISettingsManager() {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showKeys, setShowKeys] = useState<{ [key: string]: boolean }>({});
   const [dbError, setDbError] = useState<string | null>(null);
+  const [cfUsage, setCfUsage] = useState<{ used: number; limit: number } | null>(null);
+  const [loadingCfUsage, setLoadingCfUsage] = useState(false);
 
   useEffect(() => {
     fetchConfigs();
   }, []);
+
+  useEffect(() => {
+    if (configs.ai_provider === 'cloudflare' && configs.cloudflare_account_id && configs.cloudflare_api_token) {
+      fetchCFUsage();
+    } else {
+      setCfUsage(null);
+    }
+  }, [configs.ai_provider, configs.cloudflare_account_id, configs.cloudflare_api_token]);
 
   const fetchConfigs = async () => {
     try {
@@ -2431,6 +2450,38 @@ function AISettingsManager() {
       setDbError('ไม่พบตาราง tb_system_config ในฐานข้อมูลของคุณ กรุณาตรวจสอบให้แน่ใจว่าได้รันการอัปเกรด SQL สำเร็จแล้ว');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Mask secret keys — show first 5 + last 5 chars only
+  const maskSecret = (val: string) => {
+    if (!val) return '';
+    if (val.length <= 12) return '•'.repeat(val.length);
+    return val.slice(0, 5) + '  •••••••••  ' + val.slice(-5);
+  };
+
+  const fetchCFUsage = async () => {
+    const accountId = configs.cloudflare_account_id;
+    const token = configs.cloudflare_api_token;
+    if (!accountId || !token) return;
+    try {
+      setLoadingCfUsage(true);
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/usage`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.result) {
+          // result.neurons_used may be in the API response
+          const used = data.result.neurons_used ?? data.result.usage?.neurons ?? 0;
+          setCfUsage({ used, limit: 10000 });
+        }
+      }
+    } catch (err) {
+      console.warn('[CF Usage] Failed to fetch Neurons usage:', err);
+    } finally {
+      setLoadingCfUsage(false);
     }
   };
 
@@ -2458,9 +2509,8 @@ function AISettingsManager() {
     }
   };
 
-  const toggleShowKey = (provider: string) => {
-    setShowKeys((prev) => ({ ...prev, [provider]: !prev[provider] }));
-  };
+
+
 
   const testConnection = async () => {
     setTesting(true);
@@ -2527,6 +2577,27 @@ function AISettingsManager() {
           success: true,
           message: `ตั้งค่า OpenCode สำเร็จ (ระบบพร้อมส่งต่อข้อมูลให้ OpenCode)`
         });
+      } else if (provider === 'cloudflare') {
+        const accountId = configs.cloudflare_account_id;
+        const cfToken = configs.cloudflare_api_token;
+        if (!accountId) throw new Error('กรุณากรอก Cloudflare Account ID ก่อนทดสอบ');
+        if (!cfToken) throw new Error('กรุณากรอก Cloudflare API Token ก่อนทดสอบ');
+
+        const res = await fetch(
+          `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/models/search?limit=5`,
+          { headers: { Authorization: `Bearer ${cfToken}` } }
+        );
+        const data = await res.json();
+        if (res.ok && data.success) {
+          // Also fetch usage
+          await fetchCFUsage();
+          setTestResult({
+            success: true,
+            message: `✅ เชื่อมต่อ Cloudflare Workers AI สำเร็จ! พบโมเดลทั้งหมด ${data.result?.length || '?'} รายการ (Account: ${accountId.slice(0, 8)}...)`,
+          });
+        } else {
+          throw new Error(data.errors?.[0]?.message || 'ไม่สามารถเชื่อมต่อ Cloudflare ได้ กรุณาตรวจสอบ Account ID และ API Token');
+        }
       }
     } catch (err: any) {
       setTestResult({
@@ -2567,11 +2638,17 @@ function AISettingsManager() {
           </div>
           
           <p className="text-theme-text text-xs leading-relaxed mb-4">
-            ระบบวิเคราะห์ประสิทธิภาพการทำงานรายบุคคลและรายงานระดับทีมของระบบ Worklog ขับเคลื่อนด้วยระบบ Generative AI อัจฉริยะ 
-            คุณสามารถตั้งค่าคีย์ผู้ให้บริการระดับโลก (OpenRouter, Gemini, OpenAI) เพื่อความคุ้มค่าและมีความยืดหยุ่นสูงสุด
+            ระบบวิเคราะห์ประสิทธิภาพการทำงานรายบุคคลและรายงานระดับทีมของระบบ MOS ขับเคลื่อนด้วยระบบ Generative AI อัจฉริยะ 
+            คุณสามารถตั้งค่าคีย์ผู้ให้บริการระดับโลก (OpenRouter, Gemini, OpenAI) หรือใช้ <strong className="text-emerald-400">Cloudflare Workers AI ฟรี</strong> โดยไม่เสียค่าใช้จ่าย
           </p>
 
           <div className="space-y-3.5 pt-3 border-t border-theme-border">
+            <div className="flex gap-3 text-xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-1.5 animate-pulse"></span>
+              <p className="text-theme-text-secondary">
+                <strong className="text-theme-text">☁️ Cloudflare Workers AI (ฟรี):</strong> ใช้ได้ฟรี <code className="text-emerald-400 text-[10px] bg-theme-surface-secondary dark:bg-theme-surface-secondary px-1 py-0.5 rounded font-mono">10,000 Neurons/วัน</code> ไม่ต้องบัตรเครดิต เหมาะสำหรับงาน AI Enhance
+              </p>
+            </div>
             <div className="flex gap-3 text-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 mt-1.5 animate-pulse"></span>
               <p className="text-theme-text-secondary">
@@ -2590,6 +2667,11 @@ function AISettingsManager() {
                 <strong className="text-theme-text">OpenAI Direct:</strong> ให้ผลวิเคราะห์มาตรฐานที่เสถียรและแม่นยำสูง (เช่น gpt-4o-mini)
               </p>
             </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-theme-border/50 text-[10px] text-theme-text-muted leading-relaxed space-y-1">
+            <p className="flex items-center gap-1"><span className="text-amber-400">⚠️</span> API Keys ถูกเก็บรักษาอย่างปลอดภัย และแสดงแบบ Masked เสมอ</p>
+            <p className="flex items-center gap-1"><span className="text-indigo-400">🔒</span> ไม่สามารถ Copy Key ออกจากหน้าจอได้ — ต้องกรอกใหม่หากต้องการเปลี่ยน</p>
           </div>
         </div>
 
@@ -2619,6 +2701,7 @@ function AISettingsManager() {
                   onChange={(e) => setConfigs(prev => ({ ...prev, ai_provider: e.target.value }))}
                   className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all"
                 >
+                <option value="cloudflare">☁️ Cloudflare Workers AI (Free)</option>
                   <option value="openrouter">OpenRouter (Recommended)</option>
                   <option value="gemini">Google Gemini Direct</option>
                   <option value="openai">OpenAI Direct</option>
@@ -2692,100 +2775,192 @@ function AISettingsManager() {
               <div className={cn("transition-all", configs.ai_provider !== 'openrouter' && "opacity-30 pointer-events-none select-none")}>
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="block text-xs font-semibold text-theme-text-secondary">OpenRouter API Key</label>
-                  <button
-                    type="button"
-                    onClick={() => toggleShowKey('openrouter')}
-                    className="text-[10px] font-semibold text-theme-text-secondary hover:text-indigo-400 transition-colors flex items-center gap-1"
-                  >
-                    {showKeys.openrouter ? <EyeOff size={10} /> : <Eye size={10} />}
-                    <span>{showKeys.openrouter ? 'Hide Key' : 'Reveal Key'}</span>
-                  </button>
                 </div>
                 <div className="relative">
                   <input
-                    type={showKeys.openrouter ? 'text' : 'password'}
-                    value={configs.openrouter_api_key}
-                    onChange={(e) => setConfigs(prev => ({ ...prev, openrouter_api_key: e.target.value }))}
+                    type="text"
+                    value={showKeys.openrouter ? configs.openrouter_api_key : maskSecret(configs.openrouter_api_key)}
+                    onChange={(e) => {
+                      if (showKeys.openrouter) setConfigs(prev => ({ ...prev, openrouter_api_key: e.target.value }));
+                    }}
+                    onFocus={() => setShowKeys(prev => ({ ...prev, openrouter: true }))}
+                    onBlur={() => setShowKeys(prev => ({ ...prev, openrouter: false }))}
                     placeholder="sk-or-..."
                     className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                     required={configs.ai_provider === 'openrouter'}
                   />
                 </div>
+                <p className="text-[10px] text-theme-text-muted mt-1">คลิกที่ช่องเพื่อแก้ไข Key</p>
               </div>
 
               {/* Gemini Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'gemini' && "opacity-30 pointer-events-none select-none")}>
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="block text-xs font-semibold text-theme-text-secondary">Gemini API Key</label>
-                  <button
-                    type="button"
-                    onClick={() => toggleShowKey('gemini')}
-                    className="text-[10px] font-semibold text-theme-text-secondary hover:text-indigo-400 transition-colors flex items-center gap-1"
-                  >
-                    {showKeys.gemini ? <EyeOff size={10} /> : <Eye size={10} />}
-                    <span>{showKeys.gemini ? 'Hide Key' : 'Reveal Key'}</span>
-                  </button>
                 </div>
                 <div className="relative">
                   <input
-                    type={showKeys.gemini ? 'text' : 'password'}
-                    value={configs.gemini_api_key}
-                    onChange={(e) => setConfigs(prev => ({ ...prev, gemini_api_key: e.target.value }))}
+                    type="text"
+                    value={showKeys.gemini ? configs.gemini_api_key : maskSecret(configs.gemini_api_key)}
+                    onChange={(e) => {
+                      if (showKeys.gemini) setConfigs(prev => ({ ...prev, gemini_api_key: e.target.value }));
+                    }}
+                    onFocus={() => setShowKeys(prev => ({ ...prev, gemini: true }))}
+                    onBlur={() => setShowKeys(prev => ({ ...prev, gemini: false }))}
                     placeholder="AIzaSy..."
                     className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                     required={configs.ai_provider === 'gemini'}
                   />
                 </div>
+                <p className="text-[10px] text-theme-text-muted mt-1">คลิกที่ช่องเพื่อแก้ไข Key</p>
               </div>
 
               {/* OpenAI Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'openai' && "opacity-30 pointer-events-none select-none")}>
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="block text-xs font-semibold text-theme-text-secondary">OpenAI API Key</label>
-                  <button
-                    type="button"
-                    onClick={() => toggleShowKey('openai')}
-                    className="text-[10px] font-semibold text-theme-text-secondary hover:text-indigo-400 transition-colors flex items-center gap-1"
-                  >
-                    {showKeys.openai ? <EyeOff size={10} /> : <Eye size={10} />}
-                    <span>{showKeys.openai ? 'Hide Key' : 'Reveal Key'}</span>
-                  </button>
                 </div>
                 <div className="relative">
                   <input
-                    type={showKeys.openai ? 'text' : 'password'}
-                    value={configs.openai_api_key}
-                    onChange={(e) => setConfigs(prev => ({ ...prev, openai_api_key: e.target.value }))}
+                    type="text"
+                    value={showKeys.openai ? configs.openai_api_key : maskSecret(configs.openai_api_key)}
+                    onChange={(e) => {
+                      if (showKeys.openai) setConfigs(prev => ({ ...prev, openai_api_key: e.target.value }));
+                    }}
+                    onFocus={() => setShowKeys(prev => ({ ...prev, openai: true }))}
+                    onBlur={() => setShowKeys(prev => ({ ...prev, openai: false }))}
                     placeholder="sk-..."
                     className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                     required={configs.ai_provider === 'openai'}
                   />
                 </div>
+                <p className="text-[10px] text-theme-text-muted mt-1">คลิกที่ช่องเพื่อแก้ไข Key</p>
               </div>
 
               {/* OpenCode Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'opencode' && "opacity-30 pointer-events-none select-none")}>
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="block text-xs font-semibold text-theme-text-secondary">OpenCode API Key</label>
-                  <button
-                    type="button"
-                    onClick={() => toggleShowKey('opencode')}
-                    className="text-[10px] font-semibold text-theme-text-secondary hover:text-indigo-400 transition-colors flex items-center gap-1"
-                  >
-                    {showKeys.opencode ? <EyeOff size={10} /> : <Eye size={10} />}
-                    <span>{showKeys.opencode ? 'Hide Key' : 'Reveal Key'}</span>
-                  </button>
                 </div>
                 <div className="relative">
                   <input
-                    type={showKeys.opencode ? 'text' : 'password'}
-                    value={configs.opencode_api_key}
-                    onChange={(e) => setConfigs(prev => ({ ...prev, opencode_api_key: e.target.value }))}
+                    type="text"
+                    value={showKeys.opencode ? configs.opencode_api_key : maskSecret(configs.opencode_api_key)}
+                    onChange={(e) => {
+                      if (showKeys.opencode) setConfigs(prev => ({ ...prev, opencode_api_key: e.target.value }));
+                    }}
+                    onFocus={() => setShowKeys(prev => ({ ...prev, opencode: true }))}
+                    onBlur={() => setShowKeys(prev => ({ ...prev, opencode: false }))}
                     placeholder="sk-oc-..."
                     className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                     required={configs.ai_provider === 'opencode'}
                   />
                 </div>
+                <p className="text-[10px] text-theme-text-muted mt-1">คลิกที่ช่องเพื่อแก้ไข Key</p>
+              </div>
+
+              {/* Cloudflare Credentials */}
+              <div className={cn("transition-all col-span-full space-y-4 border border-sky-500/20 rounded-xl p-4 bg-sky-500/5", configs.ai_provider !== 'cloudflare' && "opacity-30 pointer-events-none select-none")}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sky-400 text-base">☁️</span>
+                  <label className="block text-xs font-bold text-sky-400 uppercase tracking-wider">Cloudflare Workers AI Credentials</label>
+                  <span className="ml-auto text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">FREE TIER</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Account ID</label>
+                    <input
+                      type="text"
+                      value={showKeys.cf_account ? configs.cloudflare_account_id : maskSecret(configs.cloudflare_account_id)}
+                      onChange={(e) => {
+                        if (showKeys.cf_account) setConfigs(prev => ({ ...prev, cloudflare_account_id: e.target.value }));
+                      }}
+                      onFocus={() => setShowKeys(prev => ({ ...prev, cf_account: true }))}
+                      onBlur={() => setShowKeys(prev => ({ ...prev, cf_account: false }))}
+                      placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all font-mono"
+                      required={configs.ai_provider === 'cloudflare'}
+                    />
+                    <p className="text-[10px] text-theme-text-muted mt-1">Cloudflare Dashboard → Right sidebar → Account ID</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">API Token</label>
+                    <input
+                      type="text"
+                      value={showKeys.cf_token ? configs.cloudflare_api_token : maskSecret(configs.cloudflare_api_token)}
+                      onChange={(e) => {
+                        if (showKeys.cf_token) setConfigs(prev => ({ ...prev, cloudflare_api_token: e.target.value }));
+                      }}
+                      onFocus={() => setShowKeys(prev => ({ ...prev, cf_token: true }))}
+                      onBlur={() => setShowKeys(prev => ({ ...prev, cf_token: false }))}
+                      placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all font-mono"
+                      required={configs.ai_provider === 'cloudflare'}
+                    />
+                    <p className="text-[10px] text-theme-text-muted mt-1">My Profile → API Tokens → Create Token (ใช้ template "Workers AI")</p>
+                  </div>
+                </div>
+
+                {/* Neurons Usage Monitor */}
+                {configs.ai_provider === 'cloudflare' && (
+                  <div className="border-t border-sky-500/15 pt-3">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[11px] font-bold text-sky-400 flex items-center gap-1.5">
+                        <span>⚡</span> Neurons Usage Today
+                      </span>
+                      <button
+                        type="button"
+                        onClick={fetchCFUsage}
+                        disabled={loadingCfUsage}
+                        className="text-[10px] text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw size={10} className={loadingCfUsage ? 'animate-spin' : ''} />
+                        Refresh
+                      </button>
+                    </div>
+                    {cfUsage ? (
+                      <>
+                        <div className="flex justify-between text-[10px] font-mono mb-1">
+                          <span className={cn(
+                            "font-bold",
+                            cfUsage.used / cfUsage.limit >= 0.9 ? "text-rose-400" :
+                            cfUsage.used / cfUsage.limit >= 0.7 ? "text-amber-400" : "text-emerald-400"
+                          )}>{cfUsage.used.toLocaleString()} Neurons used</span>
+                          <span className="text-theme-text-muted">{cfUsage.limit.toLocaleString()} / day</span>
+                        </div>
+                        <div className="h-2 bg-theme-surface-secondary rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all duration-500",
+                              cfUsage.used / cfUsage.limit >= 0.9 ? "bg-rose-500" :
+                              cfUsage.used / cfUsage.limit >= 0.7 ? "bg-amber-500" : "bg-emerald-500"
+                            )}
+                            style={{ width: `${Math.min((cfUsage.used / cfUsage.limit) * 100, 100)}%` }}
+                          />
+                        </div>
+                        {cfUsage.used / cfUsage.limit >= 0.9 && (
+                          <p className="text-[10px] text-rose-400 mt-1.5 font-semibold flex items-center gap-1">
+                            🔴 เหลือ Neurons น้อยมาก! แนะนำให้สลับ Provider เป็น OpenRouter หรือ Gemini เดี๋ยวนี้
+                          </p>
+                        )}
+                        {cfUsage.used / cfUsage.limit >= 0.7 && cfUsage.used / cfUsage.limit < 0.9 && (
+                          <p className="text-[10px] text-amber-400 mt-1.5 font-semibold flex items-center gap-1">
+                            ⚠️ ใช้งาน Neurons ไปแล้ว {Math.round((cfUsage.used / cfUsage.limit) * 100)}% — รีเซ็ตเวลา 07:00 น. (00:00 UTC)
+                          </p>
+                        )}
+                        {cfUsage.used / cfUsage.limit < 0.7 && (
+                          <p className="text-[10px] text-emerald-400 mt-1.5 font-semibold">
+                            ✅ ใช้งานปกติ — รีเซ็ตเวลา 07:00 น. (00:00 UTC)
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-[10px] text-theme-text-muted">
+                        {loadingCfUsage ? 'กำลังโหลดข้อมูล Neurons...' : 'กรอก Account ID และ API Token แล้วกด Test Connection เพื่อดู Usage'}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

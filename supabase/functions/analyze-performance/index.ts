@@ -42,6 +42,13 @@ async function callLlmWithFallback(
       'nemotron-3-super-free',
     ];
     for (const fb of fallbacks) { if (fb !== configuredModel) modelsToTry.push(fb); }
+  } else if (provider === 'cloudflare') {
+    const fallbacks = [
+      '@cf/meta/llama-3.1-8b-instruct',
+      '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+      '@cf/qwen/qwen2.5-72b-instruct',
+    ];
+    for (const fb of fallbacks) { if (fb !== configuredModel) modelsToTry.push(fb); }
   }
 
   const modelsTried: string[] = [];
@@ -66,7 +73,11 @@ async function callLlmWithFallback(
           { role: "user", content: userPrompt }
         ]
       };
-      if (isJson) bodyPayload.response_format = { type: "json_object" };
+      // Cloudflare Workers AI uses OpenAI-compat endpoint but does NOT support response_format natively
+      // JSON compliance is enforced via prompt engineering instead
+      if (isJson && provider !== 'cloudflare') {
+        bodyPayload.response_format = { type: "json_object" };
+      }
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -148,6 +159,13 @@ serve(async (req) => {
     } else if (provider === 'opencode') {
       apiKey = configs.opencode_api_key;
       endpoint = 'https://opencode.ai/zen/v1/chat/completions';
+    } else if (provider === 'cloudflare') {
+      const accountId = configs.cloudflare_account_id;
+      const cfModel = model || '@cf/meta/llama-3.1-8b-instruct';
+      apiKey = configs.cloudflare_api_token;
+      // Use Cloudflare OpenAI-compatible endpoint (supports chat/completions format)
+      endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
+      if (!accountId) throw new Error('Cloudflare Account ID is not configured. Please add it in Admin → AI Settings.');
     }
 
     if (!apiKey) throw new Error(`API Key for provider "${provider}" is not configured.`);
