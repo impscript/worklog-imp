@@ -262,10 +262,11 @@ RAW LOG (Task/Work):
 {description}
 
 INSTRUCTION:
-1. Rephrase this raw work log professionally in Thai, structured under these headers:
-   - [งานที่ทำ]: 
-   - [ผลลัพธ์และเป้าหมาย]: 
-   - [Next Steps]:
+1. Rephrase and expand this raw work log professionally in Thai to showcase high business impact, professional terminology, and value, while strictly preserving these four headings in the output:
+   - [งานที่ทำ]: (ขยายความสิ่งที่ทำให้ออกมาเป็นขั้นเป็นตอน ชัดเจน เป็นมืออาชีพ)
+   - [ผลลัพธ์ที่ได้]: (วิเคราะห์และสรุปผลสำเร็จ ชิ้นงานที่เกิดประโยชน์ หรือข้อดีที่สำเร็จอย่างเป็นรูปธรรม)
+   - [KPI/เป้าหมาย]: (วิเคราะห์ความเกี่ยวข้องกับ KPI, เป้าหมายองค์กร หรือคุณค่าทางธุรกิจที่ได้รับ)
+   - [Next Steps]: (แผนงานขั้นตอนถัดไป ความคืบหน้า หรือระยะเวลาที่คาดว่าต้องใช้เพิ่มเติม)
 2. Estimate the "Standard Time" (ช่วงเวลามาตรฐานเป็นชั่วโมง เช่น min: 2.0, max: 4.0) ที่ปกติงานลักษณะนี้ควรใช้
 3. Compare the Actual Duration Spent ({duration} hours) against this standard range and evaluate:
    - "มาก" (หากเวลาที่ใช้จริง มากกว่า max)
@@ -275,7 +276,7 @@ INSTRUCTION:
 
 You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap in markdown block, do NOT write other text):
 {
-  "enhanced_text": "Polished text in Thai...",
+  "enhanced_text": "Polished text in Thai with the 4 headers...",
   "standard_time_min": number,
   "standard_time_max": number,
   "time_assessment": "มาก" | "น้อย" | "ดี",

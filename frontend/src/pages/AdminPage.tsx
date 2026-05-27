@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Eye, EyeOff, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Eye, EyeOff, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
@@ -379,6 +379,126 @@ export default function AdminPage() {
     return deptSuggestions.filter(d => d.toLowerCase().includes(query));
   }, [deptSuggestions, formStructDept]);
 
+  const handleExportProjectStructures = () => {
+    const headers = ['holding', 'department_operator', 'project_type', 'project_name', 'module', 'bu', 'department'];
+    const csvContent = [
+      headers.join(','),
+      ...projectStructures.map(row => 
+        headers.map(h => {
+          const val = row[h] || '';
+          const escaped = String(val).replace(/"/g, '""');
+          return `"${escaped}"`;
+        }).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `project_structures_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target?.result as string;
+      if (!text) return;
+
+      try {
+        const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+        if (lines.length < 2) {
+          showToast('ไฟล์ CSV ว่างเปล่า หรือไม่มีข้อมูล / CSV file is empty', 'error');
+          return;
+        }
+
+        const parseCSVRow = (textRow: string) => {
+          const result = [];
+          let current = '';
+          let inQuotes = false;
+          for (let i = 0; i < textRow.length; i++) {
+            const char = textRow[i];
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          result.push(current.trim());
+          return result.map(v => v.replace(/^["']|["']$/g, '').replace(/""/g, '"'));
+        };
+
+        const headers = parseCSVRow(lines[0]);
+        const requiredHeaders = ['holding', 'department_operator', 'project_type', 'project_name', 'bu', 'department'];
+        const missing = requiredHeaders.filter(h => !headers.includes(h));
+        
+        if (missing.length > 0) {
+          showToast(`ไฟล์ CSV ขาดคอลัมน์สำคัญ: ${missing.join(', ')}`, 'error');
+          return;
+        }
+
+        const parsedRows: any[] = [];
+        for (let i = 1; i < lines.length; i++) {
+          const rowValues = parseCSVRow(lines[i]);
+          if (rowValues.length === 0 || (rowValues.length === 1 && rowValues[0] === '')) continue;
+          
+          const rowObj: any = {};
+          headers.forEach((header, idx) => {
+            rowObj[header] = rowValues[idx] || null;
+          });
+
+          if (!rowObj.holding || !rowObj.department_operator || !rowObj.project_type || !rowObj.project_name || !rowObj.bu || !rowObj.department) {
+            continue; 
+          }
+
+          parsedRows.push({
+            holding: rowObj.holding,
+            department_operator: rowObj.department_operator,
+            project_type: rowObj.project_type,
+            project_name: rowObj.project_name,
+            module: rowObj.module || null,
+            bu: rowObj.bu,
+            department: rowObj.department
+          });
+        }
+
+        if (parsedRows.length === 0) {
+          showToast('ไม่พบข้อมูลแถวที่ถูกต้องสำหรับนำเข้า / No valid rows found to import', 'error');
+          return;
+        }
+
+        const confirmImport = window.confirm(`คุณต้องการนำเข้าข้อมูล Project Structure จำนวน ${parsedRows.length} รายการใช่หรือไม่?\n\n(ระบบจะนำเข้าเฉพาะแถวข้อมูลที่สมบูรณ์เท่านั้น)`);
+        if (!confirmImport) return;
+
+        setIsLoading(true);
+        const { error } = await supabase
+          .from('tb_map_project_structure')
+          .insert(parsedRows);
+
+        if (error) throw error;
+
+        showToast(`นำเข้าข้อมูลสำเร็จ ${parsedRows.length} รายการ!`, 'success');
+        await loadAllData();
+      } catch (err: any) {
+        console.error('Error importing CSV:', err);
+        showToast('เกิดข้อผิดพลาดในการนำเข้าไฟล์: ' + err.message, 'error');
+      } finally {
+        setIsLoading(false);
+        if (e.target) e.target.value = '';
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
+
   // Load All Master Data from Supabase
   const loadAllData = async () => {
     setIsLoading(true);
@@ -737,14 +857,43 @@ export default function AdminPage() {
                 <RefreshCw size={18} className={cn(isLoading && "animate-spin")} />
               </button>
             )}
-            {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
-              <button 
-                onClick={() => openModal()}
-                className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-theme-text px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg active:scale-95 text-sm"
-              >
-                <Plus size={16} />
-                <span>Add Record</span>
-              </button>
+             {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
+              <div className="flex items-center gap-2">
+                {activeTab === 'map_project' && (
+                  <>
+                    <button 
+                      onClick={handleExportProjectStructures}
+                      className="inline-flex items-center gap-2 bg-theme-surface border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text px-4 py-2.5 rounded-xl font-bold transition-all active:scale-95 text-sm"
+                      title="Export Project Structures to CSV"
+                    >
+                      <Download size={16} />
+                      <span>Export CSV</span>
+                    </button>
+                    <button 
+                      onClick={() => document.getElementById('import-project-structures-csv')?.click()}
+                      className="inline-flex items-center gap-2 bg-theme-surface border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text px-4 py-2.5 rounded-xl font-bold transition-all active:scale-95 text-sm"
+                      title="Import Project Structures from CSV"
+                    >
+                      <Upload size={16} />
+                      <span>Import CSV</span>
+                    </button>
+                    <input 
+                      type="file" 
+                      id="import-project-structures-csv" 
+                      className="hidden" 
+                      accept=".csv" 
+                      onChange={handleImportCSV} 
+                    />
+                  </>
+                )}
+                <button 
+                  onClick={() => openModal()}
+                  className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-theme-text px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg active:scale-95 text-sm"
+                >
+                  <Plus size={16} />
+                  <span>Add Record</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
