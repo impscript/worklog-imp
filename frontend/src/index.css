@@ -304,3 +304,111 @@ input, select, textarea {
     color: #f1f5f9 !important;
   }
 }
+
+/* ==========================================================================
+   ── PRINT MEDIA QUERIES (A4 Document Layout Optimization) ──
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #090d16 !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide background application elements */
+  #root > *:not(.print-backdrop),
+  header,
+  footer,
+  aside,
+  nav,
+  .print-hidden,
+  button,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Make modal container fill the print page page layout */
+  .print-backdrop {
+    position: static !important;
+    display: block !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Style the inner print job card */
+  .print-job-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  /* Subpanels and boxes formatting for high-quality paper print */
+  .bg-theme-surface-secondary,
+  .bg-theme-surface-secondary\/30,
+  .bg-theme-surface-secondary\/50,
+  .bg-theme-surface-secondary\/70 {
+    background-color: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #090d16 !important;
+    border-radius: 8px !important;
+  }
+
+  /* Ensure text colors look sharp and readable on white paper */
+  .text-theme-text {
+    color: #0f172a !important;
+  }
+
+  .text-theme-text-secondary {
+    color: #334155 !important;
+  }
+
+  .text-theme-text-muted {
+    color: #475569 !important;
+  }
+
+  /* Specific typography overrides for headers */
+  h1, h2, h3, h4 {
+    color: #000000 !important;
+  }
+
+  .text-indigo-400,
+  .text-indigo-300 {
+    color: #4f46e5 !important; /* Print-safe indigo contrast */
+  }
+
+  .text-emerald-400 {
+    color: #047857 !important;
+  }
+
+  .text-amber-400 {
+    color: #b45309 !important;
+  }
+
+  /* Signature Block styling */
+  .hidden.print\:flex {
+    display: flex !important;
+  }
+}
+
