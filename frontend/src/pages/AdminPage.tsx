@@ -2583,22 +2583,30 @@ function AISettingsManager() {
         if (!accountId) throw new Error('กรุณากรอก Cloudflare Account ID ก่อนทดสอบ');
         if (!cfToken) throw new Error('กรุณากรอก Cloudflare API Token ก่อนทดสอบ');
 
-        const res = await fetch(
-          `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/models/search?limit=5`,
-          { headers: { Authorization: `Bearer ${cfToken}` } }
-        );
-        const data = await res.json();
-        if (res.ok && data.success) {
-          // Also fetch usage
-          await fetchCFUsage();
-          setTestResult({
-            success: true,
-            message: `✅ เชื่อมต่อ Cloudflare Workers AI สำเร็จ! พบโมเดลทั้งหมด ${data.result?.length || '?'} รายการ (Account: ${accountId.slice(0, 8)}...)`,
-          });
+        // Route through Edge Function to avoid CORS (browser cannot call Cloudflare API directly)
+        const { data, error } = await supabase.functions.invoke('analyze-performance', {
+          body: {
+            action: 'test_connection',
+            provider: 'cloudflare',
+            account_id: accountId,
+            api_token: cfToken,
+          },
+        });
+
+        if (error) throw new Error(error.message || 'เชื่อมต่อ Edge Function ไม่สำเร็จ');
+
+        if (data?.success) {
+          // Update Neurons usage if returned
+          if (data.neuronsUsed !== null && data.neuronsUsed !== undefined) {
+            setCfUsage({ used: data.neuronsUsed, limit: data.neuronsLimit || 10000 });
+          }
+          setTestResult({ success: true, message: data.message });
         } else {
-          throw new Error(data.errors?.[0]?.message || 'ไม่สามารถเชื่อมต่อ Cloudflare ได้ กรุณาตรวจสอบ Account ID และ API Token');
+          setTestResult({ success: false, message: data?.message || 'เชื่อมต่อไม่สำเร็จ' });
         }
+        return; // early return since we set result already
       }
+
     } catch (err: any) {
       setTestResult({
         success: false,

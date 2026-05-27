@@ -129,6 +129,77 @@ serve(async (req) => {
     const body = await req.json();
     const { action, debug: includeDebug } = body;
 
+    // ── ACTION: test_connection ───────────────────────────────────────────────
+    // Called before loading DB configs so user can test credentials before saving
+    if (action === 'test_connection') {
+      const { provider: testProvider, account_id, api_token, api_key } = body;
+
+      if (testProvider === 'cloudflare') {
+        if (!account_id) {
+          return new Response(JSON.stringify({ success: false, message: 'กรุณากรอก Cloudflare Account ID ก่อนทดสอบ' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        if (!api_token) {
+          return new Response(JSON.stringify({ success: false, message: 'กรุณากรอก Cloudflare API Token ก่อนทดสอบ' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        try {
+          // Test via models/search (server-side, no CORS)
+          const modelsRes = await fetch(
+            `https://api.cloudflare.com/client/v4/accounts/${account_id}/ai/models/search?limit=5`,
+            { headers: { Authorization: `Bearer ${api_token}` } }
+          );
+          const modelsData = await modelsRes.json();
+
+          if (!modelsRes.ok || !modelsData.success) {
+            const errMsg = modelsData.errors?.[0]?.message || `HTTP ${modelsRes.status}`;
+            return new Response(JSON.stringify({ success: false, message: `ไม่สามารถเชื่อมต่อ Cloudflare ได้: ${errMsg}` }), {
+              status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          // Also fetch Neurons usage
+          let neuronsUsed = null;
+          let neuronsLimit = 10000;
+          try {
+            const usageRes = await fetch(
+              `https://api.cloudflare.com/client/v4/accounts/${account_id}/ai/usage`,
+              { headers: { Authorization: `Bearer ${api_token}` } }
+            );
+            if (usageRes.ok) {
+              const usageData = await usageRes.json();
+              if (usageData.success && usageData.result) {
+                neuronsUsed = usageData.result.neurons_used ?? usageData.result.usage?.neurons ?? 0;
+              }
+            }
+          } catch (_) {
+            // Usage fetch is optional, don't fail the whole test
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            message: `✅ เชื่อมต่อ Cloudflare Workers AI สำเร็จ! พบโมเดล ${modelsData.result?.length || '?'} รายการ (Account: ${account_id.slice(0, 8)}...)`,
+            modelsCount: modelsData.result?.length || 0,
+            neuronsUsed,
+            neuronsLimit,
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+        } catch (err: any) {
+          return new Response(JSON.stringify({ success: false, message: `ไม่สามารถเชื่อมต่อได้: ${err.message}` }), {
+            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+
+      // Generic provider test — just return success (validated on first use)
+      return new Response(JSON.stringify({ success: true, message: 'รูปแบบ credentials ถูกต้อง (จะ validate จริงเมื่อใช้งาน AI ครั้งแรก)' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const supabase = createClient(supabaseUrl, supabaseKey);
