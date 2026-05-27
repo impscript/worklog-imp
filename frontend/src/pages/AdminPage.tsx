@@ -2411,7 +2411,9 @@ function AISettingsManager() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [showKeys, setShowKeys] = useState<{ [key: string]: boolean }>({});
+  const [editingKeys, setEditingKeys] = useState<{ [key: string]: boolean }>({});
+  const [newKeyValues, setNewKeyValues] = useState<{ [key: string]: string }>({});
+
   const [dbError, setDbError] = useState<string | null>(null);
   const [cfUsage, setCfUsage] = useState<{ used: number; limit: number } | null>(null);
   const [loadingCfUsage, setLoadingCfUsage] = useState(false);
@@ -2779,92 +2781,182 @@ function AISettingsManager() {
             </h4>
             
             <div className="space-y-4">
+
+              {/* ─── Write-Only Key Field Helper ───────────────────────────────────────
+                  Pattern: Stripe/Vercel style. Old key is NEVER shown after initial load.
+                  User must click "Change Key" to enter a new one via password input.
+              ─────────────────────────────────────────────────────────────────────── */}
+
               {/* OpenRouter Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'openrouter' && "opacity-30 pointer-events-none select-none")}>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-theme-text-secondary">OpenRouter API Key</label>
-                </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={showKeys.openrouter ? configs.openrouter_api_key : maskSecret(configs.openrouter_api_key)}
-                    onChange={(e) => {
-                      if (showKeys.openrouter) setConfigs(prev => ({ ...prev, openrouter_api_key: e.target.value }));
-                    }}
-                    onFocus={() => setShowKeys(prev => ({ ...prev, openrouter: true }))}
-                    onBlur={() => setShowKeys(prev => ({ ...prev, openrouter: false }))}
-                    placeholder="sk-or-..."
-                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
-                    required={configs.ai_provider === 'openrouter'}
-                  />
-                </div>
-                <p className="text-[10px] text-theme-text-muted mt-1">คลิกที่ช่องเพื่อแก้ไข Key</p>
+                <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">OpenRouter API Key</label>
+                {editingKeys.openrouter ? (
+                  <div className="space-y-2">
+                    <input
+                      type="password"
+                      autoFocus
+                      value={newKeyValues.openrouter || ''}
+                      onChange={(e) => setNewKeyValues(prev => ({ ...prev, openrouter: e.target.value }))}
+                      placeholder="sk-or-... (กรอก Key ใหม่ทั้งหมด)"
+                      className="w-full bg-theme-surface-secondary border border-indigo-500/50 rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                    />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => {
+                        if (newKeyValues.openrouter?.trim()) setConfigs(prev => ({ ...prev, openrouter_api_key: newKeyValues.openrouter.trim() }));
+                        setEditingKeys(prev => ({ ...prev, openrouter: false }));
+                        setNewKeyValues(prev => ({ ...prev, openrouter: '' }));
+                      }} className="flex-1 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-[11px] font-bold transition-colors flex items-center justify-center gap-1">
+                        <Check size={11} /> บันทึก Key ใหม่
+                      </button>
+                      <button type="button" onClick={() => {
+                        setEditingKeys(prev => ({ ...prev, openrouter: false }));
+                        setNewKeyValues(prev => ({ ...prev, openrouter: '' }));
+                      }} className="px-3 py-1.5 border border-theme-border hover:border-rose-400 text-theme-text-secondary hover:text-rose-400 rounded-lg text-[11px] font-semibold transition-colors">
+                        ยกเลิก
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs font-mono text-theme-text-secondary select-none">
+                      {configs.openrouter_api_key ? maskSecret(configs.openrouter_api_key) : <span className="text-theme-text-muted italic">ยังไม่ได้ตั้งค่า</span>}
+                    </div>
+                    <button type="button" onClick={() => setEditingKeys(prev => ({ ...prev, openrouter: true }))}
+                      className="px-3 py-2 border border-theme-border hover:border-indigo-400 text-theme-text-secondary hover:text-indigo-400 rounded-xl text-[11px] font-semibold transition-colors whitespace-nowrap flex items-center gap-1">
+                      <Edit2 size={10} /> Change Key
+                    </button>
+                  </div>
+                )}
+                <p className="text-[10px] text-theme-text-muted mt-1">🔒 Key เก่าจะไม่แสดงบนหน้าจอ — กด Change Key เพื่อตั้งค่าใหม่</p>
               </div>
 
               {/* Gemini Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'gemini' && "opacity-30 pointer-events-none select-none")}>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-theme-text-secondary">Gemini API Key</label>
-                </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={showKeys.gemini ? configs.gemini_api_key : maskSecret(configs.gemini_api_key)}
-                    onChange={(e) => {
-                      if (showKeys.gemini) setConfigs(prev => ({ ...prev, gemini_api_key: e.target.value }));
-                    }}
-                    onFocus={() => setShowKeys(prev => ({ ...prev, gemini: true }))}
-                    onBlur={() => setShowKeys(prev => ({ ...prev, gemini: false }))}
-                    placeholder="AIzaSy..."
-                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
-                    required={configs.ai_provider === 'gemini'}
-                  />
-                </div>
-                <p className="text-[10px] text-theme-text-muted mt-1">คลิกที่ช่องเพื่อแก้ไข Key</p>
+                <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Gemini API Key</label>
+                {editingKeys.gemini ? (
+                  <div className="space-y-2">
+                    <input
+                      type="password"
+                      autoFocus
+                      value={newKeyValues.gemini || ''}
+                      onChange={(e) => setNewKeyValues(prev => ({ ...prev, gemini: e.target.value }))}
+                      placeholder="AIzaSy... (กรอก Key ใหม่ทั้งหมด)"
+                      className="w-full bg-theme-surface-secondary border border-indigo-500/50 rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                    />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => {
+                        if (newKeyValues.gemini?.trim()) setConfigs(prev => ({ ...prev, gemini_api_key: newKeyValues.gemini.trim() }));
+                        setEditingKeys(prev => ({ ...prev, gemini: false }));
+                        setNewKeyValues(prev => ({ ...prev, gemini: '' }));
+                      }} className="flex-1 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-[11px] font-bold transition-colors flex items-center justify-center gap-1">
+                        <Check size={11} /> บันทึก Key ใหม่
+                      </button>
+                      <button type="button" onClick={() => {
+                        setEditingKeys(prev => ({ ...prev, gemini: false }));
+                        setNewKeyValues(prev => ({ ...prev, gemini: '' }));
+                      }} className="px-3 py-1.5 border border-theme-border hover:border-rose-400 text-theme-text-secondary hover:text-rose-400 rounded-lg text-[11px] font-semibold transition-colors">
+                        ยกเลิก
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs font-mono text-theme-text-secondary select-none">
+                      {configs.gemini_api_key ? maskSecret(configs.gemini_api_key) : <span className="text-theme-text-muted italic">ยังไม่ได้ตั้งค่า</span>}
+                    </div>
+                    <button type="button" onClick={() => setEditingKeys(prev => ({ ...prev, gemini: true }))}
+                      className="px-3 py-2 border border-theme-border hover:border-indigo-400 text-theme-text-secondary hover:text-indigo-400 rounded-xl text-[11px] font-semibold transition-colors whitespace-nowrap flex items-center gap-1">
+                      <Edit2 size={10} /> Change Key
+                    </button>
+                  </div>
+                )}
+                <p className="text-[10px] text-theme-text-muted mt-1">🔒 Key เก่าจะไม่แสดงบนหน้าจอ — กด Change Key เพื่อตั้งค่าใหม่</p>
               </div>
 
               {/* OpenAI Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'openai' && "opacity-30 pointer-events-none select-none")}>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-theme-text-secondary">OpenAI API Key</label>
-                </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={showKeys.openai ? configs.openai_api_key : maskSecret(configs.openai_api_key)}
-                    onChange={(e) => {
-                      if (showKeys.openai) setConfigs(prev => ({ ...prev, openai_api_key: e.target.value }));
-                    }}
-                    onFocus={() => setShowKeys(prev => ({ ...prev, openai: true }))}
-                    onBlur={() => setShowKeys(prev => ({ ...prev, openai: false }))}
-                    placeholder="sk-..."
-                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
-                    required={configs.ai_provider === 'openai'}
-                  />
-                </div>
-                <p className="text-[10px] text-theme-text-muted mt-1">คลิกที่ช่องเพื่อแก้ไข Key</p>
+                <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">OpenAI API Key</label>
+                {editingKeys.openai ? (
+                  <div className="space-y-2">
+                    <input
+                      type="password"
+                      autoFocus
+                      value={newKeyValues.openai || ''}
+                      onChange={(e) => setNewKeyValues(prev => ({ ...prev, openai: e.target.value }))}
+                      placeholder="sk-... (กรอก Key ใหม่ทั้งหมด)"
+                      className="w-full bg-theme-surface-secondary border border-indigo-500/50 rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                    />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => {
+                        if (newKeyValues.openai?.trim()) setConfigs(prev => ({ ...prev, openai_api_key: newKeyValues.openai.trim() }));
+                        setEditingKeys(prev => ({ ...prev, openai: false }));
+                        setNewKeyValues(prev => ({ ...prev, openai: '' }));
+                      }} className="flex-1 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-[11px] font-bold transition-colors flex items-center justify-center gap-1">
+                        <Check size={11} /> บันทึก Key ใหม่
+                      </button>
+                      <button type="button" onClick={() => {
+                        setEditingKeys(prev => ({ ...prev, openai: false }));
+                        setNewKeyValues(prev => ({ ...prev, openai: '' }));
+                      }} className="px-3 py-1.5 border border-theme-border hover:border-rose-400 text-theme-text-secondary hover:text-rose-400 rounded-lg text-[11px] font-semibold transition-colors">
+                        ยกเลิก
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs font-mono text-theme-text-secondary select-none">
+                      {configs.openai_api_key ? maskSecret(configs.openai_api_key) : <span className="text-theme-text-muted italic">ยังไม่ได้ตั้งค่า</span>}
+                    </div>
+                    <button type="button" onClick={() => setEditingKeys(prev => ({ ...prev, openai: true }))}
+                      className="px-3 py-2 border border-theme-border hover:border-indigo-400 text-theme-text-secondary hover:text-indigo-400 rounded-xl text-[11px] font-semibold transition-colors whitespace-nowrap flex items-center gap-1">
+                      <Edit2 size={10} /> Change Key
+                    </button>
+                  </div>
+                )}
+                <p className="text-[10px] text-theme-text-muted mt-1">🔒 Key เก่าจะไม่แสดงบนหน้าจอ — กด Change Key เพื่อตั้งค่าใหม่</p>
               </div>
 
               {/* OpenCode Key */}
               <div className={cn("transition-all", configs.ai_provider !== 'opencode' && "opacity-30 pointer-events-none select-none")}>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="block text-xs font-semibold text-theme-text-secondary">OpenCode API Key</label>
-                </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={showKeys.opencode ? configs.opencode_api_key : maskSecret(configs.opencode_api_key)}
-                    onChange={(e) => {
-                      if (showKeys.opencode) setConfigs(prev => ({ ...prev, opencode_api_key: e.target.value }));
-                    }}
-                    onFocus={() => setShowKeys(prev => ({ ...prev, opencode: true }))}
-                    onBlur={() => setShowKeys(prev => ({ ...prev, opencode: false }))}
-                    placeholder="sk-oc-..."
-                    className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
-                    required={configs.ai_provider === 'opencode'}
-                  />
-                </div>
-                <p className="text-[10px] text-theme-text-muted mt-1">คลิกที่ช่องเพื่อแก้ไข Key</p>
+                <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">OpenCode API Key</label>
+                {editingKeys.opencode ? (
+                  <div className="space-y-2">
+                    <input
+                      type="password"
+                      autoFocus
+                      value={newKeyValues.opencode || ''}
+                      onChange={(e) => setNewKeyValues(prev => ({ ...prev, opencode: e.target.value }))}
+                      placeholder="sk-oc-... (กรอก Key ใหม่ทั้งหมด)"
+                      className="w-full bg-theme-surface-secondary border border-indigo-500/50 rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                    />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => {
+                        if (newKeyValues.opencode?.trim()) setConfigs(prev => ({ ...prev, opencode_api_key: newKeyValues.opencode.trim() }));
+                        setEditingKeys(prev => ({ ...prev, opencode: false }));
+                        setNewKeyValues(prev => ({ ...prev, opencode: '' }));
+                      }} className="flex-1 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-[11px] font-bold transition-colors flex items-center justify-center gap-1">
+                        <Check size={11} /> บันทึก Key ใหม่
+                      </button>
+                      <button type="button" onClick={() => {
+                        setEditingKeys(prev => ({ ...prev, opencode: false }));
+                        setNewKeyValues(prev => ({ ...prev, opencode: '' }));
+                      }} className="px-3 py-1.5 border border-theme-border hover:border-rose-400 text-theme-text-secondary hover:text-rose-400 rounded-lg text-[11px] font-semibold transition-colors">
+                        ยกเลิก
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs font-mono text-theme-text-secondary select-none">
+                      {configs.opencode_api_key ? maskSecret(configs.opencode_api_key) : <span className="text-theme-text-muted italic">ยังไม่ได้ตั้งค่า</span>}
+                    </div>
+                    <button type="button" onClick={() => setEditingKeys(prev => ({ ...prev, opencode: true }))}
+                      className="px-3 py-2 border border-theme-border hover:border-indigo-400 text-theme-text-secondary hover:text-indigo-400 rounded-xl text-[11px] font-semibold transition-colors whitespace-nowrap flex items-center gap-1">
+                      <Edit2 size={10} /> Change Key
+                    </button>
+                  </div>
+                )}
+                <p className="text-[10px] text-theme-text-muted mt-1">🔒 Key เก่าจะไม่แสดงบนหน้าจอ — กด Change Key เพื่อตั้งค่าใหม่</p>
               </div>
 
               {/* Cloudflare Credentials */}
@@ -2875,36 +2967,85 @@ function AISettingsManager() {
                   <span className="ml-auto text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">FREE TIER</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* CF Account ID - Write-Only */}
                   <div>
                     <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Account ID</label>
-                    <input
-                      type="text"
-                      value={showKeys.cf_account ? configs.cloudflare_account_id : maskSecret(configs.cloudflare_account_id)}
-                      onChange={(e) => {
-                        if (showKeys.cf_account) setConfigs(prev => ({ ...prev, cloudflare_account_id: e.target.value }));
-                      }}
-                      onFocus={() => setShowKeys(prev => ({ ...prev, cf_account: true }))}
-                      onBlur={() => setShowKeys(prev => ({ ...prev, cf_account: false }))}
-                      placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all font-mono"
-                      required={configs.ai_provider === 'cloudflare'}
-                    />
+                    {editingKeys.cf_account ? (
+                      <div className="space-y-2">
+                        <input
+                          type="password"
+                          autoFocus
+                          value={newKeyValues.cf_account || ''}
+                          onChange={(e) => setNewKeyValues(prev => ({ ...prev, cf_account: e.target.value }))}
+                          placeholder="กรอก Account ID ใหม่..."
+                          className="w-full bg-theme-surface-secondary border border-sky-500/50 rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all font-mono"
+                        />
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => {
+                            if (newKeyValues.cf_account?.trim()) setConfigs(prev => ({ ...prev, cloudflare_account_id: newKeyValues.cf_account.trim() }));
+                            setEditingKeys(prev => ({ ...prev, cf_account: false }));
+                            setNewKeyValues(prev => ({ ...prev, cf_account: '' }));
+                          }} className="flex-1 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-[11px] font-bold transition-colors flex items-center justify-center gap-1">
+                            <Check size={11} /> บันทึก
+                          </button>
+                          <button type="button" onClick={() => {
+                            setEditingKeys(prev => ({ ...prev, cf_account: false }));
+                            setNewKeyValues(prev => ({ ...prev, cf_account: '' }));
+                          }} className="px-3 py-1.5 border border-theme-border hover:border-rose-400 text-theme-text-secondary hover:text-rose-400 rounded-lg text-[11px] font-semibold transition-colors">ยกเลิก</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs font-mono text-theme-text-secondary select-none">
+                          {configs.cloudflare_account_id ? maskSecret(configs.cloudflare_account_id) : <span className="text-theme-text-muted italic">ยังไม่ได้ตั้งค่า</span>}
+                        </div>
+                        <button type="button" onClick={() => setEditingKeys(prev => ({ ...prev, cf_account: true }))}
+                          className="px-3 py-2 border border-sky-500/30 hover:border-sky-400 text-sky-500 hover:text-sky-400 rounded-xl text-[11px] font-semibold transition-colors whitespace-nowrap flex items-center gap-1">
+                          <Edit2 size={10} /> Change
+                        </button>
+                      </div>
+                    )}
                     <p className="text-[10px] text-theme-text-muted mt-1">Cloudflare Dashboard → Right sidebar → Account ID</p>
                   </div>
+
+                  {/* CF API Token - Write-Only */}
                   <div>
                     <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">API Token</label>
-                    <input
-                      type="text"
-                      value={showKeys.cf_token ? configs.cloudflare_api_token : maskSecret(configs.cloudflare_api_token)}
-                      onChange={(e) => {
-                        if (showKeys.cf_token) setConfigs(prev => ({ ...prev, cloudflare_api_token: e.target.value }));
-                      }}
-                      onFocus={() => setShowKeys(prev => ({ ...prev, cf_token: true }))}
-                      onBlur={() => setShowKeys(prev => ({ ...prev, cf_token: false }))}
-                      placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all font-mono"
-                      required={configs.ai_provider === 'cloudflare'}
-                    />
+                    {editingKeys.cf_token ? (
+                      <div className="space-y-2">
+                        <input
+                          type="password"
+                          autoFocus
+                          value={newKeyValues.cf_token || ''}
+                          onChange={(e) => setNewKeyValues(prev => ({ ...prev, cf_token: e.target.value }))}
+                          placeholder="กรอก API Token ใหม่..."
+                          className="w-full bg-theme-surface-secondary border border-sky-500/50 rounded-xl py-2.5 px-3.5 text-xs text-theme-text placeholder:text-theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all font-mono"
+                        />
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => {
+                            if (newKeyValues.cf_token?.trim()) setConfigs(prev => ({ ...prev, cloudflare_api_token: newKeyValues.cf_token.trim() }));
+                            setEditingKeys(prev => ({ ...prev, cf_token: false }));
+                            setNewKeyValues(prev => ({ ...prev, cf_token: '' }));
+                          }} className="flex-1 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-[11px] font-bold transition-colors flex items-center justify-center gap-1">
+                            <Check size={11} /> บันทึก
+                          </button>
+                          <button type="button" onClick={() => {
+                            setEditingKeys(prev => ({ ...prev, cf_token: false }));
+                            setNewKeyValues(prev => ({ ...prev, cf_token: '' }));
+                          }} className="px-3 py-1.5 border border-theme-border hover:border-rose-400 text-theme-text-secondary hover:text-rose-400 rounded-lg text-[11px] font-semibold transition-colors">ยกเลิก</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs font-mono text-theme-text-secondary select-none">
+                          {configs.cloudflare_api_token ? maskSecret(configs.cloudflare_api_token) : <span className="text-theme-text-muted italic">ยังไม่ได้ตั้งค่า</span>}
+                        </div>
+                        <button type="button" onClick={() => setEditingKeys(prev => ({ ...prev, cf_token: true }))}
+                          className="px-3 py-2 border border-sky-500/30 hover:border-sky-400 text-sky-500 hover:text-sky-400 rounded-xl text-[11px] font-semibold transition-colors whitespace-nowrap flex items-center gap-1">
+                          <Edit2 size={10} /> Change
+                        </button>
+                      </div>
+                    )}
                     <p className="text-[10px] text-theme-text-muted mt-1">My Profile → API Tokens → Create Token (ใช้ template "Workers AI")</p>
                   </div>
                 </div>
