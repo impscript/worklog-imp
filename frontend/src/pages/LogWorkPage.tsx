@@ -1148,8 +1148,7 @@ export default function LogWorkPage() {
       }
     } else {
       if (preview.isOverlap) {
-        showToast(`ไม่สามารถบันทึกได้เนื่องจากมีเวลาคาบเกี่ยวกับรายการอื่น (${preview.overlappingEvent})`, 'error');
-        return;
+        showToast(`ข้อมูลเวลาทำงานบางส่วนคาบเกี่ยวกับรายการอื่น (${preview.overlappingEvent})`, 'warning');
       }
     }
 
