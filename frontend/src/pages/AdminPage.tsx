@@ -15,6 +15,11 @@ export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editRow, setEditRow] = useState<any | null>(null);
   const [isMobileTabMenuOpen, setIsMobileTabMenuOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<{
+    newRows: any[];
+    updateRows: any[];
+    rawRows: any[];
+  } | null>(null);
 
   // Project Structures specific filters
   const [filterProject, setFilterProject] = useState('');
@@ -476,27 +481,76 @@ export default function AdminPage() {
           return;
         }
 
-        const confirmImport = window.confirm(`คุณต้องการนำเข้าข้อมูล Project Structure จำนวน ${parsedRows.length} รายการใช่หรือไม่?\n\n(ระบบจะนำเข้าเฉพาะแถวข้อมูลที่สมบูรณ์เท่านั้น)`);
-        if (!confirmImport) return;
+        // Frontend-assisted matching for upserting
+        const newRows: any[] = [];
+        const updateRows: any[] = [];
 
-        setIsLoading(true);
-        const { error } = await supabase
-          .from('tb_map_project_structure')
-          .insert(parsedRows);
+        // Match existing structures:
+        // We match by: holding, department_operator, project_type, project_name, module (case insensitive)
+        parsedRows.forEach(row => {
+          const existing = projectStructures.find(p => 
+            p.holding?.toLowerCase().trim() === row.holding?.toLowerCase().trim() &&
+            p.department_operator?.toLowerCase().trim() === row.department_operator?.toLowerCase().trim() &&
+            p.project_type?.toLowerCase().trim() === row.project_type?.toLowerCase().trim() &&
+            p.project_name?.toLowerCase().trim() === row.project_name?.toLowerCase().trim() &&
+            (p.module || '').toLowerCase().trim() === (row.module || '').toLowerCase().trim()
+          );
 
-        if (error) throw error;
+          if (existing) {
+            updateRows.push({
+              ...row,
+              id: existing.id // Keep the same ID to trigger Supabase upsert/update
+            });
+          } else {
+            newRows.push(row);
+          }
+        });
 
-        showToast(`นำเข้าข้อมูลสำเร็จ ${parsedRows.length} รายการ!`, 'success');
-        await loadAllData();
+        setImportPreview({
+          newRows,
+          updateRows,
+          rawRows: parsedRows
+        });
       } catch (err: any) {
         console.error('Error importing CSV:', err);
         showToast('เกิดข้อผิดพลาดในการนำเข้าไฟล์: ' + err.message, 'error');
       } finally {
-        setIsLoading(false);
         if (e.target) e.target.value = '';
       }
     };
     reader.readAsText(file, 'UTF-8');
+  };
+
+  const handleExecuteUpsert = async () => {
+    if (!importPreview) return;
+    const { newRows, updateRows } = importPreview;
+    
+    const confirmed = await showConfirm({
+      title: 'ยืนยันการนำเข้าข้อมูล (Import CSV)',
+      message: `คุณต้องการดำเนินการนำเข้า (Upsert) ข้อมูลจริงหรือไม่?\n\n- เพิ่มใหม่ (New): ${newRows.length} รายการ\n- อัปเดต (Update): ${updateRows.length} รายการ\n\nการดำเนินการนี้จะจัดเก็บและเขียนทับข้อมูลลงในฐานข้อมูลทันที`,
+      confirmText: 'นำเข้าข้อมูล',
+      type: 'primary'
+    });
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    try {
+      const payload = [...newRows, ...updateRows];
+      const { error } = await supabase
+        .from('tb_map_project_structure')
+        .upsert(payload, { onConflict: 'id' });
+
+      if (error) throw error;
+
+      showToast(`นำเข้า (Upsert) สำเร็จทั้งหมด ${payload.length} รายการ! (ใหม่: ${newRows.length}, อัปเดต: ${updateRows.length})`, 'success');
+      setImportPreview(null);
+      await loadAllData();
+    } catch (err: any) {
+      console.error('Error executing upsert:', err);
+      showToast('เกิดข้อผิดพลาดในการนำเข้าข้อมูล: ' + err.message, 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Load All Master Data from Supabase
@@ -2145,6 +2199,145 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+      {/* CSV Import Preview Modal */}
+      {importPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-4xl bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/80 rounded-2xl shadow-2xl overflow-hidden my-8 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200 text-theme-text">
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-theme-border/50 bg-theme-surface-secondary/40 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                  <Upload size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">พรีวิวการนำเข้าข้อมูล (CSV Import Preview)</h3>
+                  <p className="text-xs text-theme-text-secondary mt-0.5">ตรวจสอบความถูกต้องของข้อมูลและโครงสร้างก่อนกดยืนยัน</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setImportPreview(null)}
+                className="p-1.5 rounded-lg text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-secondary transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body / Scrollable Content */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
+              
+              {/* Important Notes Box */}
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex gap-3 text-amber-300">
+                <AlertTriangle size={20} className="shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1.5">
+                  <p className="font-bold text-sm">รายละเอียดที่ควรรู้ก่อนทำการนำเข้าข้อมูล (Upsert)</p>
+                  <ul className="list-disc list-inside space-y-1 text-amber-200/90 leading-relaxed">
+                    <li>ระบบใช้การค้นหาข้อมูลแบบ <strong className="text-amber-300">Upsert</strong> (Update หรือ Insert)</li>
+                    <li>ข้อมูลจะถือว่าตรงกับแถวเดิม (Update) หาก <strong className="text-amber-300">Holding, Role, Project Type, Project Name, และ Module</strong> ใน CSV ตรงกับฐานข้อมูลเดิม</li>
+                    <li>หากเป็นรายการเดิม ระบบจะเขียนทับ (Update) ค่า <strong className="text-amber-300">BU และ Department</strong> ด้วยค่าใหม่จากไฟล์ CSV</li>
+                    <li>หากไม่ตรงกับชุดข้อมูลเดิมเลย จะถูกนับเป็นข้อมูลแถวใหม่ (New) และจัดเก็บเพิ่มเข้าไป</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Stats Summary Widget */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-theme-surface-secondary rounded-xl p-4 border border-theme-border/50 text-center">
+                  <span className="text-xs text-theme-text-secondary font-medium">รวมทั้งหมดใน CSV</span>
+                  <div className="text-2xl font-extrabold mt-1 text-theme-text font-mono">
+                    {importPreview.rawRows.length}
+                  </div>
+                </div>
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-center text-emerald-400">
+                  <span className="text-xs text-emerald-300 font-medium">รายการเพิ่มใหม่ (New)</span>
+                  <div className="text-2xl font-extrabold mt-1 font-mono">
+                    {importPreview.newRows.length}
+                  </div>
+                </div>
+                <div className="bg-sky-500/10 border border-sky-500/20 rounded-xl p-4 text-center text-sky-400">
+                  <span className="text-xs text-sky-300 font-medium">รายการอัปเดต (Update)</span>
+                  <div className="text-2xl font-extrabold mt-1 font-mono">
+                    {importPreview.updateRows.length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Data Table Preview */}
+              <div>
+                <h4 className="text-sm font-semibold mb-3 flex items-center justify-between">
+                  <span>ตัวอย่างข้อมูล (แสดงสูงสุด 15 รายการแรก)</span>
+                  <span className="text-xs font-medium text-theme-text-secondary font-mono">
+                    Showing {Math.min(15, importPreview.rawRows.length)} of {importPreview.rawRows.length}
+                  </span>
+                </h4>
+                <div className="border border-theme-border/50 rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-theme-surface-secondary/80 border-b border-theme-border/50 text-theme-text-secondary font-bold">
+                          <th className="px-4 py-3">สถานะ</th>
+                          <th className="px-4 py-3">Holding</th>
+                          <th className="px-4 py-3">Role</th>
+                          <th className="px-4 py-3">Project Type</th>
+                          <th className="px-4 py-3">Project Name</th>
+                          <th className="px-4 py-3">Module</th>
+                          <th className="px-4 py-3">BU</th>
+                          <th className="px-4 py-3">Department</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-theme-border/40">
+                        {[
+                          ...importPreview.newRows.map(r => ({ ...r, _status: 'New' })),
+                          ...importPreview.updateRows.map(r => ({ ...r, _status: 'Update' }))
+                        ].slice(0, 15).map((row, idx) => (
+                          <tr key={idx} className="hover:bg-theme-surface-secondary/20 transition-colors">
+                            <td className="px-4 py-3 font-semibold">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded text-[10px] font-bold",
+                                row._status === 'New' 
+                                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                                  : "bg-sky-500/10 text-sky-400 border border-sky-500/20"
+                              )}>
+                                {row._status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 font-medium">{row.holding}</td>
+                            <td className="px-4 py-3 font-medium">{row.department_operator}</td>
+                            <td className="px-4 py-3 text-theme-text-secondary">{row.project_type}</td>
+                            <td className="px-4 py-3 text-theme-text font-semibold">{row.project_name}</td>
+                            <td className="px-4 py-3 text-theme-text-secondary">{row.module || '-'}</td>
+                            <td className="px-4 py-3 text-theme-text-secondary">{row.bu}</td>
+                            <td className="px-4 py-3 text-theme-text-secondary">{row.department}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-theme-border/50 bg-theme-surface-secondary/40 flex justify-end gap-3 shrink-0">
+              <button
+                onClick={() => setImportPreview(null)}
+                className="px-5 py-2.5 border border-theme-border text-theme-text-secondary hover:text-theme-text rounded-xl font-bold text-sm transition-all"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleExecuteUpsert}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg active:scale-95"
+              >
+                <Check size={16} />
+                <span>นำเข้าข้อมูล (Import Upsert)</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
@@ -2758,8 +2951,45 @@ function AIPromptsManager() {
 
   // ── Legacy Worklog Enhancement prompts (tb_system_config) ──────────
   const LEGACY_DEFAULTS = {
-    prompt_enhance_system: `You are an expert HR Coach and Technical Writer helper. Your job is to rewrite raw employee work logs into professional, business-oriented descriptions.`,
-    prompt_enhance_user: `Context details:\n- Project Name: {project_name}\n- Category/Action: {action_name}\n- Duration of task: {duration} hours\n\nRAW WORK LOG DESCRIPTION TO REPHRASE:\n{description}\n\nINSTRUCTION:\nPolitely rephrase this work log in the same language it was written (Thai or English) to sound extremely professional, emphasizing business impact, cost-saving, time efficiency, and strategic execution. Keep it concise (1-3 sentences). Only return the final refined description text. Do not include prefix comments like "Here is the rephrased text:" or similar.`,
+    prompt_enhance_system: `You are an expert HR Coach, Work Measurement Specialist, and Executive Technical Writer.
+Rephrase raw work logs into professional, business-oriented descriptions in Thai language, and estimate the standard time duration required for the task.
+You must return your output strictly in JSON format.`,
+    prompt_enhance_user: `Context:
+- Project: {project_name}
+- Category: {action_name}
+- Actual Duration Spent: {duration} hours
+
+RAW LOG:
+{description}
+
+INSTRUCTION:
+1. วิเคราะห์ข้อความ RAW LOG ด้านบนว่าเป็น "งานประเภทพัฒนา/ปฎิบัติงานทั่วไป (General Task/Work)" หรือ "งานประเภทประชุม/หารือ (Meeting/Discuss)"
+2. หากเป็นงานทั่วไป ให้เรียบเรียงเป็นภาษาไทยให้เป็นมืออาชีพ มีความชัดเจนเป็นขั้นตอน และแสดงถึงคุณค่าทางธุรกิจ โดยบังคับใช้โครงสร้างและหัวข้อตามนี้:
+   - [งานที่ทำ]: (ระบุรายละเอียดและขั้นตอนการปฏิบัติงานอย่างชัดเจน)
+   - [ผลลัพธ์ที่ได้]: (สรุปชิ้นงานหรือผลสำเร็จที่เป็นรูปธรรม)
+   - [KPI/เป้าหมาย]: (วิเคราะห์ความเชื่อมโยงกับเป้าหมายองค์กรหรือความคุ้มค่าทางธุรกิจ)
+   - [Next Steps]: (แผนงานในขั้นถัดไป)
+
+3. หากเป็นงานประชุม/หารือ ให้เรียบเรียงและสรุปสาระสำคัญเป็นภาษาไทยโดยบังคับใช้โครงสร้างตามนี้:
+   - [วัตถุประสงค์และบทบาท]: (จุดประสงค์การประชุมและหน้าที่ของเราในที่ประชุม)
+   - [ข้อสรุป]: (สาระสำคัญ ผลการตัดสินใจ หรือมติที่ได้)
+   - [Next Steps]: (สิ่งที่ต้องทำต่อหลังจากการประชุม)
+
+4. ประเมินช่วงเวลามาตรฐานที่เหมาะสมสำหรับการทำงานลักษณะนี้ (Standard Time เช่น min: 2.0, max: 4.0 ชั่วโมง)
+5. เปรียบเทียบ Actual Duration Spent ({duration} ชั่วโมง) กับค่ามาตรฐานเพื่อประเมินระดับประสิทธิภาพ:
+   - "มาก" (หากใช้เวลาจริงเกินกว่าค่าสูงสุดมาตรฐาน)
+   - "น้อย" (หากใช้เวลาจริงต่ำกว่าค่าต่ำสุดมาตรฐาน)
+   - "ดี" (หากใช้เวลาเหมาะสมตามมาตรฐานหรือสมเหตุสมผล)
+6. เขียนอธิบายสั้นๆ 1-2 ประโยค (time_assessment_reason) เพื่อแนะนำเหตุผลประกอบการประเมิน
+
+ตอบกลับเฉพาะ JSON ดิบตามโครงสร้างนี้เท่านั้น (ห้ามใส่ markdown block หรือข้อความอื่นๆ):
+{
+  "enhanced_text": "เนื้อหาที่ขัดเกลาแล้ว (ตามหัวข้อที่กำหนดตามประเภทงาน)",
+  "standard_time_min": number,
+  "standard_time_max": number,
+  "time_assessment": "มาก" | "น้อย" | "ดี",
+  "time_assessment_reason": "คำอธิบายประเมินเวลาวิเคราะห์สั้นๆ..."
+}`,
   };
   const [legacyPrompts, setLegacyPrompts] = useState<{ [key: string]: string }>(LEGACY_DEFAULTS);
   const [savingLegacy, setSavingLegacy] = useState(false);
