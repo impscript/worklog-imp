@@ -7,8 +7,8 @@ import path from 'path'
 // Mock /api/upload plugin for local Vite development
 const mockUploadPlugin = () => ({
   name: 'mock-upload-plugin',
-  configureServer(server) {
-    server.middlewares.use(async (req, res, next) => {
+  configureServer(server: any) {
+    server.middlewares.use(async (req: any, res: any, next: any) => {
       if (req.url === '/api/upload' && req.method === 'POST') {
         try {
           // Simplistic multipart parser for single file in dev mode
@@ -79,7 +79,7 @@ const mockUploadPlugin = () => ({
             filename: uniqueFilename,
             url: `/uploads/${uniqueFilename}`
           }));
-        } catch (err) {
+        } catch (err: any) {
           res.statusCode = 500;
           res.end(JSON.stringify({ error: err.message }));
         }
