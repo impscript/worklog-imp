@@ -27,3 +27,6 @@ test_tables.js
 *.csv
 scratch/
 /scratch/
+
+# Local uploads
+frontend/public/uploads/
