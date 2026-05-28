@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { X, Clock, AlertTriangle, Calendar as CalendarIcon, Zap, ChevronDown, Check } from 'lucide-react';
+import { X, Clock, AlertTriangle, Calendar as CalendarIcon, Zap, ChevronDown, Check, Upload } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 import { cn } from '../../lib/utils';
 import { syncWorklogToGCal, googleCalendar } from '../../lib/google-calendar';
+import { compressImage } from '../../lib/image-compressor';
 
 // Generate Time Options (00:00 to 24:00 - 24 Hours)
 const timeOptions = Array.from({ length: 49 }, (_, i) => {
@@ -38,6 +39,7 @@ interface WorklogEntry {
   department?: string;
   channel?: string;
   action_channel?: string | null;
+  image_urls?: string[];
 }
 
 interface SplitEntry {
@@ -300,6 +302,61 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   const [description, setDescription] = useState('');
   const [isExplicitOt, setIsExplicitOt] = useState(false);
   const [selectedActionChannels, setSelectedActionChannels] = useState<string[]>([]);
+  const [attachedImages, setAttachedImages] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState<boolean>(false);
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (attachedImages.length + files.length > 2) {
+      showToast('แนบรูปได้ไม่เกิน 2 รูป ต่อใบงาน / Max 2 images allowed', 'error');
+      return;
+    }
+
+    setUploadingImages(true);
+    try {
+      const uploadedUrls = [...attachedImages];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const compressedBlob = await compressImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.8 });
+        const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
+        
+        const formData = new FormData();
+        formData.append('file', compressedFile);
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errText = await response.text().catch(() => '');
+          throw new Error(`Server returned status ${response.status}: ${errText || 'Unknown Error'}`);
+        }
+
+        let result;
+        try {
+          result = await response.json();
+        } catch (jsonErr) {
+          throw new Error('Server did not return a valid JSON response. Please check if your local server is running in Wrangler/Pages dev mode instead of raw Vite dev mode to support /api/upload endpoint.');
+        }
+
+        if (result && result.success && result.url) {
+          uploadedUrls.push(result.url);
+        } else {
+          throw new Error(result?.error || 'Upload failed');
+        }
+      }
+      setAttachedImages(uploadedUrls);
+      showToast('อัปโหลดรูปภาพประกอบสำเร็จ! / Images uploaded successfully', 'success');
+    } catch (err: any) {
+      console.error('[Upload Error]', err);
+      showToast('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ: ' + err.message, 'error');
+    } finally {
+      setUploadingImages(false);
+    }
+  };
 
   // Cascading Dropdown States
   const [holding, setHolding] = useState('');
@@ -395,6 +452,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       setActionName(log.action_name);
       setBu(log.bu || '');
       setDepartment(log.department || '');
+      setAttachedImages(log.image_urls || []);
 
       // Action channels
       if (log.action_channel) {
@@ -775,11 +833,6 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       }
     }
     
-    if (preview.isOverlap) {
-      showToast(`ไม่สามารถบันทึกได้เนื่องจากเวลาคาบเกี่ยวกับรายการอื่น (${preview.overlappingEvent})`, 'error');
-      return;
-    }
-
     setShowConfirmModal(true);
   };
 
@@ -815,7 +868,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
             description: description ? `${segment0Prefix} ${description}` : `${segment0.is_ot ? 'OT' : 'Normal'} portion`,
             is_ot: segment0.is_ot,
-            is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt
+            is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt,
+            image_urls: attachedImages
           };
 
           for (let i = 1; i < preview.segments.length; i++) {
@@ -840,7 +894,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               description: description ? `${segmentPrefix} ${description}` : `${segment.is_ot ? 'OT' : 'Normal'} portion`,
               channel: log.channel || 'Web App',
               is_ot: segment.is_ot,
-              is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+              is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
+              image_urls: attachedImages
             });
           }
         } else {
@@ -868,7 +923,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
             description,
             is_ot: segment.is_ot,
-            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
+            image_urls: attachedImages
           };
         }
 
@@ -920,7 +976,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
             description: description ? `${segment0Prefix} ${description}` : `${segment0.is_ot ? 'OT' : 'Normal'} portion`,
             is_ot: segment0.is_ot,
-            is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt
+            is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt,
+            image_urls: attachedImages
           })
           .eq('id', log.id);
 
@@ -957,7 +1014,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             description: description ? `${segmentPrefix} ${description}` : `${segment.is_ot ? 'OT' : 'Normal'} portion`,
             channel: log.channel || 'Web App',
             is_ot: segment.is_ot,
-            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
+            image_urls: attachedImages
           }).select('id').maybeSingle();
 
           if (errorNew) throw errorNew;
@@ -998,7 +1056,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
             description,
             is_ot: segment.is_ot,
-            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
+            image_urls: attachedImages
           })
           .eq('id', log.id);
 
@@ -1353,6 +1412,51 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 border border-theme-border dark:border-theme-border rounded-2xl py-3 px-4 text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all leading-relaxed"
             />
           </div>
+
+          {/* Section 4: Image Attachments */}
+          <div className="space-y-2">
+            <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1 ml-1">รูปภาพประกอบใบงาน (สูงสุด 2 รูป / Max 2 Images)</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {attachedImages.map((url, idx) => (
+                <div key={idx} className="relative group aspect-video rounded-xl overflow-hidden border border-theme-border bg-theme-surface-secondary shadow-inner">
+                  <img src={url} alt="Attachment" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setAttachedImages(attachedImages.filter((_, i) => i !== idx))}
+                    className="absolute top-2 right-2 p-1 bg-rose-600 hover:bg-rose-500 text-white rounded-full transition-all shadow-md active:scale-90"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+              
+              {attachedImages.length < 2 && (
+                <label className={cn(
+                  "flex flex-col items-center justify-center border-2 border-dashed border-theme-border rounded-xl cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all aspect-video",
+                  uploadingImages && "opacity-50 pointer-events-none"
+                )}>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    multiple 
+                    onChange={handleImageChange} 
+                    className="sr-only" 
+                  />
+                  {uploadingImages ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mb-2" />
+                      <span className="text-[10px] text-theme-text-secondary font-bold">กำลังอัปโหลด...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={18} className="text-theme-text-secondary mb-1.5" />
+                      <span className="text-[10px] text-theme-text-secondary font-bold font-sans">คลิกเพื่อแนบรูปภาพ</span>
+                    </>
+                  )}
+                </label>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Modal Footer */}
@@ -1366,7 +1470,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
           
           <button
             onClick={handleSave}
-            disabled={isSubmitting || preview.isOverlap || preview.duration <= 0 || !holding || !role || !projectType || !projectName || !actionName}
+            disabled={isSubmitting || preview.duration <= 0 || !holding || !role || !projectType || !projectName || !actionName}
             className={cn(
               "px-5 py-2.5 text-theme-text text-xs font-bold rounded-xl transition-all active:scale-[0.98] shadow-md",
               "bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed"

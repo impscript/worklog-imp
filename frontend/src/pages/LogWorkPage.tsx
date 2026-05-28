@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles } from 'lucide-react';
+import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles, Share2, Copy, Upload, X } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
@@ -7,6 +7,7 @@ import { useNotification } from '../context/NotificationContext';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
+import { compressImage } from '../lib/image-compressor';
 
 // Generate Time Options (00:00 to 24:00 - 24 Hours)
 const timeOptions = Array.from({ length: 49 }, (_, i) => {
@@ -35,6 +36,7 @@ function getEndOfWorkdayTime(dateStr: string, isHoliday: boolean): string | null
   if (day === 5) return '17:00';
   return '18:00';
 }
+
 
 function addMinutesToTime(timeStr: string, mins: number): string {
   const [h, m] = (timeStr || '00:00').split(':').map(Number);
@@ -277,6 +279,16 @@ export default function LogWorkPage() {
   const [session] = useState(() => JSON.parse(localStorage.getItem('worklog_session') || '{}'));
   const [editingLog, setEditingLog] = useState<any | null>(null);
   const [viewingLog, setViewingLog] = useState<any | null>(null);
+
+  // Dynamic template & image attachment states
+  const [dbTemplates, setDbTemplates] = useState<any[]>([
+    { id: '1', template_name: 'เทมเพลตประชุม', template_content: '[วัตถุประสงค์]: \n[บทบาทของคุณ]: \n[ข้อสรุป]: \n[Next Steps]: ', icon: '📝' },
+    { id: '2', template_name: 'เทมเพลตงานทั่วไป', template_content: '[งานที่ทำ]: \n[ผลลัพธ์ที่ได้]: \n[KPI/เป้าหมาย]: \n[Next Steps]: ', icon: '⚙️' },
+    { id: '3', template_name: 'เทมเพลต PARIL (ทดลอง)', template_content: '[Plan]: \n[Action]: \n[Result]: \n[Impact]: \n[Lesson Learned]: ', icon: '🎯' }
+  ]);
+  const [attachedImages, setAttachedImages] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState<boolean>(false);
+  const [createdShareLinkId, setCreatedShareLinkId] = useState<string | null>(null);
   
   // Form State
   const [date, setDate] = useState(() => {
@@ -324,6 +336,63 @@ export default function LogWorkPage() {
         const separator = prev.endsWith('\n') ? '' : '\n';
         return prev + separator + templateText;
       });
+    }
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (attachedImages.length + files.length > 2) {
+      showToast('แนบรูปได้ไม่เกิน 2 รูป ต่อใบงาน / Max 2 images allowed', 'error');
+      return;
+    }
+
+    setUploadingImages(true);
+    try {
+      const uploadedUrls = [...attachedImages];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // 1. Compress image client-side using canvas compressor utility
+        const compressedBlob = await compressImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.8 });
+        const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
+        
+        // 2. Prepare FormData
+        const formData = new FormData();
+        formData.append('file', compressedFile);
+
+        // 3. Upload to Cloudflare R2 proxy endpoint
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errText = await response.text().catch(() => '');
+          throw new Error(`Server returned status ${response.status}: ${errText || 'Unknown Error'}`);
+        }
+
+        let result;
+        try {
+          result = await response.json();
+        } catch (jsonErr) {
+          throw new Error('Server did not return a valid JSON response. Please check if your local server is running in Wrangler/Pages dev mode instead of raw Vite dev mode to support /api/upload endpoint.');
+        }
+
+        if (result && result.success && result.url) {
+          uploadedUrls.push(result.url);
+        } else {
+          throw new Error(result?.error || 'Upload failed');
+        }
+      }
+      setAttachedImages(uploadedUrls);
+      showToast('อัปโหลดรูปภาพประกอบสำเร็จ! / Images uploaded successfully', 'success');
+    } catch (err: any) {
+      console.error('[Upload Error]', err);
+      showToast('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ: ' + err.message, 'error');
+    } finally {
+      setUploadingImages(false);
     }
   };
 
@@ -530,10 +599,11 @@ export default function LogWorkPage() {
       const targetUser = selectedUser || cleanName;
       console.log('LogWorkPage loading mappings for targetUser:', targetUser);
 
-      const [resUser, resProj, resAct] = await Promise.all([
+      const [resUser, resProj, resAct, resTpl] = await Promise.all([
         supabase.from('tb_map_user_role').select('*').ilike('name', targetUser.trim()),
         supabase.from('tb_map_project_structure').select('*'),
-        supabase.from('tb_master_action').select('*')
+        supabase.from('tb_master_action').select('*'),
+        supabase.from('tb_master_worklog_templates').select('*')
       ]);
 
       if (resUser.data && resUser.data.length > 0) {
@@ -544,6 +614,9 @@ export default function LogWorkPage() {
       }
       if (resProj.data) setMapProjectStructure(resProj.data);
       if (resAct.data) setMasterActions(resAct.data);
+      if (resTpl.data && resTpl.data.length > 0) {
+        setDbTemplates(resTpl.data);
+      }
     }
     loadData();
   }, [session, selectedUser]);
@@ -1207,7 +1280,8 @@ export default function LogWorkPage() {
                 description: description ? `${segmentPrefix} ${description}` : `${segment.is_ot ? 'OT' : 'Normal'} portion`,
                 channel: 'Web App',
                 is_ot: segment.is_ot,
-                is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+                is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
+                image_urls: attachedImages
               });
             }
           } else {
@@ -1237,7 +1311,8 @@ export default function LogWorkPage() {
               description: description,
               channel: 'Web App',
               is_ot: segment.is_ot,
-              is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+              is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
+              image_urls: attachedImages
             });
           }
 
@@ -1259,6 +1334,8 @@ export default function LogWorkPage() {
       } catch (gcalErr) {
         console.warn('[GCal] Session check failed, proceeding without redirect:', gcalErr);
       }
+
+      let savedId = null;
 
       if (finalSegments.length > 1) {
         // We need to SPLIT this entry!
@@ -1285,11 +1362,13 @@ export default function LogWorkPage() {
             description: description ? `${segmentPrefix} ${description}` : `${segment.is_ot ? 'OT' : 'Normal'} portion`,
             channel: 'Web App',
             is_ot: segment.is_ot,
-            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
+            image_urls: attachedImages
           }).select('id').maybeSingle();
 
           if (error) throw error;
           if (data) {
+            savedId = data.id;
             // Trigger sync in background
             syncWorklogToGCal(data.id, 'insert');
           }
@@ -1323,14 +1402,20 @@ export default function LogWorkPage() {
           description: description,
           channel: 'Web App',
           is_ot: segment.is_ot,
-          is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt
+          is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
+          image_urls: attachedImages
         }).select('id').maybeSingle();
 
         if (error) throw error;
         if (data) {
+          savedId = data.id;
           // Trigger sync in background
           syncWorklogToGCal(data.id, 'insert');
         }
+      }
+      
+      if (savedId) {
+        setCreatedShareLinkId(savedId);
       }
       
       showToast('บันทึกใบงานสำเร็จแล้ว! / Work log saved successfully!', 'success');
@@ -1349,6 +1434,7 @@ export default function LogWorkPage() {
       setIsTimeCustomized(false);
       setStartTime('08:00');
       setEndTime('17:00');
+      setAttachedImages([]);
       
       setRefreshTrigger(prev => prev + 1);
       
@@ -1794,32 +1880,29 @@ export default function LogWorkPage() {
 
           {/* Description */}
           <div className="mb-8">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
               <label className="block text-sm font-semibold text-theme-text-secondary">
                 รายละเอียดงาน / Work Description <span className="text-rose-400">*</span>
               </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleInjectTemplate("[วัตถุประสงค์]: \n[บทบาทของคุณ]: \n[ข้อสรุป]: \n[Next Steps]: ")}
-                  className="px-2.5 py-1 text-[11px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg border border-indigo-500/20 transition-all flex items-center gap-1.5"
-                >
-                  📝 เทมเพลตประชุม
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInjectTemplate("[งานที่ทำ]: \n[ผลลัพธ์ที่ได้]: \n[KPI/เป้าหมาย]: \n[Next Steps]: ")}
-                  className="px-2.5 py-1 text-[11px] font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/20 transition-all flex items-center gap-1.5"
-                >
-                  ⚙️ เทมเพลตงานทั่วไป
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInjectTemplate("[Plan]: \n[Action]: \n[Result]: \n[Impact]: \n[Lesson Learned]: ")}
-                  className="px-2.5 py-1 text-[11px] font-bold bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded-lg border border-violet-500/20 transition-all flex items-center gap-1.5"
-                >
-                  🎯 เทมเพลต PARIL (ทดลอง)
-                </button>
+              <div 
+                className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-1.5 scroll-smooth"
+                style={{ 
+                  scrollbarWidth: 'none', 
+                  msOverflowStyle: 'none',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
+                {dbTemplates.map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => handleInjectTemplate(tpl.template_content)}
+                    className="px-2.5 py-1 text-[11px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg border border-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  >
+                    <span>{tpl.icon || '📝'}</span>
+                    <span>{tpl.template_name}</span>
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -1838,6 +1921,58 @@ export default function LogWorkPage() {
               placeholder="กรอกรายละเอียดงานของคุณที่นี่..."
               className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg p-4 text-theme-text placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none mb-2 font-sans text-xs leading-relaxed"
             ></textarea>
+
+            {/* Image Attachment Upload Section */}
+            <div className="mb-6 p-4 bg-theme-surface-secondary/40 border border-theme-border rounded-2xl space-y-3">
+              <div className="flex justify-between items-center">
+                <label className="block text-xs font-semibold text-theme-text-secondary">
+                  แนบรูปภาพประกอบใบงาน / Attach Images (สูงสุด 2 รูป)
+                </label>
+                <span className="text-[10px] text-theme-text-muted">R2 Storage / Auto Compress</span>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {attachedImages.map((url, idx) => (
+                  <div key={idx} className="relative group aspect-video rounded-xl overflow-hidden border border-theme-border bg-theme-surface-secondary shadow-inner">
+                    <img src={url} alt="Attachment" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setAttachedImages(attachedImages.filter((_, i) => i !== idx))}
+                      className="absolute top-2 right-2 p-1 bg-rose-600 hover:bg-rose-500 text-white rounded-full transition-all shadow-md active:scale-90"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                
+                {attachedImages.length < 2 && (
+                  <label className={cn(
+                    "flex flex-col items-center justify-center border-2 border-dashed border-theme-border rounded-xl cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all aspect-video",
+                    uploadingImages && "opacity-50 pointer-events-none"
+                  )}>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      multiple 
+                      onChange={handleImageChange} 
+                      className="sr-only" 
+                    />
+                    {uploadingImages ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mb-2" />
+                        <span className="text-[10px] text-theme-text-secondary font-bold">กำลังอัปโหลด...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={18} className="text-theme-text-secondary mb-1.5" />
+                        <span className="text-[10px] text-theme-text-secondary font-bold">คลิกเพื่อแนบรูปภาพ</span>
+                        <span className="text-[9px] text-theme-text-muted mt-0.5">JPG, PNG (ไม่เกิน 10MB)</span>
+                      </>
+                    )}
+                  </label>
+                )}
+              </div>
+            </div>
 
             {/* Guide Key Suggest list */}
             <div className="mb-3 p-3.5 rounded-xl bg-slate-50/50 dark:bg-slate-900/20 border border-theme-border/60 text-[11px] text-theme-text-muted leading-relaxed space-y-1 shadow-sm">
@@ -2055,6 +2190,51 @@ export default function LogWorkPage() {
         log={viewingLog}
         onClose={() => setViewingLog(null)}
       />
+
+      {createdShareLinkId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-theme-surface-modal border border-indigo-500/20 rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl shrink-0">
+                <Share2 size={24} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-black text-theme-text">บันทึกใบงานสำเร็จ! / Log Saved!</h3>
+                <p className="text-xs text-theme-text-secondary mt-1 leading-relaxed">
+                  ใบงานของคุณได้รับการบันทึกและอัปโหลดรูปภาพแล้ว คุณสามารถคัดลอกลิงก์แชร์ด้านล่างเพื่อไปแนบในรายละเอียดของปฏิทินงาน (Google Calendar)
+                </p>
+                <div className="mt-4 flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}/worklog/share/${createdShareLinkId}`}
+                    className="w-full bg-theme-surface-secondary border border-theme-border text-xs px-3.5 py-2.5 rounded-xl text-theme-text font-mono focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/worklog/share/${createdShareLinkId}`);
+                      showToast('คัดลอกลิงก์แชร์เรียบร้อยแล้ว! / Link copied!', 'success');
+                    }}
+                    className="px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:scale-95 transition-all text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shrink-0 cursor-pointer"
+                  >
+                    <Copy size={13} />
+                    <span>คัดลอก</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-theme-border">
+              <button
+                type="button"
+                onClick={() => setCreatedShareLinkId(null)}
+                className="px-5 py-2 bg-theme-surface-tertiary hover:bg-slate-700 text-theme-text-secondary text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

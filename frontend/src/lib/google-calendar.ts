@@ -372,7 +372,10 @@ class GoogleCalendarService {
       entry.description.toLowerCase().includes('projectbackground')
     );
 
+    const shareUrl = `${window.location.origin}/worklog/share/${entry.id}`;
+
     const lines = [
+      `🔗 Public Reference Link: ${shareUrl}`,
       '📋 Worklog Entry',
       '━━━━━━━━━━━━━━━━━━━━━━━━',
       `🎯 Project: ${projectTitle}`,

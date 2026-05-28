@@ -354,6 +354,69 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
             </div>
           </div>
 
+          {/* Images Section */}
+          {log.image_urls && log.image_urls.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
+                <span>🖼️ รูปภาพประกอบใบงาน / Attachments ({log.image_urls.length})</span>
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {log.image_urls.map((url: string, idx: number) => (
+                  <a 
+                    key={idx} 
+                    href={url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="relative group aspect-video rounded-2xl overflow-hidden border border-theme-border bg-theme-surface-secondary cursor-pointer shadow-lg hover:border-indigo-500/50 transition-all duration-300"
+                  >
+                    <img 
+                      src={url} 
+                      alt={`Attachment ${idx + 1}`} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                      <span className="px-2.5 py-1 text-[10px] font-bold bg-slate-900/90 text-white rounded-lg border border-slate-700 shadow-md">
+                        🔍 เปิดรูปขนาดเต็ม / View Full
+                      </span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Public Link Sharing Section */}
+          <div className="bg-gradient-to-r from-indigo-500/5 to-teal-500/5 border border-indigo-500/10 p-5 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-1.5">
+                <span>🔗 ลิงก์แชร์ใบงานสาธารณะ (Public Ref Link)</span>
+              </span>
+              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                Calendar Sync Ready
+              </span>
+            </div>
+            <p className="text-xs text-theme-text-secondary leading-normal">
+              คัดลอกลิงก์ด้านล่างนี้เพื่อนำไปแนบในรายละเอียดของปฏิทิน (Google Calendar) เพื่อให้ผู้ร่วมงานกดเปิดดูรายละเอียดและรูปภาพประกอบได้โดยไม่ต้องล็อกอิน
+            </p>
+            <div className="flex items-center gap-2">
+              <input 
+                type="text" 
+                readOnly
+                value={`${window.location.origin}/worklog/share/${log.id}`}
+                className="w-full bg-theme-surface-secondary/70 border border-theme-border text-xs px-3.5 py-2.5 rounded-xl text-theme-text-secondary font-mono focus:outline-none"
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/worklog/share/${log.id}`);
+                  showToast('คัดลอกลิงก์แชร์เรียบร้อยแล้ว! / Share link copied!', 'success');
+                }}
+                className="px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:scale-95 transition-all text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-500/10 shrink-0"
+              >
+                <span>คัดลอก / Copy</span>
+              </button>
+            </div>
+          </div>
+
           {/* Sync status and Sign-off */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-theme-border">
             

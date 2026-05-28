@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
 
-type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings' | 'ai_prompt' | 'holiday';
+type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings' | 'ai_prompt' | 'holiday' | 'templates';
 
 export default function AdminPage() {
   const { showToast, showConfirm } = useNotification();
@@ -87,6 +87,12 @@ export default function AdminPage() {
   const [formHolidayDate, setFormHolidayDate] = useState('');
   const [formHolidayName, setFormHolidayName] = useState('');
   const [isHolidayDropdownOpen, setIsHolidayDropdownOpen] = useState(false);
+
+  // Template Form States
+  const [templatesList, setTemplatesList] = useState<any[]>([]);
+  const [formTemplateName, setFormTemplateName] = useState('');
+  const [formTemplateContent, setFormTemplateContent] = useState('');
+  const [formTemplateIcon, setFormTemplateIcon] = useState('📝');
 
   // Project Structures Form - Project Name Auto-editable DDL States
   const [isProjNameDropdownOpen, setIsProjNameDropdownOpen] = useState(false);
@@ -567,7 +573,8 @@ export default function AdminPage() {
         resUserMaps,
         resProjStructs,
         resUsers,
-        resHolidays
+        resHolidays,
+        resTemplates
       ] = await Promise.all([
         supabase.from('tb_master_holding').select('*').order('holding_name'),
         supabase.from('tb_master_role').select('*').order('role_name'),
@@ -576,7 +583,8 @@ export default function AdminPage() {
         supabase.from('tb_map_user_role').select('*').order('name'),
         supabase.from('tb_map_project_structure').select('*').order('project_name'),
         supabase.from('users').select('*').order('nickname'),
-        supabase.from('tb_master_holiday').select('*').order('date', { ascending: false })
+        supabase.from('tb_master_holiday').select('*').order('date', { ascending: false }),
+        supabase.from('tb_master_worklog_templates').select('*').order('template_name')
       ]);
 
       if (resHoldings.data) setHoldings(resHoldings.data);
@@ -587,6 +595,7 @@ export default function AdminPage() {
       if (resProjStructs.data) setProjectStructures(resProjStructs.data);
       if (resUsers.data) setUsersList(resUsers.data);
       if (resHolidays.data) setHolidaysList(resHolidays.data);
+      if (resTemplates.data) setTemplatesList(resTemplates.data);
     } catch (err) {
       console.error('Error fetching admin data:', err);
     } finally {
@@ -651,6 +660,11 @@ export default function AdminPage() {
           h.date.includes(q) || 
           h.name.toLowerCase().includes(q)
         );
+      case 'templates':
+        return templatesList.filter(t => 
+          t.template_name.toLowerCase().includes(q) || 
+          t.template_content.toLowerCase().includes(q)
+        );
       default:
         return [];
     }
@@ -695,6 +709,10 @@ export default function AdminPage() {
       } else if (activeTab === 'holiday') {
         setFormHolidayDate(row.date);
         setFormHolidayName(row.name);
+      } else if (activeTab === 'templates') {
+        setFormTemplateName(row.template_name);
+        setFormTemplateContent(row.template_content);
+        setFormTemplateIcon(row.icon || '📝');
       }
     } else {
       // Create mode reset
@@ -722,6 +740,9 @@ export default function AdminPage() {
       setFormUserDept('IMP');
       setFormHolidayDate(new Date().toISOString().split('T')[0]);
       setFormHolidayName('');
+      setFormTemplateName('');
+      setFormTemplateContent('');
+      setFormTemplateIcon('📝');
     }
     setIsModalOpen(true);
   };
@@ -819,6 +840,19 @@ export default function AdminPage() {
           const { error } = await supabase.from('tb_master_holiday').insert(payload);
           if (error) throw error;
         }
+      } else if (activeTab === 'templates') {
+        const payload = {
+          template_name: formTemplateName,
+          template_content: formTemplateContent,
+          icon: formTemplateIcon
+        };
+        if (editRow) {
+          const { error } = await supabase.from('tb_master_worklog_templates').update(payload).eq('id', editRow.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('tb_master_worklog_templates').insert(payload);
+          if (error) throw error;
+        }
       }
 
       setIsModalOpen(false);
@@ -851,7 +885,8 @@ export default function AdminPage() {
         activeTab === 'action' ? 'tb_master_action' :
         activeTab === 'map_user' ? 'tb_map_user_role' :
         activeTab === 'map_project' ? 'tb_map_project_structure' :
-        activeTab === 'holiday' ? 'tb_master_holiday' : 'users'
+        activeTab === 'holiday' ? 'tb_master_holiday' :
+        activeTab === 'templates' ? 'tb_master_worklog_templates' : 'users'
       );
 
       let deleteOp;
@@ -883,6 +918,7 @@ export default function AdminPage() {
     { key: 'map_project', label: 'Project Structures', icon: GitMerge },
     { key: 'users', label: 'System Users', icon: Users },
     { key: 'holiday', label: 'Holidays', icon: Calendar },
+    { key: 'templates', label: 'Worklog Templates', icon: Plus },
     { key: 'ai_settings', label: 'AI Settings', icon: Sliders },
     { key: 'ai_prompt', label: 'AI Prompts', icon: MessageSquare }
   ];
@@ -1227,6 +1263,14 @@ export default function AdminPage() {
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
+                        {activeTab === 'templates' && (
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">Icon</th>
+                            <th className="px-6 py-4 font-semibold">Template Name</th>
+                            <th className="px-6 py-4 font-semibold">Content Preview</th>
+                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                          </tr>
+                        )}
                       </thead>
                       <tbody className="divide-y divide-theme-border/50">
                         {paginatedData.map((row, idx) => (
@@ -1348,6 +1392,21 @@ export default function AdminPage() {
                               <>
                                 <td className="px-6 py-4 font-bold text-theme-text font-mono">{row.date}</td>
                                 <td className="px-6 py-4 text-theme-text font-medium">{row.name}</td>
+                                <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                    <Trash2 size={16} />
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                            {activeTab === 'templates' && (
+                              <>
+                                <td className="px-6 py-4 text-2xl">{row.icon || '📝'}</td>
+                                <td className="px-6 py-4 font-bold text-theme-text">{row.template_name}</td>
+                                <td className="px-6 py-4 text-theme-text-secondary text-xs max-w-xs truncate">{row.template_content}</td>
                                 <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
                                   <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
                                     <Edit2 size={16} />
@@ -2188,6 +2247,49 @@ export default function AdminPage() {
                         </>
                       )}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 9: Worklog Template Form */}
+              {activeTab === 'templates' && (
+                <div className="space-y-4">
+                  <div className="flex gap-3">
+                    <div className="flex-shrink-0">
+                      <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Icon (Emoji)</label>
+                      <input
+                        type="text"
+                        value={formTemplateIcon}
+                        onChange={(e) => setFormTemplateIcon(e.target.value)}
+                        placeholder="📝"
+                        maxLength={4}
+                        className="w-16 text-center text-2xl bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-2 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                        required
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Template Name</label>
+                      <input
+                        type="text"
+                        value={formTemplateName}
+                        onChange={(e) => setFormTemplateName(e.target.value)}
+                        placeholder="e.g. รายงานประจำวัน"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-sm text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Template Content</label>
+                    <textarea
+                      value={formTemplateContent}
+                      onChange={(e) => setFormTemplateContent(e.target.value)}
+                      rows={6}
+                      placeholder={`e.g. สรุปงานที่ทำ:\n- \nปัญหาที่พบ:\n- \nแผนงานถัดไป:\n- `}
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2.5 px-3 text-sm text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono resize-none leading-relaxed"
+                      required
+                    />
+                    <p className="text-[10px] text-theme-text-muted mt-1">สามารถใช้ขึ้นบรรทัดใหม่ได้ — ผู้ใช้จะสามารถกด Inject เพื่อแทรกเนื้อหานี้ลงในช่อง Description</p>
                   </div>
                 </div>
               )}
