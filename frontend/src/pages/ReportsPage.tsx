@@ -244,7 +244,10 @@ export default function ReportsPage() {
   // Memoized lists of logs based on filters
   const personalEntries = useMemo(() => {
     if (!sessionUser) return [];
-    const currentTargetId = sessionUser.role === 'admin' ? (selectedUser || sessionUser.id) : sessionUser.id;
+    if (selectedUser === 'all') {
+      return allEntries;
+    }
+    const currentTargetId = selectedUser || sessionUser.id;
     return allEntries.filter(log => log.user_id === currentTargetId);
   }, [allEntries, sessionUser, selectedUser]);
 
@@ -902,19 +905,22 @@ export default function ReportsPage() {
             </select>
           </div>
 
-          {/* Admin User Filter */}
-          {sessionUser?.role === 'admin' && activeTab === 'personal' && (
+          {/* User Filter */}
+          {activeTab === 'personal' && (
             <div className="flex flex-col">
-              <label className="text-xs font-bold text-amber-400/80 uppercase tracking-widest mb-2 flex items-center gap-1">
-                Admin: Target User
+              <label className="text-xs font-bold text-indigo-400/80 uppercase tracking-widest mb-2 flex items-center gap-1">
+                ผู้ใช้งาน / Target User
               </label>
               <select
                 value={selectedUser}
                 onChange={(e) => setSelectedUser(e.target.value)}
-                className="bg-theme-surface-secondary border border-amber-700/50 rounded-xl py-2.5 px-4 text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer text-xs font-semibold"
+                className="bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-semibold"
               >
+                <option value="all">ทั้งหมด / Everyone</option>
                 {usersList.map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name} ({u.emp_id})</option>
+                  <option key={u.id} value={u.id}>
+                    {u.full_name} {u.nickname ? `(${u.nickname})` : ''}
+                  </option>
                 ))}
               </select>
             </div>
@@ -987,21 +993,24 @@ export default function ReportsPage() {
                 <>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left">
-                      <thead className="text-xs text-theme-text-secondary bg-theme-surface-secondary/50 uppercase tracking-widest border-b border-theme-border/50">
+                      <thead className="text-[11px] text-theme-text-secondary bg-theme-surface-secondary/50 uppercase tracking-widest border-b border-theme-border/50">
                         <tr>
-                          <th className="px-6 py-4 font-bold">Date</th>
-                          <th className="px-6 py-4 font-bold">Holding</th>
-                          <th className="px-6 py-4 font-bold">Project Name</th>
-                          <th className="px-6 py-4 font-bold">Action</th>
-                          <th className="px-6 py-4 font-bold">Hours</th>
-                          <th className="px-6 py-4 font-bold">Type</th>
-                          <th className="px-6 py-4 font-bold text-right">Details</th>
+                          <th className="px-4 py-2.5 font-bold">Date</th>
+                          <th className="px-4 py-2.5 font-bold">ชื่อเล่น</th>
+                          <th className="px-4 py-2.5 font-bold">Holding</th>
+                          <th className="px-4 py-2.5 font-bold">Project Name</th>
+                          <th className="px-4 py-2.5 font-bold">Action</th>
+                          <th className="px-4 py-2.5 font-bold text-center">Hours</th>
+                          <th className="px-4 py-2.5 font-bold">Type</th>
+                          <th className="px-4 py-2.5 font-bold text-right">Details</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-700/50">
                         {paginatedPersonalEntries.map((e) => {
                           const isExpanded = expandedId === e.id;
                           const cat = getTableType(e.project_type);
+                          const user = usersList.find(u => u.id === e.user_id);
+                          const nickname = user?.nickname || user?.full_name?.split(' ')[0] || '—';
 
                           return (
                             <Fragment key={e.id}>
@@ -1012,43 +1021,46 @@ export default function ReportsPage() {
                                   isExpanded && "bg-theme-surface-tertiary dark:bg-slate-800/40"
                                 )}
                               >
-                                <td className="px-6 py-4 font-mono text-indigo-300">
+                                <td className="px-4 py-2 font-mono text-indigo-300">
                                   <div className="font-bold">{e.work_date}</div>
                                   {e.start_time && e.end_time && (
-                                    <div className="text-xs text-slate-500 font-medium mt-1 uppercase tracking-wider">
+                                    <div className="text-[10px] text-slate-500 font-medium mt-0.5 uppercase tracking-wider">
                                       {e.start_time.slice(0, 5)} → {e.end_time.slice(0, 5)}
                                     </div>
                                   )}
                                 </td>
-                                <td className="px-6 py-4 text-theme-text-secondary">{e.holding}</td>
-                                <td className="px-6 py-4 font-bold text-theme-text max-w-[200px] truncate">{e.project_name}</td>
-                                <td className="px-6 py-4 text-theme-text-secondary">{e.action_name}</td>
-                                <td className="px-6 py-4 font-bold font-mono text-indigo-200">
+                                <td className="px-4 py-2 font-bold text-teal-400 dark:text-teal-300">
+                                  {nickname}
+                                </td>
+                                <td className="px-4 py-2 text-theme-text-secondary">{e.holding}</td>
+                                <td className="px-4 py-2 font-bold text-theme-text max-w-[180px] truncate">{e.project_name}</td>
+                                <td className="px-4 py-2 text-theme-text-secondary max-w-[180px] truncate">{e.action_name}</td>
+                                <td className="px-4 py-2 font-bold font-mono text-indigo-200 text-center">
                                   {e.total_hours.toFixed(1)}h
                                   {(e.is_ot || e.is_implied_ot) && (
-                                    <span className="ml-1.5 px-1 py-0.5 text-[10px] bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold rounded">OT</span>
+                                    <span className="ml-1 px-1 py-0.5 text-[9px] bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold rounded">OT</span>
                                   )}
                                 </td>
-                                <td className="px-6 py-4">
-                                  <span className={cn("px-2.5 py-1 text-[10px] font-bold rounded-lg border", typeColors[cat])}>
+                                <td className="px-4 py-2">
+                                  <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded-lg border", typeColors[cat])}>
                                     {cat}
                                   </span>
                                 </td>
                                 <td 
-                                  className="px-6 py-4 text-right"
+                                  className="px-4 py-2 text-right"
                                   onClick={(evt) => {
                                     evt.stopPropagation();
                                     toggleRow(e.id);
                                   }}
                                 >
                                   <button className="text-theme-text-secondary hover:text-theme-text p-1 rounded transition-colors">
-                                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                   </button>
                                 </td>
                               </tr>
                               {isExpanded && (
                                 <tr className="bg-theme-surface-secondary/40" onClick={(evt) => evt.stopPropagation()}>
-                                  <td colSpan={7} className="px-8 py-6">
+                                  <td colSpan={8} className="px-6 py-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                       <div className="grid grid-cols-2 gap-4 text-xs">
                                         <div>
