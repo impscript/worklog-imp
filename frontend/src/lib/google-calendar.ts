@@ -372,7 +372,11 @@ class GoogleCalendarService {
       entry.description.toLowerCase().includes('projectbackground')
     );
 
-    const shareUrl = `${window.location.origin}/worklog/share/${entry.id}`;
+    let origin = window.location.origin;
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      origin = import.meta.env.VITE_PRODUCTION_URL || 'https://worklog-imp.pages.dev';
+    }
+    const shareUrl = `${origin}/worklog/share/${entry.id}`;
 
     const lines = [
       `🔗 Public Reference Link: ${shareUrl}`,

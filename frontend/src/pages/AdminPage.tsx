@@ -188,9 +188,17 @@ export default function AdminPage() {
   }, [holdingSuggestions, formStructHolding]);
 
   // 2. Role Suggestions (Cascaded from Holding)
+  // 2. Role Suggestions (Cascaded from Holding)
   const roleSuggestions = useMemo(() => {
     const selHolding = formStructHolding.trim().toLowerCase();
     const rolesSet = new Set<string>();
+    
+    // Always include all master roles
+    if (roles && Array.isArray(roles)) {
+      roles.forEach((r: any) => {
+        if (r.role_name) rolesSet.add(r.role_name.trim());
+      });
+    }
     
     // Find roles mapped under this holding in existing structures
     if (selHolding && projectStructures && Array.isArray(projectStructures)) {
@@ -198,12 +206,6 @@ export default function AdminPage() {
         if (p.holding && p.holding.trim().toLowerCase() === selHolding && p.department_operator) {
           rolesSet.add(p.department_operator.trim());
         }
-      });
-    }
-    // Fallback to all master roles if no matches
-    if (rolesSet.size === 0 && roles && Array.isArray(roles)) {
-      roles.forEach((r: any) => {
-        if (r.role_name) rolesSet.add(r.role_name.trim());
       });
     }
     return Array.from(rolesSet).sort((a, b) => a.localeCompare(b));
@@ -221,6 +223,13 @@ export default function AdminPage() {
     const selRole = formStructRole.trim().toLowerCase();
     const typesSet = new Set<string>();
     
+    // Always include all master project types
+    if (projectTypes && Array.isArray(projectTypes)) {
+      projectTypes.forEach((t: any) => {
+        if (t.type_name) typesSet.add(t.type_name.trim());
+      });
+    }
+    
     // Find project types mapped under this holding + role combination in existing structures
     if (projectStructures && Array.isArray(projectStructures)) {
       projectStructures.forEach((p: any) => {
@@ -229,12 +238,6 @@ export default function AdminPage() {
         if (matchesHolding && matchesRole && p.project_type) {
           typesSet.add(p.project_type.trim());
         }
-      });
-    }
-    // Fallback to all master project types if no matches
-    if (typesSet.size === 0 && projectTypes && Array.isArray(projectTypes)) {
-      projectTypes.forEach((t: any) => {
-        if (t.type_name) typesSet.add(t.type_name.trim());
       });
     }
     return Array.from(typesSet).sort((a, b) => a.localeCompare(b));

@@ -463,6 +463,16 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     }
   }, [log, isOpen]);
 
+  // Reset or restore isExplicitOt when user changes the work date
+  useEffect(() => {
+    if (!log || !isOpen) return;
+    if (date === log.work_date) {
+      setIsExplicitOt(log.is_ot);
+    } else {
+      setIsExplicitOt(false);
+    }
+  }, [date, log, isOpen]);
+
   // Fetch other entries of the day to prevent overlaps
   useEffect(() => {
     if (!isOpen || !log || !date) return;
