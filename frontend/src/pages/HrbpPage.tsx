@@ -1064,17 +1064,31 @@ export default function HrbpPage() {
     if (!text) return null;
     const lines = text.split('\n');
     const elements: React.ReactNode[] = [];
-    let paragraphBuffer: string[] = [];
+    let currentType: 'paragraph' | 'bullets' | null = null;
+    let buffer: string[] = [];
 
-    const flushParagraph = (key: string | number) => {
-      if (paragraphBuffer.length > 0) {
+    const flushBuffer = (key: string | number) => {
+      if (buffer.length === 0) return;
+      if (currentType === 'paragraph') {
         elements.push(
-          <p key={`p-${key}`} className="text-justify font-light leading-relaxed text-theme-text md:text-sm text-xs py-1">
-            {parseInlineStyles(paragraphBuffer.join(' '))}
+          <p key={`p-${key}`} className="text-justify leading-relaxed text-theme-text text-xs sm:text-sm font-normal">
+            {parseInlineStyles(buffer.join(' '))}
           </p>
         );
-        paragraphBuffer = [];
+      } else if (currentType === 'bullets') {
+        elements.push(
+          <ul key={`ul-${key}`} className="space-y-1.5 pl-3 my-1">
+            {buffer.map((item, idx) => (
+              <li key={idx} className="flex items-start gap-2.5 text-xs sm:text-sm text-theme-text font-normal">
+                <span className="text-indigo-500 dark:text-indigo-400 mt-2 shrink-0 w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 shadow-md shadow-indigo-500/30"></span>
+                <span className="leading-relaxed">{parseInlineStyles(item)}</span>
+              </li>
+            ))}
+          </ul>
+        );
       }
+      buffer = [];
+      currentType = null;
     };
 
     lines.forEach((line, idx) => {
@@ -1087,53 +1101,53 @@ export default function HrbpPage() {
       const isQuote = trimmed.startsWith('>');
       const isEmpty = !trimmed;
 
-      if (isHeader1 || isHeader2 || isHeader3 || isBullet || isQuote || isEmpty) {
-        flushParagraph(idx);
+      if (isHeader1 || isHeader2 || isHeader3 || isQuote || isEmpty) {
+        flushBuffer(idx);
 
         if (isHeader3) {
           elements.push(
-            <h4 key={idx} className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 mt-5 mb-2 border-b border-theme-border/50 pb-1 uppercase tracking-wider">
+            <h4 key={idx} className="text-xs sm:text-sm font-extrabold text-indigo-600 dark:text-indigo-400 mt-4 mb-1.5 border-b border-theme-border/50 pb-1 uppercase tracking-wider">
               {parseInlineStyles(trimmed.replace('###', '').trim())}
             </h4>
           );
         } else if (isHeader2) {
           elements.push(
-            <h3 key={idx} className="text-base font-black text-theme-text mt-6 mb-3 uppercase tracking-wide flex items-center gap-2">
-              <Sparkles className="text-indigo-600 dark:text-indigo-400" size={16} /> {parseInlineStyles(trimmed.replace('##', '').trim())}
+            <h3 key={idx} className="text-sm sm:text-base font-black text-theme-text mt-5 mb-2.5 uppercase tracking-wide flex items-center gap-2">
+              <Sparkles className="text-indigo-600 dark:text-indigo-400" size={15} /> {parseInlineStyles(trimmed.replace('##', '').trim())}
             </h3>
           );
         } else if (isHeader1) {
           elements.push(
-            <h2 key={idx} className="text-lg font-black text-theme-text mt-8 mb-4 uppercase tracking-widest border-b-2 border-indigo-500 pb-2">
+            <h2 key={idx} className="text-base sm:text-lg font-black text-theme-text mt-7 mb-3 uppercase tracking-widest border-b-2 border-indigo-500 pb-1.5">
               {parseInlineStyles(trimmed.replace('#', '').trim())}
             </h2>
           );
-        } else if (isBullet) {
-          const content = trimmed.replace(/^[-*]\s+/, '');
-          elements.push(
-            <div key={idx} className="flex items-start gap-2.5 pl-3 py-1 hover:bg-theme-surface-tertiary dark:hover:bg-slate-800/10 rounded transition-colors">
-              <span className="text-indigo-500 dark:text-indigo-400 mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 shadow-md shadow-indigo-500/50"></span>
-              <span className="text-xs sm:text-sm leading-relaxed">{parseInlineStyles(content)}</span>
-            </div>
-          );
         } else if (isQuote) {
           elements.push(
-            <blockquote key={idx} className="border-l-4 border-indigo-500 bg-indigo-500/5 dark:bg-indigo-500/5 pl-4 py-3 rounded-r-xl my-3 text-theme-text italic font-medium shadow-inner">
+            <blockquote key={idx} className="border-l-4 border-indigo-500 bg-indigo-500/5 dark:bg-indigo-500/5 pl-4 py-2.5 rounded-r-xl my-2 text-theme-text italic font-medium shadow-inner text-xs sm:text-sm">
               {parseInlineStyles(trimmed.substring(1).trim())}
             </blockquote>
           );
-        } else if (isEmpty) {
-          elements.push(<div key={idx} className="h-2"></div>);
         }
+      } else if (isBullet) {
+        if (currentType !== 'bullets') {
+          flushBuffer(idx);
+          currentType = 'bullets';
+        }
+        buffer.push(trimmed.replace(/^[-*]\s+/, ''));
       } else {
-        paragraphBuffer.push(trimmed);
+        if (currentType !== 'paragraph') {
+          flushBuffer(idx);
+          currentType = 'paragraph';
+        }
+        buffer.push(trimmed);
       }
     });
 
-    flushParagraph('final');
+    flushBuffer('final');
 
     return (
-      <div className="space-y-3 text-theme-text leading-relaxed font-sans font-light">
+      <div className="space-y-3.5 text-theme-text leading-relaxed font-sans font-normal">
         {elements}
       </div>
     );
@@ -2654,9 +2668,9 @@ export default function HrbpPage() {
                                 <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
                                   <Award size={14} /> Key Strengths & Opportunities for Development
                                 </h3>
-                                <div className="space-y-4 text-xs">
+                                <div className="space-y-4 text-xs sm:text-sm">
                                   <div>
-                                    <h4 className="text-[11px] font-bold text-emerald-500 mb-2">Key Strengths</h4>
+                                    <h4 className="text-xs sm:text-sm font-bold text-emerald-500 mb-2">Key Strengths</h4>
                                     <div className="space-y-2">
                                       {(aiAnalysis.strengths || []).map((s: any, i: number) => {
                                         const parsedS = parseJsonIfNeeded(s);
@@ -2664,15 +2678,15 @@ export default function HrbpPage() {
                                         return (
                                           <div key={i} className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
                                             <div className="font-bold text-theme-text">{i+1}. {item.title}</div>
-                                            {item.evidence && <p className="text-theme-text-secondary mt-1 text-[11px]"><strong>Evidence:</strong> {item.evidence}</p>}
-                                            {item.amplify && <p className="text-emerald-600 dark:text-emerald-400 mt-0.5 text-[11px]"><strong>Amplify:</strong> {item.amplify}</p>}
+                                            {item.evidence && <p className="text-theme-text-secondary mt-1 text-xs sm:text-sm leading-relaxed"><strong>Evidence:</strong> {item.evidence}</p>}
+                                            {item.amplify && <p className="text-emerald-600 dark:text-emerald-400 mt-0.5 text-xs sm:text-sm leading-relaxed"><strong>Amplify:</strong> {item.amplify}</p>}
                                           </div>
                                         );
                                       })}
                                     </div>
                                   </div>
                                   <div>
-                                    <h4 className="text-[11px] font-bold text-amber-500 mb-2">Opportunities for Development</h4>
+                                    <h4 className="text-xs sm:text-sm font-bold text-amber-500 mb-2">Opportunities for Development</h4>
                                     <div className="space-y-2">
                                       {(aiAnalysis.improvements || []).map((imp: any, i: number) => {
                                         const parsedImp = parseJsonIfNeeded(imp);
@@ -2680,8 +2694,8 @@ export default function HrbpPage() {
                                         return (
                                           <div key={i} className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3">
                                             <div className="font-bold text-theme-text">{i+1}. {item.observation}</div>
-                                            {item.evidence && <p className="text-theme-text-secondary mt-1 text-[11px]"><strong>Evidence:</strong> {item.evidence}</p>}
-                                            {item.recommended_action && <p className="text-theme-text mt-0.5 text-[11px]"><strong>Action:</strong> {item.recommended_action}</p>}
+                                            {item.evidence && <p className="text-theme-text-secondary mt-1 text-xs sm:text-sm leading-relaxed"><strong>Evidence:</strong> {item.evidence}</p>}
+                                            {item.recommended_action && <p className="text-theme-text mt-0.5 text-xs sm:text-sm leading-relaxed"><strong>Action:</strong> {item.recommended_action}</p>}
                                           </div>
                                         );
                                       })}
@@ -2696,12 +2710,12 @@ export default function HrbpPage() {
                                   <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
                                     <Target size={14} /> Action Priorities (ลำดับความสำคัญ)
                                   </h3>
-                                  <div className="space-y-3 text-xs">
+                                  <div className="space-y-3 text-xs sm:text-sm">
                                     {aiAnalysis.development_plan.priorities.map((p: any, i: number) => (
                                       <div key={i} className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3">
                                         <div className="font-bold text-indigo-400">{i+1}. {p.title}</div>
-                                        <p className="text-theme-text-secondary mt-1"><strong>Action:</strong> {p.specific_action}</p>
-                                        <p className="text-emerald-400"><strong>Metric:</strong> {p.success_metric}</p>
+                                        <p className="text-theme-text-secondary mt-1 leading-relaxed"><strong>Action:</strong> {p.specific_action}</p>
+                                        <p className="text-emerald-400 leading-relaxed"><strong>Metric:</strong> {p.success_metric}</p>
                                       </div>
                                     ))}
                                   </div>
@@ -2715,7 +2729,7 @@ export default function HrbpPage() {
                                     <Activity size={14} /> Well-being Care Signal
                                   </h3>
                                   <div className={cn(
-                                    "p-4 rounded-xl border text-xs",
+                                    "p-4 rounded-xl border text-xs sm:text-sm leading-relaxed",
                                     viewMode === 'employee' ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" :
                                     aiAnalysis.well_being_signal.level === 'red' ? "bg-rose-500/10 border-rose-500/30 text-rose-500" :
                                     aiAnalysis.well_being_signal.level === 'yellow' ? "bg-amber-500/10 border-amber-500/30 text-amber-500" :
@@ -2771,12 +2785,12 @@ export default function HrbpPage() {
                                     </h4>
                                     <div className="grid grid-cols-1 gap-2">
                                       {(aiAnalysis.strengths || []).length === 0 ? (
-                                        <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลสมรรถนะเด่น</div>
+                                        <div className="text-xs sm:text-sm text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลสมรรถนะเด่น</div>
                                       ) : aiAnalysis.strengths.map((str: any, i: number) => {
                                         const parsedStr = parseJsonIfNeeded(str);
                                         const displayStr = typeof parsedStr === 'string' ? parsedStr : parsedStr.title || parsedStr.observation || JSON.stringify(parsedStr);
                                         return (
-                                          <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
+                                          <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 text-xs sm:text-sm text-theme-text leading-relaxed">
                                             <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
                                             <span>{displayStr}</span>
                                           </div>
@@ -2785,17 +2799,17 @@ export default function HrbpPage() {
                                     </div>
                                   </div>
                                   <div>
-                                    <h4 className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                    <h4 className="text-xs sm:text-sm font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                                       <AlertTriangle size={14} /> Key Execution Gaps &amp; Redundancies
                                     </h4>
                                     <div className="grid grid-cols-1 gap-2">
                                       {(aiAnalysis.improvements || []).length === 0 ? (
-                                        <div className="text-xs text-theme-text-secondary italic font-mono">ไม่มีประเด็นข้อบกพร่อง/ช่องว่างภาระงาน</div>
+                                        <div className="text-xs sm:text-sm text-theme-text-secondary italic font-mono">ไม่มีประเด็นข้อบกพร่อง/ช่องว่างภาระงาน</div>
                                       ) : aiAnalysis.improvements.map((imp: any, i: number) => {
                                         const parsedImp = parseJsonIfNeeded(imp);
                                         const displayImp = typeof parsedImp === 'string' ? parsedImp : parsedImp.observation || parsedImp.title || JSON.stringify(parsedImp);
                                         return (
-                                          <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
+                                          <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 text-xs sm:text-sm text-theme-text leading-relaxed">
                                             <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
                                             <span>{displayImp}</span>
                                           </div>
@@ -2904,9 +2918,9 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                 <h4 className="text-xs font-black text-emerald-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                                   <CheckCircle2 size={15} /> Lens 1 &amp; 3: Key Strengths (จุดเด่นหลักและการต่อยอด)
                                 </h4>
-                                <div className="grid grid-cols-1 gap-3.5 text-xs">
+                                <div className="grid grid-cols-1 gap-3.5 text-xs sm:text-sm">
                                   {(aiAnalysis.strengths || []).length === 0 ? (
-                                    <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลจุดเด่น</div>
+                                    <div className="text-xs sm:text-sm text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลจุดเด่น</div>
                                   ) : (
                                     aiAnalysis.strengths.map((s: any, i: number) => {
                                       const parsedS = parseJsonIfNeeded(s);
@@ -2918,12 +2932,12 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                             <span className="font-extrabold text-theme-text text-sm">{item.title}</span>
                                           </div>
                                           {item.evidence && (
-                                            <p className="text-theme-text-secondary pl-7">
-                                              <strong>Evidence:</strong> <span className="font-light">{item.evidence}</span>
+                                            <p className="text-theme-text-secondary pl-7 leading-relaxed">
+                                              <strong>Evidence:</strong> <span className="font-normal">{item.evidence}</span>
                                             </p>
                                           )}
                                           {item.amplify && (
-                                            <p className="text-emerald-600 dark:text-emerald-400 pl-7">
+                                            <p className="text-emerald-600 dark:text-emerald-400 pl-7 leading-relaxed">
                                               <strong>How to Amplify:</strong> <span className="font-semibold">{item.amplify}</span>
                                             </p>
                                           )}
@@ -2936,12 +2950,12 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
 
                               {/* Improvements */}
                               <div className="border-t border-theme-border/60 pt-5">
-                                <h4 className="text-xs font-black text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                <h4 className="text-xs sm:text-sm font-black text-amber-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                                   <AlertTriangle size={15} /> Opportunities for Development (โอกาสพัฒนาและความสำเร็จ)
                                 </h4>
-                                <div className="grid grid-cols-1 gap-3.5 text-xs">
+                                <div className="grid grid-cols-1 gap-3.5 text-xs sm:text-sm">
                                   {(aiAnalysis.improvements || []).length === 0 ? (
-                                    <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลจุดพัฒนา</div>
+                                    <div className="text-xs sm:text-sm text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลจุดพัฒนา</div>
                                   ) : (
                                     aiAnalysis.improvements.map((imp: any, i: number) => {
                                       const parsedImp = parseJsonIfNeeded(imp);
@@ -2953,17 +2967,17 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                             <span className="font-extrabold text-theme-text text-sm">{item.observation}</span>
                                           </div>
                                           {item.evidence && (
-                                            <p className="text-theme-text-secondary pl-7">
-                                              <strong>Evidence:</strong> <span className="font-light">{item.evidence}</span>
+                                            <p className="text-theme-text-secondary pl-7 leading-relaxed">
+                                              <strong>Evidence:</strong> <span className="font-normal">{item.evidence}</span>
                                             </p>
                                           )}
                                           {item.recommended_action && (
-                                            <p className="text-theme-text pl-7">
+                                            <p className="text-theme-text pl-7 leading-relaxed">
                                               <strong>Action:</strong> <span className="font-semibold text-indigo-400">{item.recommended_action}</span>
                                             </p>
                                           )}
                                           {item.success_indicator && (
-                                            <p className="text-amber-600 dark:text-amber-400 pl-7">
+                                            <p className="text-amber-600 dark:text-amber-400 pl-7 leading-relaxed">
                                               <strong>Success Metric:</strong> <span className="font-semibold">{item.success_indicator}</span>
                                             </p>
                                           )}
@@ -2980,7 +2994,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                   <h4 className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                                     <Target size={15} /> Action Priorities (3 ลำดับความสำคัญเร่งด่วน)
                                   </h4>
-                                  <div className="grid grid-cols-1 gap-3 text-xs">
+                                  <div className="grid grid-cols-1 gap-3 text-xs sm:text-sm">
                                     {(aiAnalysis.development_plan.priorities || []).map((p: any, i: number) => (
                                       <div key={i} className="bg-indigo-500/5 border border-indigo-500/15 rounded-2xl p-4 space-y-2">
                                         <div className="flex items-center justify-between border-b border-indigo-500/10 pb-1.5">
@@ -2989,9 +3003,9 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                             <span>{p.title}</span>
                                           </span>
                                         </div>
-                                        <p className="text-theme-text-secondary"><strong>Why it matters:</strong> {p.why_matters}</p>
-                                        <p className="text-theme-text"><strong>Specific Action:</strong> {p.specific_action}</p>
-                                        <p className="text-emerald-400 font-semibold"><strong>Metric:</strong> {p.success_metric}</p>
+                                        <p className="text-theme-text-secondary leading-relaxed"><strong>Why it matters:</strong> {p.why_matters}</p>
+                                        <p className="text-theme-text leading-relaxed"><strong>Specific Action:</strong> {p.specific_action}</p>
+                                        <p className="text-emerald-400 font-semibold leading-relaxed"><strong>Metric:</strong> {p.success_metric}</p>
                                       </div>
                                     ))}
                                   </div>
@@ -3008,7 +3022,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                               </h4>
 
                               {aiAnalysis.well_being_signal ? (
-                                <div className="space-y-4 text-xs leading-relaxed">
+                                <div className="space-y-4 text-xs sm:text-sm leading-relaxed">
                                   <div className={cn(
                                     "p-5 rounded-3xl border shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 overflow-hidden relative",
                                     aiAnalysis.well_being_signal.level === 'red' ? "bg-rose-500/10 border-rose-500/30" :
@@ -3016,7 +3030,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                     "bg-emerald-500/10 border-emerald-500/30"
                                   )}>
                                     <div className="space-y-1">
-                                      <span className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-widest block">Risk Assessment Level</span>
+                                      <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest block">Risk Assessment Level</span>
                                       <div className="flex items-center gap-2">
                                         <span className="text-2xl font-black text-theme-text capitalize">
                                           {aiAnalysis.well_being_signal.risk_type === 'none' ? 'Perfect Health' : aiAnalysis.well_being_signal.risk_type}
