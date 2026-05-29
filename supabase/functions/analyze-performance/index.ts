@@ -60,9 +60,9 @@ async function callLlmWithFallback(
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
-      console.warn(`[AI] Model ${currentModel} timed out after 15 seconds. Aborting request.`);
+      console.warn(`[AI] Model ${currentModel} timed out after 45 seconds. Aborting request.`);
       controller.abort();
-    }, 15000);
+    }, 45000);
 
     try {
       console.log(`[AI] Trying model: ${currentModel} (${i + 1}/${modelsToTry.length})`);
@@ -100,18 +100,32 @@ async function callLlmWithFallback(
       const errorText = await response.text();
       console.warn(`[AI] Model ${currentModel} failed ${response.status}: ${errorText.substring(0, 200)}`);
       
+      let parsedErrorMsg = '';
+      try {
+        const parsed = JSON.parse(errorText);
+        parsedErrorMsg = parsed.error?.message || parsed.message || '';
+      } catch {}
+
+      const detail = parsedErrorMsg || errorText.substring(0, 150);
+      const formattedDetail = detail ? ` - ${detail}` : '';
+
       // If we encounter a definitive credentials or authorization error (e.g. 401 Unauthorized or 403 Forbidden),
       // we exit early and fail fast to avoid wasting resource quota on cascaded retries.
       if (response.status === 401 || response.status === 403) {
         console.error(`[AI] Definitive credentials/auth error (${response.status}) on model ${currentModel}. Exiting fallback chain early.`);
-        throw new Error(`Definitive AI API Auth error (${response.status}): ${errorText.substring(0, 200)}`);
+        throw new Error(`Definitive AI API Auth error (${response.status})${formattedDetail}`);
       }
 
-      lastError = new Error(`AI API (${currentModel}) failed: ${response.status}`);
+      lastError = new Error(`AI API (${currentModel}) failed: ${response.status}${formattedDetail}`);
     } catch (err: any) {
       clearTimeout(timeoutId);
       console.warn(`[AI] Fetch error for ${currentModel}:`, err.message);
-      lastError = err;
+      
+      if (err.name === 'AbortError' || err.message?.includes('aborted') || err.message?.includes('abort')) {
+        lastError = new Error(`AI API request timed out (exceeded 45s) for model: ${currentModel}`);
+      } else {
+        lastError = err;
+      }
       
       // If the error was explicitly thrown by the definitive auth early exit check, propagate it immediately.
       if (err.message && err.message.includes("Definitive AI API Auth error")) {
@@ -682,7 +696,7 @@ You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap i
     const parsedReport = JSON.parse(content);
     console.log('[AI] Successfully parsed content JSON.');
 
-    const isCoachTemplate = template_id === 'individual_coach';
+    const isCoachTemplate = template_id === 'individual_coach' || template_id === 'coaching_fairness';
 
     const dbRecord = {
       user_id,

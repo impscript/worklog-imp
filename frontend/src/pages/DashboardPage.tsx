@@ -70,6 +70,24 @@ export default function DashboardPage() {
     return saved ? JSON.parse(saved) : {};
   });
 
+  const isCoachTemplate = (id: string | null | undefined) => {
+    return id === 'individual_coach' || id === 'coaching_fairness';
+  };
+
+  const parseJsonIfNeeded = (val: any) => {
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+          return JSON.parse(trimmed);
+        } catch (e) {
+          console.warn('Failed to parse strength/improvement item:', val, e);
+        }
+      }
+    }
+    return val;
+  };
+
   // Helper: Format date to YYYY-MM-DD
   const formatDateToYMD = (date: Date) => {
     const y = date.getFullYear();
@@ -805,9 +823,12 @@ export default function DashboardPage() {
                         <span>Actionable Development Plan</span>
                       </h3>
                       {(() => {
-                        const items = aiAnalysis?.template_id === 'individual_coach'
+                        const items = isCoachTemplate(aiAnalysis?.template_id)
                           ? (aiAnalysis.development_plan?.priorities || []).map((p: any) => `${p.title}: ${p.specific_action}`)
-                          : (aiAnalysis?.improvements || []);
+                          : (aiAnalysis?.improvements || []).map((imp: any) => {
+                              const parsedImp = parseJsonIfNeeded(imp);
+                              return typeof parsedImp === 'string' ? parsedImp : parsedImp.observation || parsedImp.title || JSON.stringify(parsedImp);
+                            });
                         
                         if (items.length > 0) {
                           return (
@@ -863,14 +884,18 @@ export default function DashboardPage() {
                         </h3>
                         {aiAnalysis?.strengths && aiAnalysis.strengths.length > 0 ? (
                           <div className="space-y-2">
-                            {aiAnalysis.strengths.map((str: string, index: number) => (
-                              <div key={index} className="flex items-start gap-2 bg-emerald-50/50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/10 p-3 rounded-xl">
-                                <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                                <span className="text-xs font-medium text-emerald-800 dark:text-emerald-400 leading-relaxed">
-                                  {str}
-                                </span>
-                              </div>
-                            ))}
+                            {aiAnalysis.strengths.map((str: any, index: number) => {
+                              const parsedStr = parseJsonIfNeeded(str);
+                              const displayStr = typeof parsedStr === 'string' ? parsedStr : parsedStr.title || parsedStr.observation || JSON.stringify(parsedStr);
+                              return (
+                                <div key={index} className="flex items-start gap-2 bg-emerald-50/50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/10 p-3 rounded-xl">
+                                  <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                                  <span className="text-xs font-medium text-emerald-800 dark:text-emerald-400 leading-relaxed">
+                                    {displayStr}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="text-xs text-theme-text-muted bg-theme-surface-secondary/40 border border-dashed border-theme-border dark:border-slate-800 p-4 rounded-xl text-center">
@@ -880,16 +905,16 @@ export default function DashboardPage() {
                       </div>
 
                       {/* AI Coach reinforced advice */}
-                      {((aiAnalysis?.template_id === 'individual_coach'
+                      {((isCoachTemplate(aiAnalysis?.template_id)
                         ? aiAnalysis.message_to_employee
                         : aiAnalysis?.development_plan?.focus_areas)) && (
                         <div className="bg-indigo-50/55 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/15 p-4 rounded-xl space-y-1">
                           <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
                             <Sparkles size={12} />
-                            <span>{aiAnalysis?.template_id === 'individual_coach' ? 'สาส์นจาก AI Coach' : 'AI Weekly Coach Advice'}</span>
+                            <span>{isCoachTemplate(aiAnalysis?.template_id) ? 'สาส์นจาก AI Coach' : 'AI Weekly Coach Advice'}</span>
                           </h4>
                           <p className="text-xs text-indigo-800 dark:text-indigo-300/90 leading-relaxed font-medium whitespace-pre-line">
-                            {aiAnalysis?.template_id === 'individual_coach' ? aiAnalysis.message_to_employee : aiAnalysis.development_plan.focus_areas}
+                            {isCoachTemplate(aiAnalysis?.template_id) ? aiAnalysis.message_to_employee : aiAnalysis.development_plan.focus_areas}
                           </p>
                         </div>
                       )}

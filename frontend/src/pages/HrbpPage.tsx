@@ -43,6 +43,24 @@ interface KeyResponsibility {
 export default function HrbpPage() {
   const { showToast } = useNotification();
   const navigate = useNavigate();
+
+  const isCoachTemplate = (id: string | null | undefined) => {
+    return id === 'individual_coach' || id === 'coaching_fairness';
+  };
+
+  const parseJsonIfNeeded = (val: any) => {
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+          return JSON.parse(trimmed);
+        } catch (e) {
+          console.warn('Failed to parse strength/improvement item:', val, e);
+        }
+      }
+    }
+    return val;
+  };
   
   // App Session
   const [sessionUser, setSessionUser] = useState<any>(null);
@@ -890,7 +908,11 @@ export default function HrbpPage() {
       console.error('Error running performance diagnostics:', err);
       setAiStepLogs(prev => [
         ...prev,
-        { time: new Date().toLocaleTimeString(), message: `Execution failed: ${err.message}`, type: 'error' }
+        { time: new Date().toLocaleTimeString(), message: `Execution failed: ${err.message}`, type: 'error' },
+        { time: new Date().toLocaleTimeString(), message: `💡 คำแนะนำในการตรวจสอบแก้ไข (Troubleshooting tips):`, type: 'info' },
+        { time: new Date().toLocaleTimeString(), message: `• หากเจอ Timeout (45s) หรือ Aborted: แปลว่า LLM ใช้เวลาประมวลผลนานกว่าปกติเนื่องจากเซิร์ฟเวอร์ปลายทางมีภาระงานสูง (มักเกิดกับโมเดลตระกูล Flash หรือ API คีย์ฟรีภายใต้โหลดเยอะ) แนะนำให้รอสักครู่แล้วกดรันประเมินใหม่อีกครั้ง`, type: 'info' },
+        { time: new Date().toLocaleTimeString(), message: `• ตรวจสอบการตั้งค่า API Key และ Provider ของท่านได้ที่หน้าเมนู Admin → AI Settings ว่ากำหนดค่าถูกต้อง สมบูรณ์ และมีเครดิตการใช้งานเหลืออยู่หรือไม่`, type: 'info' },
+        { time: new Date().toLocaleTimeString(), message: `• หากใช้ OpenRouter: โปรดลองสลับไปใช้โมเดลฟรีตัวอื่น หรือโมเดลเสียค่าบริการเพื่อให้การตอบสนองเร็วและมีความเสถียรเพิ่มขึ้น`, type: 'info' }
       ]);
       showToast('เกิดข้อผิดพลาดในการวิเคราะห์: ' + err.message, 'error');
     } finally {
@@ -996,53 +1018,100 @@ export default function HrbpPage() {
     showToast('คัดลอกลิงก์ผลการวิเคราะห์ลง Clipboard สำเร็จ', 'success');
   };
 
+  // Helper to parse bold and italic styling inside markdown text
+  const parseInlineStyles = (text: string) => {
+    if (!text) return '';
+    const boldParts = text.split('**');
+    return boldParts.map((part, index) => {
+      if (index % 2 === 1) {
+        return <strong key={index} className="font-extrabold text-indigo-900 dark:text-indigo-200">{part}</strong>;
+      }
+      const italicParts = part.split('*');
+      return italicParts.map((iPart, iIndex) => {
+        if (iIndex % 2 === 1) {
+          return <em key={iIndex} className="italic text-theme-text-secondary">{iPart}</em>;
+        }
+        return iPart;
+      });
+    });
+  };
+
   // Helper markdown parser
   const renderMarkdown = (text: string) => {
     if (!text) return null;
     const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    let paragraphBuffer: string[] = [];
+
+    const flushParagraph = (key: string | number) => {
+      if (paragraphBuffer.length > 0) {
+        elements.push(
+          <p key={`p-${key}`} className="text-justify font-light leading-relaxed text-theme-text md:text-sm text-xs py-1">
+            {parseInlineStyles(paragraphBuffer.join(' '))}
+          </p>
+        );
+        paragraphBuffer = [];
+      }
+    };
+
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      
+      const isHeader1 = trimmed.startsWith('# ');
+      const isHeader2 = trimmed.startsWith('## ');
+      const isHeader3 = trimmed.startsWith('### ');
+      const isBullet = trimmed.startsWith('- ') || trimmed.startsWith('* ');
+      const isQuote = trimmed.startsWith('>');
+      const isEmpty = !trimmed;
+
+      if (isHeader1 || isHeader2 || isHeader3 || isBullet || isQuote || isEmpty) {
+        flushParagraph(idx);
+
+        if (isHeader3) {
+          elements.push(
+            <h4 key={idx} className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 mt-5 mb-2 border-b border-theme-border/50 pb-1 uppercase tracking-wider">
+              {parseInlineStyles(trimmed.replace('###', '').trim())}
+            </h4>
+          );
+        } else if (isHeader2) {
+          elements.push(
+            <h3 key={idx} className="text-base font-black text-theme-text mt-6 mb-3 uppercase tracking-wide flex items-center gap-2">
+              <Sparkles className="text-indigo-600 dark:text-indigo-400" size={16} /> {parseInlineStyles(trimmed.replace('##', '').trim())}
+            </h3>
+          );
+        } else if (isHeader1) {
+          elements.push(
+            <h2 key={idx} className="text-lg font-black text-theme-text mt-8 mb-4 uppercase tracking-widest border-b-2 border-indigo-500 pb-2">
+              {parseInlineStyles(trimmed.replace('#', '').trim())}
+            </h2>
+          );
+        } else if (isBullet) {
+          const content = trimmed.replace(/^[-*]\s+/, '');
+          elements.push(
+            <div key={idx} className="flex items-start gap-2.5 pl-3 py-1 hover:bg-theme-surface-tertiary dark:hover:bg-slate-800/10 rounded transition-colors">
+              <span className="text-indigo-500 dark:text-indigo-400 mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 shadow-md shadow-indigo-500/50"></span>
+              <span className="text-xs sm:text-sm leading-relaxed">{parseInlineStyles(content)}</span>
+            </div>
+          );
+        } else if (isQuote) {
+          elements.push(
+            <blockquote key={idx} className="border-l-4 border-indigo-500 bg-indigo-500/5 dark:bg-indigo-500/5 pl-4 py-3 rounded-r-xl my-3 text-theme-text italic font-medium shadow-inner">
+              {parseInlineStyles(trimmed.substring(1).trim())}
+            </blockquote>
+          );
+        } else if (isEmpty) {
+          elements.push(<div key={idx} className="h-2"></div>);
+        }
+      } else {
+        paragraphBuffer.push(trimmed);
+      }
+    });
+
+    flushParagraph('final');
+
     return (
-      <div className="space-y-4 text-theme-text text-xs sm:text-sm leading-relaxed font-sans">
-        {lines.map((line, idx) => {
-          const trimmed = line.trim();
-          if (trimmed.startsWith('###')) {
-            return (
-              <h4 key={idx} className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 mt-5 mb-2 border-b border-theme-border/50 pb-1 uppercase tracking-wider">
-                {trimmed.replace('###', '').trim()}
-              </h4>
-            );
-          }
-          if (trimmed.startsWith('##')) {
-            return (
-              <h3 key={idx} className="text-base font-black text-theme-text mt-6 mb-3 uppercase tracking-wide flex items-center gap-2">
-                <Sparkles className="text-indigo-600 dark:text-indigo-400" size={16} /> {trimmed.replace('##', '').trim()}
-              </h3>
-            );
-          }
-          if (trimmed.startsWith('#')) {
-            return (
-              <h2 key={idx} className="text-lg font-black text-theme-text mt-8 mb-4 uppercase tracking-widest border-b-2 border-indigo-500 pb-2">
-                {trimmed.replace('#', '').trim()}
-              </h2>
-            );
-          }
-          if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
-            return (
-              <div key={idx} className="flex items-start gap-2.5 pl-3 py-0.5 hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary dark:hover:bg-slate-800/10 rounded transition-colors">
-                <span className="text-indigo-500 dark:text-indigo-400 mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 shadow-md shadow-indigo-500/50"></span>
-                <span>{trimmed.substring(1).trim()}</span>
-              </div>
-            );
-          }
-          if (trimmed.startsWith('>')) {
-            return (
-              <blockquote key={idx} className="border-l-4 border-indigo-500 bg-indigo-500/5 dark:bg-indigo-500/5 pl-4 py-3 rounded-r-xl my-3 text-theme-text italic font-medium shadow-inner">
-                {trimmed.substring(1).trim()}
-              </blockquote>
-            );
-          }
-          if (!trimmed) return <div key={idx} className="h-1.5"></div>;
-          return <p key={idx} className="indent-2 py-0.5">{trimmed}</p>;
-        })}
+      <div className="space-y-3 text-theme-text leading-relaxed font-sans font-light">
+        {elements}
       </div>
     );
   };
@@ -1236,6 +1305,27 @@ export default function HrbpPage() {
                           วิเคราะห์เชิงลึก 5 มิติ: Value Mix, Work Style, Reflection และคำถาม Coaching 1:1 ไกด์นำทางสำหรับหัวหน้างาน
                         </p>
                       </button>
+
+                      <button
+                        onClick={() => {
+                          setTemplateId('coaching_fairness');
+                          setAiAnalysis(null);
+                        }}
+                        className={cn(
+                          "p-4 rounded-2xl border text-left transition-all flex flex-col gap-1.5 relative overflow-hidden",
+                          templateId === 'coaching_fairness'
+                            ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
+                            : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-theme-border hover:border-indigo-500/40 hover:text-theme-text"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 font-bold text-sm">
+                          <span>🤝</span>
+                          <span>Coaching &amp; Fairness Diagnostics</span>
+                        </div>
+                        <p className="text-[10px] text-theme-text-secondary leading-relaxed">
+                          การประเมินแบบเข้าอกเข้าใจหน้างานจริง เน้นสะท้อนงานปฏิบัติงานและกลยุทธ์อย่างสมดุล (ภาษาไทยเป็นหลัก)
+                        </p>
+                      </button>
                     </div>
                   </div>
 
@@ -1283,7 +1373,7 @@ export default function HrbpPage() {
                           </div>
                         </div>
 
-                        {templateId === 'individual_coach' && (
+                        {isCoachTemplate(templateId) && (
                           <div className="bg-indigo-950/10 border border-indigo-500/10 rounded-2xl p-4 space-y-3.5 animate-in fade-in duration-200">
                             <div className="space-y-1.5">
                               <label className="text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold">Employee Level (สำหรับ Coach Mode)</label>
@@ -1390,7 +1480,7 @@ export default function HrbpPage() {
                       </div>
                     )}
 
-                    {templateId === 'individual_coach' && (
+                    {isCoachTemplate(templateId) && (
                       <div className="space-y-2 pt-3 border-t border-theme-border/60">
                         <label className="text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold block">Cadence (รอบการประเมินของโค้ช)</label>
                         <div className="grid grid-cols-4 gap-1.5">
@@ -1805,10 +1895,35 @@ export default function HrbpPage() {
                     {/* User info left side */}
                     <div className="flex items-center gap-4">
                       {/* Avatar */}
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-0.5 shadow-xl shrink-0">
-                        <div className="w-full h-full rounded-2xl bg-theme-surface dark:bg-theme-bg-page flex items-center justify-center font-black text-xl text-theme-text">
-                          {selectedUserInfo?.full_name ? selectedUserInfo.full_name.charAt(0) : 'E'}
+                      <div className="relative shrink-0">
+                        <div className="w-16 h-16 rounded-full overflow-hidden border border-indigo-400/20 shadow-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-0.5">
+                          <div className="w-full h-full rounded-full overflow-hidden bg-theme-surface dark:bg-theme-bg-page flex items-center justify-center font-black text-xl text-theme-text">
+                            {selectedUserInfo?.emp_id ? (
+                              <img 
+                                src={`${import.meta.env.VITE_HRMS_FACE_IMAGE_URL || 'https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID='}${selectedUserInfo.emp_id}`} 
+                                alt={selectedUserInfo.full_name} 
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const parent = e.currentTarget.parentElement;
+                                  if (parent && !parent.querySelector('.fallback-letter')) {
+                                    const span = document.createElement('span');
+                                    span.className = 'fallback-letter text-xl font-black text-theme-text';
+                                    span.innerText = selectedUserInfo?.nickname?.slice(0, 2).toUpperCase() || selectedUserInfo?.full_name?.charAt(0) || 'E';
+                                    parent.appendChild(span);
+                                  }
+                                }} 
+                                className="w-full h-full object-cover animate-in fade-in duration-300"
+                              />
+                            ) : (
+                              <span className="fallback-letter">{selectedUserInfo?.nickname?.slice(0, 2).toUpperCase() || selectedUserInfo?.full_name?.charAt(0) || 'E'}</span>
+                            )}
+                          </div>
                         </div>
+                        {selectedUserInfo?.employee_level && (
+                          <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 text-[8px] font-black uppercase bg-emerald-500 text-slate-950 rounded-md border border-slate-900 shadow-sm whitespace-nowrap z-10" title="Employee Level">
+                            {selectedUserInfo.employee_level}
+                          </span>
+                        )}
                       </div>
                       
                       <div className="space-y-1">
@@ -1868,7 +1983,7 @@ export default function HrbpPage() {
                           EXPECTED JOB DESCRIPTION (JD)
                         </h4>
                       </div>
-                      <div className="p-4 rounded-2xl bg-theme-surface dark:bg-theme-bg-page/40 border border-theme-border/80 text-xs text-theme-text leading-relaxed max-h-40 overflow-y-auto scrollbar-thin whitespace-pre-line font-light">
+                      <div className="p-4 rounded-2xl bg-theme-surface dark:bg-theme-bg-page/40 border border-theme-border/80 text-xs text-theme-text leading-relaxed min-h-[120px] max-h-[300px] overflow-y-auto scrollbar-thin whitespace-pre-line font-light">
                         {jdText || 'ไม่มีข้อมูลรายละเอียดงานในระบบ / No Job Description defined.'}
                       </div>
                     </div>
@@ -1879,7 +1994,7 @@ export default function HrbpPage() {
                         <Target size={12} />
                         TARGET RESPONSIBILITIES &amp; WEIGHTS
                       </h4>
-                      <div className="p-4 rounded-2xl bg-theme-surface dark:bg-theme-bg-page/40 border border-theme-border/80 max-h-40 overflow-y-auto space-y-2">
+                      <div className="p-4 rounded-2xl bg-theme-surface dark:bg-theme-bg-page/40 border border-theme-border/80 min-h-[120px] max-h-[300px] overflow-y-auto space-y-2 scrollbar-thin">
                         {keyResponsibilities.length === 0 && chartData.length === 0 ? (
                           <div className="text-xs text-theme-text-secondary italic">ไม่มีข้อมูลน้ำหนักความรับผิดชอบเป้าหมาย / No target weights defined.</div>
                         ) : (
@@ -1900,7 +2015,7 @@ export default function HrbpPage() {
                     </div>
                   </div>
                 </div>                {/* 3.1 Top Highlights Analytics Row (Premium Cards) */}
-                {aiAnalysis.template_id === 'individual_coach' ? (
+                {isCoachTemplate(aiAnalysis.template_id) ? (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Card 1: Job Description Alignment Score */}
                     <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex items-center justify-between">
@@ -1914,7 +2029,9 @@ export default function HrbpPage() {
                           {aiAnalysis.jd_alignment_score || 0}%
                         </h4>
                         <p className="text-[10px] text-theme-text-secondary">
-                          ระดับความสอดคล้องตามกรอบ 5-Lens เปรียบเทียบสัดส่วนจริงกับ JD คาดหวัง
+                          {aiAnalysis.template_id === 'coaching_fairness'
+                            ? "ระดับความสอดคล้องตามเกณฑ์ประเมินที่เป็นธรรม เปรียบเทียบกับ JD คาดหวัง"
+                            : "ระดับความสอดคล้องตามกรอบ 5-Lens เปรียบเทียบสัดส่วนจริงกับ JD คาดหวัง"}
                         </p>
                       </div>
                       <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
@@ -2171,7 +2288,7 @@ export default function HrbpPage() {
                         </div>
 
                         {/* List detailing differences */}
-                        <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                        <div className="space-y-2 pr-1">
                           {chartData.map((item: any, idx: number) => {
                             const diff = Math.round(item['Actual %'] - item['Target %']);
                             return (
@@ -2248,7 +2365,7 @@ export default function HrbpPage() {
                         </div>
 
                         {/* View mode switcher */}
-                        {aiAnalysis.template_id === 'individual_coach' && (
+                        {isCoachTemplate(aiAnalysis.template_id) && (
                           <div className="flex items-center bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-xl p-0.5 font-mono text-[9px] font-bold">
                             <button
                               onClick={() => setViewMode('manager')}
@@ -2291,7 +2408,7 @@ export default function HrbpPage() {
                     {/* Tab Header Selector — only shown in admin view */}
                     {!isSharedView && (
                     <div className="flex gap-2 border-b border-theme-border/40 pb-3 overflow-x-auto">
-                      {aiAnalysis.template_id === 'individual_coach' ? (
+                      {isCoachTemplate(aiAnalysis.template_id) ? (
                         <>
                           <button
                             onClick={() => setActiveResultsSubTab('summary')}
@@ -2303,7 +2420,7 @@ export default function HrbpPage() {
                             )}
                           >
                             <Sparkles size={13} />
-                            <span>5-Lens Summary</span>
+                            <span>{aiAnalysis.template_id === 'coaching_fairness' ? 'Coaching & Fairness Summary' : '5-Lens Summary'}</span>
                           </button>
                           
                           {viewMode === 'manager' && (
@@ -2439,12 +2556,12 @@ export default function HrbpPage() {
                       {/* ── SHARED VIEW: stacked scroll layout ── */}
                       {isSharedView && (
                         <div className="space-y-8">
-                          {aiAnalysis.template_id === 'individual_coach' ? (
+                          {isCoachTemplate(aiAnalysis.template_id) ? (
                             <>
-                              {/* Coach Stacked: 5-Lens Summary */}
+                              {/* Coach Stacked: Summary Header */}
                               <div>
                                 <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
-                                  <Sparkles size={14} /> 5-Lens Executive Summary
+                                  <Sparkles size={14} /> {aiAnalysis.template_id === 'coaching_fairness' ? 'Coaching & Fairness Summary' : '5-Lens Executive Summary'}
                                 </h3>
                                 {aiAnalysis.markdown_executive_summary ? (
                                   renderMarkdown(aiAnalysis.markdown_executive_summary)
@@ -2516,7 +2633,8 @@ export default function HrbpPage() {
                                     <h4 className="text-[11px] font-bold text-emerald-500 mb-2">Key Strengths</h4>
                                     <div className="space-y-2">
                                       {(aiAnalysis.strengths || []).map((s: any, i: number) => {
-                                        const item = typeof s === 'string' ? { title: s, evidence: '', amplify: '' } : s;
+                                        const parsedS = parseJsonIfNeeded(s);
+                                        const item = typeof parsedS === 'string' ? { title: parsedS, evidence: '', amplify: '' } : parsedS;
                                         return (
                                           <div key={i} className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3">
                                             <div className="font-bold text-theme-text">{i+1}. {item.title}</div>
@@ -2531,7 +2649,8 @@ export default function HrbpPage() {
                                     <h4 className="text-[11px] font-bold text-amber-500 mb-2">Opportunities for Development</h4>
                                     <div className="space-y-2">
                                       {(aiAnalysis.improvements || []).map((imp: any, i: number) => {
-                                        const item = typeof imp === 'string' ? { observation: imp, evidence: '', recommended_action: '', success_indicator: '' } : imp;
+                                        const parsedImp = parseJsonIfNeeded(imp);
+                                        const item = typeof parsedImp === 'string' ? { observation: parsedImp, evidence: '', recommended_action: '', success_indicator: '' } : parsedImp;
                                         return (
                                           <div key={i} className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3">
                                             <div className="font-bold text-theme-text">{i+1}. {item.observation}</div>
@@ -2569,9 +2688,22 @@ export default function HrbpPage() {
                                   <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
                                     <Activity size={14} /> Well-being Care Signal
                                   </h3>
-                                  <div className="p-4 rounded-xl border text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
-                                    <div className="font-bold text-sm text-theme-text">Health Status: Active Care Active</div>
+                                  <div className={cn(
+                                    "p-4 rounded-xl border text-xs",
+                                    viewMode === 'employee' ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" :
+                                    aiAnalysis.well_being_signal.level === 'red' ? "bg-rose-500/10 border-rose-500/30 text-rose-500" :
+                                    aiAnalysis.well_being_signal.level === 'yellow' ? "bg-amber-500/10 border-amber-500/30 text-amber-500" :
+                                    "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                                  )}>
+                                    <div className="font-bold text-sm text-theme-text">
+                                      Health Status: {viewMode === 'employee' ? 'Supportive Care Active' : (aiAnalysis.well_being_signal.risk_type === 'none' ? 'Perfect Health' : aiAnalysis.well_being_signal.risk_type || 'Healthy')}
+                                    </div>
                                     <p className="text-theme-text-secondary mt-1"><strong>Observation:</strong> {aiAnalysis.well_being_signal.evidence}</p>
+                                    {viewMode === 'manager' && aiAnalysis.well_being_signal.manager_action && (
+                                      <p className="text-theme-text mt-1.5 pt-1.5 border-t border-theme-border/40">
+                                        <strong>Recommended Action:</strong> {aiAnalysis.well_being_signal.manager_action}
+                                      </p>
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -2614,12 +2746,16 @@ export default function HrbpPage() {
                                     <div className="grid grid-cols-1 gap-2">
                                       {(aiAnalysis.strengths || []).length === 0 ? (
                                         <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลสมรรถนะเด่น</div>
-                                      ) : aiAnalysis.strengths.map((str: string, i: number) => (
-                                        <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
-                                          <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
-                                          <span>{str}</span>
-                                        </div>
-                                      ))}
+                                      ) : aiAnalysis.strengths.map((str: any, i: number) => {
+                                        const parsedStr = parseJsonIfNeeded(str);
+                                        const displayStr = typeof parsedStr === 'string' ? parsedStr : parsedStr.title || parsedStr.observation || JSON.stringify(parsedStr);
+                                        return (
+                                          <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
+                                            <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                            <span>{displayStr}</span>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                   <div>
@@ -2629,12 +2765,16 @@ export default function HrbpPage() {
                                     <div className="grid grid-cols-1 gap-2">
                                       {(aiAnalysis.improvements || []).length === 0 ? (
                                         <div className="text-xs text-theme-text-secondary italic font-mono">ไม่มีประเด็นข้อบกพร่อง/ช่องว่างภาระงาน</div>
-                                      ) : aiAnalysis.improvements.map((imp: string, i: number) => (
-                                        <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
-                                          <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
-                                          <span>{imp}</span>
-                                        </div>
-                                      ))}
+                                      ) : aiAnalysis.improvements.map((imp: any, i: number) => {
+                                        const parsedImp = parseJsonIfNeeded(imp);
+                                        const displayImp = typeof parsedImp === 'string' ? parsedImp : parsedImp.observation || parsedImp.title || JSON.stringify(parsedImp);
+                                        return (
+                                          <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
+                                            <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                            <span>{displayImp}</span>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 </div>
@@ -2658,7 +2798,7 @@ export default function HrbpPage() {
                       )}
 
                       {/* Tab panels for individual_coach template */}
-                      {!isSharedView && aiAnalysis.template_id === 'individual_coach' && (
+                      {!isSharedView && isCoachTemplate(aiAnalysis.template_id) && (
                         <>
                           {/* Coaching Guide Tab */}
                           {activeResultsSubTab === 'coaching' && (
@@ -2743,7 +2883,8 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                     <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลจุดเด่น</div>
                                   ) : (
                                     aiAnalysis.strengths.map((s: any, i: number) => {
-                                      const item = typeof s === 'string' ? { title: s, evidence: '', amplify: '' } : s;
+                                      const parsedS = parseJsonIfNeeded(s);
+                                      const item = typeof parsedS === 'string' ? { title: parsedS, evidence: '', amplify: '' } : parsedS;
                                       return (
                                         <div key={i} className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 space-y-2 shadow-sm">
                                           <div className="flex items-center gap-2">
@@ -2777,7 +2918,8 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                     <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลจุดพัฒนา</div>
                                   ) : (
                                     aiAnalysis.improvements.map((imp: any, i: number) => {
-                                      const item = typeof imp === 'string' ? { observation: imp, evidence: '', recommended_action: '', success_indicator: '' } : imp;
+                                      const parsedImp = parseJsonIfNeeded(imp);
+                                      const item = typeof parsedImp === 'string' ? { observation: parsedImp, evidence: '', recommended_action: '', success_indicator: '' } : parsedImp;
                                       return (
                                         <div key={i} className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 space-y-2 shadow-sm">
                                           <div className="flex items-center gap-2">
@@ -2930,7 +3072,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                       )}
 
                       {/* Standard tab panels for master template */}
-                      {!isSharedView && aiAnalysis.template_id !== 'individual_coach' && (
+                      {!isSharedView && !isCoachTemplate(aiAnalysis.template_id) && (
                         <>
                           {activeResultsSubTab === 'gaps' && (
                             <div className="space-y-6 animate-in fade-in duration-300">
@@ -2941,12 +3083,16 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                 <div className="grid grid-cols-1 gap-2">
                                   {(aiAnalysis.strengths || []).length === 0 ? (
                                     <div className="text-xs text-theme-text-secondary italic font-mono">ไม่มีข้อมูลจุดแข็ง</div>
-                                  ) : (aiAnalysis.strengths || []).map((str: any, i: number) => (
-                                    <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
-                                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
-                                      <span>{typeof str === 'string' ? str : str.title || JSON.stringify(str)}</span>
-                                    </div>
-                                  ))}
+                                  ) : (aiAnalysis.strengths || []).map((str: any, i: number) => {
+                                    const parsedStr = parseJsonIfNeeded(str);
+                                    const displayStr = typeof parsedStr === 'string' ? parsedStr : parsedStr.title || parsedStr.observation || JSON.stringify(parsedStr);
+                                    return (
+                                      <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
+                                        <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                        <span>{displayStr}</span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                               <div>
@@ -2956,12 +3102,16 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                                 <div className="grid grid-cols-1 gap-2">
                                   {(aiAnalysis.improvements || []).length === 0 ? (
                                     <div className="text-xs text-theme-text-secondary italic font-mono">ไม่มีประเด็นข้อบกพร่อง/ช่องว่างภาระงาน</div>
-                                  ) : aiAnalysis.improvements.map((imp: string, i: number) => (
-                                    <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
-                                      <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
-                                      <span>{imp}</span>
-                                    </div>
-                                  ))}
+                                  ) : aiAnalysis.improvements.map((imp: any, i: number) => {
+                                    const parsedImp = parseJsonIfNeeded(imp);
+                                    const displayImp = typeof parsedImp === 'string' ? parsedImp : parsedImp.observation || parsedImp.title || JSON.stringify(parsedImp);
+                                    return (
+                                      <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 text-xs text-theme-text">
+                                        <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                        <span>{displayImp}</span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             </div>
@@ -3016,7 +3166,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                       )}
 
                       {/* ── ADMIN VIEW: tabbed layout ── */}
-                      {!isSharedView && aiAnalysis.template_id !== 'individual_coach' && activeResultsSubTab === 'summary' && (
+                      {!isSharedView && !isCoachTemplate(aiAnalysis.template_id) && activeResultsSubTab === 'summary' && (
                         <div className="space-y-4">
                           {aiAnalysis.markdown_executive_summary ? (
                             renderMarkdown(aiAnalysis.markdown_executive_summary)
@@ -3028,7 +3178,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                         </div>
                       )}
 
-                      {!isSharedView && aiAnalysis.template_id !== 'individual_coach' && activeResultsSubTab === 'gaps' && (
+                      {!isSharedView && !isCoachTemplate(aiAnalysis.template_id) && activeResultsSubTab === 'gaps' && (
                         <div className="space-y-6 animate-in fade-in duration-300">
                           <div>
                             <h4 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
@@ -3038,12 +3188,16 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                               {(aiAnalysis.strengths || []).length === 0 ? (
                                 <div className="text-xs text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลสมรรถนะเด่นเชิงสถวิทยา / No statistical strengths identified.</div>
                               ) : (
-                                aiAnalysis.strengths.map((str: string, i: number) => (
-                                  <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/10 rounded-2xl p-3.5 shadow-sm text-xs text-theme-text">
-                                    <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
-                                    <span>{str}</span>
-                                  </div>
-                                ))
+                                aiAnalysis.strengths.map((str: any, i: number) => {
+                                  const parsedStr = parseJsonIfNeeded(str);
+                                  const displayStr = typeof parsedStr === 'string' ? parsedStr : parsedStr.title || parsedStr.observation || JSON.stringify(parsedStr);
+                                  return (
+                                    <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/10 rounded-2xl p-3.5 shadow-sm text-xs text-theme-text">
+                                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                      <span>{displayStr}</span>
+                                    </div>
+                                  );
+                                })
                               )}
                             </div>
                           </div>
@@ -3056,19 +3210,23 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                               {(aiAnalysis.improvements || []).length === 0 ? (
                                 <div className="text-xs text-theme-text-secondary italic">ไม่มีประเด็นข้อบกพร่อง/ช่องว่างภาระงาน / No execution gaps identified.</div>
                               ) : (
-                                aiAnalysis.improvements.map((imp: string, i: number) => (
-                                  <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-200 dark:border-amber-500/10 rounded-2xl p-3.5 shadow-sm text-xs text-theme-text">
-                                    <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
-                                    <span>{imp}</span>
-                                  </div>
-                                ))
+                                aiAnalysis.improvements.map((imp: any, i: number) => {
+                                  const parsedImp = parseJsonIfNeeded(imp);
+                                  const displayImp = typeof parsedImp === 'string' ? parsedImp : parsedImp.observation || parsedImp.title || JSON.stringify(parsedImp);
+                                  return (
+                                    <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-200 dark:border-amber-500/10 rounded-2xl p-3.5 shadow-sm text-xs text-theme-text">
+                                      <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
+                                      <span>{displayImp}</span>
+                                    </div>
+                                  );
+                                })
                               )}
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {!isSharedView && aiAnalysis.template_id !== 'individual_coach' && activeResultsSubTab === 'coaching' && (
+                      {!isSharedView && !isCoachTemplate(aiAnalysis.template_id) && activeResultsSubTab === 'coaching' && (
                         <div className="space-y-4">
                           <h4 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
                             <Target size={16} /> Strategic Development &amp; Action Plan
