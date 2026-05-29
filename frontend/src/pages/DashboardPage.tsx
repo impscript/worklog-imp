@@ -88,6 +88,29 @@ export default function DashboardPage() {
     return val;
   };
 
+  const normalizeValueMix = (mix: any) => {
+    if (!mix) return { strategic: 0, tactical: 0, operational: 0, reactive: 0 };
+    const s = mix.strategic || 0;
+    const t = mix.tactical || 0;
+    const o = mix.operational || 0;
+    const r = mix.reactive || 0;
+    const sum = s + t + o + r;
+    if (sum > 0 && sum <= 1.05) {
+      return {
+        strategic: Math.round(s * 100),
+        tactical: Math.round(t * 100),
+        operational: Math.round(o * 100),
+        reactive: Math.round(r * 100)
+      };
+    }
+    return {
+      strategic: Math.round(s),
+      tactical: Math.round(t),
+      operational: Math.round(o),
+      reactive: Math.round(r)
+    };
+  };
+
   // Helper: Format date to YYYY-MM-DD
   const formatDateToYMD = (date: Date) => {
     const y = date.getFullYear();
@@ -1017,54 +1040,57 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Value Mix Section */}
-                {aiAnalysis?.value_mix && (
-                  <div className="mt-6 border-t border-theme-border dark:border-theme-border/30 pt-4 space-y-3">
-                    <h3 className="text-xs font-black text-theme-text uppercase tracking-wider flex items-center gap-1.5 font-mono">
-                      <Sparkles size={13} className="text-indigo-500" />
-                      <span>Value Mix &amp; Contribution</span>
-                    </h3>
-                    <div className="w-full h-3 bg-slate-200 dark:bg-theme-surface-tertiary rounded-full overflow-hidden flex font-mono text-[9px] font-bold text-white text-center border border-slate-300/40 dark:border-theme-border/20">
-                      {aiAnalysis.value_mix.strategic > 0 && (
-                        <div style={{ width: `${aiAnalysis.value_mix.strategic}%` }} className="bg-indigo-600 flex items-center justify-center" title="Strategic">
-                          S
+                {aiAnalysis?.value_mix && (() => {
+                  const mix = normalizeValueMix(aiAnalysis.value_mix);
+                  return (
+                    <div className="mt-6 border-t border-theme-border dark:border-theme-border/30 pt-4 space-y-3">
+                      <h3 className="text-xs font-black text-theme-text uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                        <Sparkles size={13} className="text-indigo-500" />
+                        <span>Value Mix &amp; Contribution</span>
+                      </h3>
+                      <div className="w-full h-3 bg-slate-200 dark:bg-theme-surface-tertiary rounded-full overflow-hidden flex font-mono text-[9px] font-bold text-white text-center border border-slate-300/40 dark:border-theme-border/20">
+                        {mix.strategic > 0 && (
+                          <div style={{ width: `${mix.strategic}%` }} className="bg-indigo-600 flex items-center justify-center" title="Strategic">
+                            S
+                          </div>
+                        )}
+                        {mix.tactical > 0 && (
+                          <div style={{ width: `${mix.tactical}%` }} className="bg-emerald-600 flex items-center justify-center" title="Tactical">
+                            T
+                          </div>
+                        )}
+                        {mix.operational > 0 && (
+                          <div style={{ width: `${mix.operational}%` }} className="bg-amber-600 flex items-center justify-center" title="Operational">
+                            O
+                          </div>
+                        )}
+                        {mix.reactive > 0 && (
+                          <div style={{ width: `${mix.reactive}%` }} className="bg-rose-600 flex items-center justify-center" title="Reactive">
+                            R
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-mono font-semibold">
+                        <div className="flex items-center justify-between text-indigo-600 dark:text-indigo-400">
+                          <span>Strategic:</span>
+                          <span>{mix.strategic || 0}%</span>
                         </div>
-                      )}
-                      {aiAnalysis.value_mix.tactical > 0 && (
-                        <div style={{ width: `${aiAnalysis.value_mix.tactical}%` }} className="bg-emerald-600 flex items-center justify-center" title="Tactical">
-                          T
+                        <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
+                          <span>Tactical:</span>
+                          <span>{mix.tactical || 0}%</span>
                         </div>
-                      )}
-                      {aiAnalysis.value_mix.operational > 0 && (
-                        <div style={{ width: `${aiAnalysis.value_mix.operational}%` }} className="bg-amber-600 flex items-center justify-center" title="Operational">
-                          O
+                        <div className="flex items-center justify-between text-amber-600 dark:text-amber-500">
+                          <span>Operational:</span>
+                          <span>{mix.operational || 0}%</span>
                         </div>
-                      )}
-                      {aiAnalysis.value_mix.reactive > 0 && (
-                        <div style={{ width: `${aiAnalysis.value_mix.reactive}%` }} className="bg-rose-600 flex items-center justify-center" title="Reactive">
-                          R
+                        <div className="flex items-center justify-between text-rose-600 dark:text-rose-400">
+                          <span>Reactive:</span>
+                          <span>{mix.reactive || 0}%</span>
                         </div>
-                      )}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-[10px] font-mono font-semibold">
-                      <div className="flex items-center justify-between text-indigo-600 dark:text-indigo-400">
-                        <span>Strategic:</span>
-                        <span>{aiAnalysis.value_mix.strategic || 0}%</span>
-                      </div>
-                      <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
-                        <span>Tactical:</span>
-                        <span>{aiAnalysis.value_mix.tactical || 0}%</span>
-                      </div>
-                      <div className="flex items-center justify-between text-amber-600 dark:text-amber-500">
-                        <span>Operational:</span>
-                        <span>{aiAnalysis.value_mix.operational || 0}%</span>
-                      </div>
-                      <div className="flex items-center justify-between text-rose-600 dark:text-rose-400">
-                        <span>Reactive:</span>
-                        <span>{aiAnalysis.value_mix.reactive || 0}%</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
             </div>

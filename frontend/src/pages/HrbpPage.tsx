@@ -61,6 +61,29 @@ export default function HrbpPage() {
     }
     return val;
   };
+
+  const normalizeValueMix = (mix: any) => {
+    if (!mix) return { strategic: 0, tactical: 0, operational: 0, reactive: 0 };
+    const s = mix.strategic || 0;
+    const t = mix.tactical || 0;
+    const o = mix.operational || 0;
+    const r = mix.reactive || 0;
+    const sum = s + t + o + r;
+    if (sum > 0 && sum <= 1.05) {
+      return {
+        strategic: Math.round(s * 100),
+        tactical: Math.round(t * 100),
+        operational: Math.round(o * 100),
+        reactive: Math.round(r * 100)
+      };
+    }
+    return {
+      strategic: Math.round(s),
+      tactical: Math.round(t),
+      operational: Math.round(o),
+      reactive: Math.round(r)
+    };
+  };
   
   // App Session
   const [sessionUser, setSessionUser] = useState<any>(null);
@@ -2571,56 +2594,59 @@ export default function HrbpPage() {
                               </div>
 
                               {/* Coach Stacked: Value Mix */}
-                              {aiAnalysis.value_mix && (
-                                <div className="border-t border-theme-border/60 pt-6 space-y-4">
-                                  <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
-                                    <Activity size={14} /> Value Mix & Contribution (สัดส่วนลักษณะงาน)
-                                  </h3>
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                                    <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-xl p-3 text-center">
-                                      <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Strategic</span>
-                                      <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">{aiAnalysis.value_mix.strategic || 0}%</span>
+                              {aiAnalysis.value_mix && (() => {
+                                const mix = normalizeValueMix(aiAnalysis.value_mix);
+                                return (
+                                  <div className="border-t border-theme-border/60 pt-6 space-y-4">
+                                    <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                      <Activity size={14} /> Value Mix & Contribution (สัดส่วนลักษณะงาน)
+                                    </h3>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                                      <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-xl p-3 text-center">
+                                        <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Strategic</span>
+                                        <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">{mix.strategic}%</span>
+                                      </div>
+                                      <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3 text-center">
+                                        <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Tactical</span>
+                                        <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{mix.tactical}%</span>
+                                      </div>
+                                      <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 text-center">
+                                        <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Operational</span>
+                                        <span className="text-lg font-black text-amber-600 dark:text-amber-400">{mix.operational}%</span>
+                                      </div>
+                                      <div className="bg-rose-500/5 border border-rose-500/10 rounded-xl p-3 text-center">
+                                        <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Reactive</span>
+                                        <span className="text-lg font-black text-rose-600 dark:text-rose-400">{mix.reactive}%</span>
+                                      </div>
                                     </div>
-                                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3 text-center">
-                                      <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Tactical</span>
-                                      <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{aiAnalysis.value_mix.tactical || 0}%</span>
+                                    <div className="w-full h-3 bg-slate-200 dark:bg-theme-surface-tertiary rounded-full overflow-hidden flex font-mono text-[9px] font-bold text-white text-center">
+                                      {mix.strategic > 0 && (
+                                        <div style={{ width: `${mix.strategic}%` }} className="bg-indigo-600 flex items-center justify-center" title="Strategic">
+                                          S
+                                        </div>
+                                      )}
+                                      {mix.tactical > 0 && (
+                                        <div style={{ width: `${mix.tactical}%` }} className="bg-emerald-600 flex items-center justify-center" title="Tactical">
+                                          T
+                                        </div>
+                                      )}
+                                      {mix.operational > 0 && (
+                                        <div style={{ width: `${mix.operational}%` }} className="bg-amber-600 flex items-center justify-center" title="Operational">
+                                          O
+                                        </div>
+                                      )}
+                                      {mix.reactive > 0 && (
+                                        <div style={{ width: `${mix.reactive}%` }} className="bg-rose-600 flex items-center justify-center" title="Reactive">
+                                          R
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-3 text-center">
-                                      <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Operational</span>
-                                      <span className="text-lg font-black text-amber-600 dark:text-amber-400">{aiAnalysis.value_mix.operational || 0}%</span>
-                                    </div>
-                                    <div className="bg-rose-500/5 border border-rose-500/10 rounded-xl p-3 text-center">
-                                      <span className="text-[10px] text-theme-text-secondary font-bold block mb-1">Reactive</span>
-                                      <span className="text-lg font-black text-rose-600 dark:text-rose-400">{aiAnalysis.value_mix.reactive || 0}%</span>
-                                    </div>
+                                    <p className="text-[10px] text-theme-text-secondary leading-relaxed">
+                                      * <strong>S: Strategic</strong> (คิดค้น วางแผน วิเคราะห์), <strong>T: Tactical</strong> (ลงมือทำโครงการ นำความคิดไปปฏิบัติ), <strong>O: Operational</strong> (งานประจำ รูทีน), <strong>R: Reactive</strong> (งานแก้ปัญหาเฉพาะหน้า งานด่วนแทรก)
+                                    </p>
                                   </div>
-                                  <div className="w-full h-3 bg-slate-200 dark:bg-theme-surface-tertiary rounded-full overflow-hidden flex font-mono text-[9px] font-bold text-white text-center">
-                                    {aiAnalysis.value_mix.strategic > 0 && (
-                                      <div style={{ width: `${aiAnalysis.value_mix.strategic}%` }} className="bg-indigo-600 flex items-center justify-center" title="Strategic">
-                                        S
-                                      </div>
-                                    )}
-                                    {aiAnalysis.value_mix.tactical > 0 && (
-                                      <div style={{ width: `${aiAnalysis.value_mix.tactical}%` }} className="bg-emerald-600 flex items-center justify-center" title="Tactical">
-                                        T
-                                      </div>
-                                    )}
-                                    {aiAnalysis.value_mix.operational > 0 && (
-                                      <div style={{ width: `${aiAnalysis.value_mix.operational}%` }} className="bg-amber-600 flex items-center justify-center" title="Operational">
-                                        O
-                                      </div>
-                                    )}
-                                    {aiAnalysis.value_mix.reactive > 0 && (
-                                      <div style={{ width: `${aiAnalysis.value_mix.reactive}%` }} className="bg-rose-600 flex items-center justify-center" title="Reactive">
-                                        R
-                                      </div>
-                                    )}
-                                  </div>
-                                  <p className="text-[10px] text-theme-text-secondary leading-relaxed">
-                                    * <strong>S: Strategic</strong> (คิดค้น วางแผน วิเคราะห์), <strong>T: Tactical</strong> (ลงมือทำโครงการ นำความคิดไปปฏิบัติ), <strong>O: Operational</strong> (งานประจำ รูทีน), <strong>R: Reactive</strong> (งานแก้ปัญหาเฉพาะหน้า งานด่วนแทรก)
-                                  </p>
-                                </div>
-                              )}
+                                );
+                              })()}
 
 
                               {/* Coach Stacked: Strengths & Dev Areas */}
