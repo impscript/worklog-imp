@@ -422,9 +422,9 @@ class GoogleCalendarService {
     // '5' = Banana/Yellow (Fallback for other types)
     if (isOT) {
       event.colorId = '6'; // Orange
-    } else if (projectType.toLowerCase() === 'project') {
+    } else if (projectType.toLowerCase() === 'project' || projectType.toLowerCase() === 'upgrade') {
       event.colorId = '9'; // Blue
-    } else if (projectType.toLowerCase() === 'support') {
+    } else if (projectType.toLowerCase().includes('support')) {
       event.colorId = '2'; // Green
     } else {
       event.colorId = '5'; // Fallback Yellow

@@ -207,6 +207,49 @@ export default function CalendarPage() {
     width: number;
   }
 
+  const getCardColorClasses = (entry: WorklogEntry) => {
+    const isOT = entry.is_ot || entry.is_implied_ot;
+    const projectType = (entry.project_type || '').toLowerCase();
+    
+    if (isOT) {
+      // Orange (Tangerine / colorId 6)
+      return {
+        bg: "bg-orange-500/10 dark:bg-orange-500/10",
+        border: "border-orange-500/30 dark:border-orange-500/40",
+        text: "text-orange-600 dark:text-orange-400 hover:bg-orange-500/20",
+        badge: "text-orange-500 dark:text-orange-400 bg-orange-500/10 dark:bg-orange-500/20 border-orange-500/20 dark:border-orange-500/30"
+      };
+    }
+    
+    if (projectType === 'project' || projectType === 'upgrade') {
+      // Blue (Blueberry / colorId 9)
+      return {
+        bg: "bg-blue-500/10 dark:bg-blue-500/10",
+        border: "border-blue-500/30 dark:border-blue-500/40",
+        text: "text-blue-600 dark:text-blue-400 hover:bg-blue-500/20",
+        badge: "text-blue-500 dark:text-blue-400 bg-blue-500/10 dark:bg-blue-500/20 border-blue-500/20 dark:border-blue-500/30"
+      };
+    }
+    
+    if (projectType.includes('support')) {
+      // Green (Sage / colorId 2)
+      return {
+        bg: "bg-emerald-500/10 dark:bg-emerald-500/10",
+        border: "border-emerald-500/30 dark:border-emerald-500/40",
+        text: "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20",
+        badge: "text-emerald-500 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 dark:border-emerald-500/30"
+      };
+    }
+    
+    // Fallback Yellow (Banana / colorId 5) for Management, Admin, etc.
+    return {
+      bg: "bg-amber-500/10 dark:bg-amber-500/10",
+      border: "border-amber-500/30 dark:border-amber-500/40",
+      text: "text-amber-600 dark:text-amber-400 hover:bg-amber-500/20",
+      badge: "text-amber-500 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20 dark:border-amber-500/30"
+    };
+  };
+
   // Calculate non-overlapping layout for events inside a day
   const getTimedEntriesLayout = (dayEntries: WorklogEntry[], hh: number): TimedEntryLayout[] => {
     const startLimitMin = startHourOffset * 60;
@@ -729,6 +772,7 @@ export default function CalendarPage() {
                 >
                   {allDayEntries.map(e => {
                     const isBeingDragged = dragState?.entryId === e.id;
+                    const cardColor = getCardColorClasses(e);
                     return (
                       <button
                         key={e.id}
@@ -754,12 +798,10 @@ export default function CalendarPage() {
                             ? "z-50 shadow-2xl opacity-90 scale-[1.02] border-indigo-500 cursor-grabbing bg-indigo-500 text-white"
                             : cn(
                                 "transition-all active:scale-95 cursor-grab",
-                                e.is_ot || e.is_implied_ot
-                                  ? "bg-amber-500/10 border-amber-500/25 text-amber-400 hover:bg-amber-500/20"
-                                  : "bg-indigo-500/10 border-indigo-500/25 text-indigo-400 hover:bg-indigo-500/20"
+                                `${cardColor.bg} ${cardColor.border} ${cardColor.text}`
                               )
                         )}
-                        title={`${e.project_name}: ${e.action_name}`}
+                        title={`${e.project_type || 'Other'} | ${e.project_name}: ${e.action_name}`}
                       >
                         {e.project_name}: {e.action_name}
                       </button>
@@ -818,6 +860,7 @@ export default function CalendarPage() {
                     {/* Timed event cards */}
                     {timedLayouts.map(({ entry, top, height, left, width }) => {
                       const isBeingDragged = dragState?.entryId === entry.id;
+                      const cardColor = getCardColorClasses(entry);
                       return (
                         <button
                           key={entry.id}
@@ -847,31 +890,34 @@ export default function CalendarPage() {
                             "absolute rounded-lg p-1.5 border text-left overflow-hidden group flex flex-col justify-between select-none !transition-all hover:scale-[0.98] hover:shadow-lg hover:z-20 active:scale-95 cursor-grab",
                             isBeingDragged 
                               ? "z-50 shadow-2xl opacity-90 scale-[1.02] border-indigo-500 cursor-grabbing bg-indigo-500/20 text-indigo-300 !transition-none"
-                              : cn(
-                                  entry.is_ot || entry.is_implied_ot
-                                    ? "bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/20"
-                                    : "bg-indigo-500/10 border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/20"
-                                )
+                              : `${cardColor.bg} ${cardColor.border} ${cardColor.text}`
                           )}
-                          title={`${entry.project_name}\n${entry.action_name}\n${entry.start_time?.slice(0, 5)} - ${entry.end_time?.slice(0, 5)} (${entry.total_hours}h)`}
+                          title={`${entry.project_type || 'Other'} | ${entry.project_name}\n${entry.action_name}\n${entry.start_time?.slice(0, 5)} - ${entry.end_time?.slice(0, 5)} (${entry.total_hours}h)`}
                         >
                           <div className="leading-none overflow-hidden flex-1 w-full">
+                            {/* Project Type Badge */}
                             <span className={cn(
-                              "text-[9px] font-extrabold uppercase tracking-tight block truncate",
-                              isBeingDragged ? "text-indigo-400" : ""
+                              "text-[7px] font-black uppercase tracking-wider px-1 py-0.2 rounded border w-fit block mb-1 select-none",
+                              cardColor.badge
                             )}>
-                              {entry.project_name}
+                              {(entry.is_ot || entry.is_implied_ot) ? `OT / ${entry.project_type || 'Other'}` : (entry.project_type || 'Other')}
                             </span>
-                            <span className="text-[9px] font-bold text-theme-text block truncate mt-0.5">
+                            {/* Action Name */}
+                            <span className="text-[9px] font-bold text-theme-text block truncate mt-0.5 leading-tight">
                               {entry.action_name}
                             </span>
-                            {entry.description && height >= 45 && (
+                            {/* Project Name */}
+                            <span className="text-[8px] font-extrabold text-theme-text-secondary block truncate mt-0.5 uppercase tracking-tight opacity-90">
+                              {entry.project_name}
+                            </span>
+                            {/* Description Details */}
+                            {entry.description && height >= 55 && (
                               <p 
-                                className="text-[8px] opacity-75 mt-1.5 leading-normal break-words text-theme-text-secondary select-none font-medium"
+                                className="text-[8px] opacity-75 mt-1.5 leading-normal break-words text-theme-text-muted select-none font-medium"
                                 style={{
                                   display: '-webkit-box',
                                   WebkitBoxOrient: 'vertical',
-                                  WebkitLineClamp: height >= 85 ? 3 : (height >= 60 ? 2 : 1),
+                                  WebkitLineClamp: height >= 95 ? 3 : (height >= 70 ? 2 : 1),
                                   overflow: 'hidden'
                                 }}
                               >
