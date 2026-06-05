@@ -132,30 +132,43 @@ export function useAuth() {
 
         console.log(`${modeLabel} IDMS auth OK — EmpId: ${empId}`);
 
+        // 1.5 Fetch existing user record from database (if any) to preserve cached values if API fails
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('emp_id', empId)
+          .maybeSingle();
+
         // 2. Fetch Employee Data from HRMS
-        let employeeData: any = {};
+        let employeeData: any = null;
         try {
           const hrmsRes = await fetch(`/api/hrms/employee/${empId}`);
-          const hrmsText = await hrmsRes.text();
-          const hrmsData = JSON.parse(hrmsText);
-          employeeData = hrmsData?.data?.employee || hrmsData || {};
-          console.log(`${modeLabel} HRMS profile fetched:`, employeeData);
+          if (hrmsRes.ok) {
+            const hrmsText = await hrmsRes.text();
+            const hrmsData = JSON.parse(hrmsText);
+            employeeData = hrmsData?.data?.employee || hrmsData || null;
+            console.log(`${modeLabel} HRMS profile fetched:`, employeeData);
+          } else {
+            console.warn(`${modeLabel} HRMS API returned status: ${hrmsRes.status}`);
+          }
         } catch (err) {
           console.warn('Failed to fetch full employee profile from HRMS:', err);
         }
 
-        // Map data from HRMS response
-        const email = employeeData.EMail || employeeData.email || `${username.toLowerCase()}@doublea1991.com`;
-        const fullName = employeeData.EmpName || employeeData.full_name || username;
-        const department = employeeData.Department || employeeData.department || 'IMP';
-        const position = employeeData.Position || employeeData.position || 'Specialist';
-        const phone = employeeData.Sim_Number || employeeData.phone || '';
+        // Map data from HRMS response with fallback to existing DB record, then to hardcoded defaults
+        const email = employeeData?.EMail || employeeData?.email || existingUser?.email || `${username.toLowerCase()}@doublea1991.com`;
+        const fullName = employeeData?.EmpName || employeeData?.full_name || existingUser?.full_name || username;
+        const department = employeeData?.Department || employeeData?.department || existingUser?.department || 'IMP';
+        const position = employeeData?.Position || employeeData?.position || existingUser?.position || 'Specialist';
+        const phone = employeeData?.Sim_Number || employeeData?.phone || existingUser?.phone || '';
         
         // Extract new profile fields
-        const roleStartDate = employeeData.StartDate ? employeeData.StartDate.split('T')[0] : null;
-        const employeeLevel = employeeData.LevelName || 'Senior';
-        const companyCode = employeeData.Company_Code || '';
-        const companyName = employeeData.CompanyName || '';
+        const roleStartDate = employeeData?.StartDate 
+          ? employeeData.StartDate.split('T')[0] 
+          : (existingUser?.role_start_date || null);
+        const employeeLevel = employeeData?.LevelName || existingUser?.employee_level || 'Senior';
+        const companyCode = employeeData?.Company_Code || existingUser?.company_code || '';
+        const companyName = employeeData?.CompanyName || existingUser?.company_name || '';
 
         // Upsert corporate profile dynamically (Just-In-Time provisioning)
         const { data: upsertedUser, error: upsertErr } = await supabase

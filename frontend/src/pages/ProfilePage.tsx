@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Shield, Award, Calendar, BookOpen, CalendarRange, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { LogOut, Shield, Award, Calendar, BookOpen, CalendarRange, CheckCircle2, XCircle, RefreshCw, Edit } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -22,6 +22,16 @@ export default function ProfilePage() {
   const [gcalConnected, setGcalConnected] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Edit Profile States
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editNickname, setEditNickname] = useState('');
+  const [editPosition, setEditPosition] = useState('');
+  const [editEmployeeLevel, setEditEmployeeLevel] = useState('');
+  const [editCompanyName, setEditCompanyName] = useState('');
+  const [editRoleStartDate, setEditRoleStartDate] = useState('');
+  const [editManagerName, setEditManagerName] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
@@ -147,10 +157,10 @@ export default function ProfilePage() {
           });
         }
 
-        // 3. Fetch Google Calendar Settings & HR profile details from DB
+        // 3. Fetch Google Calendar Settings & HR profile details from DB (including nickname, position, and full_name)
         const { data: dbUser } = await supabase
           .from('users')
-          .select('gcal_sync_enabled, gcal_email, gcal_calendar_id, employee_level, role_start_date, company_name, manager_name')
+          .select('gcal_sync_enabled, gcal_email, gcal_calendar_id, full_name, nickname, position, employee_level, role_start_date, company_name, manager_name')
           .eq('id', sessionData.id)
           .maybeSingle();
 
@@ -163,6 +173,9 @@ export default function ProfilePage() {
           // Merge DB profile details into session state so it's easily accessible in rendering
           setSession((prev: any) => ({
             ...prev,
+            name: dbUser.full_name || prev.name,
+            nickname: dbUser.nickname || prev.nickname,
+            position: dbUser.position || prev.position,
             employee_level: dbUser.employee_level,
             role_start_date: dbUser.role_start_date,
             company_name: dbUser.company_name,
@@ -183,6 +196,70 @@ export default function ProfilePage() {
 
     loadProfileData();
   }, [navigate]);
+
+  const handleOpenEditModal = () => {
+    if (!session) return;
+    setEditNickname(session.nickname || session.name?.split(' ')[0] || '');
+    setEditPosition(session.position || '');
+    setEditEmployeeLevel(session.employee_level || 'Senior');
+    setEditCompanyName(session.company_name || '');
+    setEditRoleStartDate(session.role_start_date || '');
+    setEditManagerName(session.manager_name || '');
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session?.id) return;
+
+    setIsSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          nickname: editNickname,
+          position: editPosition,
+          employee_level: editEmployeeLevel,
+          company_name: editCompanyName,
+          role_start_date: editRoleStartDate || null,
+          manager_name: editManagerName,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', session.id);
+
+      if (error) throw error;
+
+      // Update local session state
+      const updatedSession = {
+        ...session,
+        nickname: editNickname,
+        position: editPosition,
+        employee_level: editEmployeeLevel,
+        company_name: editCompanyName,
+        role_start_date: editRoleStartDate,
+        manager_name: editManagerName
+      };
+      setSession(updatedSession);
+
+      // Sync back to localStorage session state
+      const localStorageSession = JSON.parse(localStorage.getItem('worklog_session') || '{}');
+      const updatedLocalStorageSession = {
+        ...localStorageSession,
+        nickname: editNickname,
+        position: editPosition
+      };
+      localStorage.setItem('worklog_session', JSON.stringify(updatedLocalStorageSession));
+
+      setToastMessage('Profile updated successfully! 🎉');
+      setIsEditModalOpen(false);
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err: any) {
+      console.error('Error saving profile changes:', err);
+      alert('Failed to update profile: ' + err.message);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('worklog_session');
@@ -297,7 +374,11 @@ export default function ProfilePage() {
                 </div>
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Nickname</span>
-                  <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.name?.split(' ')[0] || 'User'}</span>
+                  <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.nickname || session?.name?.split(' ')[0] || 'User'}</span>
+                </div>
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Position (ตำแหน่ง)</span>
+                  <span className="text-sm font-semibold text-theme-text mt-0.5 block truncate" title={session?.position}>{session?.position || 'N/A'}</span>
                 </div>
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Level</span>
@@ -330,23 +411,31 @@ export default function ProfilePage() {
                     ) : 'N/A'}
                   </span>
                 </div>
-                {session?.manager_name && (
-                  <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3 col-span-2 sm:col-span-3">
-                    <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Manager Name</span>
-                    <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.manager_name}</span>
-                  </div>
-                )}
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3 col-span-2">
+                  <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Manager Name</span>
+                  <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.manager_name || 'N/A'}</span>
+                </div>
               </div>
             </div>
 
             {/* Action */}
-            <button 
-              onClick={handleLogout}
-              className="inline-flex items-center gap-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-sm font-bold px-6 py-3 rounded-2xl transition-all active:scale-95 whitespace-nowrap self-center md:self-start"
-            >
-              <LogOut size={16} />
-              <span>Sign Out</span>
-            </button>
+            <div className="flex flex-col gap-3 self-center md:self-start shrink-0">
+              <button 
+                onClick={handleOpenEditModal}
+                className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-6 py-3 rounded-2xl transition-all active:scale-95 whitespace-nowrap"
+              >
+                <Edit size={16} />
+                <span>Edit Profile</span>
+              </button>
+              
+              <button 
+                onClick={handleLogout}
+                className="inline-flex items-center justify-center gap-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-sm font-bold px-6 py-3 rounded-2xl transition-all active:scale-95 whitespace-nowrap"
+              >
+                <LogOut size={16} />
+                <span>Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -565,6 +654,109 @@ export default function ProfilePage() {
           <div className="fixed bottom-6 right-6 z-50 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/80 text-theme-text px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
             <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
             <span className="text-sm font-semibold">{toastMessage}</span>
+          </div>
+        )}
+
+        {/* Edit Profile Modal */}
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-theme-surface border border-theme-border rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl relative animate-in zoom-in-95 duration-200">
+              <h3 className="text-xl font-bold text-theme-text mb-4 flex items-center gap-2">
+                <Edit className="text-indigo-400" size={20} />
+                <span>Edit User Profile</span>
+              </h3>
+              <p className="text-xs text-theme-text-secondary mb-6">
+                Update your professional profile details. These details are used by reports and AI evaluations.
+              </p>
+
+              <form onSubmit={handleSaveProfile} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] text-theme-text-secondary uppercase tracking-widest font-extrabold block mb-1.5">Nickname</label>
+                    <input
+                      type="text"
+                      value={editNickname}
+                      onChange={(e) => setEditNickname(e.target.value)}
+                      placeholder="e.g. John"
+                      className="w-full bg-theme-surface-secondary border border-theme-border focus:border-indigo-500 rounded-xl px-3.5 py-2 text-sm text-theme-text focus:outline-none transition-colors"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-theme-text-secondary uppercase tracking-widest font-extrabold block mb-1.5">Level</label>
+                    <input
+                      type="text"
+                      value={editEmployeeLevel}
+                      onChange={(e) => setEditEmployeeLevel(e.target.value)}
+                      placeholder="e.g. Senior"
+                      className="w-full bg-theme-surface-secondary border border-theme-border focus:border-indigo-500 rounded-xl px-3.5 py-2 text-sm text-theme-text focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-theme-text-secondary uppercase tracking-widest font-extrabold block mb-1.5">Position</label>
+                  <input
+                    type="text"
+                    value={editPosition}
+                    onChange={(e) => setEditPosition(e.target.value)}
+                    placeholder="e.g. Senior Developer"
+                    className="w-full bg-theme-surface-secondary border border-theme-border focus:border-indigo-500 rounded-xl px-3.5 py-2 text-sm text-theme-text focus:outline-none transition-colors"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-theme-text-secondary uppercase tracking-widest font-extrabold block mb-1.5">Company</label>
+                  <input
+                    type="text"
+                    value={editCompanyName}
+                    onChange={(e) => setEditCompanyName(e.target.value)}
+                    placeholder="e.g. Double A"
+                    className="w-full bg-theme-surface-secondary border border-theme-border focus:border-indigo-500 rounded-xl px-3.5 py-2 text-sm text-theme-text focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] text-theme-text-secondary uppercase tracking-widest font-extrabold block mb-1.5">Start Date</label>
+                    <input
+                      type="date"
+                      value={editRoleStartDate}
+                      onChange={(e) => setEditRoleStartDate(e.target.value)}
+                      className="w-full bg-theme-surface-secondary border border-theme-border focus:border-indigo-500 rounded-xl px-3.5 py-2 text-sm text-theme-text focus:outline-none transition-colors animate-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-theme-text-secondary uppercase tracking-widest font-extrabold block mb-1.5">Manager Name</label>
+                    <input
+                      type="text"
+                      value={editManagerName}
+                      onChange={(e) => setEditManagerName(e.target.value)}
+                      placeholder="Manager's Full Name"
+                      className="w-full bg-theme-surface-secondary border border-theme-border focus:border-indigo-500 rounded-xl px-3.5 py-2 text-sm text-theme-text focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-theme-border/80 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2 bg-theme-surface-secondary border border-theme-border hover:bg-theme-surface-secondary/85 text-theme-text-secondary rounded-xl text-sm font-semibold transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingProfile}
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {isSavingProfile ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 
