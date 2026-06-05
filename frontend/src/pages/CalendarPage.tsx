@@ -61,18 +61,23 @@ export default function CalendarPage() {
   const [sessionUser, setSessionUser] = useState<any>(null);
   const [usersList, setUsersList] = useState<{id: string; full_name: string; emp_id: string}[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = 
+  useState(0);
   const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
 
   // ── Week/Multi-Week Specific States & Effects ─────────────────────────────
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'two-weeks'>('month');
-  const [showSidePanel, setShowSidePanel] = useState(true);
   const [showWeekends, setShowWeekends] = useState(true);
+  const [showFullDay, setShowFullDay] = useState(false);
+
+  const startHourOffset = showFullDay ? 0 : 8;
+  const endHourOffset = showFullDay ? 24 : 18;
   const [currentMinutes, setCurrentMinutes] = useState(() => {
     const now = new Date();
     return now.getHours() * 60 + now.getMinutes();
   });
   const { showToast } = useNotification();
+  const [showSidePanel, setShowSidePanel] = useState(true);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const hourHeight = 50;
 
@@ -204,6 +209,9 @@ export default function CalendarPage() {
 
   // Calculate non-overlapping layout for events inside a day
   const getTimedEntriesLayout = (dayEntries: WorklogEntry[], hh: number): TimedEntryLayout[] => {
+    const startLimitMin = startHourOffset * 60;
+    const endLimitMin = endHourOffset * 60;
+
     const timed = dayEntries.filter(e => {
       const startMin = parseTimeToMinutes(e.start_time);
       const endMin = parseTimeToMinutes(e.end_time);
@@ -215,15 +223,19 @@ export default function CalendarPage() {
     const items = timed.map(entry => {
       const startMin = parseTimeToMinutes(entry.start_time)!;
       const endMin = parseTimeToMinutes(entry.end_time)!;
+
+      const displayStartMin = Math.max(startLimitMin, Math.min(endLimitMin, startMin));
+      const displayEndMin = Math.max(startLimitMin, Math.min(endLimitMin, endMin));
+
       return {
         entry,
         startMin,
         endMin,
-        top: (startMin / 60) * hh,
-        height: Math.max(((endMin - startMin) / 60) * hh, 22),
+        top: ((displayStartMin - startLimitMin) / 60) * hh,
+        height: Math.max(((displayEndMin - displayStartMin) / 60) * hh, displayEndMin > displayStartMin ? 22 : 0),
         user_id: entry.user_id
       };
-    });
+    }).filter(item => item.height > 0);
 
     items.sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
 
@@ -414,13 +426,16 @@ export default function CalendarPage() {
         let newStartMin = dragState.startMin + deltaMin;
         let newEndMin = dragState.endMin + deltaMin;
 
-        if (newStartMin < 0) {
-          newStartMin = 0;
-          newEndMin = duration;
+        const startLimit = startHourOffset * 60;
+        const endLimit = endHourOffset * 60;
+
+        if (newStartMin < startLimit) {
+          newStartMin = startLimit;
+          newEndMin = startLimit + duration;
         }
-        if (newEndMin > 24 * 60) {
-          newEndMin = 24 * 60;
-          newStartMin = 24 * 60 - duration;
+        if (newEndMin > endLimit) {
+          newEndMin = endLimit;
+          newStartMin = endLimit - duration;
         }
 
         setDragState(prev => prev ? {
@@ -431,7 +446,7 @@ export default function CalendarPage() {
         } : null);
       } else if (dragState.type === 'resize') {
         let newEndMin = dragState.endMin + deltaMin;
-        newEndMin = Math.max(dragState.startMin + 15, Math.min(24 * 60, newEndMin));
+        newEndMin = Math.max(dragState.startMin + 15, Math.min(endHourOffset * 60, newEndMin));
 
         setDragState(prev => prev ? {
           ...prev,
@@ -439,7 +454,7 @@ export default function CalendarPage() {
         } : null);
       } else if (dragState.type === 'resize-top') {
         let newStartMin = dragState.startMin + deltaMin;
-        newStartMin = Math.max(0, Math.min(dragState.endMin - 15, newStartMin));
+        newStartMin = Math.max(startHourOffset * 60, Math.min(dragState.endMin - 15, newStartMin));
 
         setDragState(prev => prev ? {
           ...prev,
@@ -495,13 +510,16 @@ export default function CalendarPage() {
         let newStartMin = dragState.startMin + deltaMin;
         let newEndMin = dragState.endMin + deltaMin;
 
-        if (newStartMin < 0) {
-          newStartMin = 0;
-          newEndMin = duration;
+        const startLimit = startHourOffset * 60;
+        const endLimit = endHourOffset * 60;
+
+        if (newStartMin < startLimit) {
+          newStartMin = startLimit;
+          newEndMin = startLimit + duration;
         }
-        if (newEndMin > 24 * 60) {
-          newEndMin = 24 * 60;
-          newStartMin = 24 * 60 - duration;
+        if (newEndMin > endLimit) {
+          newEndMin = endLimit;
+          newStartMin = endLimit - duration;
         }
 
         setDragState(prev => prev ? {
@@ -512,7 +530,7 @@ export default function CalendarPage() {
         } : null);
       } else if (dragState.type === 'resize') {
         let newEndMin = dragState.endMin + deltaMin;
-        newEndMin = Math.max(dragState.startMin + 15, Math.min(24 * 60, newEndMin));
+        newEndMin = Math.max(dragState.startMin + 15, Math.min(endHourOffset * 60, newEndMin));
 
         setDragState(prev => prev ? {
           ...prev,
@@ -520,7 +538,7 @@ export default function CalendarPage() {
         } : null);
       } else if (dragState.type === 'resize-top') {
         let newStartMin = dragState.startMin + deltaMin;
-        newStartMin = Math.max(0, Math.min(dragState.endMin - 15, newStartMin));
+        newStartMin = Math.max(startHourOffset * 60, Math.min(dragState.endMin - 15, newStartMin));
 
         setDragState(prev => prev ? {
           ...prev,
@@ -590,7 +608,7 @@ export default function CalendarPage() {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleMouseUp);
     };
-  }, [dragState, visibleWeek1Days, visibleWeek2Days, viewMode, hourHeight]);
+  }, [dragState, visibleWeek1Days, visibleWeek2Days, viewMode, hourHeight, showFullDay]);
 
   // Virtual entries for rendering during dynamic drags
   const displayedEntries = useMemo(() => {
@@ -633,7 +651,7 @@ export default function CalendarPage() {
         )}
 
         {/* Week View Header Row */}
-        <div className="flex border-b border-theme-border/40 pb-2 mb-2 select-none">
+        <div className="flex border-b border-theme-border/40 pb-2 mb-2 select-none sticky top-0 bg-theme-surface-tertiary dark:bg-slate-900/95 backdrop-blur-md z-40 pt-2">
           <div className="w-14 flex-shrink-0" />
           <div className="grid gap-1 flex-1 text-center" style={{ gridTemplateColumns: `repeat(${daysList.length}, minmax(0, 1fr))` }}>
             {daysList.map((dayDate, idx) => {
@@ -650,7 +668,11 @@ export default function CalendarPage() {
                   onClick={() => handleDayClick(dayDate)}
                   className={cn(
                     "flex flex-col items-center py-1.5 rounded-xl transition-all hover:bg-theme-surface-secondary/60 cursor-pointer border",
-                    isSelected ? "bg-indigo-500/10 border-indigo-500/20" : "border-transparent"
+                    isSelected 
+                      ? "bg-indigo-500/15 border-indigo-500/30" 
+                      : (idx % 2 === 0 
+                          ? "bg-theme-surface-secondary/15 dark:bg-slate-900/20 border-transparent" 
+                          : "border-transparent")
                   )}
                 >
                   <span className={cn(
@@ -696,7 +718,15 @@ export default function CalendarPage() {
               });
 
               return (
-                <div key={idx} className="flex flex-col gap-1 p-1 bg-theme-surface-secondary/20 dark:bg-theme-surface-secondary/10 rounded-lg min-h-[44px] justify-start">
+                <div 
+                  key={idx} 
+                  className={cn(
+                    "flex flex-col gap-1 p-1 rounded-lg min-h-[44px] justify-start border border-theme-border/5",
+                    idx % 2 === 0 
+                      ? "bg-theme-surface-secondary/40 dark:bg-slate-900/40" 
+                      : "bg-theme-surface-secondary/10 dark:bg-slate-900/10"
+                  )}
+                >
                   {allDayEntries.map(e => {
                     const isBeingDragged = dragState?.entryId === e.id;
                     return (
@@ -746,12 +776,13 @@ export default function CalendarPage() {
 
         {/* Scrollable Hourly Grid */}
         <div className="timeline-container flex-1 h-[450px] overflow-y-auto custom-scrollbar relative border border-theme-border/30 rounded-xl bg-theme-surface-secondary/10 dark:bg-theme-surface-secondary/5">
-          <div className="relative" style={{ height: `${24 * hourHeight}px` }}>
+          <div className="relative" style={{ height: `${(endHourOffset - startHourOffset) * hourHeight}px` }}>
             {/* Hour Lines & Labels */}
-            {Array.from({ length: 24 }).map((_, h) => {
+            {Array.from({ length: endHourOffset - startHourOffset }).map((_, idx) => {
+              const h = startHourOffset + idx;
               const label = `${String(h).padStart(2, '0')}:00`;
               return (
-                <div key={h} className="absolute left-0 right-0 border-t border-theme-border/15" style={{ top: `${h * hourHeight}px`, height: `${hourHeight}px` }}>
+                <div key={h} className="absolute left-0 right-0 border-t border-theme-border/15" style={{ top: `${idx * hourHeight}px`, height: `${hourHeight}px` }}>
                   <span className="absolute left-0 w-12 text-right pr-2 text-[9px] font-mono text-theme-text-muted/80 -mt-2">
                     {label}
                   </span>
@@ -772,7 +803,11 @@ export default function CalendarPage() {
                     key={idx} 
                     className={cn(
                       "relative h-full border-r border-theme-border/25 last:border-r-0 hover:bg-theme-surface-secondary/5 transition-colors cursor-pointer",
-                      isTodayColumn ? "bg-indigo-500/2" : ""
+                      isTodayColumn 
+                        ? "bg-indigo-500/5 dark:bg-indigo-500/3" 
+                        : (idx % 2 === 0 
+                            ? "bg-theme-surface-secondary/20 dark:bg-slate-900/30" 
+                            : "bg-transparent")
                     )}
                     onClick={(e) => {
                       if (e.target === e.currentTarget) {
@@ -1468,6 +1503,22 @@ export default function CalendarPage() {
                 )}
               >
                 <span>{showWeekends ? "Hide Sat/Sun" : "Show Sat/Sun"}</span>
+              </button>
+            )}
+
+            {/* 24 Hours vs Business Hours Toggle */}
+            {(viewMode === 'week' || viewMode === 'two-weeks') && (
+              <button
+                onClick={() => setShowFullDay(prev => !prev)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer",
+                  showFullDay
+                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
+                    : "bg-theme-surface-tertiary border-theme-border/50 text-theme-text-muted hover:text-theme-text"
+                )}
+              >
+                <Clock size={14} />
+                <span>{showFullDay ? "Show 8:00-18:00" : "Show 24 Hours"}</span>
               </button>
             )}
 
