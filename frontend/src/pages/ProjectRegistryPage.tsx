@@ -107,6 +107,9 @@ export default function ProjectRegistryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterTeam, setFilterTeam] = useState<string>('all');
+  const [filterHolding, setFilterHolding] = useState<string>('all');
+  const [filterType, setFilterType] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'tree' | 'status'>('status');
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -204,6 +207,8 @@ export default function ProjectRegistryPage() {
         p.project_name.toLowerCase().includes(q) ||
         (p.module || '').toLowerCase().includes(q) ||
         (p.owner_holding || '').toLowerCase().includes(q) ||
+        (p.owner_team || '').toLowerCase().includes(q) ||
+        (p.project_type || '').toLowerCase().includes(q) ||
         (p.description || '').toLowerCase().includes(q)
       );
     }
@@ -211,9 +216,18 @@ export default function ProjectRegistryPage() {
     if (filterStatus !== 'all') {
       list = list.filter(p => p.status === filterStatus);
     }
+    if (filterTeam !== 'all') {
+      list = list.filter(p => p.owner_team === filterTeam);
+    }
+    if (filterHolding !== 'all') {
+      list = list.filter(p => p.owner_holding === filterHolding);
+    }
+    if (filterType !== 'all') {
+      list = list.filter(p => p.project_type === filterType);
+    }
 
     return list;
-  }, [projects, searchQuery, filterStatus]);
+  }, [projects, searchQuery, filterStatus, filterTeam, filterHolding, filterType]);
 
   const treeData = useMemo(() => buildTree(filteredProjects), [filteredProjects]);
 
@@ -230,6 +244,18 @@ export default function ProjectRegistryPage() {
   const holdings = useMemo(() => {
     const set = new Set<string>();
     projects.forEach(p => { if (p.owner_holding) set.add(p.owner_holding); });
+    return Array.from(set).sort();
+  }, [projects]);
+
+  const teams = useMemo(() => {
+    const set = new Set<string>();
+    projects.forEach(p => { if (p.owner_team) set.add(p.owner_team); });
+    return Array.from(set).sort();
+  }, [projects]);
+
+  const types = useMemo(() => {
+    const set = new Set<string>();
+    projects.forEach(p => { if (p.project_type) set.add(p.project_type); });
     return Array.from(set).sort();
   }, [projects]);
 
@@ -843,7 +869,37 @@ export default function ProjectRegistryPage() {
               <option key={s} value={s}>{STATUS_CONFIG[s].icon} {STATUS_CONFIG[s].label}</option>
             ))}
           </select>
-          <div className="flex items-center bg-theme-surface-secondary rounded-xl border border-theme-border p-0.5">
+          <select
+            value={filterTeam}
+            onChange={e => setFilterTeam(e.target.value)}
+            className="theme-field px-3.5 py-2.5 rounded-xl text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+          >
+            <option value="all">👥 All Teams</option>
+            {teams.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <select
+            value={filterHolding}
+            onChange={e => setFilterHolding(e.target.value)}
+            className="theme-field px-3.5 py-2.5 rounded-xl text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+          >
+            <option value="all">🏢 All Holdings</option>
+            {holdings.map(h => (
+              <option key={h} value={h}>{h}</option>
+            ))}
+          </select>
+          <select
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+            className="theme-field px-3.5 py-2.5 rounded-xl text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+          >
+            <option value="all">📦 All Types</option>
+            {types.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <div className="flex items-center bg-theme-surface-secondary rounded-xl border border-theme-border p-0.5 shrink-0">
             <button
               onClick={() => setViewMode('status')}
               className={cn(
