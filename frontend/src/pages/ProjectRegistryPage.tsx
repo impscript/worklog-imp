@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Plus, Search, ExternalLink, FolderTree, Globe, Calendar,
+  Plus, Search, ExternalLink, FolderTree, Calendar,
   ChevronDown, ChevronRight, Edit2, Trash2, X, Save,
   Check, AlertTriangle, Clock, Activity, Users,
-  Folder, FolderOpen, File, Layers, Building2,
-  RefreshCw, GitBranch, Link, Shield
+  FolderOpen, Layers, Building2,
+  RefreshCw, Link
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
@@ -93,19 +93,8 @@ function buildTree(projects: Project[]): Project[] {
   return roots;
 }
 
-/* ── Flatten tree for display ── */
-function flattenTree(tree: Project[], depth = 0): { project: Project; depth: number }[] {
-  const result: { project: Project; depth: number }[] = [];
-  for (const node of tree) {
-    result.push({ project: node, depth });
-    if (node.children && node.children.length > 0) {
-      result.push(...flattenTree(node.children, depth + 1));
-    }
-  }
-  return result;
-}
 
-/* ── Status group order ── */
+/* ── Types ── */
 const STATUS_ORDER: ProjectStatus[] = ['active', 'development', 'inactive', 'planning', 'sunset', 'retired'];
 
 /* ── Main Component ── */
@@ -121,7 +110,6 @@ export default function ProjectRegistryPage() {
   const [viewMode, setViewMode] = useState<'tree' | 'status'>('status');
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDeleteConfirm, setIsDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -172,7 +160,6 @@ export default function ProjectRegistryPage() {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const userSet: Record<string, Set<string>> = {};
         const count: Record<string, number> = {};
         const recent: Record<string, number> = {};
 
@@ -229,7 +216,6 @@ export default function ProjectRegistryPage() {
   }, [projects, searchQuery, filterStatus]);
 
   const treeData = useMemo(() => buildTree(filteredProjects), [filteredProjects]);
-  const flatTree = useMemo(() => flattenTree(treeData), [treeData]);
 
   const groupedByStatus = useMemo(() => {
     const groups: Record<string, Project[]> = {};
@@ -342,10 +328,11 @@ export default function ProjectRegistryPage() {
         .eq('parent_project_id', deleteTarget.id);
 
       if (children && children.length > 0) {
-        const ok = await showConfirm(
-          `โปรเจค "${deleteTarget.project_name}" มีโปรเจคย่อย ${children.length} รายการ\n\nยืนยันลบ? (โปรเจคย่อยจะถูกยกให้เป็น top-level)`,
-          'warning'
-        );
+        const ok = await showConfirm({
+          title: 'ยืนยันการลบ',
+          message: `โปรเจค "${deleteTarget.project_name}" มีโปรเจคย่อย ${children.length} รายการ\n\nยืนยันลบ? (โปรเจคย่อยจะถูกยกให้เป็น top-level)`,
+          type: 'danger'
+        });
         if (!ok) return;
       }
 
@@ -357,7 +344,6 @@ export default function ProjectRegistryPage() {
       if (error) throw error;
 
       showToast(`ลบ "${deleteTarget.project_name}" สำเร็จ`, 'success');
-      setIsDeleteConfirm(false);
       setDeleteTarget(null);
       loadProjects();
     } catch (err: any) {
@@ -366,10 +352,11 @@ export default function ProjectRegistryPage() {
   };
 
   const handleDeleteClick = async (project: Project) => {
-    const confirmed = await showConfirm(
-      `แน่ใจว่าจะลบโปรเจค "${project.project_name}"?\n\nการกระทำนี้ไม่สามารถย้อนกลับได้`,
-      'warning'
-    );
+    const confirmed = await showConfirm({
+      title: 'ยืนยันการลบ',
+      message: `แน่ใจว่าจะลบโปรเจค "${project.project_name}"?\n\nการกระทำนี้ไม่สามารถย้อนกลับได้`,
+      type: 'danger'
+    });
     if (confirmed) {
       setDeleteTarget(project);
       confirmDelete();
@@ -411,7 +398,6 @@ export default function ProjectRegistryPage() {
     const ws = worklogSummary[project.project_name];
     const hasChildren = project.children && project.children.length > 0;
     const isExpanded = expandedProjects.has(project.id);
-    const isTopLevel = !project.parent_project_id;
 
     // Find worklog matching: exact name, or name prefix
     const exactWs = ws;
