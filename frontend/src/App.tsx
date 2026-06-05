@@ -8,6 +8,7 @@ import HrbpPage from './pages/HrbpPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MigratePage from './pages/MigratePage';
+import ProjectRegistryPage from './pages/ProjectRegistryPage';
 import PublicWorklogPage from './pages/PublicWorklogPage';
 import { NotificationProvider } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -24,6 +25,7 @@ function App() {
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/hrbp" element={<HrbpPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/projects" element={<ProjectRegistryPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/migrate" element={<MigratePage />} />
         <Route path="/worklog/share/:id" element={<PublicWorklogPage />} />

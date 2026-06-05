@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
@@ -240,6 +240,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <NavItem to="/hrbp" icon={<Cpu size={18} />} label="AI Enhance" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/migrate" icon={<UploadCloud size={18} />} label="Data Migration" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/admin" icon={<Database size={18} />} label="Master Data" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/projects" icon={<FolderTree size={18} />} label="Project Registry" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/profile" icon={<User size={18} />} label="Profile" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
           </nav>
 
