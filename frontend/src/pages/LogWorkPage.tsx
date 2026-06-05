@@ -1880,30 +1880,25 @@ export default function LogWorkPage() {
 
           {/* Description */}
           <div className="mb-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <div className="mb-2">
               <label className="block text-sm font-semibold text-theme-text-secondary">
                 รายละเอียดงาน / Work Description <span className="text-rose-400">*</span>
               </label>
-              <div 
-                className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-1.5 scroll-smooth"
-                style={{ 
-                  scrollbarWidth: 'none', 
-                  msOverflowStyle: 'none',
-                  WebkitOverflowScrolling: 'touch'
-                }}
-              >
-                {dbTemplates.map((tpl) => (
-                  <button
-                    key={tpl.id}
-                    type="button"
-                    onClick={() => handleInjectTemplate(tpl.template_content)}
-                    className="px-2.5 py-1 text-[11px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg border border-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                  >
-                    <span>{tpl.icon || '📝'}</span>
-                    <span>{tpl.template_name}</span>
-                  </button>
-                ))}
-              </div>
+            </div>
+            
+            {/* Worklog templates wrapped on a new row */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {dbTemplates.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => handleInjectTemplate(tpl.template_content)}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg border border-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>{tpl.icon || '📝'}</span>
+                  <span>{tpl.template_name}</span>
+                </button>
+              ))}
             </div>
 
             {/* Guide Info Box */}

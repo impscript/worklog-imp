@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Plus, ClipboardList, Clock, Eye, RefreshCw, CalendarCheck } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import { googleCalendar, syncWorklogToGCal } from '../lib/google-calendar';
+import { useNotification } from '../context/NotificationContext';
 
 interface WorklogEntry {
   id: string;
@@ -30,12 +31,30 @@ interface WorklogEntry {
   module?: string | null;
 }
 
+const monthNames = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+// Helper: Format date to YYYY-MM-DD
+const formatDateToYMD = (date: Date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [entries, setEntries] = useState<WorklogEntry[]>([]);
   const [selectedDateEntries, setSelectedDateEntries] = useState<WorklogEntry[]>([]);
-  const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
+  const [selectedDateStr, setSelectedDateStr] = useState<string | null>(() => formatDateToYMD(new Date()));
   const [isLoading, setIsLoading] = useState(true);
+
+  // ── GCal Re-Sync State ───────────────────────────────────────────────────────
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; status: string } | null>(null);
+  const [gcalConnected, setGcalConnected] = useState(false);
   const navigate = useNavigate();
   const [editingLog, setEditingLog] = useState<any | null>(null);
   const [viewingLog, setViewingLog] = useState<WorklogEntry | null>(null);
@@ -45,12 +64,851 @@ export default function CalendarPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
 
-  // ── GCal Re-Sync State ───────────────────────────────────────────────────────
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; status: string } | null>(null);
-  const [gcalConnected, setGcalConnected] = useState(false);
-  
-  // ── Sync Result / Warning Modal State ────────────────────────────────────────
+  // ── Week/Multi-Week Specific States & Effects ─────────────────────────────
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'two-weeks'>('month');
+  const [showSidePanel, setShowSidePanel] = useState(true);
+  const [showWeekends, setShowWeekends] = useState(true);
+  const [currentMinutes, setCurrentMinutes] = useState(() => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  });
+  const { showToast } = useNotification();
+  const timelineContainerRef = useRef<HTMLDivElement>(null);
+  const hourHeight = 50;
+
+  useEffect(() => {
+    if (viewMode !== 'week' && viewMode !== 'two-weeks') return;
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentMinutes(now.getHours() * 60 + now.getMinutes());
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 60000);
+    return () => clearInterval(timer);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode === 'week' || viewMode === 'two-weeks') {
+      const scrollTarget = Math.max(0, (7.5 * hourHeight));
+      setTimeout(() => {
+        if (timelineContainerRef.current) {
+          timelineContainerRef.current.scrollTop = scrollTarget;
+        }
+        const containers = document.querySelectorAll('.timeline-container');
+        containers.forEach(container => {
+          container.scrollTop = scrollTarget;
+        });
+      }, 50);
+    }
+  }, [viewMode]);
+
+  // Helper: Find Monday of the week
+  const getMonday = (d: Date) => {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(date.setDate(diff));
+  };
+
+  // Week 1 days (Monday to Sunday)
+  const week1Days = useMemo(() => {
+    const monday = getMonday(currentDate);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [currentDate]);
+
+  // Week 2 days (next Monday to Sunday)
+  const week2Days = useMemo(() => {
+    const monday = getMonday(currentDate);
+    const days = [];
+    for (let i = 7; i < 14; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [currentDate]);
+
+  // Weekend filters based on showWeekends state
+  const visibleWeek1Days = useMemo(() => {
+    return week1Days.filter(d => showWeekends || (d.getDay() !== 0 && d.getDay() !== 6));
+  }, [week1Days, showWeekends]);
+
+  const visibleWeek2Days = useMemo(() => {
+    return week2Days.filter(d => showWeekends || (d.getDay() !== 0 && d.getDay() !== 6));
+  }, [week2Days, showWeekends]);
+
+  // Format week range string: "Jun 1 – 7, 2026"
+  const weekRangeStr = useMemo(() => {
+    if (week1Days.length === 0) return '';
+    const monday = week1Days[0];
+    const sunday = week1Days[6];
+    const startMonth = monthNames[monday.getMonth()].slice(0, 3);
+    const endMonth = monthNames[sunday.getMonth()].slice(0, 3);
+    const startYear = monday.getFullYear();
+    const endYear = sunday.getFullYear();
+    
+    if (startYear !== endYear) {
+      return `${startMonth} ${monday.getDate()}, ${startYear} – ${endMonth} ${sunday.getDate()}, ${endYear}`;
+    } else if (startMonth !== endMonth) {
+      return `${startMonth} ${monday.getDate()} – ${endMonth} ${sunday.getDate()}, ${startYear}`;
+    } else {
+      return `${startMonth} ${monday.getDate()} – ${sunday.getDate()}, ${startYear}`;
+    }
+  }, [week1Days]);
+
+  // Format 2-week range string: "Jun 1 – 14, 2026"
+  const twoWeeksRangeStr = useMemo(() => {
+    if (week1Days.length === 0 || week2Days.length === 0) return '';
+    const monday = week1Days[0];
+    const sunday = week2Days[6];
+    const startMonth = monthNames[monday.getMonth()].slice(0, 3);
+    const endMonth = monthNames[sunday.getMonth()].slice(0, 3);
+    const startYear = monday.getFullYear();
+    const endYear = sunday.getFullYear();
+    
+    if (startYear !== endYear) {
+      return `${startMonth} ${monday.getDate()}, ${startYear} – ${endMonth} ${sunday.getDate()}, ${endYear}`;
+    } else if (startMonth !== endMonth) {
+      return `${startMonth} ${monday.getDate()} – ${endMonth} ${sunday.getDate()}, ${startYear}`;
+    } else {
+      return `${startMonth} ${monday.getDate()} – ${sunday.getDate()}, ${startYear}`;
+    }
+  }, [week1Days, week2Days]);
+
+  // Parse time "HH:MM" or "HH:MM:SS" to minutes
+  const parseTimeToMinutes = (timeStr?: string | null) => {
+    if (!timeStr) return null;
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return null;
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+    if (isNaN(hours) || isNaN(minutes)) return null;
+    return hours * 60 + minutes;
+  };
+
+  const currentTimeTop = (currentMinutes / 60) * hourHeight;
+
+  interface TimedEntryLayout {
+    entry: WorklogEntry;
+    top: number;
+    height: number;
+    left: number;
+    width: number;
+  }
+
+  // Calculate non-overlapping layout for events inside a day
+  const getTimedEntriesLayout = (dayEntries: WorklogEntry[], hh: number): TimedEntryLayout[] => {
+    const timed = dayEntries.filter(e => {
+      const startMin = parseTimeToMinutes(e.start_time);
+      const endMin = parseTimeToMinutes(e.end_time);
+      return startMin !== null && endMin !== null && !(startMin === 0 && endMin === 0) && endMin > startMin;
+    });
+
+    if (timed.length === 0) return [];
+
+    const items = timed.map(entry => {
+      const startMin = parseTimeToMinutes(entry.start_time)!;
+      const endMin = parseTimeToMinutes(entry.end_time)!;
+      return {
+        entry,
+        startMin,
+        endMin,
+        top: (startMin / 60) * hh,
+        height: Math.max(((endMin - startMin) / 60) * hh, 22),
+        user_id: entry.user_id
+      };
+    });
+
+    items.sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
+
+    const clusters: (typeof items[number])[][] = [];
+    items.forEach(item => {
+      let placed = false;
+      for (const cluster of clusters) {
+        const overlaps = cluster.some(cItem => {
+          return item.startMin < cItem.endMin && cItem.startMin < item.endMin;
+        });
+        if (overlaps) {
+          cluster.push(item);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        clusters.push([item]);
+      }
+    });
+
+    const layouts: TimedEntryLayout[] = [];
+
+    clusters.forEach(cluster => {
+      const lanes: { endMin: number }[] = [];
+      const itemLanes: number[] = [];
+
+      cluster.forEach((item, index) => {
+        let laneIndex = -1;
+        for (let l = 0; l < lanes.length; l++) {
+          if (item.startMin >= lanes[l].endMin) {
+            laneIndex = l;
+            lanes[l] = { endMin: item.endMin };
+            break;
+          }
+        }
+        if (laneIndex === -1) {
+          lanes.push({ endMin: item.endMin });
+          laneIndex = lanes.length - 1;
+        }
+        itemLanes[index] = laneIndex;
+      });
+
+      const totalLanes = lanes.length;
+      cluster.forEach((item, index) => {
+        const lane = itemLanes[index];
+        layouts.push({
+          entry: item.entry,
+          top: item.top,
+          height: item.height,
+          left: (lane / totalLanes) * 100,
+          width: (1 / totalLanes) * 100
+        });
+      });
+    });
+
+    return layouts;
+  };
+
+  interface DragState {
+    type: 'drag' | 'resize' | 'resize-top';
+    entryId: string;
+    startWorkDate: string;
+    startMin: number;
+    endMin: number;
+    initialMouseY: number;
+    initialMouseX: number;
+    currentWorkDate: string;
+    currentStartMin: number;
+    currentEndMin: number;
+  }
+  const [dragState, setDragState] = useState<DragState | null>(null);
+
+  const handleDragStart = (e: React.MouseEvent, entry: WorklogEntry) => {
+    if (!sessionUser || entry.user_id !== sessionUser.id) return;
+    
+    // Check if clicking on another button inside the card (e.currentTarget represents the card button itself)
+    const closestButton = (e.target as HTMLElement).closest('button');
+    if (closestButton && closestButton !== e.currentTarget) return;
+
+    e.preventDefault();
+
+    const startMin = parseTimeToMinutes(entry.start_time) ?? 0;
+    const endMin = parseTimeToMinutes(entry.end_time) ?? 0;
+
+    setDragState({
+      type: 'drag',
+      entryId: entry.id,
+      startWorkDate: entry.work_date,
+      startMin,
+      endMin,
+      initialMouseY: e.clientY,
+      initialMouseX: e.clientX,
+      currentWorkDate: entry.work_date,
+      currentStartMin: startMin,
+      currentEndMin: endMin
+    });
+  };
+
+  const handleResizeStart = (e: React.MouseEvent, entry: WorklogEntry) => {
+    if (!sessionUser || entry.user_id !== sessionUser.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startMin = parseTimeToMinutes(entry.start_time) ?? 0;
+    const endMin = parseTimeToMinutes(entry.end_time) ?? 0;
+
+    setDragState({
+      type: 'resize',
+      entryId: entry.id,
+      startWorkDate: entry.work_date,
+      startMin,
+      endMin,
+      initialMouseY: e.clientY,
+      initialMouseX: e.clientX,
+      currentWorkDate: entry.work_date,
+      currentStartMin: startMin,
+      currentEndMin: endMin
+    });
+  };
+
+  const handleResizeTopStart = (e: React.MouseEvent, entry: WorklogEntry) => {
+    if (!sessionUser || entry.user_id !== sessionUser.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startMin = parseTimeToMinutes(entry.start_time) ?? 0;
+    const endMin = parseTimeToMinutes(entry.end_time) ?? 0;
+
+    setDragState({
+      type: 'resize-top',
+      entryId: entry.id,
+      startWorkDate: entry.work_date,
+      startMin,
+      endMin,
+      initialMouseY: e.clientY,
+      initialMouseX: e.clientX,
+      currentWorkDate: entry.work_date,
+      currentStartMin: startMin,
+      currentEndMin: endMin
+    });
+  };
+
+  useEffect(() => {
+    if (!dragState) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const grids = Array.from(document.querySelectorAll('.columns-grid'));
+      if (grids.length === 0) return;
+
+      const clientY = e.clientY;
+      const clientX = e.clientX;
+
+      let hoveredGrid = grids[0];
+
+      for (let i = 0; i < grids.length; i++) {
+        const r = grids[i].getBoundingClientRect();
+        if (clientY >= r.top && clientY <= r.bottom) {
+          hoveredGrid = grids[i];
+          break;
+        }
+      }
+
+      const rect = hoveredGrid.getBoundingClientRect();
+      const deltaY = clientY - dragState.initialMouseY;
+      const deltaMin = Math.round(((deltaY / hourHeight) * 60) / 15) * 15;
+
+      let targetDays = visibleWeek1Days;
+      if (viewMode === 'two-weeks') {
+        targetDays = [...visibleWeek1Days, ...visibleWeek2Days];
+      }
+
+      if (dragState.type === 'drag') {
+        const xInGrid = clientX - rect.left;
+        const colWidth = rect.width / targetDays.length;
+        const colIndex = Math.max(0, Math.min(targetDays.length - 1, Math.floor(xInGrid / colWidth)));
+        const newDateStr = formatDateToYMD(targetDays[colIndex]);
+        const duration = dragState.endMin - dragState.startMin;
+
+        if (duration === 0) {
+          setDragState(prev => prev ? {
+            ...prev,
+            currentWorkDate: newDateStr
+          } : null);
+          return;
+        }
+
+        let newStartMin = dragState.startMin + deltaMin;
+        let newEndMin = dragState.endMin + deltaMin;
+
+        if (newStartMin < 0) {
+          newStartMin = 0;
+          newEndMin = duration;
+        }
+        if (newEndMin > 24 * 60) {
+          newEndMin = 24 * 60;
+          newStartMin = 24 * 60 - duration;
+        }
+
+        setDragState(prev => prev ? {
+          ...prev,
+          currentWorkDate: newDateStr,
+          currentStartMin: newStartMin,
+          currentEndMin: newEndMin
+        } : null);
+      } else if (dragState.type === 'resize') {
+        let newEndMin = dragState.endMin + deltaMin;
+        newEndMin = Math.max(dragState.startMin + 15, Math.min(24 * 60, newEndMin));
+
+        setDragState(prev => prev ? {
+          ...prev,
+          currentEndMin: newEndMin
+        } : null);
+      } else if (dragState.type === 'resize-top') {
+        let newStartMin = dragState.startMin + deltaMin;
+        newStartMin = Math.max(0, Math.min(dragState.endMin - 15, newStartMin));
+
+        setDragState(prev => prev ? {
+          ...prev,
+          currentStartMin: newStartMin
+        } : null);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 0) return;
+      const touch = e.touches[0];
+
+      const grids = Array.from(document.querySelectorAll('.columns-grid'));
+      if (grids.length === 0) return;
+
+      const clientY = touch.clientY;
+      const clientX = touch.clientX;
+
+      let hoveredGrid = grids[0];
+
+      for (let i = 0; i < grids.length; i++) {
+        const r = grids[i].getBoundingClientRect();
+        if (clientY >= r.top && clientY <= r.bottom) {
+          hoveredGrid = grids[i];
+          break;
+        }
+      }
+
+      const rect = hoveredGrid.getBoundingClientRect();
+      const deltaY = clientY - dragState.initialMouseY;
+      const deltaMin = Math.round(((deltaY / hourHeight) * 60) / 15) * 15;
+
+      let targetDays = visibleWeek1Days;
+      if (viewMode === 'two-weeks') {
+        targetDays = [...visibleWeek1Days, ...visibleWeek2Days];
+      }
+
+      if (dragState.type === 'drag') {
+        const xInGrid = clientX - rect.left;
+        const colWidth = rect.width / targetDays.length;
+        const colIndex = Math.max(0, Math.min(targetDays.length - 1, Math.floor(xInGrid / colWidth)));
+        const newDateStr = formatDateToYMD(targetDays[colIndex]);
+        const duration = dragState.endMin - dragState.startMin;
+
+        if (duration === 0) {
+          setDragState(prev => prev ? {
+            ...prev,
+            currentWorkDate: newDateStr
+          } : null);
+          return;
+        }
+
+        let newStartMin = dragState.startMin + deltaMin;
+        let newEndMin = dragState.endMin + deltaMin;
+
+        if (newStartMin < 0) {
+          newStartMin = 0;
+          newEndMin = duration;
+        }
+        if (newEndMin > 24 * 60) {
+          newEndMin = 24 * 60;
+          newStartMin = 24 * 60 - duration;
+        }
+
+        setDragState(prev => prev ? {
+          ...prev,
+          currentWorkDate: newDateStr,
+          currentStartMin: newStartMin,
+          currentEndMin: newEndMin
+        } : null);
+      } else if (dragState.type === 'resize') {
+        let newEndMin = dragState.endMin + deltaMin;
+        newEndMin = Math.max(dragState.startMin + 15, Math.min(24 * 60, newEndMin));
+
+        setDragState(prev => prev ? {
+          ...prev,
+          currentEndMin: newEndMin
+        } : null);
+      } else if (dragState.type === 'resize-top') {
+        let newStartMin = dragState.startMin + deltaMin;
+        newStartMin = Math.max(0, Math.min(dragState.endMin - 15, newStartMin));
+
+        setDragState(prev => prev ? {
+          ...prev,
+          currentStartMin: newStartMin
+        } : null);
+      }
+    };
+
+    const handleMouseUp = async () => {
+      const changed = dragState.currentWorkDate !== dragState.startWorkDate || 
+                      dragState.currentStartMin !== dragState.startMin || 
+                      dragState.currentEndMin !== dragState.endMin;
+
+      const targetEntryId = dragState.entryId;
+      const finalWorkDate = dragState.currentWorkDate;
+      const finalStartMin = dragState.currentStartMin;
+      const finalEndMin = dragState.currentEndMin;
+
+      setDragState(null);
+
+      if (changed) {
+        const duration = dragState.endMin - dragState.startMin;
+        const updates: any = {
+          work_date: finalWorkDate
+        };
+
+        if (duration > 0) {
+          const formatMinToTimeStr = (minutes: number) => {
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+          };
+
+          updates.start_time = formatMinToTimeStr(finalStartMin);
+          updates.end_time = formatMinToTimeStr(finalEndMin);
+          updates.total_hours = (finalEndMin - finalStartMin) / 60;
+        }
+
+        try {
+          const { error } = await supabase
+            .from('col_worklog')
+            .update(updates)
+            .eq('id', targetEntryId);
+
+          if (error) {
+            showToast('Error updating worklog: ' + error.message, 'error');
+          } else {
+            showToast('Worklog updated successfully!', 'success');
+            syncWorklogToGCal(targetEntryId, 'update').catch(err => {
+              console.warn('[GCal Sync] Drag-drop sync failed:', err);
+            });
+            setRefreshTrigger(prev => prev + 1);
+          }
+        } catch (err: any) {
+          showToast('Error updating worklog: ' + err.message, 'error');
+        }
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [dragState, visibleWeek1Days, visibleWeek2Days, viewMode, hourHeight]);
+
+  // Virtual entries for rendering during dynamic drags
+  const displayedEntries = useMemo(() => {
+    if (!dragState) return entries;
+    return entries.map(e => {
+      if (e.id === dragState.entryId) {
+        const duration = dragState.endMin - dragState.startMin;
+        if (duration === 0) {
+          return {
+            ...e,
+            work_date: dragState.currentWorkDate
+          };
+        }
+        const startH = Math.floor(dragState.currentStartMin / 60);
+        const startM = dragState.currentStartMin % 60;
+        const endH = Math.floor(dragState.currentEndMin / 60);
+        const endM = dragState.currentEndMin % 60;
+        
+        return {
+          ...e,
+          work_date: dragState.currentWorkDate,
+          start_time: `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}:00`,
+          end_time: `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`,
+          total_hours: (dragState.currentEndMin - dragState.currentStartMin) / 60
+        };
+      }
+      return e;
+    });
+  }, [entries, dragState]);
+
+  // Reusable Week Grid component for Week View and 2-Week View
+  const renderWeekGrid = (daysList: Date[], weekTitle?: string) => {
+    return (
+      <div className="flex flex-col flex-1 mt-4 first:mt-0">
+        {weekTitle && (
+          <h3 className="text-[11px] font-black text-indigo-400 mb-3 font-mono uppercase tracking-wider flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+            {weekTitle}
+          </h3>
+        )}
+
+        {/* Week View Header Row */}
+        <div className="flex border-b border-theme-border/40 pb-2 mb-2 select-none">
+          <div className="w-14 flex-shrink-0" />
+          <div className="grid gap-1 flex-1 text-center" style={{ gridTemplateColumns: `repeat(${daysList.length}, minmax(0, 1fr))` }}>
+            {daysList.map((dayDate, idx) => {
+              const dStr = formatDateToYMD(dayDate);
+              const isToday = formatDateToYMD(new Date()) === dStr;
+              const isSelected = selectedDateStr === dStr;
+              const dayOfWeek = dayDate.getDay();
+              const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+              const holiday = holidays.find((h) => h.date === dStr);
+              
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleDayClick(dayDate)}
+                  className={cn(
+                    "flex flex-col items-center py-1.5 rounded-xl transition-all hover:bg-theme-surface-secondary/60 cursor-pointer border",
+                    isSelected ? "bg-indigo-500/10 border-indigo-500/20" : "border-transparent"
+                  )}
+                >
+                  <span className={cn(
+                    "text-[10px] font-bold tracking-wider uppercase",
+                    isWeekend ? "text-rose-400" : "text-theme-text-secondary"
+                  )}>
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayOfWeek]}
+                  </span>
+                  <span className={cn(
+                    "text-sm font-black font-mono w-7 h-7 flex items-center justify-center rounded-full mt-1",
+                    isToday 
+                      ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20 animate-pulse-slow" 
+                      : holiday 
+                        ? "text-rose-400 font-extrabold"
+                        : "text-theme-text"
+                  )}>
+                    {dayDate.getDate()}
+                  </span>
+                  {holiday && (
+                    <span className="text-[7px] font-bold text-rose-400 truncate max-w-full px-0.5 mt-0.5 animate-pulse" title={holiday.name}>
+                      🎉 HD
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* All-Day / Unspecified Section */}
+        <div className="flex border-b border-theme-border/40 pb-2 mb-2 select-none">
+          <div className="w-14 flex-shrink-0 flex items-center justify-end pr-2 text-[9px] font-bold text-theme-text-muted uppercase tracking-wider text-right leading-none">
+            All Day
+          </div>
+          <div className="grid gap-1 flex-1" style={{ gridTemplateColumns: `repeat(${daysList.length}, minmax(0, 1fr))` }}>
+            {daysList.map((dayDate, idx) => {
+              const dStr = formatDateToYMD(dayDate);
+              const dayEntries = displayedEntries.filter((e) => e.work_date === dStr);
+              const allDayEntries = dayEntries.filter(e => {
+                const startMin = parseTimeToMinutes(e.start_time);
+                const endMin = parseTimeToMinutes(e.end_time);
+                return startMin === null || endMin === null || (startMin === 0 && endMin === 0) || endMin <= startMin;
+              });
+
+              return (
+                <div key={idx} className="flex flex-col gap-1 p-1 bg-theme-surface-secondary/20 dark:bg-theme-surface-secondary/10 rounded-lg min-h-[44px] justify-start">
+                  {allDayEntries.map(e => {
+                    const isBeingDragged = dragState?.entryId === e.id;
+                    return (
+                      <button
+                        key={e.id}
+                        onMouseDown={(evt) => handleDragStart(evt, e)}
+                        onTouchStart={(evt) => {
+                          if (evt.touches.length === 0) return;
+                          const touch = evt.touches[0];
+                          handleDragStart({
+                            clientX: touch.clientX,
+                            clientY: touch.clientY,
+                            preventDefault: () => evt.preventDefault(),
+                            target: evt.target,
+                            currentTarget: evt.currentTarget
+                          } as any, e);
+                        }}
+                        onClick={() => {
+                          setViewingLog(e);
+                          handleDayClick(dayDate);
+                        }}
+                        className={cn(
+                          "text-[9px] font-bold px-1.5 py-0.5 rounded text-left truncate border shadow-sm",
+                          isBeingDragged 
+                            ? "z-50 shadow-2xl opacity-90 scale-[1.02] border-indigo-500 cursor-grabbing bg-indigo-500 text-white"
+                            : cn(
+                                "transition-all active:scale-95 cursor-grab",
+                                e.is_ot || e.is_implied_ot
+                                  ? "bg-amber-500/10 border-amber-500/25 text-amber-400 hover:bg-amber-500/20"
+                                  : "bg-indigo-500/10 border-indigo-500/25 text-indigo-400 hover:bg-indigo-500/20"
+                              )
+                        )}
+                        title={`${e.project_name}: ${e.action_name}`}
+                      >
+                        {e.project_name}: {e.action_name}
+                      </button>
+                    );
+                  })}
+                  {allDayEntries.length === 0 && (
+                    <span className="text-[9px] text-theme-text-muted/30 text-center my-auto italic select-none">-</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Scrollable Hourly Grid */}
+        <div className="timeline-container flex-1 h-[450px] overflow-y-auto custom-scrollbar relative border border-theme-border/30 rounded-xl bg-theme-surface-secondary/10 dark:bg-theme-surface-secondary/5">
+          <div className="relative" style={{ height: `${24 * hourHeight}px` }}>
+            {/* Hour Lines & Labels */}
+            {Array.from({ length: 24 }).map((_, h) => {
+              const label = `${String(h).padStart(2, '0')}:00`;
+              return (
+                <div key={h} className="absolute left-0 right-0 border-t border-theme-border/15" style={{ top: `${h * hourHeight}px`, height: `${hourHeight}px` }}>
+                  <span className="absolute left-0 w-12 text-right pr-2 text-[9px] font-mono text-theme-text-muted/80 -mt-2">
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+
+            {/* Columns for active days */}
+            <div className="columns-grid ml-14 h-full relative grid select-none" style={{ gridTemplateColumns: `repeat(${daysList.length}, minmax(0, 1fr))` }}>
+              {daysList.map((dayDate, idx) => {
+                const dStr = formatDateToYMD(dayDate);
+                const dayEntries = displayedEntries.filter((e) => e.work_date === dStr);
+                const timedLayouts = getTimedEntriesLayout(dayEntries, hourHeight);
+                const isTodayColumn = formatDateToYMD(new Date()) === dStr;
+                
+                return (
+                  <div 
+                    key={idx} 
+                    className={cn(
+                      "relative h-full border-r border-theme-border/25 last:border-r-0 hover:bg-theme-surface-secondary/5 transition-colors cursor-pointer",
+                      isTodayColumn ? "bg-indigo-500/2" : ""
+                    )}
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget) {
+                        handleDayClick(dayDate);
+                      }
+                    }}
+                  >
+                    {/* Timed event cards */}
+                    {timedLayouts.map(({ entry, top, height, left, width }) => {
+                      const isBeingDragged = dragState?.entryId === entry.id;
+                      return (
+                        <button
+                          key={entry.id}
+                          onMouseDown={(evt) => handleDragStart(evt, entry)}
+                          onTouchStart={(evt) => {
+                            if (evt.touches.length === 0) return;
+                            const touch = evt.touches[0];
+                            handleDragStart({
+                              clientX: touch.clientX,
+                              clientY: touch.clientY,
+                              preventDefault: () => evt.preventDefault(),
+                              target: evt.target,
+                              currentTarget: evt.currentTarget
+                            } as any, entry);
+                          }}
+                          onClick={() => {
+                            setViewingLog(entry);
+                            handleDayClick(dayDate);
+                          }}
+                          style={{
+                            top: `${top}px`,
+                            height: `${height}px`,
+                            left: `${left}%`,
+                            width: `${width}%`
+                          }}
+                          className={cn(
+                            "absolute rounded-lg p-1.5 border text-left overflow-hidden group flex flex-col justify-between select-none !transition-all hover:scale-[0.98] hover:shadow-lg hover:z-20 active:scale-95 cursor-grab",
+                            isBeingDragged 
+                              ? "z-50 shadow-2xl opacity-90 scale-[1.02] border-indigo-500 cursor-grabbing bg-indigo-500/20 text-indigo-300 !transition-none"
+                              : cn(
+                                  entry.is_ot || entry.is_implied_ot
+                                    ? "bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/20"
+                                    : "bg-indigo-500/10 border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/20"
+                                )
+                          )}
+                          title={`${entry.project_name}\n${entry.action_name}\n${entry.start_time?.slice(0, 5)} - ${entry.end_time?.slice(0, 5)} (${entry.total_hours}h)`}
+                        >
+                          <div className="leading-none overflow-hidden flex-1 w-full">
+                            <span className={cn(
+                              "text-[9px] font-extrabold uppercase tracking-tight block truncate",
+                              isBeingDragged ? "text-indigo-400" : ""
+                            )}>
+                              {entry.project_name}
+                            </span>
+                            <span className="text-[9px] font-bold text-theme-text block truncate mt-0.5">
+                              {entry.action_name}
+                            </span>
+                            {entry.description && height >= 45 && (
+                              <p 
+                                className="text-[8px] opacity-75 mt-1.5 leading-normal break-words text-theme-text-secondary select-none font-medium"
+                                style={{
+                                  display: '-webkit-box',
+                                  WebkitBoxOrient: 'vertical',
+                                  WebkitLineClamp: height >= 85 ? 3 : (height >= 60 ? 2 : 1),
+                                  overflow: 'hidden'
+                                }}
+                              >
+                                {entry.description}
+                              </p>
+                            )}
+                          </div>
+                          {height >= 34 && (
+                            <div className="text-[8px] font-mono opacity-80 mt-auto pt-1 flex justify-between items-center w-full border-t border-theme-border/5">
+                              <span className="truncate">{entry.start_time?.slice(0, 5)}-{entry.end_time?.slice(0, 5)}</span>
+                              <span className="font-bold shrink-0">{entry.total_hours}h</span>
+                            </div>
+                          )}
+
+                          {/* Resize edge handle (bottom) */}
+                          {sessionUser && entry.user_id === sessionUser.id && (
+                            <div 
+                              className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-30 group-hover:bg-indigo-500/30 dark:group-hover:bg-indigo-500/20 transition-colors"
+                              onMouseDown={(evt) => handleResizeStart(evt, entry)}
+                              onTouchStart={(evt) => {
+                                if (evt.touches.length === 0) return;
+                                const touch = evt.touches[0];
+                                handleResizeStart({
+                                  clientX: touch.clientX,
+                                  clientY: touch.clientY,
+                                  preventDefault: () => evt.preventDefault(),
+                                  stopPropagation: () => evt.stopPropagation()
+                                } as any, entry);
+                              }}
+                            />
+                          )}
+
+                          {/* Resize edge handle (top) */}
+                          {sessionUser && entry.user_id === sessionUser.id && (
+                            <div 
+                              className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-30 group-hover:bg-indigo-500/30 dark:group-hover:bg-indigo-500/20 transition-colors"
+                              onMouseDown={(evt) => handleResizeTopStart(evt, entry)}
+                              onTouchStart={(evt) => {
+                                if (evt.touches.length === 0) return;
+                                const touch = evt.touches[0];
+                                handleResizeTopStart({
+                                  clientX: touch.clientX,
+                                  clientY: touch.clientY,
+                                  preventDefault: () => evt.preventDefault(),
+                                  stopPropagation: () => evt.stopPropagation()
+                                } as any, entry);
+                              }}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+
+                    {/* Today line indicator */}
+                    {isTodayColumn && (
+                      <div 
+                        className="absolute left-0 right-0 border-t-2 border-rose-500 z-10 pointer-events-none flex items-center"
+                        style={{ top: `${currentTimeTop}px` }}
+                      >
+                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500 -ml-0.75 shadow-sm" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const [syncAlert, setSyncAlert] = useState<{
     isOpen: boolean;
     title: string;
@@ -59,18 +917,9 @@ export default function CalendarPage() {
     isConfirm?: boolean;
     onConfirm?: () => void;
   } | null>(null);
-  // ─────────────────────────────────────────────────────────────────────────────
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-
-  // Helper: Format date to YYYY-MM-DD
-  const formatDateToYMD = (date: Date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
 
   // Month boundary strings for filtering
   const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
@@ -432,12 +1281,32 @@ export default function CalendarPage() {
     });
   }
 
-  const prevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
+  const prevDate = () => {
+    if (viewMode === 'month') {
+      setCurrentDate(new Date(year, month - 1, 1));
+    } else if (viewMode === 'week') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() - 7);
+      setCurrentDate(d);
+    } else if (viewMode === 'two-weeks') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() - 14);
+      setCurrentDate(d);
+    }
   };
 
-  const nextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
+  const nextDate = () => {
+    if (viewMode === 'month') {
+      setCurrentDate(new Date(year, month + 1, 1));
+    } else if (viewMode === 'week') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() + 7);
+      setCurrentDate(d);
+    } else if (viewMode === 'two-weeks') {
+      const d = new Date(currentDate);
+      d.setDate(currentDate.getDate() + 14);
+      setCurrentDate(d);
+    }
   };
 
   const today = () => {
@@ -453,10 +1322,7 @@ export default function CalendarPage() {
     setSelectedDateEntries(entries.filter((e) => e.work_date === dStr));
   };
 
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
+
 
   return (
     <AppLayout>
@@ -568,6 +1434,57 @@ export default function CalendarPage() {
               </>
             )}
 
+            {/* View Mode Switcher */}
+            <div className="flex bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 border border-theme-border/50 rounded-xl p-1 shadow-md select-none">
+              {(['month', 'week', 'two-weeks'] as const).map((mode) => {
+                const label = mode === 'month' ? 'Month' : mode === 'week' ? 'Week' : '2 Weeks';
+                const isActive = viewMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer",
+                      isActive 
+                        ? "bg-indigo-500 text-white shadow" 
+                        : "text-theme-text-secondary hover:text-theme-text"
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Weekend Toggle (SAT/SUN visibility) */}
+            {(viewMode === 'week' || viewMode === 'two-weeks') && (
+              <button
+                onClick={() => setShowWeekends(prev => !prev)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer",
+                  showWeekends
+                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
+                    : "bg-theme-surface-tertiary border-theme-border/50 text-theme-text-muted hover:text-theme-text"
+                )}
+              >
+                <span>{showWeekends ? "Hide Sat/Sun" : "Show Sat/Sun"}</span>
+              </button>
+            )}
+
+            {/* Side Panel Toggle */}
+            <button
+              onClick={() => setShowSidePanel(prev => !prev)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer",
+                showSidePanel
+                  ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
+                  : "bg-theme-surface-tertiary border-theme-border/50 text-theme-text-muted hover:text-theme-text"
+              )}
+            >
+              <ClipboardList size={14} />
+              <span>{showSidePanel ? "Hide Details" : "Show Details"}</span>
+            </button>
+
             <button 
               onClick={today}
               className="px-4 py-2 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl text-sm font-semibold text-theme-text-secondary hover:text-theme-text transition-all hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary"
@@ -575,13 +1492,15 @@ export default function CalendarPage() {
               Today
             </button>
             <div className="flex bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 border border-theme-border/50 rounded-xl overflow-hidden shadow-md">
-              <button onClick={prevMonth} className="p-2.5 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors">
+              <button onClick={prevDate} className="p-2.5 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors">
                 <ChevronLeft size={18} />
               </button>
               <span className="px-4 py-2.5 text-sm font-semibold text-theme-text min-w-[140px] text-center font-mono">
-                {monthNames[month]} {year}
+                {viewMode === 'month' && `${monthNames[month]} ${year}`}
+                {viewMode === 'week' && weekRangeStr}
+                {viewMode === 'two-weeks' && twoWeeksRangeStr}
               </span>
-              <button onClick={nextMonth} className="p-2.5 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors">
+              <button onClick={nextDate} className="p-2.5 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors">
                 <ChevronRight size={18} />
               </button>
             </div>
@@ -616,34 +1535,47 @@ export default function CalendarPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
           {/* Calendar Grid Container */}
-          <div className="lg:col-span-2 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl flex flex-col">
+          <div className={cn(
+            "bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl flex flex-col transition-all duration-300",
+            showSidePanel ? "lg:col-span-2" : "lg:col-span-3"
+          )}>
             
-            {/* Weekdays header */}
-            <div className="grid grid-cols-7 gap-2 mb-4 text-center">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
-                const isWeekendLabel = day === 'Sat' || day === 'Sun';
-                return (
-                  <span 
-                    key={day} 
-                    className={cn(
-                      "text-xs font-bold tracking-wider uppercase py-2",
-                      isWeekendLabel ? "text-rose-400" : "text-theme-text-secondary"
-                    )}
-                  >
-                    {day}
-                  </span>
-                );
-              })}
-            </div>
-
-            {/* Days grid */}
-            {isLoading ? (
-              <div className="grid grid-cols-7 gap-2 animate-pulse flex-1 min-h-[350px]">
-                {Array.from({ length: 35 }).map((_, i) => (
-                  <div key={i} className="aspect-square bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border/50 rounded-xl"></div>
-                ))}
+            {/* Weekdays header (Month View Only) */}
+            {viewMode === 'month' && (
+              <div className="grid grid-cols-7 gap-2 mb-4 text-center select-none">
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
+                  const isWeekendLabel = day === 'Sat' || day === 'Sun';
+                  return (
+                    <span 
+                      key={day} 
+                      className={cn(
+                        "text-xs font-bold tracking-wider uppercase py-2",
+                        isWeekendLabel ? "text-rose-400" : "text-theme-text-secondary"
+                      )}
+                    >
+                      {day}
+                    </span>
+                  );
+                })}
               </div>
-            ) : (
+            )}
+
+            {/* Calendar Body (Month View, Week View, or 2-Week View) */}
+            {isLoading ? (
+              viewMode === 'month' ? (
+                <div className="grid grid-cols-7 gap-2 animate-pulse flex-1 min-h-[350px]">
+                  {Array.from({ length: 35 }).map((_, i) => (
+                    <div key={i} className="aspect-square bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border/50 rounded-xl"></div>
+                  ))}
+                </div>
+              ) : (
+                <div className="animate-pulse flex-1 flex flex-col gap-4 min-h-[350px]">
+                  <div className="h-10 bg-theme-surface-secondary dark:bg-theme-surface-secondary/20 border border-theme-border/50 rounded-xl w-full"></div>
+                  <div className="h-16 bg-theme-surface-secondary dark:bg-theme-surface-secondary/20 border border-theme-border/50 rounded-xl w-full"></div>
+                  <div className="flex-1 bg-theme-surface-secondary dark:bg-theme-surface-secondary/20 border border-theme-border/50 rounded-xl w-full"></div>
+                </div>
+              )
+            ) : viewMode === 'month' ? (
               <div className="grid grid-cols-7 gap-2 flex-1 min-h-[350px]">
                 {daysArray.map((cell, index) => {
                   const dStr = formatDateToYMD(cell.date);
@@ -726,112 +1658,126 @@ export default function CalendarPage() {
                   );
                 })}
               </div>
+            ) : viewMode === 'week' ? (
+              <div className="w-full overflow-x-auto custom-scrollbar">
+                <div className="min-w-[700px] lg:min-w-0">
+                  {renderWeekGrid(visibleWeek1Days)}
+                </div>
+              </div>
+            ) : (
+              <div className="w-full overflow-x-auto custom-scrollbar">
+                <div className="min-w-[1200px] lg:min-w-0">
+                  {renderWeekGrid([...visibleWeek1Days, ...visibleWeek2Days])}
+                </div>
+              </div>
             )}
           </div>
 
           {/* Right Pane: Day Details */}
-          <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl flex flex-col max-h-[650px] lg:sticky lg:top-8">
-            <h2 className="text-lg font-bold text-theme-text mb-4 flex items-center gap-2">
-              <ClipboardList size={18} className="text-indigo-400" />
-              <span>Details for {selectedDateStr ? new Date(selectedDateStr).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Selected Day'}</span>
-            </h2>
+          {showSidePanel && (
+            <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl flex flex-col max-h-[650px] lg:sticky lg:top-8 animate-in slide-in-from-right duration-300">
+              <h2 className="text-lg font-bold text-theme-text mb-4 flex items-center gap-2">
+                <ClipboardList size={18} className="text-indigo-400" />
+                <span>Details for {selectedDateStr ? new Date(selectedDateStr).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Selected Day'}</span>
+              </h2>
 
-            {isLoading ? (
-              <div className="flex-1 flex items-center justify-center animate-pulse py-12">
-                <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            ) : selectedDateEntries.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center py-12 text-center space-y-4">
-                <div className="w-12 h-12 rounded-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary flex items-center justify-center text-theme-text-secondary">
-                  <Clock size={20} />
+              {isLoading ? (
+                <div className="flex-1 flex items-center justify-center animate-pulse py-12">
+                  <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
-                <div>
-                  <h4 className="text-theme-text-secondary font-medium">No hours logged</h4>
-                  <p className="text-xs text-theme-text-secondary mt-1 max-w-[200px] mx-auto">
-                    You haven't recorded any tasks for this date.
-                  </p>
-                </div>
-                <button
-                  onClick={() => navigate('/log')}
-                  className="inline-flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 text-theme-text text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
-                >
-                  <Plus size={14} />
-                  <span>Log Work</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-                {selectedDateEntries.map((e) => (
-                  <div 
-                    key={e.id}
-                    className={cn(
-                      "p-4 bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border rounded-xl flex flex-col justify-between hover:border-theme-border/50 transition-all",
-                      e.is_ot || e.is_implied_ot ? "border-amber-500/20 shadow-sm shadow-amber-500/5" : "border-theme-border/30"
-                    )}
-                  >
-                    <div>
-                      <div className="flex justify-between items-start gap-2 mb-2">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className={cn(
-                            "text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider",
-                            e.is_ot || e.is_implied_ot 
-                              ? "text-amber-400 bg-amber-500/10 border border-amber-500/20" 
-                              : "text-indigo-400 bg-indigo-500/10 border border-indigo-500/20"
-                          )}>
-                            {e.project_name}
-                          </span>
-                          {(e.is_ot || e.is_implied_ot) && (
-                            <span className="text-[9px] font-extrabold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 uppercase tracking-tight font-mono">
-                              {e.is_ot ? 'OT' : 'Implied OT'}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-sm font-extrabold text-theme-text font-mono flex items-center gap-1">
-                          <Clock size={12} className="text-theme-text-secondary" />
-                          <span>{e.total_hours.toFixed(1)}h</span>
-                        </span>
-                      </div>
-                      <h4 className="text-sm font-semibold text-theme-text">{e.action_name}</h4>
-                      {e.description && (
-                        <p className="text-xs text-theme-text-secondary mt-2 bg-theme-surface-secondary/80 p-2.5 rounded-lg border border-theme-border italic leading-relaxed">
-                          "{e.description}"
-                        </p>
-                      )}
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-theme-border/85 flex justify-end gap-3.5">
-                      <button
-                        onClick={() => setViewingLog(e)}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-theme-text-secondary hover:text-theme-text transition-colors uppercase tracking-wider cursor-pointer"
-                      >
-                        <Eye size={12} />
-                        <span>ดูใบงาน / View</span>
-                      </button>
-                      {/* Only show Edit button for the log owner */}
-                      {sessionUser && (e as any).user_id === sessionUser.id && (
-                        <button
-                          onClick={() => setEditingLog(e)}
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider cursor-pointer"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          <span>แก้ไข / Edit</span>
-                        </button>
-                      )}
-                    </div>
+              ) : selectedDateEntries.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center py-12 text-center space-y-4">
+                  <div className="w-12 h-12 rounded-full bg-theme-surface-tertiary dark:bg-theme-surface-tertiary flex items-center justify-center text-theme-text-secondary">
+                    <Clock size={20} />
                   </div>
-                ))}
-                
-                <button
-                  onClick={() => navigate('/log')}
-                  className="w-full inline-flex items-center justify-center gap-1.5 bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-400 hover:text-indigo-300 text-xs font-semibold py-3 rounded-xl transition-all active:scale-95"
-                >
-                  <Plus size={14} />
-                  <span>Add Another Log</span>
-                </button>
-              </div>
-            )}
-          </div>
+                  <div>
+                    <h4 className="text-theme-text-secondary font-medium">No hours logged</h4>
+                    <p className="text-xs text-theme-text-secondary mt-1 max-w-[200px] mx-auto">
+                      You haven't recorded any tasks for this date.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate('/log')}
+                    className="inline-flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 text-theme-text text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
+                  >
+                    <Plus size={14} />
+                    <span>Log Work</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                  {selectedDateEntries.map((e) => (
+                    <div 
+                      key={e.id}
+                      className={cn(
+                        "p-4 bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border rounded-xl flex flex-col justify-between hover:border-theme-border/50 transition-all",
+                        e.is_ot || e.is_implied_ot ? "border-amber-500/20 shadow-sm shadow-amber-500/5" : "border-theme-border/30"
+                      )}
+                    >
+                      <div>
+                        <div className="flex justify-between items-start gap-2 mb-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className={cn(
+                              "text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider",
+                              e.is_ot || e.is_implied_ot 
+                                ? "text-amber-400 bg-amber-500/10 border border-amber-500/20" 
+                                : "text-indigo-400 bg-indigo-500/10 border border-indigo-500/20"
+                            )}>
+                              {e.project_name}
+                            </span>
+                            {(e.is_ot || e.is_implied_ot) && (
+                              <span className="text-[9px] font-extrabold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 uppercase tracking-tight font-mono">
+                                {e.is_ot ? 'OT' : 'Implied OT'}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-sm font-extrabold text-theme-text font-mono flex items-center gap-1">
+                            <Clock size={12} className="text-theme-text-secondary" />
+                            <span>{e.total_hours.toFixed(1)}h</span>
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-semibold text-theme-text">{e.action_name}</h4>
+                        {e.description && (
+                          <p className="text-xs text-theme-text-secondary mt-2 bg-theme-surface-secondary/80 p-2.5 rounded-lg border border-theme-border italic leading-relaxed">
+                            "{e.description}"
+                          </p>
+                        )}
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-theme-border/85 flex justify-end gap-3.5">
+                        <button
+                          onClick={() => setViewingLog(e)}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-theme-text-secondary hover:text-theme-text transition-colors uppercase tracking-wider cursor-pointer"
+                        >
+                          <Eye size={12} />
+                          <span>ดูใบงาน / View</span>
+                        </button>
+                        {/* Only show Edit button for the log owner */}
+                        {sessionUser && (e as any).user_id === sessionUser.id && (
+                          <button
+                            onClick={() => setEditingLog(e)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider cursor-pointer"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            <span>แก้ไข / Edit</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <button
+                    onClick={() => navigate('/log')}
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-400 hover:text-indigo-300 text-xs font-semibold py-3 rounded-xl transition-all active:scale-95"
+                  >
+                    <Plus size={14} />
+                    <span>Add Another Log</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
       </div>

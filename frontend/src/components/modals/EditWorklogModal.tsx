@@ -300,10 +300,26 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   const [endTime, setEndTime] = useState('17:00');
   const [isBreak, setIsBreak] = useState(true);
   const [description, setDescription] = useState('');
+  const [dbTemplates, setDbTemplates] = useState<any[]>([
+    { id: '1', template_name: 'เทมเพลตประชุม', template_content: '[วัตถุประสงค์]: \n[บทบาทของคุณ]: \n[ข้อสรุป]: \n[Next Steps]: ', icon: '📝' },
+    { id: '2', template_name: 'เทมเพลตงานทั่วไป', template_content: '[งานที่ทำ]: \n[ผลลัพธ์ที่ได้]: \n[KPI/เป้าหมาย]: \n[Next Steps]: ', icon: '⚙️' },
+    { id: '3', template_name: 'เทมเพลต PARIL (ทดลอง)', template_content: '[Plan]: \n[Action]: \n[Result]: \n[Impact]: \n[Lesson Learned]: ', icon: '🎯' }
+  ]);
   const [isExplicitOt, setIsExplicitOt] = useState(false);
   const [selectedActionChannels, setSelectedActionChannels] = useState<string[]>([]);
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState<boolean>(false);
+
+  const handleInjectTemplate = (templateText: string) => {
+    if (!description.trim()) {
+      setDescription(templateText);
+    } else {
+      setDescription(prev => {
+        const separator = prev.endsWith('\n') ? '' : '\n';
+        return prev + separator + templateText;
+      });
+    }
+  };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -415,20 +431,24 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         cleanName = 'Chatchawan';
       }
 
-      const [resUser, resProj, resAct] = await Promise.all([
+      const [resUser, resProj, resAct, resTpl] = await Promise.all([
         supabase.from('tb_map_user_role').select('*').ilike('name', cleanName.trim()),
         supabase.from('tb_map_project_structure').select('*'),
-        supabase.from('tb_master_action').select('*')
+        supabase.from('tb_master_action').select('*'),
+        supabase.from('tb_master_worklog_templates').select('*')
       ]);
 
       if (resUser.data && resUser.data.length > 0) {
-        setMapUserRole(resUser.data);
+         setMapUserRole(resUser.data);
       } else {
         const fallback = await supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
         if (fallback.data) setMapUserRole(fallback.data);
       }
       if (resProj.data) setMapProjectStructure(resProj.data);
       if (resAct.data) setMasterActions(resAct.data);
+      if (resTpl.data && resTpl.data.length > 0) {
+        setDbTemplates(resTpl.data);
+      }
     }
     loadDropdownData();
   }, [isOpen, log, session]);
@@ -1414,6 +1434,22 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
           {/* Section 3: Description input */}
           <div className="space-y-2">
             <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1 ml-1">รายละเอียดงาน (Work Description)</label>
+            
+            {/* Worklog templates wrapped row */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              {dbTemplates.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  onClick={() => handleInjectTemplate(tpl.template_content)}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg border border-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>{tpl.icon || '📝'}</span>
+                  <span>{tpl.template_name}</span>
+                </button>
+              ))}
+            </div>
+
             <textarea
               rows={3}
               value={description}
