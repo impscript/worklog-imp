@@ -501,13 +501,18 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     const currentUserId = log.user_id;
 
     async function loadDailyData() {
-      // 1. Fetch other logs on this date (exclude current log)
-      const { data: logs } = await supabase
+      // 1. Fetch other logs on this date (exclude current log if editing)
+      let query = supabase
         .from('col_worklog')
         .select('*')
         .eq('user_id', currentUserId)
-        .eq('work_date', date)
-        .neq('id', currentLogId);
+        .eq('work_date', date);
+      
+      if (currentLogId) {
+        query = query.neq('id', currentLogId);
+      }
+
+      const { data: logs } = await query;
       
       if (logs) setExistingEntries(logs);
 
@@ -958,11 +963,16 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
           };
         }
 
-        const pendingSync = {
+        const pendingSync = log.id ? {
           action: 'update',
           logId: log.id,
           updatePayload,
           inserts
+        } : {
+          action: 'insert',
+          inserts: preview.segments.length > 1
+            ? [{ ...updatePayload, user_id: log.user_id, channel: 'Web App' }, ...inserts]
+            : [{ ...updatePayload, user_id: log.user_id, channel: 'Web App' }]
         };
 
         localStorage.setItem('gcal_pending_sync', JSON.stringify(pendingSync));
@@ -983,42 +993,81 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     try {
       if (preview.segments.length > 1) {
         // We need to SPLIT this entry!
-        // 1. Update the first segment onto the current entry
         const segment0 = preview.segments[0];
         const segment0Prefix = segment0.is_ot ? '[OT]' : '[Normal]';
 
-        const { error: errorNormal } = await supabase
-          .from('col_worklog')
-          .update({
-            work_date: segment0.work_date,
-            start_time: segment0.start_time + ':00',
-            end_time: segment0.end_time + ':00',
-            break_time: !segment0.is_ot ? isBreak : false,
-            total_hours: segment0.hours,
-            holding,
-            department_operator: role,
-            project_type: projectType,
-            project_name: projectName,
-            module: module || null,
-            bu,
-            department,
-            action_name: actionName,
-            action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
-            description: description ? `${segment0Prefix} ${description}` : `${segment0.is_ot ? 'OT' : 'Normal'} portion`,
-            is_ot: segment0.is_ot,
-            is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt,
-            image_urls: attachedImages
-          })
-          .eq('id', log.id);
+        if (log.id) {
+          // 1. Update the first segment onto the current entry
+          const { error: errorNormal } = await supabase
+            .from('col_worklog')
+            .update({
+              work_date: segment0.work_date,
+              start_time: segment0.start_time + ':00',
+              end_time: segment0.end_time + ':00',
+              break_time: !segment0.is_ot ? isBreak : false,
+              total_hours: segment0.hours,
+              holding,
+              department_operator: role,
+              project_type: projectType,
+              project_name: projectName,
+              module: module || null,
+              bu,
+              department,
+              action_name: actionName,
+              action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+              description: description ? `${segment0Prefix} ${description}` : `${segment0.is_ot ? 'OT' : 'Normal'} portion`,
+              is_ot: segment0.is_ot,
+              is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt,
+              image_urls: attachedImages
+            })
+            .eq('id', log.id);
 
-        if (errorNormal) throw errorNormal;
-        
-        // Sync first updated segment
-        syncWorklogToGCal(log.id, 'update')
-          .then(() => showToast('✅ Synced to Google Calendar', 'success'))
-          .catch((syncErr: any) => {
-            showToast('Google Calendar sync failed: ' + syncErr.message, 'error');
-          });
+          if (errorNormal) throw errorNormal;
+          
+          // Sync first updated segment
+          syncWorklogToGCal(log.id, 'update')
+            .then(() => showToast('✅ Synced to Google Calendar', 'success'))
+            .catch((syncErr: any) => {
+              showToast('Google Calendar sync failed: ' + syncErr.message, 'error');
+            });
+        } else {
+          // 1. Insert the first segment as a new entry
+          const { data: dataNew0, error: errorNew0 } = await supabase
+            .from('col_worklog')
+            .insert({
+              user_id: log.user_id,
+              work_date: segment0.work_date,
+              start_time: segment0.start_time + ':00',
+              end_time: segment0.end_time + ':00',
+              break_time: !segment0.is_ot ? isBreak : false,
+              total_hours: segment0.hours,
+              holding,
+              department_operator: role,
+              project_type: projectType,
+              project_name: projectName,
+              module: module || null,
+              bu,
+              department,
+              action_name: actionName,
+              action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+              description: description ? `${segment0Prefix} ${description}` : `${segment0.is_ot ? 'OT' : 'Normal'} portion`,
+              channel: 'Web App',
+              is_ot: segment0.is_ot,
+              is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt,
+              image_urls: attachedImages
+            })
+            .select('id')
+            .maybeSingle();
+
+          if (errorNew0) throw errorNew0;
+          if (dataNew0) {
+            syncWorklogToGCal(dataNew0.id, 'insert')
+              .then(() => showToast('✅ Synced to Google Calendar', 'success'))
+              .catch((syncErr: any) => {
+                showToast('Google Calendar sync failed: ' + syncErr.message, 'error');
+              });
+          }
+        }
 
         // 2. Insert remaining segments as new entries
         for (let i = 1; i < preview.segments.length; i++) {
@@ -1067,41 +1116,80 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
           is_ot: isExplicitOt || isHolidayDate
         };
 
-        const { error } = await supabase
-          .from('col_worklog')
-          .update({
-            work_date: segment.work_date,
-            start_time: segment.start_time + ':00',
-            end_time: segment.end_time + ':00',
-            break_time: isBreak,
-            total_hours: segment.hours,
-            holding,
-            department_operator: role,
-            project_type: projectType,
-            project_name: projectName,
-            module: module || null,
-            bu,
-            department,
-            action_name: actionName,
-            action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
-            description,
-            is_ot: segment.is_ot,
-            is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-            image_urls: attachedImages
-          })
-          .eq('id', log.id);
+        if (log.id) {
+          const { error } = await supabase
+            .from('col_worklog')
+            .update({
+              work_date: segment.work_date,
+              start_time: segment.start_time + ':00',
+              end_time: segment.end_time + ':00',
+              break_time: isBreak,
+              total_hours: segment.hours,
+              holding,
+              department_operator: role,
+              project_type: projectType,
+              project_name: projectName,
+              module: module || null,
+              bu,
+              department,
+              action_name: actionName,
+              action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+              description,
+              is_ot: segment.is_ot,
+              is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
+              image_urls: attachedImages
+            })
+            .eq('id', log.id);
 
-        if (error) throw error;
-        
-        // Sync updated log
-        syncWorklogToGCal(log.id, 'update')
-          .then(() => showToast('✅ Synced to Google Calendar', 'success'))
-          .catch((syncErr: any) => {
-            showToast('Google Calendar sync failed: ' + syncErr.message, 'error');
-          });
+          if (error) throw error;
+          
+          // Sync updated log
+          syncWorklogToGCal(log.id, 'update')
+            .then(() => showToast('✅ Synced to Google Calendar', 'success'))
+            .catch((syncErr: any) => {
+              showToast('Google Calendar sync failed: ' + syncErr.message, 'error');
+            });
+        } else {
+          // Standard single entry insert
+          const { data: dataNew, error } = await supabase
+            .from('col_worklog')
+            .insert({
+              user_id: log.user_id,
+              work_date: segment.work_date,
+              start_time: segment.start_time + ':00',
+              end_time: segment.end_time + ':00',
+              break_time: isBreak,
+              total_hours: segment.hours,
+              holding,
+              department_operator: role,
+              project_type: projectType,
+              project_name: projectName,
+              module: module || null,
+              bu,
+              department,
+              action_name: actionName,
+              action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
+              description,
+              is_ot: segment.is_ot,
+              is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
+              image_urls: attachedImages,
+              channel: 'Web App'
+            })
+            .select('id')
+            .maybeSingle();
+
+          if (error) throw error;
+          if (dataNew) {
+            syncWorklogToGCal(dataNew.id, 'insert')
+              .then(() => showToast('✅ Synced to Google Calendar', 'success'))
+              .catch((syncErr: any) => {
+                showToast('Google Calendar sync failed: ' + syncErr.message, 'error');
+              });
+          }
+        }
       }
 
-      showToast('Worklog updated successfully!', 'success');
+      showToast(log.id ? 'Worklog updated successfully!' : 'Worklog created successfully!', 'success');
       onSaveSuccess();
       onClose();
     } catch (err: any) {
@@ -1123,9 +1211,11 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
           <div>
             <h2 className="text-lg font-black text-theme-text tracking-tight flex items-center gap-2">
               <Zap className="text-indigo-400" size={20} />
-              <span>แก้ไขใบงานบันทึกการทำงาน</span>
+              <span>{log.id ? "แก้ไขใบงานบันทึกการทำงาน" : "สร้างใบงานบันทึกการทำงาน"}</span>
             </h2>
-            <p className="text-xs text-theme-text-secondary mt-0.5">แก้ไขรายละเอียดใบงานรหัส {log.id.slice(0, 8)}...</p>
+            <p className="text-xs text-theme-text-secondary mt-0.5">
+              {log.id ? `แก้ไขรายละเอียดใบงานรหัส ${log.id.slice(0, 8)}...` : "กรอกข้อมูลเพื่อสร้างใบงานบันทึกการทำงานใหม่"}
+            </p>
           </div>
           <button 
             onClick={onClose}
@@ -1525,7 +1615,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             {isSubmitting ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             ) : (
-              'บันทึกการแก้ไข'
+              log.id ? 'บันทึกการแก้ไข' : 'สร้างใบงาน'
             )}
           </button>
         </div>
@@ -1541,8 +1631,12 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                 <Zap size={22} />
               </div>
               <div>
-                <h3 className="text-base font-black text-theme-text tracking-tight">ยืนยันการบันทึกการแก้ไข?</h3>
-                <p className="text-[11px] text-theme-text-secondary mt-0.5 font-medium">โปรดยืนยันการเปลี่ยนแปลงข้อมูลใบงานนี้</p>
+                <h3 className="text-base font-black text-theme-text tracking-tight">
+                  {log.id ? "ยืนยันการบันทึกการแก้ไข?" : "ยืนยันการสร้างใบงาน?"}
+                </h3>
+                <p className="text-[11px] text-theme-text-secondary mt-0.5 font-medium">
+                  {log.id ? "โปรดยืนยันการเปลี่ยนแปลงข้อมูลใบงานนี้" : "โปรดยืนยันข้อมูลเพื่อสร้างใบงานบันทึกการทำงานใหม่"}
+                </p>
               </div>
             </div>
 

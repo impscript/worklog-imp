@@ -718,13 +718,13 @@ export default function CalendarPage() {
               const holiday = holidays.find((h) => h.date === dStr);
               
               return (
-                <button
+                <div
                   key={idx}
                   onClick={() => handleDayClick(dayDate)}
                   className={cn(
-                    "flex flex-col items-center py-1.5 rounded-xl transition-all hover:bg-theme-surface-secondary/60 cursor-pointer border",
+                    "flex flex-col items-center py-1.5 rounded-xl transition-all hover:bg-theme-surface-secondary/60 cursor-pointer border relative group",
                     isSelected 
-                      ? "bg-indigo-500/15 border-indigo-500/30" 
+                      ? "bg-indigo-500/15 border-indigo-500/30 shadow-sm" 
                       : (idx % 2 === 0 
                           ? "bg-theme-surface-secondary/15 dark:bg-slate-900/20 border-transparent" 
                           : "border-transparent")
@@ -751,7 +751,20 @@ export default function CalendarPage() {
                       🎉 HD
                     </span>
                   )}
-                </button>
+                  {sessionUser && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCreateNewLog(dStr);
+                      }}
+                      className="mt-1.5 p-0.5 px-2 rounded-full bg-indigo-500/10 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-500 dark:text-indigo-400 hover:scale-105 active:scale-95 transition-all shadow-sm z-10 cursor-pointer flex items-center gap-0.5 text-[8px] font-extrabold uppercase tracking-wider"
+                      title={`สร้างใบงานสำหรับวันที่ ${dStr}`}
+                    >
+                      <Plus size={8} strokeWidth={3} />
+                      <span>Add</span>
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -1423,6 +1436,26 @@ export default function CalendarPage() {
     const dStr = formatDateToYMD(date);
     setSelectedDateStr(dStr);
     setSelectedDateEntries(entries.filter((e) => e.work_date === dStr));
+  };
+
+  const handleCreateNewLog = (workDate: string) => {
+    if (!sessionUser) return;
+    setEditingLog({
+      user_id: sessionUser.id,
+      work_date: workDate,
+      holding: '',
+      department_operator: '',
+      project_type: '',
+      project_name: '',
+      action_name: '',
+      total_hours: 0,
+      description: '',
+      is_ot: false,
+      is_implied_ot: false,
+      bu: '',
+      start_time: '08:00',
+      end_time: '17:00'
+    });
   };
 
 
