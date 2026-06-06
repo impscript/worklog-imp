@@ -242,6 +242,16 @@ export default function CalendarPage() {
       };
     }
     
+    if (projectType.includes('e-learning') || projectType === 'elearning') {
+      // Pink (Flamingo / colorId 4)
+      return {
+        bg: "bg-pink-500/10 dark:bg-pink-500/10",
+        border: "border-pink-500/30 dark:border-pink-500/40",
+        text: "text-pink-600 dark:text-pink-400 hover:bg-pink-500/20",
+        badge: "text-pink-500 dark:text-pink-400 bg-pink-500/10 dark:bg-pink-500/20 border-pink-500/20 dark:border-pink-500/30"
+      };
+    }
+    
     // Fallback Yellow (Banana / colorId 5) for Management, Admin, etc.
     return {
       bg: "bg-amber-500/10 dark:bg-amber-500/10",

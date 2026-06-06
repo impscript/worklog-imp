@@ -424,6 +424,8 @@ class GoogleCalendarService {
       event.colorId = '9'; // Blue
     } else if (projectType.toLowerCase().includes('support')) {
       event.colorId = '2'; // Green
+    } else if (projectType.toLowerCase().includes('e-learning') || projectType.toLowerCase() === 'elearning') {
+      event.colorId = '4'; // Flamingo Pink
     } else {
       event.colorId = '5'; // Fallback Yellow
     }
