@@ -359,13 +359,11 @@ class GoogleCalendarService {
     const isOT = entry.is_ot === true || entry.is_ot === 'true';
     const projectType = entry.project_type || 'Task';
     
-    // Format Title: (Type) Project Name - Action Name / Module (instead of using the long description)
-    const titleText = entry.module 
-      ? `${projectTitle} (${entry.module}) - ${actionName}`
-      : `${projectTitle} - ${actionName}`;
-      
     const typeLabel = isOT ? `OT / ${projectType}` : projectType;
-    const summary = `(${typeLabel}) ${titleText}`;
+    
+    // Format Title: [Type] Action Name - Project Name / Module
+    const detailsSuffix = entry.module ? ` (${entry.module})` : '';
+    const summary = `[${typeLabel}] ${actionName}${detailsSuffix} - ${projectTitle}`;
 
     const hasProjectBackgroundInDesc = entry.description && (
       entry.description.toLowerCase().includes('project background') || 

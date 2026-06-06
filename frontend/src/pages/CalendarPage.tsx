@@ -70,8 +70,8 @@ export default function CalendarPage() {
   const [showWeekends, setShowWeekends] = useState(true);
   const [showFullDay, setShowFullDay] = useState(false);
 
-  const startHourOffset = showFullDay ? 0 : 8;
-  const endHourOffset = showFullDay ? 24 : 18;
+  const startHourOffset = showFullDay ? 0 : 7;
+  const endHourOffset = showFullDay ? 24 : 19;
   const [currentMinutes, setCurrentMinutes] = useState(() => {
     const now = new Date();
     return now.getHours() * 60 + now.getMinutes();
@@ -79,6 +79,7 @@ export default function CalendarPage() {
   const { showToast } = useNotification();
   const [showSidePanel, setShowSidePanel] = useState(true);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
+  const hasDraggedRef = useRef(false);
   const hourHeight = 50;
 
   useEffect(() => {
@@ -354,6 +355,7 @@ export default function CalendarPage() {
 
   const handleDragStart = (e: React.MouseEvent, entry: WorklogEntry) => {
     if (!sessionUser || entry.user_id !== sessionUser.id) return;
+    hasDraggedRef.current = false;
     
     // Check if clicking on another button inside the card (e.currentTarget represents the card button itself)
     const closestButton = (e.target as HTMLElement).closest('button');
@@ -380,6 +382,7 @@ export default function CalendarPage() {
 
   const handleResizeStart = (e: React.MouseEvent, entry: WorklogEntry) => {
     if (!sessionUser || entry.user_id !== sessionUser.id) return;
+    hasDraggedRef.current = false;
     e.preventDefault();
     e.stopPropagation();
 
@@ -402,6 +405,7 @@ export default function CalendarPage() {
 
   const handleResizeTopStart = (e: React.MouseEvent, entry: WorklogEntry) => {
     if (!sessionUser || entry.user_id !== sessionUser.id) return;
+    hasDraggedRef.current = false;
     e.preventDefault();
     e.stopPropagation();
 
@@ -444,6 +448,10 @@ export default function CalendarPage() {
 
       const rect = hoveredGrid.getBoundingClientRect();
       const deltaY = clientY - dragState.initialMouseY;
+      const deltaX = clientX - dragState.initialMouseX;
+      if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
+        hasDraggedRef.current = true;
+      }
       const deltaMin = Math.round(((deltaY / hourHeight) * 60) / 15) * 15;
 
       let targetDays = visibleWeek1Days;
@@ -528,6 +536,10 @@ export default function CalendarPage() {
 
       const rect = hoveredGrid.getBoundingClientRect();
       const deltaY = clientY - dragState.initialMouseY;
+      const deltaX = clientX - dragState.initialMouseX;
+      if (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5) {
+        hasDraggedRef.current = true;
+      }
       const deltaMin = Math.round(((deltaY / hourHeight) * 60) / 15) * 15;
 
       let targetDays = visibleWeek1Days;
@@ -789,7 +801,12 @@ export default function CalendarPage() {
                           } as any, e);
                         }}
                         onClick={() => {
-                          setViewingLog(e);
+                          if (hasDraggedRef.current) return;
+                          if (sessionUser && e.user_id === sessionUser.id) {
+                            setEditingLog(e);
+                          } else {
+                            setViewingLog(e);
+                          }
                           handleDayClick(dayDate);
                         }}
                         className={cn(
@@ -877,7 +894,12 @@ export default function CalendarPage() {
                             } as any, entry);
                           }}
                           onClick={() => {
-                            setViewingLog(entry);
+                            if (hasDraggedRef.current) return;
+                            if (sessionUser && entry.user_id === sessionUser.id) {
+                              setEditingLog(entry);
+                            } else {
+                              setViewingLog(entry);
+                            }
                             handleDayClick(dayDate);
                           }}
                           style={{
