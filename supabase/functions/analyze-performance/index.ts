@@ -98,7 +98,7 @@ function robustParseJson(raw: string): any {
     lastError = e;
     console.warn('[JSON Parse] Second attempt failed (' + (e as any).message + ').');
   }
-  throw new Error("Invalid JSON format from AI: " + (lastError ? lastError.message : "unknown error"));
+  throw new Error("Invalid JSON format from AI: " + (lastError ? lastError.message : "unknown error") + "\nRaw response from AI was:\n" + raw);
 }
 
 interface FallbackResult {
@@ -166,7 +166,8 @@ async function callLlmWithFallback(
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
-        ]
+        ],
+        max_tokens: 3000
       };
       // Cloudflare Workers AI uses OpenAI-compat endpoint but does NOT support response_format natively
       // JSON compliance is enforced via prompt engineering instead
