@@ -6,6 +6,86 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function extractJsonString(text: string): string {
+  var cleaned = text.trim();
+  var markdownRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+  var match = cleaned.match(markdownRegex);
+  if (match) {
+    cleaned = match[1].trim();
+  }
+  var firstBrace = cleaned.indexOf('{');
+  var lastBrace = cleaned.lastIndexOf('}');
+  var firstBracket = cleaned.indexOf('[');
+  var lastBracket = cleaned.lastIndexOf(']');
+  var startIdx = -1;
+  var endIdx = -1;
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    startIdx = firstBrace;
+    endIdx = lastBrace;
+  } else if (firstBracket !== -1) {
+    startIdx = firstBracket;
+    endIdx = lastBracket;
+  }
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    return cleaned.substring(startIdx, endIdx + 1);
+  }
+  return cleaned;
+}
+
+function sanitizeJsonString(raw: string): string {
+  var insideString = false;
+  var escaped = false;
+  var result = '';
+  for (var i = 0; i < raw.length; i++) {
+    var char = raw[i];
+    if (char === '"' && !escaped) {
+      insideString = !insideString;
+      result += char;
+    } else if (char === '\\' && insideString) {
+      escaped = !escaped;
+      result += char;
+    } else {
+      if (insideString) {
+        if (char === '\n') {
+          result += '\\n';
+        } else if (char === '\r') {
+          result += '\\r';
+        } else if (char === '\t') {
+          result += '\\t';
+        } else if (char.charCodeAt(0) < 32) {
+          // ignore or escape control chars
+        } else {
+          result += char;
+        }
+      } else {
+        result += char;
+      }
+      escaped = false;
+    }
+  }
+  return result;
+}
+
+function robustParseJson(raw: string): any {
+  var extracted = extractJsonString(raw);
+  var sanitized = sanitizeJsonString(extracted);
+  var lastError: any = null;
+  try {
+    return JSON.parse(sanitized);
+  } catch (e) {
+    lastError = e;
+    console.warn('[JSON Parse] First attempt failed (' + (e as any).message + '). Trying comma cleaning fallback.');
+  }
+  var noTrailingCommas = sanitized.replace(/,(\s*[}\]])/g, '$1');
+  try {
+    return JSON.parse(noTrailingCommas);
+  } catch (e) {
+    lastError = e;
+    console.warn('[JSON Parse] Second attempt failed (' + (e as any).message + ').');
+  }
+  throw new Error("Invalid JSON format from AI: " + (lastError ? lastError.message : "unknown error"));
+}
+
 interface FallbackResult {
   response: Response;
   actualModel: string;
@@ -79,12 +159,38 @@ async function callLlmWithFallback(
         bodyPayload.response_format = { type: "json_object" };
       }
 
-      const response = await fetch(endpoint, {
+      let response = await fetch(endpoint, {
         method: "POST",
         headers,
         body: JSON.stringify(bodyPayload),
         signal: controller.signal
       });
+
+      // Handle structured output format errors from smaller/unsupported models
+      if (!response.ok && response.status === 400 && bodyPayload.response_format) {
+        let errorText = '';
+        try {
+          errorText = await response.clone().text();
+        } catch (_) {}
+
+        const errLower = errorText.toLowerCase();
+        if (
+          errLower.includes('response_format') ||
+          errLower.includes('json_object') ||
+          errLower.includes('structured_outputs') ||
+          errLower.includes('json mode')
+        ) {
+          console.warn(`[AI] Model ${currentModel} failed with response_format error. Retrying without JSON mode constraint.`);
+          delete bodyPayload.response_format;
+          response = await fetch(endpoint, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(bodyPayload),
+            signal: controller.signal
+          });
+        }
+      }
+
       clearTimeout(timeoutId);
 
       if (response.ok) {
@@ -299,9 +405,8 @@ ${weightsText}
       );
 
       const aiResult = await response.json();
-      let content = aiResult.choices?.[0]?.message?.content || '{}';
-      content = content.replace(/^```json?/, '').replace(/```$/, '').trim();
-      const parsed = JSON.parse(content);
+      const rawContent = aiResult.choices?.[0]?.message?.content || '{}';
+      const parsed = robustParseJson(rawContent);
 
       return new Response(JSON.stringify({
         jd_text: parsed.jd_text || '',
@@ -417,8 +522,7 @@ You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap i
       );
 
       const aiResult = await response.json();
-      let rawContent = aiResult.choices?.[0]?.message?.content || '';
-      rawContent = rawContent.replace(/^```json/, '').replace(/^```/, '').replace(/```$/, '').trim();
+      const rawContent = aiResult.choices?.[0]?.message?.content || '';
 
       let parsed = {
         enhanced_text: rawContent,
@@ -429,7 +533,7 @@ You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap i
       };
 
       try {
-        const jsonParsed = JSON.parse(rawContent);
+        const jsonParsed = robustParseJson(rawContent);
         if (jsonParsed.enhanced_text) {
           parsed = {
             enhanced_text: jsonParsed.enhanced_text,
@@ -440,7 +544,7 @@ You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap i
           };
         }
       } catch (err) {
-        console.warn('Failed to parse AI response as JSON:', err, 'Raw content was:', rawContent);
+        console.warn('Failed to parse AI response as JSON:', (err as any).message, 'Raw content was:', rawContent);
       }
 
       return new Response(JSON.stringify({
@@ -579,6 +683,26 @@ You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap i
     const otHours = otLogs.reduce((s: number, l: any) => s + (parseFloat(l.total_hours) || 0), 0);
     const otRate = totalHours > 0 ? Math.round((otHours / totalHours) * 100) : 0;
 
+    const durationDays = Math.round((new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 3600 * 24)) + 1;
+    const avgHoursPerDay = (totalHours / durationDays).toFixed(1);
+
+    // Adaptive sample constraints based on duration
+    let maxSamples = 0;
+    let maxChars = 0;
+    if (durationDays <= 7) {
+      maxSamples = 3;
+      maxChars = 120;
+    } else if (durationDays <= 35) {
+      maxSamples = 2;
+      maxChars = 100;
+    } else if (durationDays <= 100) {
+      maxSamples = 1;
+      maxChars = 80;
+    } else {
+      maxSamples = 0;
+      maxChars = 0;
+    }
+
     const aggregatedGroups: Record<string, any> = {};
     logs.forEach((l: any) => {
       const key = `${l.project_name || 'General'} | ${l.action_name || 'Task'}`;
@@ -586,19 +710,18 @@ You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap i
         aggregatedGroups[key] = { project: l.project_name || 'General', action: l.action_name || 'Task', hours: 0, descriptions: new Set<string>() };
       }
       aggregatedGroups[key].hours += parseFloat(l.total_hours) || 0;
-      if (l.description?.trim()) aggregatedGroups[key].descriptions.add(l.description.trim().substring(0, 120));
+      if (maxSamples > 0 && l.description?.trim()) {
+        aggregatedGroups[key].descriptions.add(l.description.trim().substring(0, maxChars));
+      }
     });
 
     const aggregatedLogsText = Object.values(aggregatedGroups)
       .sort((a: any, b: any) => b.hours - a.hours)
       .map((g: any) => {
         const pct = totalHours > 0 ? ((g.hours / totalHours) * 100).toFixed(1) : '0.0';
-        const samples = Array.from(g.descriptions).slice(0, 3).join('; ');
+        const samples = maxSamples > 0 ? Array.from(g.descriptions).slice(0, maxSamples).join('; ') : '';
         return `- Project: ${g.project} | Action: ${g.action} → ${g.hours.toFixed(1)} hrs (${pct}%)${samples ? ` | Samples: "${samples}"` : ''}`;
       }).join('\n');
-
-    const durationDays = Math.round((new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 3600 * 24)) + 1;
-    const avgHoursPerDay = (totalHours / durationDays).toFixed(1);
 
     // Fetch Previous Period Summary
     const prevEnd = new Date(start_date);
@@ -685,15 +808,10 @@ You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap i
     console.log('[AI] callLlmWithFallback returned successfully.');
     const aiResult = await response.json();
     console.log('[AI] Parsed response JSON successfully.');
-    let content = aiResult.choices?.[0]?.message?.content || '';
-    console.log(`[AI] Content length: ${content.length}`);
-    if (content.startsWith('```json')) {
-      content = content.replace(/^```json/, '').replace(/```$/, '').trim();
-    } else if (content.startsWith('```')) {
-      content = content.replace(/^```/, '').replace(/```$/, '').trim();
-    }
+    const rawContent = aiResult.choices?.[0]?.message?.content || '';
+    console.log(`[AI] Content length: ${rawContent.length}`);
 
-    const parsedReport = JSON.parse(content);
+    const parsedReport = robustParseJson(rawContent);
     console.log('[AI] Successfully parsed content JSON.');
 
     const isCoachTemplate = template_id === 'individual_coach' || template_id === 'coaching_fairness';

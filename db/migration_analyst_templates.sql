@@ -124,7 +124,17 @@ Key tasks done with total duration and percentage:
 Analyze this data and return the JSON response. Remember, output only valid JSON.',
   false, false, true, 0
 )
-ON CONFLICT (template_key) DO NOTHING;
+ON CONFLICT (template_key) DO UPDATE SET
+  system_prompt = EXCLUDED.system_prompt,
+  user_prompt_template = EXCLUDED.user_prompt_template,
+  description = EXCLUDED.description,
+  icon = EXCLUDED.icon,
+  output_schema = EXCLUDED.output_schema,
+  cadence_aware = EXCLUDED.cadence_aware,
+  requires_level = EXCLUDED.requires_level,
+  is_active = EXCLUDED.is_active,
+  sort_order = EXCLUDED.sort_order;
+
 
 
 -- ─────────────────────────────────────────────────────────
@@ -279,7 +289,17 @@ ROLE-LEVEL SPECIAL HANDLING
 วิเคราะห์ข้อมูลทั้งหมดและตอบกลับเป็น raw JSON ตาม schema ที่กำหนดใน system prompt เท่านั้น',
   true, true, true, 1
 )
-ON CONFLICT (template_key) DO NOTHING;
+ON CONFLICT (template_key) DO UPDATE SET
+  system_prompt = EXCLUDED.system_prompt,
+  user_prompt_template = EXCLUDED.user_prompt_template,
+  description = EXCLUDED.description,
+  icon = EXCLUDED.icon,
+  output_schema = EXCLUDED.output_schema,
+  cadence_aware = EXCLUDED.cadence_aware,
+  requires_level = EXCLUDED.requires_level,
+  is_active = EXCLUDED.is_active,
+  sort_order = EXCLUDED.sort_order;
+
 
 
 -- ─────────────────────────────────────────────────────────

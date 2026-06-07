@@ -106,7 +106,7 @@ export default function HrbpPage() {
   const [isRecommendingJd, setIsRecommendingJd] = useState<boolean>(false);
 
   // Date Filters
-  const [dateFilter, setDateFilter] = useState<'this-week' | 'this-month' | 'all-time' | 'custom'>('this-month');
+  const [dateFilter, setDateFilter] = useState<'this-week' | 'this-month' | 'this-quarter' | 'custom'>('this-month');
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
 
@@ -184,8 +184,15 @@ export default function HrbpPage() {
     sunday.setHours(23, 59, 59, 999);
 
     // This Month
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+    const refDate = new Date();
+    const firstDay = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+    const lastDay = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    // This Quarter (Q1, Q2, Q3, Q4)
+    const currentMonth = refDate.getMonth();
+    const quarterStartMonth = Math.floor(currentMonth / 3) * 3;
+    const firstDayOfQuarter = new Date(refDate.getFullYear(), quarterStartMonth, 1);
+    const lastDayOfQuarter = new Date(refDate.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
 
     return {
       week: {
@@ -195,6 +202,10 @@ export default function HrbpPage() {
       month: {
         start: formatDateToYMD(firstDay),
         end: formatDateToYMD(lastDay)
+      },
+      quarter: {
+        start: formatDateToYMD(firstDayOfQuarter),
+        end: formatDateToYMD(lastDayOfQuarter)
       }
     };
   }, []);
@@ -295,7 +306,6 @@ export default function HrbpPage() {
     
     let startDate = '';
     let endDate = '';
-    const todayStr = formatDateToYMD(new Date());
     
     if (dateFilter === 'this-week') {
       startDate = dateBoundaries.week.start;
@@ -303,12 +313,15 @@ export default function HrbpPage() {
     } else if (dateFilter === 'this-month') {
       startDate = dateBoundaries.month.start;
       endDate = dateBoundaries.month.end;
+    } else if (dateFilter === 'this-quarter') {
+      startDate = dateBoundaries.quarter.start;
+      endDate = dateBoundaries.quarter.end;
     } else if (dateFilter === 'custom') {
       startDate = customStart || dateBoundaries.month.start;
       endDate = customEnd || dateBoundaries.month.end;
     } else {
-      startDate = '2020-01-01';
-      endDate = todayStr;
+      startDate = dateBoundaries.month.start;
+      endDate = dateBoundaries.month.end;
     }
 
     try {
@@ -734,7 +747,6 @@ export default function HrbpPage() {
 
     let startDate = '';
     let endDate = '';
-    const todayStr = formatDateToYMD(new Date());
     
     if (dateFilter === 'this-week') {
       startDate = dateBoundaries.week.start;
@@ -742,12 +754,25 @@ export default function HrbpPage() {
     } else if (dateFilter === 'this-month') {
       startDate = dateBoundaries.month.start;
       endDate = dateBoundaries.month.end;
+    } else if (dateFilter === 'this-quarter') {
+      startDate = dateBoundaries.quarter.start;
+      endDate = dateBoundaries.quarter.end;
     } else if (dateFilter === 'custom') {
       startDate = customStart || dateBoundaries.month.start;
       endDate = customEnd || dateBoundaries.month.end;
+
+      // Validate: custom range must not exceed 365 days
+      const startD = new Date(startDate);
+      const endD = new Date(endDate);
+      const diffTime = Math.abs(endD.getTime() - startD.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays > 365) {
+        showToast('ช่วงเวลาประเมินต้องไม่เกิน 365 วัน (1 ปี) เพื่อรักษาคุณภาพการวิเคราะห์', 'error');
+        return;
+      }
     } else {
-      startDate = '2020-01-01';
-      endDate = todayStr;
+      startDate = dateBoundaries.month.start;
+      endDate = dateBoundaries.month.end;
     }
 
     // Advance to Console Step (Step 2)
@@ -1466,7 +1491,7 @@ export default function HrbpPage() {
                     </h3>
 
                     <div className="grid grid-cols-2 gap-2">
-                      {(['this-week', 'this-month', 'all-time', 'custom'] as const).map((filter) => (
+                      {(['this-week', 'this-month', 'this-quarter', 'custom'] as const).map((filter) => (
                         <button
                           key={filter}
                           onClick={() => {
@@ -1482,7 +1507,7 @@ export default function HrbpPage() {
                         >
                           {filter === 'this-week' && 'สัปดาห์นี้'}
                           {filter === 'this-month' && 'เดือนนี้'}
-                          {filter === 'all-time' && 'ทั้งหมด'}
+                          {filter === 'this-quarter' && 'ไตรมาสนี้'}
                           {filter === 'custom' && 'กำหนดเอง'}
                         </button>
                       ))}
