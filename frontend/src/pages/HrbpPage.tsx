@@ -106,9 +106,8 @@ export default function HrbpPage() {
   const [isRecommendingJd, setIsRecommendingJd] = useState<boolean>(false);
 
   // Date Filters
-  const [dateFilter, setDateFilter] = useState<'this-week' | 'this-month' | 'this-quarter' | 'custom'>('this-month');
-  const [customStart, setCustomStart] = useState<string>('');
-  const [customEnd, setCustomEnd] = useState<string>('');
+  const [dateFilter, setDateFilter] = useState<'this-week' | 'this-month' | 'this-quarter' | 'this-year' | 'quarters'>('this-month');
+  const [selectedQuarters, setSelectedQuarters] = useState<number[]>([Math.floor(new Date().getMonth() / 3) + 1]);
 
   // Diagnostic Logs & Progress
   const [isAiAnalyzing, setIsAiAnalyzing] = useState<boolean>(false);
@@ -194,6 +193,10 @@ export default function HrbpPage() {
     const firstDayOfQuarter = new Date(refDate.getFullYear(), quarterStartMonth, 1);
     const lastDayOfQuarter = new Date(refDate.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
 
+    // This Year
+    const firstDayOfYear = new Date(refDate.getFullYear(), 0, 1);
+    const lastDayOfYear = new Date(refDate.getFullYear(), 11, 31, 23, 59, 59, 999);
+
     return {
       week: {
         start: formatDateToYMD(monday),
@@ -206,9 +209,38 @@ export default function HrbpPage() {
       quarter: {
         start: formatDateToYMD(firstDayOfQuarter),
         end: formatDateToYMD(lastDayOfQuarter)
+      },
+      year: {
+        start: formatDateToYMD(firstDayOfYear),
+        end: formatDateToYMD(lastDayOfYear)
       }
     };
   }, []);
+
+  const getQuartersDateRange = () => {
+    if (selectedQuarters.length === 0) {
+      return { start: dateBoundaries.month.start, end: dateBoundaries.month.end };
+    }
+    const currentYear = new Date().getFullYear();
+    const sortedQs = [...selectedQuarters].sort((a, b) => a - b);
+    const minQ = sortedQs[0];
+    const maxQ = sortedQs[sortedQs.length - 1];
+
+    let start = '';
+    let end = '';
+
+    if (minQ === 1) start = `${currentYear}-01-01`;
+    else if (minQ === 2) start = `${currentYear}-04-01`;
+    else if (minQ === 3) start = `${currentYear}-07-01`;
+    else if (minQ === 4) start = `${currentYear}-10-01`;
+
+    if (maxQ === 1) end = `${currentYear}-03-31`;
+    else if (maxQ === 2) end = `${currentYear}-06-30`;
+    else if (maxQ === 3) end = `${currentYear}-09-30`;
+    else if (maxQ === 4) end = `${currentYear}-12-31`;
+
+    return { start, end };
+  };
 
   // Load Session and Initial Users
   useEffect(() => {
@@ -279,7 +311,7 @@ export default function HrbpPage() {
     if (selectedUser && !isSharedView) {
       loadJdAndAnalysis();
     }
-  }, [selectedUser, dateFilter, customStart, customEnd, templateId]);
+  }, [selectedUser, dateFilter, selectedQuarters, templateId]);
 
   // Load historical diagnostic entries
   const loadAnalysisHistory = async () => {
@@ -316,9 +348,13 @@ export default function HrbpPage() {
     } else if (dateFilter === 'this-quarter') {
       startDate = dateBoundaries.quarter.start;
       endDate = dateBoundaries.quarter.end;
-    } else if (dateFilter === 'custom') {
-      startDate = customStart || dateBoundaries.month.start;
-      endDate = customEnd || dateBoundaries.month.end;
+    } else if (dateFilter === 'this-year') {
+      startDate = dateBoundaries.year.start;
+      endDate = dateBoundaries.year.end;
+    } else if (dateFilter === 'quarters') {
+      const qRange = getQuartersDateRange();
+      startDate = qRange.start;
+      endDate = qRange.end;
     } else {
       startDate = dateBoundaries.month.start;
       endDate = dateBoundaries.month.end;
@@ -757,19 +793,13 @@ export default function HrbpPage() {
     } else if (dateFilter === 'this-quarter') {
       startDate = dateBoundaries.quarter.start;
       endDate = dateBoundaries.quarter.end;
-    } else if (dateFilter === 'custom') {
-      startDate = customStart || dateBoundaries.month.start;
-      endDate = customEnd || dateBoundaries.month.end;
-
-      // Validate: custom range must not exceed 365 days
-      const startD = new Date(startDate);
-      const endD = new Date(endDate);
-      const diffTime = Math.abs(endD.getTime() - startD.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      if (diffDays > 365) {
-        showToast('ช่วงเวลาประเมินต้องไม่เกิน 365 วัน (1 ปี) เพื่อรักษาคุณภาพการวิเคราะห์', 'error');
-        return;
-      }
+    } else if (dateFilter === 'this-year') {
+      startDate = dateBoundaries.year.start;
+      endDate = dateBoundaries.year.end;
+    } else if (dateFilter === 'quarters') {
+      const qRange = getQuartersDateRange();
+      startDate = qRange.start;
+      endDate = qRange.end;
     } else {
       startDate = dateBoundaries.month.start;
       endDate = dateBoundaries.month.end;
@@ -1491,7 +1521,7 @@ export default function HrbpPage() {
                     </h3>
 
                     <div className="grid grid-cols-2 gap-2">
-                      {(['this-week', 'this-month', 'this-quarter', 'custom'] as const).map((filter) => (
+                      {(['this-week', 'this-month', 'this-quarter', 'this-year', 'quarters'] as const).map((filter) => (
                         <button
                           key={filter}
                           onClick={() => {
@@ -1500,6 +1530,7 @@ export default function HrbpPage() {
                           }}
                           className={cn(
                             "px-3 py-2 rounded-xl text-[10px] font-extrabold uppercase transition-all tracking-wider border",
+                            filter === 'quarters' ? "col-span-2" : "",
                             dateFilter === filter
                               ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
                               : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-transparent hover:border-theme-border hover:text-theme-text"
@@ -1508,36 +1539,49 @@ export default function HrbpPage() {
                           {filter === 'this-week' && 'สัปดาห์นี้'}
                           {filter === 'this-month' && 'เดือนนี้'}
                           {filter === 'this-quarter' && 'ไตรมาสนี้'}
-                          {filter === 'custom' && 'กำหนดเอง'}
+                          {filter === 'this-year' && 'ปีนี้'}
+                          {filter === 'quarters' && 'เลือกช่วงไตรมาส (Q1 - Q4)'}
                         </button>
                       ))}
                     </div>
 
-                    {dateFilter === 'custom' && (
-                      <div className="grid grid-cols-2 gap-2.5 pt-2 animate-in fade-in duration-200">
-                        <div className="space-y-1">
-                          <span className="text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold">Start Date</span>
-                          <input
-                            type="date"
-                            value={customStart}
-                            onChange={(e) => {
-                              setCustomStart(e.target.value);
-                              setAiAnalysis(null);
-                            }}
-                            className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border/60 rounded-xl px-3 py-2 text-xs text-theme-text"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold">End Date</span>
-                          <input
-                            type="date"
-                            value={customEnd}
-                            onChange={(e) => {
-                              setCustomEnd(e.target.value);
-                              setAiAnalysis(null);
-                            }}
-                            className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border/60 rounded-xl px-3 py-2 text-xs text-theme-text"
-                          />
+                    {dateFilter === 'quarters' && (
+                      <div className="space-y-2 pt-2 animate-in fade-in duration-200">
+                        <span className="text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold block">
+                          เลือกไตรมาสที่ต้องการวิเคราะห์ (เลือกได้มากกว่า 1)
+                        </span>
+                        <div className="grid grid-cols-4 gap-2">
+                          {([1, 2, 3, 4] as const).map((q) => {
+                            const isSelected = selectedQuarters.includes(q);
+                            return (
+                              <button
+                                key={q}
+                                type="button"
+                                onClick={() => {
+                                  let updated = [...selectedQuarters];
+                                  if (isSelected) {
+                                    if (updated.length > 1) {
+                                      updated = updated.filter(item => item !== q);
+                                    } else {
+                                      showToast('ต้องเลือกอย่างน้อย 1 ไตรมาส', 'warning');
+                                    }
+                                  } else {
+                                    updated.push(q);
+                                  }
+                                  setSelectedQuarters(updated);
+                                  setAiAnalysis(null);
+                                }}
+                                className={cn(
+                                  "py-2 rounded-xl text-xs font-bold transition-all border",
+                                  isSelected
+                                    ? "bg-indigo-500/15 text-indigo-400 border-indigo-500/30"
+                                    : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-transparent hover:border-theme-border"
+                                )}
+                              >
+                                Q{q}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
