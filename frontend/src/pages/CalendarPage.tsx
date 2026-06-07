@@ -198,7 +198,7 @@ export default function CalendarPage() {
     return hours * 60 + minutes;
   };
 
-  const currentTimeTop = (currentMinutes / 60) * hourHeight;
+  const currentTimeTop = ((currentMinutes / 60) - startHourOffset) * hourHeight;
 
   interface TimedEntryLayout {
     entry: WorklogEntry;
@@ -1017,7 +1017,7 @@ export default function CalendarPage() {
                     })}
 
                     {/* Today line indicator */}
-                    {isTodayColumn && (
+                    {isTodayColumn && currentMinutes >= (startHourOffset * 60) && currentMinutes <= (endHourOffset * 60) && (
                       <div 
                         className="absolute left-0 right-0 border-t-2 border-rose-500 z-10 pointer-events-none flex items-center"
                         style={{ top: `${currentTimeTop}px` }}
