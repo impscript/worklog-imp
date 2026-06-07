@@ -38,9 +38,24 @@ function sanitizeJsonString(raw: string): string {
   var result = '';
   for (var i = 0; i < raw.length; i++) {
     var char = raw[i];
+    
     if (char === '"' && !escaped) {
-      insideString = !insideString;
-      result += char;
+      if (insideString) {
+        var lookAheadIdx = i + 1;
+        while (lookAheadIdx < raw.length && /\s/.test(raw[lookAheadIdx])) {
+          lookAheadIdx++;
+        }
+        var nextChar = raw[lookAheadIdx];
+        if (nextChar === ',' || nextChar === '}' || nextChar === ']' || nextChar === ':' || nextChar === undefined) {
+          insideString = false;
+          result += char;
+        } else {
+          result += '\\"';
+        }
+      } else {
+        insideString = true;
+        result += char;
+      }
     } else if (char === '\\' && insideString) {
       escaped = !escaped;
       result += char;
