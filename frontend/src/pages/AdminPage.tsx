@@ -2573,16 +2573,17 @@ function AISettingsManager() {
     if (!accountId || !token) return;
     try {
       setLoadingCfUsage(true);
-      const res = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/usage`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.result) {
-          // result.neurons_used may be in the API response
-          const used = data.result.neurons_used ?? data.result.usage?.neurons ?? 0;
-          setCfUsage({ used, limit: 10000 });
+      const { data, error } = await supabase.functions.invoke('analyze-performance', {
+        body: {
+          action: 'test_connection',
+          provider: 'cloudflare',
+          account_id: accountId,
+          api_token: token,
+        },
+      });
+      if (!error && data?.success) {
+        if (data.neuronsUsed !== null && data.neuronsUsed !== undefined) {
+          setCfUsage({ used: data.neuronsUsed, limit: data.neuronsLimit || 10000 });
         }
       }
     } catch (err) {

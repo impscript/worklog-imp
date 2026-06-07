@@ -2360,7 +2360,7 @@ export default function HrbpPage() {
                     ) : (
                       <div className="space-y-4">
                         <div className="h-64 w-full">
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <BarChart
                               data={chartData}
                               margin={{ top: 10, right: 10, left: -20, bottom: 5 }}
