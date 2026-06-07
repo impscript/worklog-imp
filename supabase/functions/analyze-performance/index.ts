@@ -13,12 +13,15 @@ function extractJsonString(text: string): string {
   if (match) {
     cleaned = match[1].trim();
   }
+  
   var firstBrace = cleaned.indexOf('{');
   var lastBrace = cleaned.lastIndexOf('}');
   var firstBracket = cleaned.indexOf('[');
   var lastBracket = cleaned.lastIndexOf(']');
+  
   var startIdx = -1;
   var endIdx = -1;
+  
   if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
     startIdx = firstBrace;
     endIdx = lastBrace;
@@ -26,10 +29,68 @@ function extractJsonString(text: string): string {
     startIdx = firstBracket;
     endIdx = lastBracket;
   }
+  
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
     return cleaned.substring(startIdx, endIdx + 1);
   }
+  
+  if (startIdx !== -1) {
+    var sub = cleaned.substring(startIdx);
+    sub = sub.replace(/\s*```\s*$/, '');
+    return sub;
+  }
+  
   return cleaned;
+}
+
+function repairTruncatedJson(raw: string): string {
+  var insideString = false;
+  var escaped = false;
+  var stack: string[] = [];
+  var result = '';
+
+  for (var i = 0; i < raw.length; i++) {
+    var char = raw[i];
+    
+    if (char === '"' && !escaped) {
+      insideString = !insideString;
+      result += char;
+    } else if (char === '\\' && insideString) {
+      escaped = !escaped;
+      result += char;
+    } else {
+      if (!insideString) {
+        if (char === '{' || char === '[') {
+          stack.push(char);
+        } else if (char === '}') {
+          if (stack[stack.length - 1] === '{') {
+            stack.pop();
+          }
+        } else if (char === ']') {
+          if (stack[stack.length - 1] === '[') {
+            stack.pop();
+          }
+        }
+      }
+      result += char;
+      escaped = false;
+    }
+  }
+
+  if (insideString) {
+    result += '"';
+  }
+
+  while (stack.length > 0) {
+    var open = stack.pop();
+    if (open === '{') {
+      result += '}';
+    } else if (open === '[') {
+      result += ']';
+    }
+  }
+
+  return result;
 }
 
 function sanitizeJsonString(raw: string): string {
@@ -83,7 +144,8 @@ function sanitizeJsonString(raw: string): string {
 
 function robustParseJson(raw: string): any {
   var extracted = extractJsonString(raw);
-  var sanitized = sanitizeJsonString(extracted);
+  var repaired = repairTruncatedJson(extracted);
+  var sanitized = sanitizeJsonString(repaired);
   var lastError: any = null;
   try {
     return JSON.parse(sanitized);
