@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Plus, Search, ExternalLink, FolderTree, Calendar,
   ChevronDown, ChevronRight, Edit2, Trash2, X, Save,
-  Check, AlertTriangle, Clock, Activity, Users,
+  Check, Clock, Activity, Users,
   FolderOpen, Layers, Building2,
   RefreshCw, Link
 } from 'lucide-react';
@@ -10,6 +10,8 @@ import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
+import ViewWorklogModal from '../components/modals/ViewWorklogModal';
+
 
 /* ── Types ── */
 type ProjectStatus = 'planning' | 'development' | 'active' | 'inactive' | 'sunset' | 'retired';
@@ -38,14 +40,16 @@ interface Project {
   worklog_count?: number;
   worklog_recent?: number;
   worklog_unique_users?: number;
+  recentLogs?: any[];
   children?: Project[];
 }
 
 interface WorklogSummary {
-  [projectName: string]: {
+  [projectId: string]: {
     count: number;
     recent_30d: number;
     unique_users: number;
+    logs: any[];
   };
 }
 
@@ -63,6 +67,9 @@ const TYPE_ICONS: Record<string, string> = {
   web_app: '🌐', api: '⚙️', mobile: '📱', desktop: '💻',
   integration: '🔗', extension: '🔌', module: '🧩', internal_tool: '🛠️', infra: '☁️', other: '📁',
 };
+
+const DEFAULT_HOLDINGS = ['Double A', 'Real Estate', 'All Holding', 'Logistic', 'Power', 'NPS', 'IMP', 'IT'];
+const DEFAULT_TEAMS = ['IMP', 'IMP&IT', 'IT'];
 
 /* ── Helpers ── */
 function getStatusIcon(status: ProjectStatus) {
@@ -97,6 +104,261 @@ function buildTree(projects: Project[]): Project[] {
 /* ── Types ── */
 const STATUS_ORDER: ProjectStatus[] = ['active', 'development', 'inactive', 'planning', 'sunset', 'retired'];
 
+/* ── StatusBadge (top-level for stable identity) ── */
+function StatusBadge({ status }: { status: ProjectStatus }) {
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border tracking-wide',
+      getStatusColor(status)
+    )}>
+      <span>{getStatusIcon(status)}</span>
+      <span>{STATUS_CONFIG[status]?.label || status}</span>
+    </span>
+  );
+}
+
+/* ── ProjectCard props ── */
+interface ProjectCardProps {
+  project: Project;
+  depth?: number;
+  isLast?: boolean;
+  expandedProjects: Set<string>;
+  onToggleExpand: (id: string) => void;
+  onEdit: (project: Project) => void;
+  onDelete: (project: Project) => void;
+  onViewLog: (log: any) => void;
+}
+
+/* ── ProjectCard (top-level for stable identity) ── */
+function ProjectCard({
+  project,
+  depth = 0,
+  expandedProjects,
+  onToggleExpand,
+  onEdit,
+  onDelete,
+  onViewLog,
+}: ProjectCardProps) {
+  const hasChildren = project.children && project.children.length > 0;
+  const isExpanded = expandedProjects.has(project.id);
+  const totalWorklogs = project.worklog_count || 0;
+  const recentWorklogs = project.worklog_recent || 0;
+  const recentLogs = project.recentLogs || [];
+  const isChild = depth > 0;
+
+  return (
+    <div className="relative">
+      {isChild && (
+        <div
+          className="absolute border-theme-border/40"
+          style={{
+            left: -20, top: 22, width: 20, height: 2,
+            borderTopWidth: 0, borderBottomWidth: 2, borderBottomStyle: 'solid',
+            borderLeftWidth: 2, borderLeftStyle: 'solid', borderRadius: '0 0 0 6px',
+          }}
+        />
+      )}
+
+      <div className={cn(
+        'group rounded-xl transition-all duration-200 mb-1.5',
+        'border-l-[3px]',
+        isChild
+          ? 'ai-glass-interactive p-3 md:p-4 bg-theme-surface-secondary/20 dark:bg-theme-surface-secondary/10'
+          : 'ai-glass-interactive p-4 md:p-5',
+        project.status === 'active'      && 'border-l-emerald-500',
+        project.status === 'development' && 'border-l-amber-500',
+        project.status === 'inactive'    && 'border-l-slate-400',
+        project.status === 'sunset'      && 'border-l-orange-500',
+        project.status === 'retired'     && 'border-l-rose-500',
+        project.status === 'planning'    && 'border-l-blue-500',
+      )}>
+        {/* Row 1: Identity */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              {hasChildren && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); onToggleExpand(project.id); }}
+                  className="p-0.5 rounded hover:bg-theme-surface-tertiary text-theme-text-muted hover:text-theme-text transition-colors shrink-0"
+                >
+                  {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+              )}
+              {isChild && <Layers size={12} className="text-theme-text-muted shrink-0 opacity-60" />}
+              <h3 className={cn('font-bold text-theme-text truncate', isChild ? 'text-xs' : 'text-sm')}>
+                {project.project_name}
+              </h3>
+              <StatusBadge status={project.status} />
+              {project.project_type && (
+                <span className="text-[10px] font-mono text-theme-text-muted border border-theme-border rounded px-1.5 py-0.5">
+                  {TYPE_ICONS[project.project_type] || ''} {project.project_type}
+                </span>
+              )}
+              {project.module && (
+                <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded px-1.5 py-0.5">
+                  📦 {project.module}
+                </span>
+              )}
+            </div>
+
+            {project.description && (
+              <p className={cn('text-theme-text-secondary line-clamp-2', isChild ? 'text-[11px] mt-1' : 'text-xs mt-1.5')}>
+                {project.description}
+              </p>
+            )}
+
+            {project.parent_name && !isChild && (
+              <div className="flex items-center gap-1.5 mt-2 text-[11px] text-theme-text-muted">
+                <FolderOpen size={12} />
+                <span>Parent: <strong className="text-theme-text-secondary">{project.parent_name}</strong></span>
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            {project.deploy_url && (
+              <a
+                href={project.deploy_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-lg border border-theme-border bg-theme-surface-secondary hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-theme-text-muted hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
+                title="Open project"
+              >
+                <ExternalLink size={14} />
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => onEdit(project)}
+              className="p-1.5 rounded-lg border border-theme-border bg-theme-surface-secondary hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-theme-text-muted hover:text-indigo-600 dark:hover:text-indigo-400 transition-all"
+              title="Edit"
+            >
+              <Edit2 size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(project)}
+              className="p-1.5 rounded-lg border border-theme-border bg-theme-surface-secondary hover:bg-rose-50 dark:hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-600 dark:hover:text-rose-400 transition-all"
+              title="Delete"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: Metadata + Worklog Stats */}
+        <div className="flex items-center gap-4 md:gap-6 mt-3 pt-3 border-t border-theme-border/50 flex-wrap text-[11px]">
+          {project.owner_holding && (
+            <span className="flex items-center gap-1 text-theme-text-muted">
+              <Building2 size={12} />
+              <span>{project.owner_holding}</span>
+            </span>
+          )}
+          {project.owner_team && (
+            <span className="flex items-center gap-1 text-theme-text-muted">
+              <Users size={12} />
+              <span>{project.owner_team}</span>
+            </span>
+          )}
+          {project.deploy_url && (
+            <a
+              href={project.deploy_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+            >
+              <Link size={12} />
+              <span className="truncate max-w-[200px]">{project.deploy_url}</span>
+            </a>
+          )}
+          {totalWorklogs > 0 && (
+            <>
+              <span className="flex items-center gap-1 text-theme-text-muted">
+                <Activity size={12} />
+                <span>ทั้งหมด <strong className="text-theme-text-secondary">{totalWorklogs.toLocaleString()}</strong> เวิร์คล็อก</span>
+              </span>
+              <span className={cn('flex items-center gap-1', recentWorklogs > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400')}>
+                <Clock size={12} />
+                <span>30 วัน: <strong>{recentWorklogs}</strong> รายการ</span>
+              </span>
+              {recentLogs.length > 0 && (
+                <span className="flex items-center gap-1.5 border border-theme-border bg-theme-surface-secondary/40 py-0.5 px-2 rounded-full shrink-0">
+                  <span className="text-theme-text-muted text-[10px] uppercase font-bold tracking-wider mr-1">ล่าสุด:</span>
+                  <span className="flex items-center gap-1">
+                    {recentLogs.map((log: any, idx: number) => {
+                      const formattedDate = log.work_date
+                        ? new Date(log.work_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })
+                        : '';
+                      const descSnippet = log.description
+                        ? (log.description.length > 150 ? log.description.slice(0, 150) + '...' : log.description)
+                        : 'ไม่มีรายละเอียด';
+                      const tooltipText = `วันที่: ${formattedDate}\nกิจกรรม: ${log.action_name}\nรายละเอียด:\n${descSnippet}`;
+                      return (
+                        <button
+                          key={log.id}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onViewLog(log); }}
+                          className="w-5 h-5 rounded-full bg-indigo-500/10 hover:bg-indigo-500/20 text-[10px] font-bold text-indigo-500 dark:text-indigo-400 border border-indigo-500/25 transition-all flex items-center justify-center cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title={tooltipText}
+                        >
+                          {idx + 1}
+                        </button>
+                      );
+                    })}
+                  </span>
+                </span>
+              )}
+            </>
+          )}
+          {project.go_live_date && (
+            <span className="flex items-center gap-1 text-theme-text-muted">
+              <Calendar size={12} />
+              <span>Go-live: {project.go_live_date}</span>
+            </span>
+          )}
+          {project.last_verified_date && (
+            <span className="flex items-center gap-1 text-theme-text-muted">
+              <Check size={12} />
+              <span>ยืนยันล่าสุด: {project.last_verified_date}</span>
+            </span>
+          )}
+        </div>
+
+        {project.last_usage_note && (
+          <div className="mt-2 text-[11px] text-theme-text-secondary italic bg-theme-surface-secondary/50 rounded-lg px-3 py-1.5 border border-theme-border/50">
+            📝 {project.last_usage_note}
+          </div>
+        )}
+      </div>
+
+      {/* Expanded children with vertical guide line */}
+      {hasChildren && isExpanded && (
+        <div className="relative ml-6 mt-0.5">
+          <div
+            className="absolute top-0 bottom-6 bg-theme-border/40 rounded-full"
+            style={{ left: -20, width: 2 }}
+          />
+          {project.children!.map((child, childIdx) => (
+            <ProjectCard
+              key={child.id}
+              project={child}
+              depth={depth + 1}
+              isLast={childIdx === project.children!.length - 1}
+              expandedProjects={expandedProjects}
+              onToggleExpand={onToggleExpand}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onViewLog={onViewLog}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Main Component ── */
 export default function ProjectRegistryPage() {
   const { showToast, showConfirm } = useNotification();
@@ -115,23 +377,7 @@ export default function ProjectRegistryPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  /* ── Form State ── */
-  const [formData, setFormData] = useState({
-    project_name: '',
-    description: '',
-    parent_project_id: '',
-    module: '',
-    status: 'planning' as ProjectStatus,
-    project_type: 'web_app',
-    owner_holding: '',
-    owner_team: '',
-    deploy_url: '',
-    go_live_date: '',
-    last_verified_date: '',
-    last_usage_note: '',
-  });
+  const [selectedWorklog, setSelectedWorklog] = useState<any | null>(null);
 
   /* ── Data Loading ── */
   const loadProjects = useCallback(async () => {
@@ -152,11 +398,12 @@ export default function ProjectRegistryPage() {
 
       setProjects(mapped);
 
-      // Load worklog summary
+      // Load worklog summary (aggregated by project_id / module_id for exact mapping)
       const { data: wData, error: wError } = await supabase
         .from('col_worklog')
-        .select('project_name, created_at')
-        .not('project_name', 'is', null);
+        .select('*')
+        .order('work_date', { ascending: false })
+        .order('created_at', { ascending: false });
 
       if (!wError && wData) {
         const summary: WorklogSummary = {};
@@ -165,24 +412,31 @@ export default function ProjectRegistryPage() {
 
         const count: Record<string, number> = {};
         const recent: Record<string, number> = {};
+        const logsMap: Record<string, any[]> = {};
 
         wData.forEach((w: any) => {
-          const name = w.project_name;
-          if (!name) return;
+          const id = w.module_id || w.project_id;
+          if (!id) return;
 
-          count[name] = (count[name] || 0) + 1;
+          count[id] = (count[id] || 0) + 1;
 
           const createdAt = new Date(w.created_at);
           if (createdAt >= thirtyDaysAgo) {
-            recent[name] = (recent[name] || 0) + 1;
+            recent[id] = (recent[id] || 0) + 1;
           }
+
+          if (!logsMap[id]) {
+            logsMap[id] = [];
+          }
+          logsMap[id].push(w);
         });
 
-        Object.keys(count).forEach(name => {
-          summary[name] = {
-            count: count[name],
-            recent_30d: recent[name] || 0,
+        Object.keys(count).forEach(id => {
+          summary[id] = {
+            count: count[id],
+            recent_30d: recent[id] || 0,
             unique_users: 0,
+            logs: logsMap[id] || []
           };
         });
 
@@ -198,8 +452,51 @@ export default function ProjectRegistryPage() {
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
   /* ── Derived Data ── */
+  const projectsWithStats = useMemo(() => {
+    const memo = new Map<string, { count: number; recent_30d: number; logs: any[] }>();
+
+    const getStats = (id: string): { count: number; recent_30d: number; logs: any[] } => {
+      if (memo.has(id)) return memo.get(id)!;
+
+      const direct = worklogSummary[id];
+      let count = direct?.count || 0;
+      let recent_30d = direct?.recent_30d || 0;
+      let logs = direct?.logs ? [...direct.logs] : [];
+
+      const children = projects.filter(p => p.parent_project_id === id);
+      children.forEach(child => {
+        const childStats = getStats(child.id);
+        count += childStats.count;
+        recent_30d += childStats.recent_30d;
+        logs = [...logs, ...childStats.logs];
+      });
+
+      // Sort logs by work_date desc, created_at desc
+      logs.sort((a, b) => {
+        const dateA = a.work_date || '';
+        const dateB = b.work_date || '';
+        if (dateA !== dateB) return dateB.localeCompare(dateA);
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      });
+
+      const result = { count, recent_30d, logs: logs.slice(0, 3) };
+      memo.set(id, result);
+      return result;
+    };
+
+    return projects.map(p => {
+      const stats = getStats(p.id);
+      return {
+        ...p,
+        worklog_count: stats.count,
+        worklog_recent: stats.recent_30d,
+        recentLogs: stats.logs,
+      };
+    });
+  }, [projects, worklogSummary]);
+
   const filteredProjects = useMemo(() => {
-    let list = projects;
+    let list = projectsWithStats;
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -227,7 +524,7 @@ export default function ProjectRegistryPage() {
     }
 
     return list;
-  }, [projects, searchQuery, filterStatus, filterTeam, filterHolding, filterType]);
+  }, [projectsWithStats, searchQuery, filterStatus, filterTeam, filterHolding, filterType]);
 
   const treeData = useMemo(() => buildTree(filteredProjects), [filteredProjects]);
 
@@ -242,13 +539,13 @@ export default function ProjectRegistryPage() {
   }, [filteredProjects]);
 
   const holdings = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(DEFAULT_HOLDINGS);
     projects.forEach(p => { if (p.owner_holding) set.add(p.owner_holding); });
     return Array.from(set).sort();
   }, [projects]);
 
   const teams = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(DEFAULT_TEAMS);
     projects.forEach(p => { if (p.owner_team) set.add(p.owner_team); });
     return Array.from(set).sort();
   }, [projects]);
@@ -266,57 +563,16 @@ export default function ProjectRegistryPage() {
   /* ── Modal Actions ── */
   const openAddModal = () => {
     setEditingProject(null);
-    setFormData({
-      project_name: '', description: '', parent_project_id: '',
-      module: '', status: 'planning', project_type: 'web_app',
-      owner_holding: '', owner_team: '', deploy_url: '',
-      go_live_date: '', last_verified_date: '', last_usage_note: '',
-    });
     setIsModalOpen(true);
   };
 
   const openEditModal = (project: Project) => {
     setEditingProject(project);
-    setFormData({
-      project_name: project.project_name,
-      description: project.description || '',
-      parent_project_id: project.parent_project_id || '',
-      module: project.module || '',
-      status: project.status,
-      project_type: project.project_type || 'web_app',
-      owner_holding: project.owner_holding || '',
-      owner_team: project.owner_team || '',
-      deploy_url: project.deploy_url || '',
-      go_live_date: project.go_live_date || '',
-      last_verified_date: project.last_verified_date || '',
-      last_usage_note: project.last_usage_note || '',
-    });
     setIsModalOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!formData.project_name.trim()) {
-      showToast('กรุณาใส่ชื่อโปรเจค', 'error');
-      return;
-    }
-
-    setSubmitting(true);
+  const handleSave = async (payload: any) => {
     try {
-      const payload: any = {
-        project_name: formData.project_name.trim(),
-        description: formData.description.trim() || null,
-        parent_project_id: formData.parent_project_id || null,
-        module: formData.module.trim() || null,
-        status: formData.status,
-        project_type: formData.project_type,
-        owner_holding: formData.owner_holding.trim() || null,
-        owner_team: formData.owner_team.trim() || null,
-        deploy_url: formData.deploy_url.trim() || null,
-        go_live_date: formData.go_live_date || null,
-        last_verified_date: formData.last_verified_date || null,
-        last_usage_note: formData.last_usage_note.trim() || null,
-      };
-
       if (editingProject) {
         const { error } = await supabase
           .from('tb_project_registry')
@@ -324,22 +580,21 @@ export default function ProjectRegistryPage() {
           .eq('id', editingProject.id);
 
         if (error) throw error;
-        showToast(`อัปเดต "${formData.project_name}" สำเร็จ ✅`, 'success');
+        showToast(`อัปเดต "${payload.project_name}" สำเร็จ ✅`, 'success');
       } else {
         const { error } = await supabase
           .from('tb_project_registry')
           .insert(payload);
 
         if (error) throw error;
-        showToast(`เพิ่ม "${formData.project_name}" สำเร็จ ✅`, 'success');
+        showToast(`เพิ่ม "${payload.project_name}" สำเร็จ ✅`, 'success');
       }
 
       setIsModalOpen(false);
       loadProjects();
     } catch (err: any) {
       showToast('เกิดข้อผิดพลาด: ' + (err.message || err), 'error');
-    } finally {
-      setSubmitting(false);
+      throw err;
     }
   };
 
@@ -389,14 +644,14 @@ export default function ProjectRegistryPage() {
     }
   };
 
-  const toggleExpand = (id: string) => {
+  const toggleExpand = useCallback((id: string) => {
     setExpandedProjects(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   /* ── Status summary stats ── */
   const statusSummary = useMemo(() => {
@@ -408,403 +663,10 @@ export default function ProjectRegistryPage() {
     return counts;
   }, [projects]);
 
-  /* ── Render: Status Badge ── */
-  const StatusBadge = ({ status }: { status: ProjectStatus }) => (
-    <span className={cn(
-      'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border tracking-wide',
-      getStatusColor(status)
-    )}>
-      <span>{getStatusIcon(status)}</span>
-      <span>{STATUS_CONFIG[status]?.label || status}</span>
-    </span>
-  );
-
-  /* ── Render: Project Card ── */
-  const ProjectCard = ({ project, depth = 0 }: { project: Project; depth?: number }) => {
-    const ws = worklogSummary[project.project_name];
-    const hasChildren = project.children && project.children.length > 0;
-    const isExpanded = expandedProjects.has(project.id);
-
-    // Find worklog matching: exact name, or name prefix
-    const exactWs = ws;
-    const totalWorklogs = exactWs?.count || 0;
-    const recentWorklogs = exactWs?.recent_30d || 0;
-
-    return (
-      <div style={{ marginLeft: depth * 24 }}>
-        <div className={cn(
-          'group ai-glass-interactive rounded-xl p-4 md:p-5 mb-2 transition-all duration-200',
-          'border-l-[3px]',
-          project.status === 'active' && 'border-l-emerald-500',
-          project.status === 'development' && 'border-l-amber-500',
-          project.status === 'inactive' && 'border-l-slate-400',
-          project.status === 'sunset' && 'border-l-orange-500',
-          project.status === 'retired' && 'border-l-rose-500',
-          project.status === 'planning' && 'border-l-blue-500',
-        )}>
-          {/* Row 1: Identity */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                {hasChildren && (
-                  <button
-                    onClick={() => toggleExpand(project.id)}
-                    className="p-0.5 rounded hover:bg-theme-surface-tertiary text-theme-text-muted hover:text-theme-text transition-colors shrink-0"
-                  >
-                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </button>
-                )}
-                {depth > 0 && <Layers size={14} className="text-theme-text-muted shrink-0" />}
-                <h3 className="text-sm font-bold text-theme-text truncate">
-                  {project.project_name}
-                </h3>
-                <StatusBadge status={project.status} />
-                {project.project_type && (
-                  <span className="text-[10px] font-mono text-theme-text-muted border border-theme-border rounded px-1.5 py-0.5">
-                    {TYPE_ICONS[project.project_type] || ''} {project.project_type}
-                  </span>
-                )}
-                {project.module && (
-                  <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded px-1.5 py-0.5">
-                    📦 {project.module}
-                  </span>
-                )}
-              </div>
-
-              {project.description && (
-                <p className="text-xs text-theme-text-secondary mt-1.5 line-clamp-2">
-                  {project.description}
-                </p>
-              )}
-
-              {project.parent_name && (
-                <div className="flex items-center gap-1.5 mt-2 text-[11px] text-theme-text-muted">
-                  <FolderOpen size={12} />
-                  <span>Parent: <strong className="text-theme-text-secondary">{project.parent_name}</strong></span>
-                </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              {project.deploy_url && (
-                <a
-                  href={project.deploy_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-1.5 rounded-lg border border-theme-border bg-theme-surface-secondary hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-theme-text-muted hover:text-emerald-600 dark:hover:text-emerald-400 transition-all"
-                  title="Open project"
-                >
-                  <ExternalLink size={14} />
-                </a>
-              )}
-              <button
-                onClick={() => openEditModal(project)}
-                className="p-1.5 rounded-lg border border-theme-border bg-theme-surface-secondary hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-theme-text-muted hover:text-indigo-600 dark:hover:text-indigo-400 transition-all"
-                title="Edit"
-              >
-                <Edit2 size={14} />
-              </button>
-              <button
-                onClick={() => handleDeleteClick(project)}
-                className="p-1.5 rounded-lg border border-theme-border bg-theme-surface-secondary hover:bg-rose-50 dark:hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-600 dark:hover:text-rose-400 transition-all"
-                title="Delete"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          </div>
-
-          {/* Row 2: Metadata + Worklog Stats */}
-          <div className="flex items-center gap-4 md:gap-6 mt-3 pt-3 border-t border-theme-border/50 flex-wrap text-[11px]">
-            {project.owner_holding && (
-              <span className="flex items-center gap-1 text-theme-text-muted">
-                <Building2 size={12} />
-                <span>{project.owner_holding}</span>
-              </span>
-            )}
-            {project.owner_team && (
-              <span className="flex items-center gap-1 text-theme-text-muted">
-                <Users size={12} />
-                <span>{project.owner_team}</span>
-              </span>
-            )}
-            {project.deploy_url && (
-              <a
-                href={project.deploy_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
-              >
-                <Link size={12} />
-                <span className="truncate max-w-[200px]">{project.deploy_url}</span>
-              </a>
-            )}
-            {totalWorklogs > 0 && (
-              <>
-                <span className="flex items-center gap-1 text-theme-text-muted">
-                  <Activity size={12} />
-                  <span>ทั้งหมด <strong className="text-theme-text-secondary">{totalWorklogs.toLocaleString()}</strong> เวิร์คล็อก</span>
-                </span>
-                <span className={cn(
-                  'flex items-center gap-1',
-                  recentWorklogs > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'
-                )}>
-                  <Clock size={12} />
-                  <span>30 วัน: <strong>{recentWorklogs}</strong> รายการ</span>
-                </span>
-              </>
-            )}
-            {totalWorklogs === 0 && project.status === 'active' && (
-              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
-                <AlertTriangle size={12} />
-                <span>Active แต่ไม่มี Worklog — ควรตรวจสอบ</span>
-              </span>
-            )}
-            {project.go_live_date && (
-              <span className="flex items-center gap-1 text-theme-text-muted">
-                <Calendar size={12} />
-                <span>Go-live: {project.go_live_date}</span>
-              </span>
-            )}
-            {project.last_verified_date && (
-              <span className="flex items-center gap-1 text-theme-text-muted">
-                <Check size={12} />
-                <span>ยืนยันล่าสุด: {project.last_verified_date}</span>
-              </span>
-            )}
-          </div>
-
-          {project.last_usage_note && (
-            <div className="mt-2 text-[11px] text-theme-text-secondary italic bg-theme-surface-secondary/50 rounded-lg px-3 py-1.5 border border-theme-border/50">
-              📝 {project.last_usage_note}
-            </div>
-          )}
-        </div>
-
-        {/* Expanded children */}
-        {hasChildren && isExpanded && project.children!.map(child => (
-          <ProjectCard key={child.id} project={child} depth={depth + 1} />
-        ))}
-      </div>
-    );
-  };
-
-  /* ── Form Modal ── */
-  const ProjectFormModal = () => {
-    if (!isModalOpen) return null;
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 md:pt-12 overflow-y-auto">
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-        <div className="relative z-10 w-full max-w-2xl mx-4 theme-panel border border-theme-border rounded-2xl shadow-2xl">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-theme-border/60">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center text-white shadow-lg">
-                {editingProject ? <Edit2 size={16} /> : <Plus size={16} />}
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-theme-text">
-                  {editingProject ? 'แก้ไขโปรเจค' : 'เพิ่มโปรเจคใหม่'}
-                </h2>
-                <p className="text-[11px] text-theme-text-muted">
-                  {editingProject ? 'แก้ไขรายละเอียดโปรเจค' : 'เพิ่มโปรเจคเข้าสู่ Portfolio'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="p-2 rounded-lg hover:bg-theme-surface-tertiary text-theme-text-muted hover:text-theme-text transition-colors"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="px-6 py-5 space-y-5 max-h-[65vh] overflow-y-auto">
-            {/* Basic Info */}
-            <div>
-              <h3 className="text-xs font-bold text-theme-text tracking-wide mb-3 uppercase">ข้อมูลพื้นฐาน</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">ชื่อโปรเจค *</label>
-                  <input
-                    value={formData.project_name}
-                    onChange={e => setFormData(p => ({ ...p, project_name: e.target.value }))}
-                    placeholder="เช่น ERP Netsuite, WMS, 304 CRM"
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">คำอธิบาย</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-                    rows={2}
-                    placeholder="โปรเจคนี้คืออะไร? ใช้ทำอะไร?"
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all resize-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Parent Project</label>
-                  <select
-                    value={formData.parent_project_id}
-                    onChange={e => setFormData(p => ({ ...p, parent_project_id: e.target.value }))}
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  >
-                    <option value="">— Top Level —</option>
-                    {parentOptions.filter(p => !p.parent_project_id).map(p => (
-                      <option key={p.id} value={p.id}>{p.project_name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Module (Optional)</label>
-                  <input
-                    value={formData.module}
-                    onChange={e => setFormData(p => ({ ...p, module: e.target.value }))}
-                    placeholder="เช่น FxCurrency, Item Master"
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Status & Type */}
-            <div className="border-t border-theme-border/50 pt-5">
-              <h3 className="text-xs font-bold text-theme-text tracking-wide mb-3 uppercase">สถานะและประเภท</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">สถานะ</label>
-                  <select
-                    value={formData.status}
-                    onChange={e => setFormData(p => ({ ...p, status: e.target.value as ProjectStatus }))}
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  >
-                    {STATUS_ORDER.map(s => (
-                      <option key={s} value={s}>
-                        {STATUS_CONFIG[s].icon} {STATUS_CONFIG[s].label} — {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">ประเภท</label>
-                  <select
-                    value={formData.project_type}
-                    onChange={e => setFormData(p => ({ ...p, project_type: e.target.value }))}
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  >
-                    {Object.entries(TYPE_ICONS).map(([k, v]) => (
-                      <option key={k} value={k}>{v} {k.replace('_', ' ')}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">เจ้าของ Holding</label>
-                  <input
-                    value={formData.owner_holding}
-                    onChange={e => setFormData(p => ({ ...p, owner_holding: e.target.value }))}
-                    placeholder="เช่น Double A, Real Estate"
-                    list="holdings-list"
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  />
-                  <datalist id="holdings-list">
-                    {holdings.map(h => <option key={h} value={h} />)}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">ทีม</label>
-                  <input
-                    value={formData.owner_team}
-                    onChange={e => setFormData(p => ({ ...p, owner_team: e.target.value }))}
-                    placeholder="IMP, IT, IMP&IT"
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Deployment */}
-            <div className="border-t border-theme-border/50 pt-5">
-              <h3 className="text-xs font-bold text-theme-text tracking-wide mb-3 uppercase">การนำไปใช้งาน / URL</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Deploy URL</label>
-                  <input
-                    value={formData.deploy_url}
-                    onChange={e => setFormData(p => ({ ...p, deploy_url: e.target.value }))}
-                    placeholder="https://project-name.pages.dev"
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Go-live Date</label>
-                  <input
-                    type="date"
-                    value={formData.go_live_date}
-                    onChange={e => setFormData(p => ({ ...p, go_live_date: e.target.value }))}
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Last Verified</label>
-                  <input
-                    type="date"
-                    value={formData.last_verified_date}
-                    onChange={e => setFormData(p => ({ ...p, last_verified_date: e.target.value }))}
-                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="border-t border-theme-border/50 pt-5">
-              <h3 className="text-xs font-bold text-theme-text tracking-wide mb-3 uppercase">บันทึก</h3>
-              <div>
-                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Last Usage Note</label>
-                <textarea
-                  value={formData.last_usage_note}
-                  onChange={e => setFormData(p => ({ ...p, last_usage_note: e.target.value }))}
-                  rows={2}
-                  placeholder="เช่น ระบบมีคนใช้ทุกวัน, ปิดการใช้งานแล้ว, รอเปลี่ยนระบบใหม่..."
-                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all resize-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between px-6 py-4 border-t border-theme-border/60 bg-theme-surface-secondary/50 rounded-b-2xl">
-            <div className="text-[11px] text-theme-text-muted">
-              {editingProject ? '🔄 แก้ไขโปรเจคที่มีอยู่' : '➕ เพิ่มโปรเจคใหม่ใน Portfolio'}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-theme-text-secondary hover:bg-theme-surface-tertiary border border-theme-border transition-all"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={submitting || !formData.project_name.trim()}
-                className="px-5 py-2 rounded-lg text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25 transition-all flex items-center gap-2"
-              >
-                {submitting ? (
-                  <><RefreshCw size={14} className="animate-spin" /> กำลังบันทึก...</>
-                ) : (
-                  <><Save size={14} /> บันทึก</>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  /* ── Stable callbacks for ProjectCard (useCallback avoids unnecessary re-renders) ── */
+  const handleEditProject = useCallback((project: Project) => openEditModal(project), []);
+  const handleDeleteProject = useCallback((project: Project) => handleDeleteClick(project), []);
+  const handleViewLog = useCallback((log: any) => setSelectedWorklog(log), []);
 
   /* ── Render ── */
   return (
@@ -971,7 +833,16 @@ export default function ProjectRegistryPage() {
           /* ── Tree View ── */
           <div className="space-y-1">
             {treeData.map(root => (
-              <ProjectCard key={root.id} project={root} depth={0} />
+              <ProjectCard
+                key={root.id}
+                project={root}
+                depth={0}
+                expandedProjects={expandedProjects}
+                onToggleExpand={toggleExpand}
+                onEdit={handleEditProject}
+                onDelete={handleDeleteProject}
+                onViewLog={handleViewLog}
+              />
             ))}
           </div>
         ) : (
@@ -990,7 +861,16 @@ export default function ProjectRegistryPage() {
                 </div>
                 <div className="space-y-1">
                   {groupedByStatus[status].map(project => (
-                    <ProjectCard key={project.id} project={project} depth={project.parent_project_id ? 1 : 0} />
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      depth={0}
+                      expandedProjects={expandedProjects}
+                      onToggleExpand={toggleExpand}
+                      onEdit={handleEditProject}
+                      onDelete={handleDeleteProject}
+                      onViewLog={handleViewLog}
+                    />
                   ))}
                 </div>
               </div>
@@ -1000,7 +880,23 @@ export default function ProjectRegistryPage() {
       </div>
 
       {/* ── Modal ── */}
-      <ProjectFormModal />
+      <ProjectFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        editingProject={editingProject}
+        holdings={holdings}
+        teams={teams}
+        parentOptions={parentOptions}
+        onSave={handleSave}
+      />
+
+      {/* ── View Worklog Modal ── */}
+      <ViewWorklogModal
+        isOpen={!!selectedWorklog}
+        onClose={() => setSelectedWorklog(null)}
+        log={selectedWorklog}
+        onDeleteSuccess={loadProjects}
+      />
 
       {/* ── Mobile FAB ── */}
       <button
@@ -1012,3 +908,416 @@ export default function ProjectRegistryPage() {
     </AppLayout>
   );
 }
+
+/* ── Form Modal Component (Extracted to top-level for performance & focus) ── */
+interface ProjectFormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  editingProject: Project | null;
+  holdings: string[];
+  teams: string[];
+  parentOptions: Project[];
+  onSave: (payload: any) => Promise<void>;
+}
+
+const ProjectFormModal = ({
+  isOpen,
+  onClose,
+  editingProject,
+  holdings,
+  teams,
+  parentOptions,
+  onSave,
+}: ProjectFormModalProps) => {
+  const { showToast } = useNotification();
+  const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    project_name: '',
+    description: '',
+    parent_project_id: '',
+    module: '',
+    status: 'planning' as ProjectStatus,
+    project_type: 'web_app',
+    owner_holding: '',
+    owner_team: '',
+    deploy_url: '',
+    go_live_date: '',
+    last_verified_date: '',
+    last_usage_note: '',
+  });
+
+  // ── Searchable combobox state ──
+  const [nameQuery, setNameQuery] = useState('');
+  const [showNameDrop, setShowNameDrop] = useState(false);
+  const [worklogOptions, setWorklogOptions] = useState<{ project_name: string; module: string | null }[]>([]);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (
+        dropRef.current && !dropRef.current.contains(e.target as Node) &&
+        nameInputRef.current && !nameInputRef.current.contains(e.target as Node)
+      ) {
+        setShowNameDrop(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Fetch unique project_name + module pairs from col_worklog once when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetch = async () => {
+      const { data } = await supabase
+        .from('col_worklog')
+        .select('project_name, module')
+        .order('project_name');
+      if (data) {
+        // Deduplicate by (project_name + module)
+        const seen = new Set<string>();
+        const unique: { project_name: string; module: string | null }[] = [];
+        data.forEach((row: any) => {
+          const key = `${row.project_name}||${row.module || ''}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            unique.push({ project_name: row.project_name, module: row.module || null });
+          }
+        });
+        // Sort: project_name asc, then module asc
+        unique.sort((a, b) => {
+          if (a.project_name !== b.project_name) return a.project_name.localeCompare(b.project_name);
+          return (a.module || '').localeCompare(b.module || '');
+        });
+        setWorklogOptions(unique);
+      }
+    };
+    fetch();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const name = editingProject?.project_name || '';
+      setFormData({
+        project_name: name,
+        description: editingProject?.description || '',
+        parent_project_id: editingProject?.parent_project_id || '',
+        module: editingProject?.module || '',
+        status: editingProject?.status || 'planning',
+        project_type: editingProject?.project_type || 'web_app',
+        owner_holding: editingProject?.owner_holding || '',
+        owner_team: editingProject?.owner_team || '',
+        deploy_url: editingProject?.deploy_url || '',
+        go_live_date: editingProject?.go_live_date || '',
+        last_verified_date: editingProject?.last_verified_date || '',
+        last_usage_note: editingProject?.last_usage_note || '',
+      });
+      setNameQuery(name);
+    }
+  }, [isOpen, editingProject]);
+
+  // Filtered options for combobox
+  const filteredNameOptions = nameQuery.trim().length === 0
+    ? worklogOptions
+    : worklogOptions.filter(opt =>
+        opt.project_name.toLowerCase().includes(nameQuery.toLowerCase()) ||
+        (opt.module || '').toLowerCase().includes(nameQuery.toLowerCase())
+      );
+
+  if (!isOpen) return null;
+
+  const handleLocalSave = async () => {
+    if (!formData.project_name.trim()) {
+      showToast('กรุณาใส่ชื่อโปรเจค', 'error');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const payload: any = {
+        project_name: formData.project_name.trim(),
+        description: formData.description.trim() || null,
+        parent_project_id: formData.parent_project_id || null,
+        module: formData.module.trim() || null,
+        status: formData.status,
+        project_type: formData.project_type,
+        owner_holding: formData.owner_holding.trim() || null,
+        owner_team: formData.owner_team.trim() || null,
+        deploy_url: formData.deploy_url.trim() || null,
+        go_live_date: formData.go_live_date || null,
+        last_verified_date: formData.last_verified_date || null,
+        last_usage_note: formData.last_usage_note.trim() || null,
+      };
+      await onSave(payload);
+    } catch (err: any) {
+      // Error is already toasted by parent handler
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 md:pt-12 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl mx-4 theme-panel border border-theme-border rounded-2xl shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-theme-border/60">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center text-white shadow-lg">
+              {editingProject ? <Edit2 size={16} /> : <Plus size={16} />}
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-theme-text">
+                {editingProject ? 'แก้ไขโปรเจค' : 'เพิ่มโปรเจคใหม่'}
+              </h2>
+              <p className="text-[11px] text-theme-text-muted">
+                {editingProject ? 'แก้ไขรายละเอียดโปรเจค' : 'เพิ่มโปรเจคเข้าสู่ Portfolio'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-theme-surface-tertiary text-theme-text-muted hover:text-theme-text transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-5 max-h-[65vh] overflow-y-auto">
+          {/* Basic Info */}
+          <div>
+            <h3 className="text-xs font-bold text-theme-text tracking-wide mb-3 uppercase">ข้อมูลพื้นฐาน</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">
+                  ชื่อโปรเจค *
+                  <span className="ml-2 text-indigo-400 font-normal normal-case">
+                    — ค้นหาจาก Worklog ({worklogOptions.length} รายการ)
+                  </span>
+                </label>
+                {/* ── Searchable Combobox ── */}
+                <div className="relative">
+                  <input
+                    ref={nameInputRef}
+                    value={nameQuery}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setNameQuery(v);
+                      setFormData(p => ({ ...p, project_name: v }));
+                      setShowNameDrop(true);
+                    }}
+                    onFocus={() => setShowNameDrop(true)}
+                    placeholder="พิมพ์เพื่อค้นหา หรือกรอกชื่อใหม่..."
+                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all pr-9"
+                    autoComplete="off"
+                  />
+                  <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
+
+                  {showNameDrop && filteredNameOptions.length > 0 && (
+                    <div
+                      ref={dropRef}
+                      className="absolute z-[60] top-full mt-1 left-0 right-0 max-h-60 overflow-y-auto rounded-xl border border-theme-border bg-theme-surface-modal shadow-2xl shadow-black/20 animate-in fade-in slide-in-from-top-1 duration-100"
+                    >
+                      {filteredNameOptions.map((opt, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            setNameQuery(opt.project_name);
+                            setFormData(p => ({
+                              ...p,
+                              project_name: opt.project_name,
+                              module: opt.module || p.module,
+                            }));
+                            setShowNameDrop(false);
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-indigo-500/10 transition-colors flex items-center justify-between gap-3 border-b border-theme-border/40 last:border-0"
+                        >
+                          <span className="font-medium text-theme-text truncate">{opt.project_name}</span>
+                          {opt.module && (
+                            <span className="shrink-0 text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded px-1.5 py-0.5">
+                              📦 {opt.module}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">คำอธิบาย</label>
+                <textarea
+                  value={formData.description}
+                  onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
+                  rows={2}
+                  placeholder="โปรเจคนี้คืออะไร? ใช้ทำอะไร?"
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all resize-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Parent Project</label>
+                <select
+                  value={formData.parent_project_id}
+                  onChange={e => setFormData(p => ({ ...p, parent_project_id: e.target.value }))}
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                >
+                  <option value="">— Top Level —</option>
+                  {parentOptions.filter(p => !p.parent_project_id).map(p => (
+                    <option key={p.id} value={p.id}>{p.project_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Module (Optional)</label>
+                <input
+                  value={formData.module}
+                  onChange={e => setFormData(p => ({ ...p, module: e.target.value }))}
+                  placeholder="เช่น FxCurrency, Item Master"
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Status & Type */}
+          <div className="border-t border-theme-border/50 pt-5">
+            <h3 className="text-xs font-bold text-theme-text tracking-wide mb-3 uppercase">สถานะและประเภท</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">สถานะ</label>
+                <select
+                  value={formData.status}
+                  onChange={e => setFormData(p => ({ ...p, status: e.target.value as ProjectStatus }))}
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                >
+                  {STATUS_ORDER.map(s => (
+                    <option key={s} value={s}>
+                      {STATUS_CONFIG[s].icon} {STATUS_CONFIG[s].label} — {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">ประเภท</label>
+                <select
+                  value={formData.project_type}
+                  onChange={e => setFormData(p => ({ ...p, project_type: e.target.value }))}
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                >
+                  {Object.entries(TYPE_ICONS).map(([k, v]) => (
+                    <option key={k} value={k}>{v} {k.replace('_', ' ')}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">เจ้าของ Holding</label>
+                <select
+                  value={formData.owner_holding}
+                  onChange={e => setFormData(p => ({ ...p, owner_holding: e.target.value }))}
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all text-theme-text bg-theme-surface"
+                >
+                  <option value="">-- เลือก Holding --</option>
+                  {holdings.map(h => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">ทีม</label>
+                <select
+                  value={formData.owner_team}
+                  onChange={e => setFormData(p => ({ ...p, owner_team: e.target.value }))}
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all text-theme-text bg-theme-surface"
+                >
+                  <option value="">-- เลือกทีม --</option>
+                  {teams.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Deployment */}
+          <div className="border-t border-theme-border/50 pt-5">
+            <h3 className="text-xs font-bold text-theme-text tracking-wide mb-3 uppercase">การนำไปใช้งาน / URL</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Deploy URL</label>
+                <input
+                  value={formData.deploy_url}
+                  onChange={e => setFormData(p => ({ ...p, deploy_url: e.target.value }))}
+                  placeholder="https://project-name.pages.dev"
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Go-live Date</label>
+                <input
+                  type="date"
+                  value={formData.go_live_date}
+                  onChange={e => setFormData(p => ({ ...p, go_live_date: e.target.value }))}
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Last Verified</label>
+                <input
+                  type="date"
+                  value={formData.last_verified_date}
+                  onChange={e => setFormData(p => ({ ...p, last_verified_date: e.target.value }))}
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="border-t border-theme-border/50 pt-5">
+            <h3 className="text-xs font-bold text-theme-text tracking-wide mb-3 uppercase">บันทึก</h3>
+            <div>
+              <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Last Usage Note</label>
+              <textarea
+                value={formData.last_usage_note}
+                onChange={e => setFormData(p => ({ ...p, last_usage_note: e.target.value }))}
+                rows={2}
+                placeholder="เช่น ระบบมีคนใช้ทุกวัน, ปิดการใช้งานแล้ว, รอเปลี่ยนระบบใหม่..."
+                className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all resize-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-theme-border/60 bg-theme-surface-secondary/50 rounded-b-2xl">
+          <div className="text-[11px] text-theme-text-muted">
+            {editingProject ? '🔄 แก้ไขโปรเจคที่มีอยู่' : '➕ เพิ่มโปรเจคใหม่ใน Portfolio'}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-theme-text-secondary hover:bg-theme-surface-tertiary border border-theme-border transition-all"
+            >
+              ยกเลิก
+            </button>
+            <button
+              onClick={handleLocalSave}
+              disabled={submitting || !formData.project_name.trim()}
+              className="px-5 py-2 rounded-lg text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25 transition-all flex items-center gap-2"
+            >
+              {submitting ? (
+                <><RefreshCw size={14} className="animate-spin" /> กำลังบันทึก...</>
+              ) : (
+                <><Save size={14} /> บันทึก</>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
