@@ -34,6 +34,7 @@ interface Project {
   is_auto_check_enabled: boolean;
   created_at: string;
   updated_at: string;
+  worklog_project_type?: string | null;
   // Joined fields
   parent_name?: string | null;
   // Computed
@@ -198,6 +199,11 @@ function ProjectCard({
               {project.module && (
                 <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded px-1.5 py-0.5">
                   📦 {project.module}
+                </span>
+              )}
+              {project.worklog_project_type && (
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded px-1.5 py-0.5">
+                  🎯 {project.worklog_project_type}
                 </span>
               )}
             </div>
@@ -944,6 +950,7 @@ const ProjectFormModal = ({
     go_live_date: '',
     last_verified_date: '',
     last_usage_note: '',
+    worklog_project_type: '',
   });
 
   // ── Searchable combobox state ──
@@ -1013,6 +1020,7 @@ const ProjectFormModal = ({
         go_live_date: editingProject?.go_live_date || '',
         last_verified_date: editingProject?.last_verified_date || '',
         last_usage_note: editingProject?.last_usage_note || '',
+        worklog_project_type: editingProject?.worklog_project_type || '',
       });
       setNameQuery(name);
     }
@@ -1048,6 +1056,7 @@ const ProjectFormModal = ({
         go_live_date: formData.go_live_date || null,
         last_verified_date: formData.last_verified_date || null,
         last_usage_note: formData.last_usage_note.trim() || null,
+        worklog_project_type: formData.parent_project_id ? (formData.worklog_project_type || null) : null,
       };
       await onSave(payload);
     } catch (err: any) {
@@ -1180,6 +1189,25 @@ const ProjectFormModal = ({
                   className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
                 />
               </div>
+              {formData.parent_project_id && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-indigo-400 mb-1.5 flex items-center gap-1.5">
+                    🎯 Worklog Project Type (ประเภทงานที่ใช้กรอง)
+                  </label>
+                  <select
+                    value={formData.worklog_project_type}
+                    onChange={e => setFormData(p => ({ ...p, worklog_project_type: e.target.value }))}
+                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border border-indigo-500/30 focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                  >
+                    <option value="">— ไม่กำหนด (ใช้ร่วมกันได้ทุกประเภทงาน) —</option>
+                    <option value="Project">Project (โครงการ / อัปเกรด)</option>
+                    <option value="Support MA">Support MA (ซ่อมบำรุง / MA)</option>
+                    <option value="Support Go-Live">Support Go-Live (ช่วยเหลือขึ้นระบบ)</option>
+                    <option value="Upgrade">Upgrade</option>
+                    <option value="Management">Management (งานบริหาร / ประชุม)</option>
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 

@@ -68,7 +68,9 @@ export default function ReportsPage() {
   const navigate = useNavigate();
 
   // State
-  const [activeTab, setActiveTab] = useState<'personal' | 'overview' | 'individual'>('personal');
+  const [activeTab, setActiveTab] = useState<'personal' | 'overview' | 'individual' | 'manpower'>('personal');
+  const [manpowerDimension, setManpowerDimension] = useState<'projectTypes' | 'actions' | 'bus'>('projectTypes');
+  const [manpowerDeptFilter, setManpowerDeptFilter] = useState<'ALL' | 'IMP' | 'IT'>('ALL');
   const [sessionUser, setSessionUser] = useState<any>(null);
   const [allEntries, setAllEntries] = useState<WorklogEntry[]>([]);
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
@@ -774,6 +776,172 @@ export default function ReportsPage() {
     };
   }, [selectedUser, filteredAllEntries, usersList]);
 
+  const manpowerData = useMemo(() => {
+    // 1. Department Project Type proportions
+    const impEntries = filteredAllEntries.filter(e => e.department_operator === 'IMP');
+    const itEntries = filteredAllEntries.filter(e => e.department_operator === 'IT');
+
+    let impProject = 0, impSupport = 0, impManagement = 0, impOther = 0;
+    impEntries.forEach(e => {
+      const type = getTableType(e.project_type);
+      if (type === 'Project') impProject += e.total_hours;
+      else if (type === 'Support') impSupport += e.total_hours;
+      else if (type === 'Management') impManagement += e.total_hours;
+      else impOther += e.total_hours;
+    });
+    const impTotal = impProject + impSupport + impManagement + impOther || 1;
+
+    let itProject = 0, itSupport = 0, itManagement = 0, itOther = 0;
+    itEntries.forEach(e => {
+      const type = getTableType(e.project_type);
+      if (type === 'Project') itProject += e.total_hours;
+      else if (type === 'Support') itSupport += e.total_hours;
+      else if (type === 'Management') itManagement += e.total_hours;
+      else itOther += e.total_hours;
+    });
+    const itTotal = itProject + itSupport + itManagement + itOther || 1;
+
+    const deptProportion = [
+      {
+        department: 'IMP Group',
+        Project: parseFloat(impProject.toFixed(1)),
+        Support: parseFloat(impSupport.toFixed(1)),
+        Management: parseFloat(impManagement.toFixed(1)),
+        Other: parseFloat(impOther.toFixed(1)),
+        ProjectPercent: parseFloat(((impProject / impTotal) * 100).toFixed(1)),
+        SupportPercent: parseFloat(((impSupport / impTotal) * 100).toFixed(1)),
+        ManagementPercent: parseFloat(((impManagement / impTotal) * 100).toFixed(1)),
+        OtherPercent: parseFloat(((impOther / impTotal) * 100).toFixed(1)),
+      },
+      {
+        department: 'IT Group',
+        Project: parseFloat(itProject.toFixed(1)),
+        Support: parseFloat(itSupport.toFixed(1)),
+        Management: parseFloat(itManagement.toFixed(1)),
+        Other: parseFloat(itOther.toFixed(1)),
+        ProjectPercent: parseFloat(((itProject / itTotal) * 100).toFixed(1)),
+        SupportPercent: parseFloat(((itSupport / itTotal) * 100).toFixed(1)),
+        ManagementPercent: parseFloat(((itManagement / itTotal) * 100).toFixed(1)),
+        OtherPercent: parseFloat(((itOther / itTotal) * 100).toFixed(1)),
+      }
+    ];
+
+    // 2. Teammate comparison
+    const actionTotalMap: Record<string, number> = {};
+    const buTotalMap: Record<string, number> = {};
+    
+    filteredAllEntries.forEach(log => {
+      const action = (log.action_name || 'Unspecified').trim();
+      const bu = (log.bu || 'Unassigned').trim();
+      actionTotalMap[action] = (actionTotalMap[action] || 0) + log.total_hours;
+      buTotalMap[bu] = (buTotalMap[bu] || 0) + log.total_hours;
+    });
+
+    const topActions = Object.entries(actionTotalMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(e => e[0]);
+
+    const topBUs = Object.entries(buTotalMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(e => e[0]);
+
+    const usersMap: Record<string, {
+      userId: string;
+      name: string;
+      displayName: string;
+      department: string;
+      totalHours: number;
+      projectTypes: Record<string, number>;
+      actions: Record<string, number>;
+      bus: Record<string, number>;
+    }> = {};
+
+    filteredAllEntries.forEach(log => {
+      const userId = log.user_id;
+      if (!usersMap[userId]) {
+        const user = usersList.find(u => u.id === userId);
+        const name = user?.full_name || 'Unknown User';
+        const nickname = user?.nickname ? ` (${user.nickname})` : '';
+        const dept = log.department_operator || user?.department || 'Unassigned';
+        usersMap[userId] = {
+          userId,
+          name,
+          displayName: `${name}${nickname}`,
+          department: dept,
+          totalHours: 0,
+          projectTypes: { Project: 0, Support: 0, Management: 0, Other: 0 },
+          actions: {},
+          bus: {}
+        };
+      }
+
+      const userBucket = usersMap[userId];
+      userBucket.totalHours += log.total_hours;
+
+      // project types
+      const type = getTableType(log.project_type);
+      userBucket.projectTypes[type] = (userBucket.projectTypes[type] || 0) + log.total_hours;
+
+      // actions
+      const action = (log.action_name || 'Unspecified').trim();
+      if (topActions.includes(action)) {
+        userBucket.actions[action] = (userBucket.actions[action] || 0) + log.total_hours;
+      } else {
+        userBucket.actions['Other Actions'] = (userBucket.actions['Other Actions'] || 0) + log.total_hours;
+      }
+
+      // BUs
+      const bu = (log.bu || 'Unassigned').trim();
+      if (topBUs.includes(bu)) {
+        userBucket.bus[bu] = (userBucket.bus[bu] || 0) + log.total_hours;
+      } else {
+        userBucket.bus['Other BUs'] = (userBucket.bus['Other BUs'] || 0) + log.total_hours;
+      }
+    });
+
+    const teammates = Object.values(usersMap)
+      .map(t => {
+        const projectTypes: Record<string, number> = {
+          Project: parseFloat((t.projectTypes.Project || 0).toFixed(1)),
+          Support: parseFloat((t.projectTypes.Support || 0).toFixed(1)),
+          Management: parseFloat((t.projectTypes.Management || 0).toFixed(1)),
+          Other: parseFloat((t.projectTypes.Other || 0).toFixed(1))
+        };
+
+        const actions: Record<string, number> = {};
+        topActions.forEach(act => { actions[act] = 0; });
+        actions['Other Actions'] = 0;
+        Object.entries(t.actions).forEach(([k, v]) => {
+          actions[k] = parseFloat(v.toFixed(1));
+        });
+
+        const bus: Record<string, number> = {};
+        topBUs.forEach(bu => { bus[bu] = 0; });
+        bus['Other BUs'] = 0;
+        Object.entries(t.bus).forEach(([k, v]) => {
+          bus[k] = parseFloat(v.toFixed(1));
+        });
+
+        return {
+          ...t,
+          totalHours: parseFloat(t.totalHours.toFixed(1)),
+          projectTypes,
+          actions,
+          bus
+        };
+      })
+      .sort((a, b) => b.totalHours - a.totalHours);
+
+    return {
+      deptProportion,
+      topActions,
+      topBUs,
+      teammates
+    };
+  }, [filteredAllEntries, usersList]);
+
   // Color arrays for Pie cells
   const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6'];
   const GRADIENT_LIST = [
@@ -817,11 +985,11 @@ export default function ReportsPage() {
         </div>
 
         {/* Dynamic Zone Selector (Tabs) */}
-        <div className="flex bg-theme-surface-tertiary/60 p-1 border border-theme-border/50 rounded-2xl max-w-lg shadow-inner">
+        <div className="flex flex-wrap bg-theme-surface-tertiary/60 p-1 border border-theme-border/50 rounded-2xl max-w-2xl shadow-inner gap-1 sm:gap-0">
           <button
             onClick={() => setActiveTab('personal')}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
+              "flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
               activeTab === 'personal'
                 ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20 border border-indigo-400/20"
                 : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary/40"
@@ -834,7 +1002,7 @@ export default function ReportsPage() {
           <button
             onClick={() => setActiveTab('overview')}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
+              "flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
               activeTab === 'overview'
                 ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20 border border-indigo-400/20"
                 : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary/40"
@@ -847,7 +1015,7 @@ export default function ReportsPage() {
           <button
             onClick={() => setActiveTab('individual')}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
+              "flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
               activeTab === 'individual'
                 ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20 border border-indigo-400/20"
                 : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary/40"
@@ -855,6 +1023,19 @@ export default function ReportsPage() {
           >
             <UserIcon size={15} />
             Individual Analytics
+          </button>
+
+          <button
+            onClick={() => setActiveTab('manpower')}
+            className={cn(
+              "flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
+              activeTab === 'manpower'
+                ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20 border border-indigo-400/20"
+                : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary/40"
+            )}
+          >
+            <Layers size={15} />
+            Manpower Planning
           </button>
         </div>
 
@@ -1262,7 +1443,7 @@ export default function ReportsPage() {
                     </span>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl p-4 shadow-inner">
                       <span className="text-[10px] text-theme-text-secondary font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
                       <span className="text-3xl font-black text-theme-text tracking-tight font-mono">{overviewData.imp.metrics.totalHours.toFixed(1)}h</span>
@@ -1270,6 +1451,15 @@ export default function ReportsPage() {
                     <div className="bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl p-4 shadow-inner">
                       <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">Overtime Logged</span>
                       <span className="text-3xl font-black text-amber-400 tracking-tight font-mono">{overviewData.imp.metrics.otHours.toFixed(1)}h</span>
+                    </div>
+                    <div className="bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl p-4 shadow-inner">
+                      <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider block mb-1">Avg / คน</span>
+                      <span className="text-3xl font-black text-blue-400 tracking-tight font-mono">
+                        {(overviewData.imp.metrics.usersCount > 0 
+                          ? (overviewData.imp.metrics.totalHours / overviewData.imp.metrics.usersCount) 
+                          : 0
+                        ).toFixed(1)}h
+                      </span>
                     </div>
                   </div>
 
@@ -1312,7 +1502,7 @@ export default function ReportsPage() {
                     </span>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl p-4 shadow-inner">
                       <span className="text-[10px] text-theme-text-secondary font-bold uppercase tracking-wider block mb-1">Total Effort Hours</span>
                       <span className="text-3xl font-black text-theme-text tracking-tight font-mono">{overviewData.it.metrics.totalHours.toFixed(1)}h</span>
@@ -1320,6 +1510,15 @@ export default function ReportsPage() {
                     <div className="bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl p-4 shadow-inner">
                       <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">Overtime Logged</span>
                       <span className="text-3xl font-black text-amber-400 tracking-tight font-mono">{overviewData.it.metrics.otHours.toFixed(1)}h</span>
+                    </div>
+                    <div className="bg-theme-surface-secondary/50 border border-theme-border/40 rounded-2xl p-4 shadow-inner">
+                      <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block mb-1">Avg / คน</span>
+                      <span className="text-3xl font-black text-emerald-400 tracking-tight font-mono">
+                        {(overviewData.it.metrics.usersCount > 0 
+                          ? (overviewData.it.metrics.totalHours / overviewData.it.metrics.usersCount) 
+                          : 0
+                        ).toFixed(1)}h
+                      </span>
                     </div>
                   </div>
 
@@ -2014,6 +2213,248 @@ export default function ReportsPage() {
             )}
           </div>
         )}
+
+        {/* ======================================================== */}
+        {/* TAB 4: MANPOWER PLANNING & CAPACITY ANALYTICS */}
+        {/* ======================================================== */}
+        {activeTab === 'manpower' && (() => {
+          // Filter teammates based on department selection
+          const filteredTeammates = manpowerData.teammates.filter(t => {
+            if (manpowerDeptFilter === 'ALL') return true;
+            return t.department === manpowerDeptFilter;
+          });
+
+          // Dynamic height for the individual workload chart to prevent squeezed names
+          const workloadChartHeight = Math.max(filteredTeammates.length * 35, 300);
+
+          // Get active columns/keys for the dynamic teammate comparison chart
+          let dimensionKeys: string[] = [];
+          if (manpowerDimension === 'projectTypes') {
+            dimensionKeys = ['Project', 'Support', 'Management', 'Other'];
+          } else if (manpowerDimension === 'actions') {
+            dimensionKeys = [...manpowerData.topActions, 'Other Actions'];
+          } else if (manpowerDimension === 'bus') {
+            dimensionKeys = [...manpowerData.topBUs, 'Other BUs'];
+          }
+
+          // A dynamic palette for Recharts stacked bars
+          const palette = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6', '#a855f7', '#64748b'];
+
+          return (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              
+              {/* Header Explanation Card */}
+              <div className="bg-gradient-to-r from-slate-900 to-indigo-950/80 backdrop-blur-xl border border-indigo-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden group">
+                <div className="absolute top-[-20%] right-[-10%] w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div className="space-y-1.5">
+                    <span className="px-3 py-1 bg-indigo-500/15 border border-indigo-400/20 text-indigo-300 font-bold rounded-full text-[9px] uppercase tracking-wider inline-block">
+                      Manpower Capacity & Resource Allocation
+                    </span>
+                    <h2 className="text-xl font-black text-theme-text tracking-tight uppercase">📊 Resource Allocation Analysis (กำลังพลและประเภทงาน)</h2>
+                    <p className="text-xs text-theme-text-secondary max-w-2xl leading-relaxed">
+                      ใช้เปรียบเทียบสัดส่วนประเภทของภาระงานรายบุคคลและรายแผนก เพื่อวิเคราะห์ประสิทธิภาพ คาดการณ์ความต้องการบุคลากร (Headcount Decisions) และกระจายงานได้อย่างเหมาะสม
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 1: Project Type Proportions (Department & Individual) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                
+                {/* 1.1 Department Project Type Ratio */}
+                <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl lg:col-span-4 transition-all h-full flex flex-col justify-between">
+                  <div>
+                    <div className="mb-6">
+                      <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">🏢 Department Project Type Ratio</h3>
+                      <p className="text-[10px] text-slate-500 font-bold">สัดส่วนประเภทงานเปรียบเทียบระหว่าง IMP และ IT</p>
+                    </div>
+                    <div className="h-64 w-full">
+                      {manpowerData.deptProportion.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">No project data available.</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={manpowerData.deptProportion} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                            <XAxis dataKey="department" stroke="#64748b" fontSize={10} tickLine={false} />
+                            <YAxis stroke="#64748b" fontSize={10} tickLine={false} unit="h" />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
+                              labelClassName="text-theme-text-secondary font-bold text-xs"
+                              formatter={(value: any, name: any, props: any) => {
+                                const percent = props.payload[`${name}Percent`] || 0;
+                                return [`${value}h (${percent}%)`, name];
+                              }}
+                            />
+                            <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+                            <Bar name="Project" dataKey="Project" stackId="a" fill="#6366f1" />
+                            <Bar name="Support" dataKey="Support" stackId="a" fill="#10b981" />
+                            <Bar name="Management" dataKey="Management" stackId="a" fill="#f59e0b" />
+                            <Bar name="Other" dataKey="Other" stackId="a" fill="#64748b" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 1.2 Individual Project Type Proportion */}
+                <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-indigo-500/10 hover:border-indigo-500/20 rounded-3xl p-6 shadow-xl lg:col-span-8 transition-all h-full">
+                  <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">👥 Teammate Project Type Proportion</h3>
+                      <p className="text-[10px] text-slate-500 font-bold">สัดส่วนชั่วโมงทำงานจริงแบ่งตามประเภทงานของแต่ละบุคคล (เรียงจากเวลารวมมากที่สุด)</p>
+                    </div>
+                  </div>
+                  
+                  <div 
+                    className="w-full overflow-y-auto pr-2" 
+                    style={{ maxHeight: '270px' }}
+                  >
+                    {manpowerData.teammates.length === 0 ? (
+                      <div className="h-48 flex items-center justify-center text-xs text-slate-500 italic">No teammate logs found.</div>
+                    ) : (
+                      <div className="h-[250px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart 
+                            data={manpowerData.teammates} 
+                            layout="vertical"
+                            margin={{ top: 5, right: 10, left: 15, bottom: 5 }}
+                          >
+                            <XAxis type="number" stroke="#64748b" fontSize={9} tickLine={false} unit="h" />
+                            <YAxis 
+                              type="category" 
+                              dataKey="name" 
+                              stroke="#64748b" 
+                              fontSize={9} 
+                              tickLine={false} 
+                              width={90}
+                            />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }} 
+                              labelClassName="text-theme-text-secondary font-bold text-xs"
+                              formatter={(value: any, name: any) => [`${value}h`, name]}
+                            />
+                            <Legend verticalAlign="top" height={30} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: 'bold' }} />
+                            <Bar name="Project" dataKey="projectTypes.Project" stackId="a" fill="#6366f1" />
+                            <Bar name="Support" dataKey="projectTypes.Support" stackId="a" fill="#10b981" />
+                            <Bar name="Management" dataKey="projectTypes.Management" stackId="a" fill="#f59e0b" />
+                            <Bar name="Other" dataKey="projectTypes.Other" stackId="a" fill="#64748b" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* SECTION 2: Teammate Workload Comparison Chart with Filters */}
+              <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 shadow-xl transition-all">
+                
+                {/* Section Header & Interactive Toolbar */}
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 border-b border-theme-border/40 pb-6">
+                  <div>
+                    <h3 className="text-sm font-bold text-theme-text uppercase tracking-wider mb-1 flex items-center gap-2">
+                      <Users size={18} className="text-indigo-400" />
+                      Teammate Workload Comparison
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-bold">เปรียบเทียบภาระงานรายบุคคลของทั้ง 2 แผนกในแต่ละมิติ (Project Types, Actions, BU) เพื่อประเมินสัดส่วนงาน</p>
+                  </div>
+                  
+                  {/* Interactive Controls */}
+                  <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
+                    {/* Dimension Selector */}
+                    <div className="flex flex-col min-w-[160px] flex-1 sm:flex-initial">
+                      <label className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-widest mb-1.5">Dimension / มิติตัวแปร</label>
+                      <select
+                        value={manpowerDimension}
+                        onChange={(e: any) => setManpowerDimension(e.target.value)}
+                        className="bg-theme-surface-secondary border border-theme-border rounded-xl py-2 px-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-bold"
+                      >
+                        <option value="projectTypes">Project Types (ประเภทงาน)</option>
+                        <option value="actions">Actions (กิจกรรม/การปฏิบัติงาน)</option>
+                        <option value="bus">Business Units (BU ที่ดูแล)</option>
+                      </select>
+                    </div>
+
+                    {/* Department Operator Filter */}
+                    <div className="flex flex-col min-w-[140px] flex-1 sm:flex-initial">
+                      <label className="text-[9px] font-bold text-theme-text-secondary uppercase tracking-widest mb-1.5">Department / แผนกผู้ทำ</label>
+                      <select
+                        value={manpowerDeptFilter}
+                        onChange={(e: any) => setManpowerDeptFilter(e.target.value)}
+                        className="bg-theme-surface-secondary border border-theme-border rounded-xl py-2 px-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-bold"
+                      >
+                        <option value="ALL">All Departments (ทุกแผนก)</option>
+                        <option value="IMP">IMP Group Only</option>
+                        <option value="IT">IT Group Only</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stacked Workload Chart */}
+                <div className="w-full">
+                  {filteredTeammates.length === 0 ? (
+                    <div className="h-64 flex items-center justify-center text-xs text-slate-500 italic">No teammate matches found. Try relaxing filters.</div>
+                  ) : (
+                    <div 
+                      className="w-full overflow-x-auto"
+                      style={{ height: `${workloadChartHeight}px` }}
+                    >
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={filteredTeammates}
+                          layout="vertical"
+                          margin={{ top: 10, right: 30, left: 20, bottom: 10 }}
+                        >
+                          <XAxis type="number" stroke="#64748b" fontSize={10} tickLine={false} unit="h" />
+                          <YAxis 
+                            type="category" 
+                            dataKey="displayName" 
+                            stroke="#64748b" 
+                            fontSize={10} 
+                            tickLine={false}
+                            width={140}
+                          />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                            labelClassName="text-theme-text-secondary font-bold font-sans text-xs"
+                            formatter={(value: any, name: any) => [`${value}h`, name]}
+                          />
+                          <Legend 
+                            verticalAlign="top" 
+                            height={40} 
+                            iconType="circle" 
+                            wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} 
+                          />
+                          
+                          {dimensionKeys.map((key, idx) => {
+                            const dataKey = 
+                              manpowerDimension === 'projectTypes' ? `projectTypes.${key}` :
+                              manpowerDimension === 'actions' ? `actions.${key}` :
+                              `bus.${key}`;
+                            return (
+                              <Bar 
+                                key={key} 
+                                name={key} 
+                                dataKey={dataKey} 
+                                stackId="a" 
+                                fill={palette[idx % palette.length]} 
+                              />
+                            );
+                          })}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+            </div>
+          );
+        })()}
 
       </div>
 
