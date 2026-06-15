@@ -461,7 +461,14 @@ export default function AdminPage() {
           return;
         }
 
+        // Casing normalization maps using loaded master data
+        const holdingMap = new Map((holdings || []).map(h => [h.holding_name.toLowerCase().trim(), h.holding_name]));
+        const roleMap = new Map((roles || []).map(r => [r.role_name.toLowerCase().trim(), r.role_name]));
+        const typeMap = new Map((projectTypes || []).map(t => [t.type_name.toLowerCase().trim(), t.type_name]));
+
         const parsedRows: any[] = [];
+        const validationErrors: string[] = [];
+
         for (let i = 1; i < lines.length; i++) {
           const rowValues = parseCSVRow(lines[i]);
           if (rowValues.length === 0 || (rowValues.length === 1 && rowValues[0] === '')) continue;
@@ -471,20 +478,47 @@ export default function AdminPage() {
             rowObj[header] = rowValues[idx] || null;
           });
 
+          // Check required fields
           if (!rowObj.holding || !rowObj.department_operator || !rowObj.project_type || !rowObj.project_name || !rowObj.bu || !rowObj.department) {
             continue; 
           }
 
-          parsedRows.push({
-            holding: rowObj.holding,
-            department_operator: rowObj.department_operator,
-            project_type: rowObj.project_type,
-            project_name: rowObj.project_name,
-            module: rowObj.module || null,
-            bu: rowObj.bu,
-            department: rowObj.department,
-            project_description: rowObj.project_description || null
-          });
+          // Case-insensitive matching & normalization with master tables
+          const normHolding = holdingMap.get(rowObj.holding.toLowerCase().trim());
+          const normRole = roleMap.get(rowObj.department_operator.toLowerCase().trim());
+          const normType = typeMap.get(rowObj.project_type.toLowerCase().trim());
+
+          const rowNum = i + 1;
+          if (!normHolding) {
+            validationErrors.push(`แถวที่ ${rowNum}: ไม่พบ Holding "${rowObj.holding}" ในระบบ (โปรดตรวจสอบตัวสะกดหรือเพิ่มใน Master Holding ก่อน)`);
+          }
+          if (!normRole) {
+            validationErrors.push(`แถวที่ ${rowNum}: ไม่พบ Role/Operator "${rowObj.department_operator}" ในระบบ (โปรดตรวจสอบตัวสะกดหรือเพิ่มใน Master Role ก่อน)`);
+          }
+          if (!normType) {
+            validationErrors.push(`แถวที่ ${rowNum}: ไม่พบ Project Type "${rowObj.project_type}" ในระบบ (โปรดตรวจสอบตัวสะกดหรือเพิ่มใน Master Project Type ก่อน)`);
+          }
+
+          if (normHolding && normRole && normType) {
+            parsedRows.push({
+              holding: normHolding,
+              department_operator: normRole,
+              project_type: normType,
+              project_name: rowObj.project_name.trim(),
+              module: rowObj.module ? rowObj.module.trim() : null,
+              bu: rowObj.bu.trim(),
+              department: rowObj.department.trim(),
+              project_description: rowObj.project_description ? rowObj.project_description.trim() : null
+            });
+          }
+        }
+
+        if (validationErrors.length > 0) {
+          const shownErrors = validationErrors.slice(0, 5).join('\n');
+          const extraCount = validationErrors.length - 5;
+          const msg = `พบข้อผิดพลาดในข้อมูล CSV:\n${shownErrors}${extraCount > 0 ? `\n...และอีก ${extraCount} รายการ` : ''}`;
+          showToast(msg, 'error');
+          return;
         }
 
         if (parsedRows.length === 0) {
@@ -492,13 +526,28 @@ export default function AdminPage() {
           return;
         }
 
+        // Deduplicate parsedRows based on unique structure combination: holding, role, type, name, module
+        const uniqueParsedRowsMap = new Map<string, any>();
+        parsedRows.forEach(row => {
+          const key = [
+            row.holding.toLowerCase().trim(),
+            row.department_operator.toLowerCase().trim(),
+            row.project_type.toLowerCase().trim(),
+            row.project_name.toLowerCase().trim(),
+            (row.module || '').toLowerCase().trim()
+          ].join('|');
+          // Keep the last occurrence in case there are duplicates with different values in other fields
+          uniqueParsedRowsMap.set(key, row);
+        });
+        const deduplicatedRows = Array.from(uniqueParsedRowsMap.values());
+
         // Frontend-assisted matching for upserting
         const newRows: any[] = [];
         const updateRows: any[] = [];
 
         // Match existing structures:
         // We match by: holding, department_operator, project_type, project_name, module (case insensitive)
-        parsedRows.forEach(row => {
+        deduplicatedRows.forEach(row => {
           const existing = projectStructures.find(p => 
             p.holding?.toLowerCase().trim() === row.holding?.toLowerCase().trim() &&
             p.department_operator?.toLowerCase().trim() === row.department_operator?.toLowerCase().trim() &&
@@ -529,7 +578,7 @@ export default function AdminPage() {
         setImportPreview({
           newRows,
           updateRows,
-          rawRows: parsedRows
+          rawRows: deduplicatedRows
         });
       } catch (err: any) {
         console.error('Error importing CSV:', err);
