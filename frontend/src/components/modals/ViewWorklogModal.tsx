@@ -329,12 +329,14 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
                             "px-2 py-0.5 rounded-full text-[10px] font-extrabold border shrink-0 uppercase tracking-wider flex items-center gap-0.5",
                             channel === 'Meeting' && "bg-indigo-500/10 border-indigo-500/25 text-indigo-400",
                             channel === 'Discuss via phone' && "bg-amber-500/10 border-amber-500/25 text-amber-400",
-                            channel === 'On site' && "bg-rose-500/10 border-rose-500/25 text-rose-400"
+                            channel === 'On site' && "bg-rose-500/10 border-rose-500/25 text-rose-400",
+                            channel === 'Leave' && "bg-teal-500/10 border-teal-500/25 text-teal-400"
                           )}
                         >
                           {channel === 'Meeting' && '👥'}
                           {channel === 'Discuss via phone' && '📞'}
                           {channel === 'On site' && '📍'}
+                          {channel === 'Leave' && '🌴'}
                           <span>{channel}</span>
                         </span>
                       ))

@@ -1490,7 +1490,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             <div className="space-y-2 mt-4 pt-2 border-t border-theme-border dark:border-theme-border/30">
               <label className="block text-[10px] uppercase font-bold text-theme-text-muted ml-1">ช่องทางการสื่อสาร (Action Channels - Optional)</label>
               <div className="flex flex-wrap gap-2">
-                {['Meeting', 'Discuss via phone', 'On site'].map((channelOption) => {
+                {['Meeting', 'Discuss via phone', 'On site', 'Leave'].map((channelOption) => {
                   const isSelected = selectedActionChannels.includes(channelOption);
                   return (
                     <button
@@ -1513,6 +1513,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                       {channelOption === 'Meeting' && <span className="text-xs">👥</span>}
                       {channelOption === 'Discuss via phone' && <span className="text-xs">📞</span>}
                       {channelOption === 'On site' && <span className="text-xs">📍</span>}
+                      {channelOption === 'Leave' && <span className="text-xs">🌴</span>}
                       <span>{channelOption}</span>
                     </button>
                   );

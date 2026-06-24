@@ -499,7 +499,9 @@ export default function LogWorkPage() {
 
         // If the logged-in user is Chatchawan, load everyone. Otherwise, only show Chatchawan and ourselves.
         let uniqueNames: string[] = [];
-        const isChatchawan = currentCleanName.toLowerCase() === 'chatchawan';
+        const actualEmail = session?.email || '';
+        const actualNickname = session?.nickname || '';
+        const isChatchawan = actualEmail.toLowerCase().includes('chatchawan') || actualNickname.toLowerCase().includes('chatchawan');
         setIsCurrentUserChatchawan(isChatchawan);
         
         if (isChatchawan) {
@@ -1676,7 +1678,7 @@ export default function LogWorkPage() {
             <div className="space-y-2 mt-4">
               <label className="block text-xs font-semibold text-theme-text-secondary">ช่องทางการสื่อสาร (Action Channels - Optional)</label>
               <div className="flex flex-wrap gap-2.5">
-                {['Meeting', 'Discuss via phone', 'On site'].map((channelOption) => {
+                {['Meeting', 'Discuss via phone', 'On site', 'Leave'].map((channelOption) => {
                   const isSelected = selectedActionChannels.includes(channelOption);
                   return (
                     <button
@@ -1699,6 +1701,7 @@ export default function LogWorkPage() {
                       {channelOption === 'Meeting' && <span className="text-sm">👥</span>}
                       {channelOption === 'Discuss via phone' && <span className="text-sm">📞</span>}
                       {channelOption === 'On site' && <span className="text-sm">📍</span>}
+                      {channelOption === 'Leave' && <span className="text-sm">🌴</span>}
                       <span>{channelOption}</span>
                     </button>
                   );
