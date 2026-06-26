@@ -10,6 +10,7 @@ import AdminPage from './pages/AdminPage';
 import MigratePage from './pages/MigratePage';
 import ProjectRegistryPage from './pages/ProjectRegistryPage';
 import PublicWorklogPage from './pages/PublicWorklogPage';
+import LeaderboardPage from './pages/LeaderboardPage';
 import { NotificationProvider } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -23,6 +24,7 @@ function App() {
         <Route path="/log" element={<LogWorkPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/hrbp" element={<HrbpPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/projects" element={<ProjectRegistryPage />} />

@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
@@ -237,6 +237,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <NavItem to="/log" icon={<PlusCircle size={18} />} label="Log Work" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/calendar" icon={<Calendar size={18} />} label="Calendar" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/reports" icon={<FileText size={18} />} label="Reports" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/leaderboard" icon={<Trophy size={18} />} label="Leaderboard" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/hrbp" icon={<Cpu size={18} />} label="AI Enhance" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/migrate" icon={<UploadCloud size={18} />} label="Data Migration" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/admin" icon={<Database size={18} />} label="Master Data" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
