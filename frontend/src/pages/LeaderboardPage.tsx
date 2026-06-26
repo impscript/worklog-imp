@@ -71,21 +71,52 @@ export default function LeaderboardPage() {
         const processed = users.map(user => {
           const userLogs = logs.filter(log => log.user_id === user.id);
           
-          // Sum hours
+          // Sum total hours
           const totalHours = userLogs.reduce((sum, log) => sum + parseFloat(log.total_hours || '0'), 0);
           
-          // Distinct work dates
-          const distinctDates = new Set(userLogs.map(log => log.work_date));
-          const activeDays = distinctDates.size;
+          // Group by work_date to calculate daily parameters
+          const dailyLogs: Record<string, { totalHours: number; isSameDay: boolean }> = {};
           
-          // Same-day logging count
-          const sameDayLogs = userLogs.filter(log => {
+          userLogs.forEach(log => {
+            const dateStr = log.work_date;
+            const logHours = parseFloat(log.total_hours || '0');
             const createdDate = new Date(log.created_at).toISOString().split('T')[0];
-            return createdDate === log.work_date;
-          }).length;
+            const isSameDay = createdDate === dateStr;
+            
+            if (!dailyLogs[dateStr]) {
+              dailyLogs[dateStr] = { totalHours: 0, isSameDay: false };
+            }
+            dailyLogs[dateStr].totalHours += logHours;
+            if (isSameDay) {
+              dailyLogs[dateStr].isSameDay = true;
+            }
+          });
 
-          // Dynamic score formula
-          const flameScore = (activeDays * 25) + Math.round(totalHours * 2.5) + (sameDayLogs * 10);
+          // Calculate core daily consistency score and punctuality bonus
+          let coreDailyScore = 0;
+          let totalPunctualityBonus = 0;
+          const activeDays = Object.keys(dailyLogs).length;
+          const sameDayLogs = Object.values(dailyLogs).filter(day => day.isSameDay).length;
+          
+          Object.values(dailyLogs).forEach(day => {
+            // Daily consistency: 6 hours = 100 points, else proportional
+            if (day.totalHours >= 6) {
+              coreDailyScore += 100;
+            } else if (day.totalHours > 0) {
+              coreDailyScore += Math.round((day.totalHours / 6) * 100);
+            }
+            
+            // Punctuality: +15 points for same-day logging
+            if (day.isSameDay) {
+              totalPunctualityBonus += 15;
+            }
+          });
+
+          // Coffee boost bonus: +30 points per cup
+          const coffeeBoostBonus = (user.coffee_boost_count || 0) * 30;
+
+          // Total Flame Score
+          const flameScore = coreDailyScore + totalPunctualityBonus + coffeeBoostBonus;
 
           // Assign Badges dynamically in Thai based on performance
           let badge = "นักบันทึกสายชิล 🏃";
@@ -617,26 +648,26 @@ export default function LeaderboardPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs leading-relaxed text-theme-text-secondary">
                 <div className="space-y-1.5">
                   <h3 className="font-bold text-theme-text flex items-center gap-1">
-                    <span className="text-amber-500">🔥</span> สถิติไฟลุก (Streak)
+                    <span className="text-amber-500">🔥</span> ความสม่ำเสมอรายวัน (Daily Consistency)
                   </h3>
                   <p>
-                    การบันทึกงานในวันอื่นที่ไม่ซ้ำกันจะได้ +25 คะแนนต่อวัน ยิ่งสะสมวันทำงานมากยิ่งได้คะแนนหลักเยอะขึ้น
+                    บันทึกชั่วโมงงานในแต่ละวันสะสมอย่างน้อย 6 ชั่วโมง จะได้รับคะแนนหลักประจำวัน 100 คะแนนเต็มทันที (หากบันทึกน้อยกว่า 6 ชั่วโมง คะแนนจะเฉลี่ยตามสัดส่วนจริง)
                   </p>
                 </div>
                 <div className="space-y-1.5">
                   <h3 className="font-bold text-theme-text flex items-center gap-1">
-                    <span className="text-indigo-500">⚡</span> ความไว (Punctuality)
+                    <span className="text-indigo-500">⚡</span> โบนัสส่งตรงวัน (Punctuality Bonus)
                   </h3>
                   <p>
-                    ส่งบันทึกงานแบบ Real-time (บันทึกงานตรงกับวันที่ทำงานจริง) จะได้รับแต้มความซื่อตรงและความเร็วเพิ่ม +10 คะแนนต่อรายการ
+                    กดส่งบันทึกงานภายในวันเดียวกับวันที่ปฏิบัติงานจริง (ไม่ส่งย้อนหลังข้ามวัน) รับโบนัสความเร็วเพิ่ม +15 คะแนนต่อวัน
                   </p>
                 </div>
                 <div className="space-y-1.5">
                   <h3 className="font-bold text-theme-text flex items-center gap-1">
-                    <span className="text-emerald-500">⚖️</span> ปริมาณงาน (Volume of Hours)
+                    <span className="text-emerald-500">☕</span> โบนัสพลังกาแฟ (Appreciation Bonus)
                   </h3>
                   <p>
-                    ทุกๆ 1 ชั่วโมงการทำงานที่ส่งเข้าระบบจะถูกคำนวณสัดส่วนแต้มเพิ่ม +2.5 คะแนน ช่วยเพิ่มค่าประสบการณ์ให้กับผู้ขยันบันทึก
+                    ได้รับการส่งแก้วกาแฟเชียร์และสนับสนุนส่งเสริมกันและกันภายในทีมพนักงาน รับคะแนนพิเศษเพิ่ม +30 คะแนนต่อแก้ว
                   </p>
                 </div>
               </div>
