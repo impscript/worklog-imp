@@ -25,6 +25,7 @@ interface TeamMember {
   department: string;
   totalHours: number;
   flameScore: number;
+  flameScorePct: number;
   badge: string;
   badgeIcon: string;
   badgeColor: string;
@@ -86,26 +87,26 @@ export default function LeaderboardPage() {
           // Dynamic score formula
           const flameScore = (activeDays * 25) + Math.round(totalHours * 2.5) + (sameDayLogs * 10);
 
-          // Assign Badges dynamically based on performance
-          let badge = "Steady Jogger 🏃";
+          // Assign Badges dynamically in Thai based on performance
+          let badge = "นักบันทึกสายชิล 🏃";
           let badgeIcon = "👟";
           let badgeColor = "text-orange-400 bg-orange-500/10 border-orange-500/20";
           let status: 'active' | 'warning' | 'chill' = 'active';
 
           if (flameScore > 2500) {
-            badge = "Log Master 🚀";
+            badge = "เซียนบันทึกงานมือทอง 🚀";
             badgeIcon = "👾";
             badgeColor = "text-pink-400 bg-pink-500/10 border-pink-500/20";
           } else if (flameScore > 1000) {
-            badge = "Consistent Legend 🛡️";
+            badge = "ตำนานความสม่ำเสมอ 🛡️";
             badgeIcon = "🔥";
-            badgeColor = "text-indigo-400 bg-indigo-500/10 border-indigo-500/20";
+            badgeColor = "text-indigo-400 bg-indigo-500/10 border-indigo-500/25";
           } else if (flameScore > 500) {
-            badge = "Early Bird 🐦";
+            badge = "นกตื่นเช้าส่งไว 🐦";
             badgeIcon = "☀️";
             badgeColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
           } else if (flameScore <= 400) {
-            badge = "Chilled Turtle 🐢";
+            badge = "เต่าสโลว์ไลฟ์ 🐢";
             badgeIcon = "💤";
             badgeColor = "text-teal-400 bg-teal-500/10 border-teal-500/20";
             status = 'chill';
@@ -120,6 +121,7 @@ export default function LeaderboardPage() {
             department: user.department || 'General',
             totalHours,
             flameScore,
+            flameScorePct: 0, // calculated in next step
             badge,
             badgeIcon,
             badgeColor,
@@ -133,9 +135,11 @@ export default function LeaderboardPage() {
         // Sort by flameScore descending
         processed.sort((a, b) => b.flameScore - a.flameScore);
 
-        // Map ranking position
+        // Map ranking position and compute percentage based on top score
+        const maxScore = processed[0]?.flameScore || 1;
         const ranked = processed.map((member, index) => ({
           ...member,
+          flameScorePct: Math.round((member.flameScore / maxScore) * 100),
           rank: index + 1
         }));
 
@@ -179,7 +183,7 @@ export default function LeaderboardPage() {
       // Update state locally
       setMembers(prev => prev.map(m => m.id === member.id ? { ...m, coffeeBoostCount: newCount } : m));
       
-      showToast(`ส่งกาแฟ Boost ให้ ${member.name} แล้ว! ☕️ / Coffee boost sent!`, 'success');
+      showToast(`ส่งกาแฟ Boost ให้ ${member.name} แล้ว! ☕️`, 'success');
     } catch (err) {
       console.error('Error updating coffee boost:', err);
       showToast('ไม่สามารถส่งกาแฟได้ในขณะนี้', 'error');
@@ -255,7 +259,7 @@ export default function LeaderboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="ai-glass rounded-2xl p-5 flex items-center justify-between">
                 <div className="space-y-1">
-                  <span className="text-xs font-bold text-theme-text-muted uppercase tracking-wider">Average Compliance</span>
+                  <span className="text-xs font-bold text-theme-text-muted uppercase tracking-wider">ความสม่ำเสมอเฉลี่ย</span>
                   <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono">{overallStats.complianceRate}%</p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500">
@@ -265,7 +269,7 @@ export default function LeaderboardPage() {
               
               <div className="ai-glass rounded-2xl p-5 flex items-center justify-between">
                 <div className="space-y-1">
-                  <span className="text-xs font-bold text-theme-text-muted uppercase tracking-wider">Top Performer</span>
+                  <span className="text-xs font-bold text-theme-text-muted uppercase tracking-wider">ผู้นำบันทึกงาน</span>
                   <p className="text-xl font-black text-emerald-500 truncate max-w-[200px]" title={overallStats.topPerformer}>
                     {overallStats.topPerformer}
                   </p>
@@ -277,8 +281,8 @@ export default function LeaderboardPage() {
 
               <div className="ai-glass rounded-2xl p-5 flex items-center justify-between">
                 <div className="space-y-1">
-                  <span className="text-xs font-bold text-theme-text-muted uppercase tracking-wider">Overall Logged Hours</span>
-                  <p className="text-2xl font-black text-amber-500 font-mono">{overallStats.totalHours.toLocaleString()} hrs 🔥</p>
+                  <span className="text-xs font-bold text-theme-text-muted uppercase tracking-wider">ชั่วโมงบันทึกงานรวม</span>
+                  <p className="text-2xl font-black text-amber-500 font-mono">{overallStats.totalHours.toLocaleString()} ชม. 🔥</p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
                   <Flame size={20} />
@@ -290,7 +294,7 @@ export default function LeaderboardPage() {
             <div className="space-y-4">
               <h2 className="text-base font-black text-slate-800 dark:text-slate-300 uppercase tracking-widest font-mono flex items-center gap-2">
                 <Sparkles size={16} className="text-amber-500" />
-                <span>Top Contributors</span>
+                <span>ผู้มีส่วนร่วมสูงสุด</span>
               </h2>
               
               {/* Aligned to bottom to construct a real 3D podium height distribution on desktop */}
@@ -304,13 +308,13 @@ export default function LeaderboardPage() {
                     {/* Silver Medal/Badge */}
                     <div className="absolute top-3 right-4 flex items-center gap-1 bg-slate-300/20 dark:bg-slate-500/10 px-2 py-0.5 rounded-full border border-slate-400/20">
                       <Trophy size={14} className="text-slate-400" />
-                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">SILVER</span>
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">เหรียญเงิน 🥈</span>
                     </div>
 
                     {/* Coffee Count Badge */}
                     {top2.coffeeBoostCount > 0 && (
                       <div className="absolute top-12 right-4 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 text-amber-500 text-[10px] font-bold animate-pulse">
-                        ☕ {top2.coffeeBoostCount} Boosts
+                        ☕ {top2.coffeeBoostCount} บูสต์
                       </div>
                     )}
 
@@ -335,13 +339,13 @@ export default function LeaderboardPage() {
 
                     <div className="w-full grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-theme-border/60">
                       <div>
-                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Total Hours</p>
-                        <p className="text-sm font-extrabold text-theme-text font-mono">{top2.totalHours.toFixed(1)} hrs</p>
+                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">ชั่วโมงรวม</p>
+                        <p className="text-sm font-extrabold text-theme-text font-mono">{top2.totalHours.toFixed(1)} ชม.</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Flame Score</p>
+                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">คะแนนไฟลุก</p>
                         <p className="text-sm font-extrabold text-amber-500 font-mono flex items-center justify-center gap-1">
-                          {top2.flameScore}% <Flame size={12} className="fill-amber-500 text-amber-500" />
+                          {top2.flameScore.toLocaleString()} ({top2.flameScorePct}%) <Flame size={12} className="fill-amber-500 text-amber-500" />
                         </p>
                       </div>
                     </div>
@@ -356,13 +360,13 @@ export default function LeaderboardPage() {
                     {/* Gold Trophy Badge */}
                     <div className="absolute top-3 right-4 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-400/30">
                       <Trophy size={14} className="text-amber-500 animate-pulse" />
-                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">CHAMPION</span>
+                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">แชมป์เปี้ยน 🏆</span>
                     </div>
 
                     {/* Coffee Count Badge */}
                     {top1.coffeeBoostCount > 0 && (
                       <div className="absolute top-12 right-4 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 text-amber-500 text-[10px] font-bold animate-pulse">
-                        ☕ {top1.coffeeBoostCount} Boosts
+                        ☕ {top1.coffeeBoostCount} บูสต์
                       </div>
                     )}
 
@@ -387,13 +391,13 @@ export default function LeaderboardPage() {
 
                     <div className="w-full grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-theme-border/60">
                       <div>
-                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Total Hours</p>
-                        <p className="text-sm font-extrabold text-theme-text font-mono">{top1.totalHours.toFixed(1)} hrs</p>
+                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">ชั่วโมงรวม</p>
+                        <p className="text-sm font-extrabold text-theme-text font-mono">{top1.totalHours.toFixed(1)} ชม.</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Flame Score</p>
+                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">คะแนนไฟลุก</p>
                         <p className="text-sm font-extrabold text-amber-500 font-mono flex items-center justify-center gap-1">
-                          {top1.flameScore}% <Flame size={14} className="fill-amber-500 text-amber-500 animate-pulse" />
+                          {top1.flameScore.toLocaleString()} ({top1.flameScorePct}%) <Flame size={14} className="fill-amber-500 text-amber-500 animate-pulse" />
                         </p>
                       </div>
                     </div>
@@ -408,13 +412,13 @@ export default function LeaderboardPage() {
                     {/* Bronze Medal/Badge */}
                     <div className="absolute top-3 right-4 flex items-center gap-1 bg-amber-700/10 px-2 py-0.5 rounded-full border border-amber-700/20">
                       <Trophy size={14} className="text-amber-700" />
-                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-500">BRONZE</span>
+                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-500">เหรียญทองแดง 🥉</span>
                     </div>
 
                     {/* Coffee Count Badge */}
                     {top3.coffeeBoostCount > 0 && (
                       <div className="absolute top-12 right-4 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 text-amber-500 text-[10px] font-bold animate-pulse">
-                        ☕ {top3.coffeeBoostCount} Boosts
+                        ☕ {top3.coffeeBoostCount} บูสต์
                       </div>
                     )}
 
@@ -439,13 +443,13 @@ export default function LeaderboardPage() {
 
                     <div className="w-full grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-theme-border/60">
                       <div>
-                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Total Hours</p>
-                        <p className="text-sm font-extrabold text-theme-text font-mono">{top3.totalHours.toFixed(1)} hrs</p>
+                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">ชั่วโมงรวม</p>
+                        <p className="text-sm font-extrabold text-theme-text font-mono">{top3.totalHours.toFixed(1)} ชม.</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Flame Score</p>
+                        <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">คะแนนไฟลุก</p>
                         <p className="text-sm font-extrabold text-amber-500 font-mono flex items-center justify-center gap-1">
-                          {top3.flameScore}% <Flame size={12} className="fill-amber-500 text-amber-500" />
+                          {top3.flameScore.toLocaleString()} ({top3.flameScorePct}%) <Flame size={12} className="fill-amber-500 text-amber-500" />
                         </p>
                       </div>
                     </div>
@@ -461,14 +465,14 @@ export default function LeaderboardPage() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-base font-black text-slate-800 dark:text-slate-300 uppercase tracking-widest font-mono flex items-center gap-2">
                   <Clock size={16} className="text-indigo-500" />
-                  <span>Rankings &amp; Teams</span>
+                  <span>อันดับและรายชื่อทีม</span>
                 </h2>
 
                 {/* Search filter */}
                 <div className="w-full sm:w-64 relative">
                   <input
                     type="text"
-                    placeholder="Search team member..."
+                    placeholder="ค้นหาสมาชิกทีม..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full px-4 py-2 pl-10 rounded-xl bg-theme-surface-secondary border border-theme-border text-xs focus:outline-none focus:border-indigo-500 transition-colors"
@@ -484,12 +488,12 @@ export default function LeaderboardPage() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-theme-border/60 bg-theme-surface-secondary/40 text-theme-text-muted text-[10px] font-bold uppercase tracking-wider">
-                        <th className="px-6 py-4 w-16 text-center">Rank</th>
-                        <th className="px-6 py-4">Name</th>
-                        <th className="px-6 py-4">Flame Score (%)</th>
-                        <th className="px-6 py-4">Total Hours</th>
+                        <th className="px-6 py-4 w-16 text-center">อันดับ</th>
+                        <th className="px-6 py-4">ชื่อ</th>
+                        <th className="px-6 py-4">คะแนนไฟลุก (%)</th>
+                        <th className="px-6 py-4">ชั่วโมงรวม</th>
                         <th className="px-6 py-4">สถานะ &amp; เหรียญรางวัล</th>
-                        <th className="px-6 py-4 text-center">Interactions</th>
+                        <th className="px-6 py-4 text-center">ส่งกำลังใจ</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-theme-border/40 text-sm">
@@ -541,14 +545,14 @@ export default function LeaderboardPage() {
                             {/* Flame Score */}
                             <td className="px-6 py-4 font-bold font-mono text-amber-500">
                               <div className="flex items-center gap-1.5">
-                                <span>{member.flameScore}%</span>
+                                <span>{member.flameScore.toLocaleString()} ({member.flameScorePct}%)</span>
                                 <Flame size={14} className="fill-amber-500 text-amber-500" />
                               </div>
                             </td>
 
                             {/* Total Hours */}
                             <td className="px-6 py-4 font-semibold font-mono text-theme-text-secondary">
-                              {member.totalHours.toFixed(1)} hrs
+                              {member.totalHours.toFixed(1)} ชม.
                             </td>
 
                             {/* Badges / Funny status */}
@@ -564,13 +568,13 @@ export default function LeaderboardPage() {
                                 
                                 {member.status === 'chill' && (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-500 border border-rose-500/20 animate-pulse">
-                                    💤 Needs Nudge
+                                    💤 ต้องสะกิดแล้ว
                                   </span>
                                 )}
                               </div>
                             </td>
 
-                            {/* Friendly Interactions (Calls handleSendCoffee with full member object) */}
+                            {/* Friendly Interactions */}
                             <td className="px-6 py-4 text-center">
                               <button
                                 onClick={() => handleSendCoffee(member)}
@@ -585,7 +589,7 @@ export default function LeaderboardPage() {
                                 )}
                               >
                                 <Coffee size={13} className={cn(!sentCoffee[member.id] && "animate-pulse")} />
-                                <span>{sentCoffee[member.id] ? 'Sent!' : member.status === 'chill' ? 'Nudge Coffee' : 'Send Coffee'}</span>
+                                <span>{sentCoffee[member.id] ? 'ส่งแล้ว! ☕' : member.status === 'chill' ? 'ส่งกาแฟปลุก ⏰' : 'ส่งกาแฟเชียร์ ☕'}</span>
                               </button>
                             </td>
 
