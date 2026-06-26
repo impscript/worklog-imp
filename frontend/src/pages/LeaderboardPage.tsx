@@ -341,7 +341,7 @@ export default function LeaderboardPage() {
                       <div>
                         <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Flame Score</p>
                         <p className="text-sm font-extrabold text-amber-500 font-mono flex items-center justify-center gap-1">
-                          {top2.flameScore} <Flame size={12} className="fill-amber-500 text-amber-500" />
+                          {top2.flameScore}% <Flame size={12} className="fill-amber-500 text-amber-500" />
                         </p>
                       </div>
                     </div>
@@ -393,7 +393,7 @@ export default function LeaderboardPage() {
                       <div>
                         <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Flame Score</p>
                         <p className="text-sm font-extrabold text-amber-500 font-mono flex items-center justify-center gap-1">
-                          {top1.flameScore} <Flame size={14} className="fill-amber-500 text-amber-500 animate-pulse" />
+                          {top1.flameScore}% <Flame size={14} className="fill-amber-500 text-amber-500 animate-pulse" />
                         </p>
                       </div>
                     </div>
@@ -445,7 +445,7 @@ export default function LeaderboardPage() {
                       <div>
                         <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Flame Score</p>
                         <p className="text-sm font-extrabold text-amber-500 font-mono flex items-center justify-center gap-1">
-                          {top3.flameScore} <Flame size={12} className="fill-amber-500 text-amber-500" />
+                          {top3.flameScore}% <Flame size={12} className="fill-amber-500 text-amber-500" />
                         </p>
                       </div>
                     </div>
@@ -486,9 +486,9 @@ export default function LeaderboardPage() {
                       <tr className="border-b border-theme-border/60 bg-theme-surface-secondary/40 text-theme-text-muted text-[10px] font-bold uppercase tracking-wider">
                         <th className="px-6 py-4 w-16 text-center">Rank</th>
                         <th className="px-6 py-4">Name</th>
-                        <th className="px-6 py-4">Flame Score</th>
+                        <th className="px-6 py-4">Flame Score (%)</th>
                         <th className="px-6 py-4">Total Hours</th>
-                        <th className="px-6 py-4">Status &amp; Badge</th>
+                        <th className="px-6 py-4">สถานะ &amp; เหรียญรางวัล</th>
                         <th className="px-6 py-4 text-center">Interactions</th>
                       </tr>
                     </thead>
@@ -541,7 +541,7 @@ export default function LeaderboardPage() {
                             {/* Flame Score */}
                             <td className="px-6 py-4 font-bold font-mono text-amber-500">
                               <div className="flex items-center gap-1.5">
-                                {member.flameScore}
+                                <span>{member.flameScore}%</span>
                                 <Flame size={14} className="fill-amber-500 text-amber-500" />
                               </div>
                             </td>
