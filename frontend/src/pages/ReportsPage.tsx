@@ -167,19 +167,59 @@ export default function ReportsPage() {
       setUsersList(usersData || []);
       if (usersData && usersData.length > 0) {
         // Pre-select current logged in user for Individual Analytics
-        const matchingUser = usersData.find((u: any) => u.id === session.id);
-        setSelectedUser(matchingUser ? matchingUser.id : usersData[0].id);
+        setSelectedUser(prev => {
+          if (prev) return prev;
+          const matchingUser = usersData.find((u: any) => u.id === session.id);
+          return matchingUser ? matchingUser.id : usersData[0].id;
+        });
       }
 
-      // 2. Fetch All Worklogs in the Database
-      const { data: logsData, error: logsErr } = await supabase
-        .from('col_worklog')
-        .select('*')
-        .order('work_date', { ascending: false });
+      // 2. Fetch All Worklogs in the Database within date range using pagination
+      let fetchedLogs: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (logsErr) throw logsErr;
+      while (hasMore) {
+        let query = supabase
+          .from('col_worklog')
+          .select('*')
+          .order('work_date', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (dateFilter === 'this-week') {
+          query = query
+            .gte('work_date', dateBoundaries.week.start)
+            .lte('work_date', dateBoundaries.week.end);
+        } else if (dateFilter === 'this-month') {
+          query = query
+            .gte('work_date', dateBoundaries.month.start)
+            .lte('work_date', dateBoundaries.month.end);
+        } else if (dateFilter === 'custom') {
+          if (customStart) {
+            query = query.gte('work_date', customStart);
+          }
+          if (customEnd) {
+            query = query.lte('work_date', customEnd);
+          }
+        }
+
+        const { data: logsData, error: logsErr } = await query;
+        if (logsErr) throw logsErr;
+
+        if (!logsData || logsData.length === 0) {
+          hasMore = false;
+        } else {
+          fetchedLogs = [...fetchedLogs, ...logsData];
+          if (logsData.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        }
+      }
       
-      const mappedLogs = (logsData || []).map((item: any) => ({
+      const mappedLogs = fetchedLogs.map((item: any) => ({
         ...item,
         total_hours: parseFloat(item.total_hours)
       }));
@@ -194,7 +234,7 @@ export default function ReportsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [navigate, showToast]);
+  }, [navigate, showToast, dateFilter, customStart, customEnd, dateBoundaries]);
 
   // Fetch all required data on component load
   useEffect(() => {
@@ -279,11 +319,114 @@ export default function ReportsPage() {
   // Export handlers
   const [isExporting, setIsExporting] = useState(false);
   const handleExport = () => {
+    if (isExporting) return;
     setIsExporting(true);
-    setTimeout(() => {
-      setIsExporting(false);
+
+    try {
+      if (filteredPersonalEntries.length === 0) {
+        showToast('No entries found to export.', 'error');
+        setIsExporting(false);
+        return;
+      }
+
+      // Construct CSV text
+      const csvHeadersList = [
+        'Date',
+        'Full Name',
+        'Nickname',
+        'Holding',
+        'Operator Department',
+        'Project Type',
+        'Project Name',
+        'Action Name',
+        'Total Hours',
+        'Start Time',
+        'End Time',
+        'OT',
+        'Implied OT',
+        'BU',
+        'Customer Department',
+        'Action Channel',
+        'Description',
+        'Created At'
+      ];
+
+      const csvRows = [csvHeadersList.join(',')];
+
+      filteredPersonalEntries.forEach((entry) => {
+        const user = usersList.find(u => u.id === entry.user_id);
+        const nickname = user ? user.nickname || '' : '';
+        const fullName = user ? user.full_name || '' : '';
+
+        const rowValues = [
+          entry.work_date || '',
+          fullName,
+          nickname,
+          entry.holding || '',
+          entry.department_operator || '',
+          entry.project_type || '',
+          entry.project_name || '',
+          entry.action_name || '',
+          entry.total_hours !== undefined ? entry.total_hours.toString() : '0',
+          entry.start_time || '',
+          entry.end_time || '',
+          entry.is_ot ? 'TRUE' : 'FALSE',
+          entry.is_implied_ot ? 'TRUE' : 'FALSE',
+          entry.bu || '',
+          entry.department || '',
+          entry.action_channel || '',
+          entry.description || '',
+          entry.created_at ? new Date(entry.created_at).toLocaleString('th-TH') : ''
+        ];
+
+        const escapedValues = rowValues.map(val => {
+          const strVal = String(val);
+          if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n') || strVal.includes('\r')) {
+            return `"${strVal.replace(/"/g, '""')}"`;
+          }
+          return strVal;
+        });
+
+        csvRows.push(escapedValues.join(','));
+      });
+
+      const csvContent = '\uFEFF' + csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+
+      let nameSlug = 'all';
+      if (selectedUser !== 'all') {
+        const targetUser = usersList.find(u => u.id === (selectedUser || sessionUser?.id));
+        if (targetUser) {
+          nameSlug = targetUser.nickname || targetUser.full_name.replace(/\s+/g, '_');
+        }
+      }
+
+      let dateRangeStr = '';
+      if (dateFilter === 'this-week') {
+        dateRangeStr = `${dateBoundaries.week.start}_to_${dateBoundaries.week.end}`;
+      } else if (dateFilter === 'this-month') {
+        dateRangeStr = `${dateBoundaries.month.start}_to_${dateBoundaries.month.end}`;
+      } else if (dateFilter === 'custom') {
+        dateRangeStr = `${customStart || 'start'}_to_${customEnd || 'end'}`;
+      } else {
+        dateRangeStr = 'all_time';
+      }
+
+      link.setAttribute('href', url);
+      link.setAttribute('download', `worklog_${nameSlug}_${dateRangeStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       showToast('Spreadsheet exported successfully!', 'success');
-    }, 1200);
+    } catch (err: any) {
+      console.error('Export error:', err);
+      showToast('Failed to export spreadsheet: ' + err.message, 'error');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const getTableType = (pt: string) => {
