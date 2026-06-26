@@ -298,7 +298,7 @@ export default function LeaderboardPage() {
                 
                 {/* Rank 2 (Left on desktop - Medium Height) */}
                 {top2 && (
-                  <div className="w-full md:w-1/3 min-h-[220px] md:h-[240px] ai-glass rounded-2xl p-6 border-slate-300 dark:border-indigo-500/20 bg-gradient-to-b from-slate-100/50 to-white dark:from-[#0b0f1d] dark:to-slate-900/10 relative overflow-hidden flex flex-col items-center justify-between text-center transition-all duration-300 hover:scale-[1.02]">
+                  <div className="w-full md:w-1/3 min-h-[240px] md:h-[280px] ai-glass rounded-2xl p-6 border-slate-300 dark:border-indigo-500/20 bg-gradient-to-b from-slate-100/50 to-white dark:from-[#0b0f1d] dark:to-slate-900/10 relative overflow-hidden flex flex-col items-center justify-between text-center transition-all duration-300 hover:scale-[1.02]">
                     <div className="absolute top-3 left-4 text-3xl font-black text-slate-400 font-mono">2.</div>
                     
                     {/* Silver Medal/Badge */}
@@ -350,7 +350,7 @@ export default function LeaderboardPage() {
 
                 {/* Rank 1 (Center - Raised Higher & Custom Gold glowing running border) */}
                 {top1 && (
-                  <div className="w-full md:w-1/3 min-h-[250px] md:h-[280px] md:-translate-y-6 md:scale-105 ai-glass rounded-2xl p-6 border-2 border-amber-400 dark:border-amber-500/50 bg-gradient-to-b from-amber-50/20 to-white dark:from-[#0a0f1d] dark:to-amber-950/5 relative overflow-hidden flex flex-col items-center justify-between text-center transition-all duration-300 gold-champion-glow shadow-[0_0_30px_rgba(245,158,11,0.2)]">
+                  <div className="w-full md:w-1/3 min-h-[270px] md:h-[320px] md:-translate-y-6 md:scale-105 ai-glass rounded-2xl p-6 border-2 border-amber-400 dark:border-amber-500/50 bg-gradient-to-b from-amber-50/20 to-white dark:from-[#0a0f1d] dark:to-amber-950/5 relative overflow-hidden flex flex-col items-center justify-between text-center transition-all duration-300 gold-champion-glow shadow-[0_0_30px_rgba(245,158,11,0.2)]">
                     <div className="absolute top-3 left-4 text-4xl font-black text-amber-500 font-mono">1.</div>
                     
                     {/* Gold Trophy Badge */}
@@ -402,7 +402,7 @@ export default function LeaderboardPage() {
 
                 {/* Rank 3 (Right on desktop - Lowest Height) */}
                 {top3 && (
-                  <div className="w-full md:w-1/3 min-h-[210px] md:h-[220px] ai-glass rounded-2xl p-6 border-orange-200 dark:border-amber-700/20 bg-gradient-to-b from-orange-50/20 to-white dark:from-[#0b0f1d] dark:to-orange-950/5 relative overflow-hidden flex flex-col items-center justify-between text-center transition-all duration-300 hover:scale-[1.02]">
+                  <div className="w-full md:w-1/3 min-h-[230px] md:h-[260px] ai-glass rounded-2xl p-6 border-orange-200 dark:border-amber-700/20 bg-gradient-to-b from-orange-50/20 to-white dark:from-[#0b0f1d] dark:to-orange-950/5 relative overflow-hidden flex flex-col items-center justify-between text-center transition-all duration-300 hover:scale-[1.02]">
                     <div className="absolute top-3 left-4 text-3xl font-black text-amber-700 font-mono">3.</div>
                     
                     {/* Bronze Medal/Badge */}
