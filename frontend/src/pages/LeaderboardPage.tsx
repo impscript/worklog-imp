@@ -47,6 +47,9 @@ export default function LeaderboardPage() {
     totalHours: 0
   });
 
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
   useEffect(() => {
     async function fetchLeaderboard() {
       try {
@@ -60,10 +63,16 @@ export default function LeaderboardPage() {
         
         if (userErr) throw userErr;
 
-        // 2. Fetch real worklogs
+        // Calculate start and end date for the selected month
+        const startOfMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+        const endOfMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${new Date(selectedYear, selectedMonth, 0).getDate()}`;
+
+        // 2. Fetch real worklogs filtered by selected month
         const { data: logs, error: logErr } = await supabase
           .from('col_worklog')
-          .select('user_id, work_date, total_hours, created_at');
+          .select('user_id, work_date, total_hours, created_at')
+          .gte('work_date', startOfMonth)
+          .lte('work_date', endOfMonth);
 
         if (logErr) throw logErr;
 
@@ -197,7 +206,7 @@ export default function LeaderboardPage() {
     }
 
     fetchLeaderboard();
-  }, [showToast]);
+  }, [showToast, selectedMonth, selectedYear]);
 
   const handleSendCoffee = async (member: TeamMember) => {
     setSentCoffee(prev => ({ ...prev, [member.id]: true }));
@@ -263,14 +272,38 @@ export default function LeaderboardPage() {
               </span>
             </h1>
             <p className="text-sm text-theme-text-secondary mt-1">
-              ท้าทายความสม่ำเสมอในการบันทึก Worklog ภายในทีม ยิ่งไว ยิ่งสม่ำเสมอ คะแนนไฟยิ่งลุก!
+              ท้าทายความสม่ำเสมอในการบันทึก Worklog ภายในทีม ยิ่งไว ยิ่งสม่ำเสมอ คะแนนไฟลุก!
+            </p>
+            <p className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold mt-1.5 flex items-center gap-1.5">
+              <span>📅 รอบคะแนนประจำเดือน:</span>
+              <span className="font-mono">01/{String(selectedMonth).padStart(2, '0')}/{selectedYear} - {new Date(selectedYear, selectedMonth, 0).getDate()}/{String(selectedMonth).padStart(2, '0')}/{selectedYear}</span>
             </p>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-full">
-            <Flame className="h-4.5 w-4.5 text-amber-500 animate-pulse" />
-            <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest font-mono">
-              Season 1: Active Challenges
-            </span>
+          <div className="flex items-center gap-3">
+            {/* Month Selector Dropdown */}
+            <select
+              value={`${selectedYear}-${selectedMonth}`}
+              onChange={(e) => {
+                const [y, m] = e.target.value.split('-');
+                setSelectedYear(parseInt(y));
+                setSelectedMonth(parseInt(m));
+              }}
+              className="px-3 py-1.5 bg-theme-surface-secondary border border-theme-border rounded-xl text-xs font-bold text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer"
+            >
+              <option value="2026-6">มิถุนายน 2569</option>
+              <option value="2026-5">พฤษภาคม 2569</option>
+              <option value="2026-4">เมษายน 2569</option>
+              <option value="2026-3">มีนาคม 2569</option>
+              <option value="2026-2">กุมภาพันธ์ 2569</option>
+              <option value="2026-1">มกราคม 2569</option>
+            </select>
+
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-full">
+              <Flame className="h-4.5 w-4.5 text-amber-500 animate-pulse" />
+              <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest font-mono">
+                Season {selectedMonth}/{selectedYear}
+              </span>
+            </div>
           </div>
         </div>
 
