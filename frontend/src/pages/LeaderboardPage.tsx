@@ -47,18 +47,43 @@ export default function LeaderboardPage() {
     totalHours: 0
   });
 
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const today = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+
+  // Generate month options dynamically from January 2026 to current month
+  const generateMonthOptions = () => {
+    const startYear = 2026;
+    const startMonth = 1;
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    const options = [];
+    const thaiMonths = [
+      "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+      "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+    ];
+    for (let y = currentYear; y >= startYear; y--) {
+      const startM = y === startYear ? startMonth : 1;
+      const endM = y === currentYear ? currentMonth : 12;
+      for (let m = endM; m >= startM; m--) {
+        options.push({
+          value: `${y}-${m}`,
+          label: `${thaiMonths[m - 1]} ${y + 543}`
+        });
+      }
+    }
+    return options;
+  };
 
   useEffect(() => {
     async function fetchLeaderboard() {
       try {
         setIsLoading(true);
 
-        // 1. Fetch real users (including coffee_boost_count)
+        // 1. Fetch real users
         const { data: users, error: userErr } = await supabase
           .from('users')
-          .select('id, full_name, department, nickname, emp_id, coffee_boost_count')
+          .select('id, full_name, department, nickname, emp_id')
           .eq('status', 'Active');
         
         if (userErr) throw userErr;
@@ -66,6 +91,8 @@ export default function LeaderboardPage() {
         // Calculate start and end date for the selected month
         const startOfMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
         const endOfMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${new Date(selectedYear, selectedMonth, 0).getDate()}`;
+        const startOfTimeRange = `${startOfMonth}T00:00:00+07:00`;
+        const endOfTimeRange = `${endOfMonth}T23:59:59+07:00`;
 
         // 2. Fetch real worklogs filtered by selected month
         const { data: logs, error: logErr } = await supabase
@@ -75,6 +102,21 @@ export default function LeaderboardPage() {
           .lte('work_date', endOfMonth);
 
         if (logErr) throw logErr;
+
+        // Fetch coffee boosts for this month
+        const { data: boosts, error: boostErr } = await supabase
+          .from('tb_coffee_boost')
+          .select('receiver_id')
+          .gte('created_at', startOfTimeRange)
+          .lte('created_at', endOfTimeRange);
+
+        if (boostErr) throw boostErr;
+
+        // Map of user_id -> count of boosts
+        const boostCounts = (boosts || []).reduce((acc, b) => {
+          acc[b.receiver_id] = (acc[b.receiver_id] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
 
         // 3. Process logs and calculate scores
         const processed = users.map(user => {
@@ -89,7 +131,8 @@ export default function LeaderboardPage() {
           userLogs.forEach(log => {
             const dateStr = log.work_date;
             const logHours = parseFloat(log.total_hours || '0');
-            const createdDate = new Date(log.created_at).toISOString().split('T')[0];
+            // Use Thailand time zone for correct same-day matching
+            const createdDate = new Date(log.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
             const isSameDay = createdDate === dateStr;
             
             if (!dailyLogs[dateStr]) {
@@ -121,8 +164,9 @@ export default function LeaderboardPage() {
             }
           });
 
-          // Coffee boost bonus: +30 points per cup
-          const coffeeBoostBonus = (user.coffee_boost_count || 0) * 30;
+          // Coffee boost bonus: +30 points per cup (retrieved dynamically for selected month)
+          const coffeeBoostCount = boostCounts[user.id] || 0;
+          const coffeeBoostBonus = coffeeBoostCount * 30;
 
           // Total Flame Score
           const flameScore = coreDailyScore + totalPunctualityBonus + coffeeBoostBonus;
@@ -168,7 +212,7 @@ export default function LeaderboardPage() {
             status,
             activeDays,
             sameDayLogs,
-            coffeeBoostCount: user.coffee_boost_count || 0
+            coffeeBoostCount
           };
         });
 
@@ -212,16 +256,14 @@ export default function LeaderboardPage() {
     setSentCoffee(prev => ({ ...prev, [member.id]: true }));
     
     try {
-      const newCount = member.coffeeBoostCount + 1;
       const { error } = await supabase
-        .from('users')
-        .update({ coffee_boost_count: newCount })
-        .eq('id', member.id);
+        .from('tb_coffee_boost')
+        .insert({ receiver_id: member.id });
 
       if (error) throw error;
 
       // Update state locally
-      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, coffeeBoostCount: newCount } : m));
+      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, coffeeBoostCount: m.coffeeBoostCount + 1 } : m));
       
       showToast(`ส่งกาแฟ Boost ให้ ${member.name} แล้ว! ☕️`, 'success');
     } catch (err) {
@@ -290,12 +332,11 @@ export default function LeaderboardPage() {
               }}
               className="px-3 py-1.5 bg-theme-surface-secondary border border-theme-border rounded-xl text-xs font-bold text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer"
             >
-              <option value="2026-6">มิถุนายน 2569</option>
-              <option value="2026-5">พฤษภาคม 2569</option>
-              <option value="2026-4">เมษายน 2569</option>
-              <option value="2026-3">มีนาคม 2569</option>
-              <option value="2026-2">กุมภาพันธ์ 2569</option>
-              <option value="2026-1">มกราคม 2569</option>
+              {generateMonthOptions().map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
 
             <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-full">
