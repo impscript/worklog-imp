@@ -7,14 +7,12 @@ import { syncWorklogToGCal, googleCalendar } from '../../lib/google-calendar';
 import { compressImage } from '../../lib/image-compressor';
 
 // Generate Time Options (00:00 to 24:00 - 24 Hours)
-const timeOptions = Array.from({ length: 49 }, (_, i) => {
-  const hour = Math.floor(i / 2);
-  const min = i % 2 === 0 ? '00' : '30';
-  const period = hour >= 12 && hour < 24 ? 'PM' : 'AM';
-  const displayHour = hour === 0 ? 12 : (hour > 12 && hour < 24 ? hour - 12 : (hour === 24 ? 12 : hour));
-  const timeString = hour === 24 ? 'Midnight (24:00)' : `${displayHour.toString().padStart(2, '0')}:${min} ${period}`;
-  const val24 = `${hour.toString().padStart(2, '0')}:${min}`;
-  return { label: `${val24} (${timeString})`, value: val24 };
+// Generate Time Options in 15-minute intervals (00:00 to 24:00 - 24 Hours)
+const timeOptions = Array.from({ length: 97 }, (_, i) => {
+  const hour = Math.floor(i / 4);
+  const min = (i % 4) * 15;
+  const val24 = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+  return { label: val24, value: val24 };
 });
 
 interface WorklogEntry {
@@ -1253,34 +1251,38 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
 
               <div>
                 <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">เวลาเริ่มงาน</label>
-                <input
-                  type="time"
+                <select
                   value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  list="edit-start-suggestions"
-                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all [&::-webkit-calendar-picker-indicator]:dark:invert"
-                />
-                <datalist id="edit-start-suggestions">
+                  onChange={(e) => { setStartTime(e.target.value); }}
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all cursor-pointer"
+                >
+                  {!timeOptions.some(t => t.value === startTime) && (
+                    <option value={startTime}>{startTime}</option>
+                  )}
                   {timeOptions.map((opt) => (
-                    <option key={`edit-start-${opt.value}`} value={opt.value} />
+                    <option key={`edit-start-opt-${opt.value}`} value={opt.value}>
+                      {opt.label}
+                    </option>
                   ))}
-                </datalist>
+                </select>
               </div>
 
               <div>
                 <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">เวลาเลิกงาน</label>
-                <input
-                  type="time"
+                <select
                   value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  list="edit-end-suggestions"
-                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all [&::-webkit-calendar-picker-indicator]:dark:invert"
-                />
-                <datalist id="edit-end-suggestions">
+                  onChange={(e) => { setEndTime(e.target.value); }}
+                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all cursor-pointer"
+                >
+                  {!timeOptions.some(t => t.value === endTime) && (
+                    <option value={endTime}>{endTime}</option>
+                  )}
                   {timeOptions.map((opt) => (
-                    <option key={`edit-end-${opt.value}`} value={opt.value} />
+                    <option key={`edit-end-opt-${opt.value}`} value={opt.value}>
+                      {opt.label}
+                    </option>
                   ))}
-                </datalist>
+                </select>
               </div>
             </div>
 

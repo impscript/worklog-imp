@@ -9,15 +9,12 @@ import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
 import { compressImage } from '../lib/image-compressor';
 
-// Generate Time Options (00:00 to 24:00 - 24 Hours)
-const timeOptions = Array.from({ length: 49 }, (_, i) => {
-  const hour = Math.floor(i / 2);
-  const min = i % 2 === 0 ? '00' : '30';
-  const period = hour >= 12 && hour < 24 ? 'PM' : 'AM';
-  const displayHour = hour === 0 ? 12 : (hour > 12 && hour < 24 ? hour - 12 : (hour === 24 ? 12 : hour));
-  const timeString = hour === 24 ? 'Midnight (24:00)' : `${displayHour.toString().padStart(2, '0')}:${min} ${period}`;
-  const val24 = `${hour.toString().padStart(2, '0')}:${min}`;
-  return { label: `${val24} (${timeString})`, value: val24 };
+// Generate Time Options in 15-minute intervals (00:00 to 24:00 - 24 Hours)
+const timeOptions = Array.from({ length: 97 }, (_, i) => {
+  const hour = Math.floor(i / 4);
+  const min = (i % 4) * 15;
+  const val24 = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+  return { label: val24, value: val24 };
 });
 
 interface SplitEntry {
@@ -1758,30 +1755,38 @@ export default function LogWorkPage() {
                     <div className="flex items-center gap-4">
                       <div className="flex-1">
                         <span className="block text-xs text-theme-text-secondary mb-1">เวลาเริ่มต้น / Start Time</span>
-                        <input 
-                          type="time"
+                        <select 
                           value={startTime}
                           onChange={e => { setStartTime(e.target.value); setIsTimeCustomized(true); }}
-                          list="start-time-suggestions"
-                          className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer [&::-webkit-calendar-picker-indicator]:dark:invert"
-                        />
-                        <datalist id="start-time-suggestions">
-                          {timeOptions.map(t => <option key={`start-suggest-${t.value}`} value={t.value} />)}
-                        </datalist>
+                          className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        >
+                          {!timeOptions.some(t => t.value === startTime) && (
+                            <option value={startTime}>{startTime}</option>
+                          )}
+                          {timeOptions.map(t => (
+                            <option key={`start-opt-${t.value}`} value={t.value}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <span className="text-slate-500 mt-4">-</span>
                       <div className="flex-1">
                         <span className="block text-xs text-theme-text-secondary mb-1">เวลาสิ้นสุด / End Time</span>
-                        <input 
-                          type="time"
+                        <select 
                           value={endTime}
                           onChange={e => { setEndTime(e.target.value); setIsTimeCustomized(true); }}
-                          list="end-time-suggestions"
-                          className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer [&::-webkit-calendar-picker-indicator]:dark:invert"
-                        />
-                        <datalist id="end-time-suggestions">
-                          {timeOptions.map(t => <option key={`end-suggest-${t.value}`} value={t.value} />)}
-                        </datalist>
+                          className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        >
+                          {!timeOptions.some(t => t.value === endTime) && (
+                            <option value={endTime}>{endTime}</option>
+                          )}
+                          {timeOptions.map(t => (
+                            <option key={`end-opt-${t.value}`} value={t.value}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                     

@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronRight, Edit2, Trash2, X, Save,
   Check, Clock, Activity, Users,
   FolderOpen, Layers, Building2,
-  RefreshCw, Link
+  RefreshCw, Link, Server, Database, Mail, Key, GitBranch
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
@@ -43,6 +43,12 @@ interface Project {
   worklog_unique_users?: number;
   recentLogs?: any[];
   children?: Project[];
+  // Added fields
+  hosting_provider?: string | null;
+  admin_email?: string | null;
+  database_info?: string | null;
+  github_repo_url?: string | null;
+  credentials_ref_note?: string | null;
 }
 
 interface WorklogSummary {
@@ -268,6 +274,36 @@ function ProjectCard({
               <span>{project.owner_team}</span>
             </span>
           )}
+          {project.hosting_provider && (
+            <span className="flex items-center gap-1 text-theme-text-muted" title="Hosting Provider">
+              <Server size={12} />
+              <span>{project.hosting_provider}</span>
+            </span>
+          )}
+          {project.admin_email && (
+            <span className="flex items-center gap-1 text-theme-text-muted" title="Admin Account">
+              <Mail size={12} />
+              <span>{project.admin_email}</span>
+            </span>
+          )}
+          {project.database_info && (
+            <span className="flex items-center gap-1 text-theme-text-muted" title="Database">
+              <Database size={12} />
+              <span>{project.database_info}</span>
+            </span>
+          )}
+          {project.github_repo_url && (
+            <a
+              href={project.github_repo_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+              title="GitHub Repository"
+            >
+              <GitBranch size={12} />
+              <span className="truncate max-w-[200px]">Repository</span>
+            </a>
+          )}
           {project.deploy_url && (
             <a
               href={project.deploy_url}
@@ -335,6 +371,16 @@ function ProjectCard({
         {project.last_usage_note && (
           <div className="mt-2 text-[11px] text-theme-text-secondary italic bg-theme-surface-secondary/50 rounded-lg px-3 py-1.5 border border-theme-border/50">
             📝 {project.last_usage_note}
+          </div>
+        )}
+
+        {project.credentials_ref_note && (
+          <div className="mt-2 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/5 rounded-lg px-3 py-1.5 border border-amber-500/20 flex items-start gap-2">
+            <Key size={12} className="mt-0.5 shrink-0" />
+            <div>
+              <strong className="font-semibold block md:inline md:mr-1">Credentials Access:</strong>
+              <span>{project.credentials_ref_note}</span>
+            </div>
           </div>
         )}
       </div>
@@ -951,6 +997,11 @@ const ProjectFormModal = ({
     last_verified_date: '',
     last_usage_note: '',
     worklog_project_type: '',
+    hosting_provider: '',
+    admin_email: '',
+    database_info: '',
+    github_repo_url: '',
+    credentials_ref_note: '',
   });
 
   // ── Searchable combobox state ──
@@ -1021,6 +1072,11 @@ const ProjectFormModal = ({
         last_verified_date: editingProject?.last_verified_date || '',
         last_usage_note: editingProject?.last_usage_note || '',
         worklog_project_type: editingProject?.worklog_project_type || '',
+        hosting_provider: editingProject?.hosting_provider || '',
+        admin_email: editingProject?.admin_email || '',
+        database_info: editingProject?.database_info || '',
+        github_repo_url: editingProject?.github_repo_url || '',
+        credentials_ref_note: editingProject?.credentials_ref_note || '',
       });
       setNameQuery(name);
     }
@@ -1057,6 +1113,11 @@ const ProjectFormModal = ({
         last_verified_date: formData.last_verified_date || null,
         last_usage_note: formData.last_usage_note.trim() || null,
         worklog_project_type: formData.parent_project_id ? (formData.worklog_project_type || null) : null,
+        hosting_provider: formData.hosting_provider.trim() || null,
+        admin_email: formData.admin_email.trim() || null,
+        database_info: formData.database_info.trim() || null,
+        github_repo_url: formData.github_repo_url.trim() || null,
+        credentials_ref_note: formData.credentials_ref_note.trim() || null,
       };
       await onSave(payload);
     } catch (err: any) {
@@ -1299,6 +1360,67 @@ const ProjectFormModal = ({
                   value={formData.last_verified_date}
                   onChange={e => setFormData(p => ({ ...p, last_verified_date: e.target.value }))}
                   className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Infrastructure & Access */}
+          <div className="border-t border-theme-border/50 pt-5">
+            <h3 className="text-xs font-bold text-theme-text tracking-wide mb-3 uppercase flex items-center gap-1.5">
+              ☁️ โครงสร้างพื้นฐานและการเข้าถึง (Infrastructure)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Hosting Provider</label>
+                <input
+                  value={formData.hosting_provider}
+                  onChange={e => setFormData(p => ({ ...p, hosting_provider: e.target.value }))}
+                  placeholder="เช่น Vercel, AWS, Supabase, Netlify"
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Admin Email (Gmail คุมระบบ)</label>
+                <input
+                  type="email"
+                  value={formData.admin_email}
+                  onChange={e => setFormData(p => ({ ...p, admin_email: e.target.value }))}
+                  placeholder="เช่น company.dev@gmail.com"
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Database Info</label>
+                <input
+                  value={formData.database_info}
+                  onChange={e => setFormData(p => ({ ...p, database_info: e.target.value }))}
+                  placeholder="เช่น Supabase (PostgreSQL), MongoDB Atlas"
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">GitHub Repository URL</label>
+                <input
+                  value={formData.github_repo_url}
+                  onChange={e => setFormData(p => ({ ...p, github_repo_url: e.target.value }))}
+                  placeholder="https://github.com/owner/repository"
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-semibold text-amber-500 mb-1.5 flex items-center gap-1">
+                  ⚠️ แหล่งอ้างอิง Credential / Secrets
+                  <span className="text-[10px] text-theme-text-muted font-normal italic">
+                    (ห้ามกรอกรหัสผ่านตรงๆ ให้ระบุสถานที่เก็บหรือช่องทางการขอแทน)
+                  </span>
+                </label>
+                <textarea
+                  value={formData.credentials_ref_note}
+                  onChange={e => setFormData(p => ({ ...p, credentials_ref_note: e.target.value }))}
+                  rows={2}
+                  placeholder="เช่น เก็บไว้ใน Vercel Env Vars หรือ ขอคีย์จาก 1Password ของทีม IMP"
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border border-amber-500/30 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all resize-none"
                 />
               </div>
             </div>
