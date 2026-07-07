@@ -17,6 +17,37 @@ const timeOptions = Array.from({ length: 97 }, (_, i) => {
   return { label: val24, value: val24 };
 });
 
+const validateAndFormatTime = (timeStr: string, fallback: string): string => {
+  const clean = timeStr.trim();
+  
+  // Try to match HH:MM or H:MM
+  const match = clean.match(/^([0-1]?[0-9]|2[0-4]):([0-5][0-9])$/);
+  if (match) {
+    const h = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    if (h === 24 && m > 0) return fallback;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  }
+  
+  // Try to match HHMM or HMM
+  const digitsMatch = clean.match(/^([0-1]?[0-9]|2[0-4])([0-5][0-9])$/);
+  if (digitsMatch) {
+    const h = parseInt(digitsMatch[1], 10);
+    const m = parseInt(digitsMatch[2], 10);
+    if (h === 24 && m > 0) return fallback;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  }
+
+  // Try to match single or double digit hour (e.g., 8 -> 08:00, 17 -> 17:00)
+  const singleHourMatch = clean.match(/^([0-1]?[0-9]|2[0-4])$/);
+  if (singleHourMatch) {
+    const h = parseInt(singleHourMatch[1], 10);
+    return `${h.toString().padStart(2, '0')}:00`;
+  }
+
+  return fallback;
+};
+
 interface SplitEntry {
   work_date: string;
   hours: number;
@@ -302,6 +333,8 @@ export default function LogWorkPage() {
   });
   const [startTime, setStartTime] = useState('08:00');
   const [endTime, setEndTime] = useState('17:00');
+  const lastValidStartTime = useRef('08:00');
+  const lastValidEndTime = useRef('17:00');
   const [isBreak, setIsBreak] = useState(true);
   const [description, setDescription] = useState('');
   const [isExplicitOt, setIsExplicitOt] = useState(false);
@@ -1755,38 +1788,32 @@ export default function LogWorkPage() {
                     <div className="flex items-center gap-4">
                       <div className="flex-1">
                         <span className="block text-xs text-theme-text-secondary mb-1">เวลาเริ่มต้น / Start Time</span>
-                        <select 
+                        <TimeSelectInput 
                           value={startTime}
-                          onChange={e => { setStartTime(e.target.value); setIsTimeCustomized(true); }}
-                          className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                        >
-                          {!timeOptions.some(t => t.value === startTime) && (
-                            <option value={startTime}>{startTime}</option>
-                          )}
-                          {timeOptions.map(t => (
-                            <option key={`start-opt-${t.value}`} value={t.value}>
-                              {t.label}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={val => { setStartTime(val); setIsTimeCustomized(true); }}
+                          onBlur={val => {
+                            const formatted = validateAndFormatTime(val, lastValidStartTime.current);
+                            setStartTime(formatted);
+                            lastValidStartTime.current = formatted;
+                          }}
+                          options={timeOptions}
+                          placeholder="HH:MM"
+                        />
                       </div>
                       <span className="text-slate-500 mt-4">-</span>
                       <div className="flex-1">
                         <span className="block text-xs text-theme-text-secondary mb-1">เวลาสิ้นสุด / End Time</span>
-                        <select 
+                        <TimeSelectInput 
                           value={endTime}
-                          onChange={e => { setEndTime(e.target.value); setIsTimeCustomized(true); }}
-                          className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                        >
-                          {!timeOptions.some(t => t.value === endTime) && (
-                            <option value={endTime}>{endTime}</option>
-                          )}
-                          {timeOptions.map(t => (
-                            <option key={`end-opt-${t.value}`} value={t.value}>
-                              {t.label}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={val => { setEndTime(val); setIsTimeCustomized(true); }}
+                          onBlur={val => {
+                            const formatted = validateAndFormatTime(val, lastValidEndTime.current);
+                            setEndTime(formatted);
+                            lastValidEndTime.current = formatted;
+                          }}
+                          options={timeOptions}
+                          placeholder="HH:MM"
+                        />
                       </div>
                     </div>
                     
@@ -2438,3 +2465,88 @@ function SearchableCombobox({
     </div>
   );
 }
+
+// ── Time Dropdown Select with Typing Allowed (Hybrid) ─────────────────────
+interface TimeSelectInputProps {
+  value: string;
+  onChange: (val: string) => void;
+  options: { label: string; value: string }[];
+  placeholder?: string;
+  className?: string;
+  onBlur?: (val: string) => void;
+}
+
+function TimeSelectInput({
+  value,
+  onChange,
+  options,
+  placeholder = 'HH:MM',
+  className,
+  onBlur,
+}: TimeSelectInputProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => onBlur && onBlur(value)}
+        placeholder={placeholder}
+        autoComplete="off"
+        className={cn(
+          "w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 pl-4 pr-10 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-text hover:border-slate-500 text-sm transition-all",
+          className
+        )}
+      />
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-secondary hover:text-theme-text focus:outline-none transition-colors"
+      >
+        <ChevronDown size={14} className={cn("transition-transform duration-200", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1 max-h-48 overflow-y-auto w-full bg-theme-surface-modal border border-theme-border dark:border-theme-border rounded-xl shadow-2xl overflow-x-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="py-1">
+            {options.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(opt.value);
+                  setIsOpen(false);
+                  if (onBlur) onBlur(opt.value);
+                }}
+                className={cn(
+                  "w-full text-left px-4 py-2 text-xs transition-colors flex items-center gap-2",
+                  opt.value === value
+                    ? "bg-indigo-500/20 text-indigo-300 font-semibold"
+                    : "text-theme-text-secondary hover:bg-slate-700/60 hover:text-theme-text"
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
