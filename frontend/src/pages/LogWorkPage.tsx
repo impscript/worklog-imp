@@ -1,13 +1,14 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles, Share2, Copy, Upload, X } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
-import { cn } from '../lib/utils';
+import { cn, isChatchawanUser } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
 import { compressImage } from '../lib/image-compressor';
+import { useNavigate } from 'react-router-dom';
 
 // Generate Time Options in 15-minute intervals (00:00 to 24:00 - 24 Hours)
 const timeOptions = Array.from({ length: 97 }, (_, i) => {
@@ -304,7 +305,17 @@ function findSmartTimeSlot(hoursNeeded: number, existingEntries: any[]): { start
 
 export default function LogWorkPage() {
   const { showToast } = useNotification();
+  const navigate = useNavigate();
   const [session] = useState(() => JSON.parse(localStorage.getItem('worklog_session') || '{}'));
+
+  useEffect(() => {
+    const sessionStr = localStorage.getItem('worklog_session');
+    if (!sessionStr) {
+      navigate('/login');
+      return;
+    }
+  }, [navigate]);
+
   const [editingLog, setEditingLog] = useState<any | null>(null);
   const [viewingLog, setViewingLog] = useState<any | null>(null);
 
@@ -489,7 +500,10 @@ export default function LogWorkPage() {
     async function loadUsersAndResolve() {
       try {
         // Calculate clean name for current logged-in user
-        let currentCleanName = 'Chatchawan';
+        let currentCleanName = '';
+        const rawSessionName = session.nickname || session.name?.split(' ')[0] || '';
+        currentCleanName = rawSessionName.includes('_') ? rawSessionName.split('_')[0] : rawSessionName;
+
         if (session.id) {
           const { data: dbUser } = await supabase
             .from('users')
@@ -500,13 +514,7 @@ export default function LogWorkPage() {
           if (dbUser) {
             const rawName = dbUser.nickname || dbUser.full_name?.split(' ')[0] || '';
             currentCleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
-          } else {
-            const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
-            currentCleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
           }
-        } else {
-          const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
-          currentCleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
         }
         
         let isThai = /[\u0e00-\u0e7f]/.test(currentCleanName);
@@ -514,24 +522,22 @@ export default function LogWorkPage() {
           const fallbackName = session.nickname || '';
           if (fallbackName && !/[\u0e00-\u0e7f]/.test(fallbackName)) {
             currentCleanName = fallbackName.includes('_') ? fallbackName.split('_')[0] : fallbackName;
-          } else {
-            currentCleanName = 'Chatchawan';
           }
         }
         if (currentCleanName.includes('.')) {
           currentCleanName = currentCleanName.split('.')[0];
         }
-        currentCleanName = currentCleanName.charAt(0).toUpperCase() + currentCleanName.slice(1);
+        if (currentCleanName) {
+          currentCleanName = currentCleanName.charAt(0).toUpperCase() + currentCleanName.slice(1);
+        }
         
         if (!currentCleanName.trim()) {
-          currentCleanName = 'Chatchawan';
+          currentCleanName = 'Guest';
         }
 
-        // If the logged-in user is Chatchawan, load everyone. Otherwise, only show Chatchawan and ourselves.
+        // If the logged-in user is Chatchawan, load everyone. Otherwise, only show ourselves.
         let uniqueNames: string[] = [];
-        const actualEmail = session?.email || '';
-        const actualNickname = session?.nickname || '';
-        const isChatchawan = actualEmail.toLowerCase().includes('chatchawan') || actualNickname.toLowerCase().includes('chatchawan');
+        const isChatchawan = isChatchawanUser(session);
         setIsCurrentUserChatchawan(isChatchawan);
         
         if (isChatchawan) {
@@ -540,11 +546,11 @@ export default function LogWorkPage() {
             uniqueNames = Array.from(new Set(data.map(d => d.name).filter(Boolean))) as string[];
           }
         } else {
-          uniqueNames = ['Chatchawan'];
+          uniqueNames = [currentCleanName];
         }
 
         // Always make sure the logged-in user's name is in the list
-        if (!uniqueNames.some(name => name.toLowerCase() === currentCleanName.toLowerCase())) {
+        if (currentCleanName && !uniqueNames.some(name => name.toLowerCase() === currentCleanName.toLowerCase())) {
           uniqueNames.push(currentCleanName);
         }
         
@@ -1486,7 +1492,7 @@ export default function LogWorkPage() {
         <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border dark:border-theme-border/50 rounded-2xl p-6 md:p-8 shadow-xl shadow-black/20">
           
           {/* Date Picker & User Selector */}
-          <div className={`grid grid-cols-1 ${isCurrentUserChatchawan ? 'sm:grid-cols-2' : ''} gap-6 mb-8`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
             <div>
               <label className="block text-sm font-medium text-theme-text-secondary mb-2">เลือกวันที่ / Select Date</label>
               <div className="relative w-full">
@@ -1499,18 +1505,17 @@ export default function LogWorkPage() {
               </div>
             </div>
 
-            {isCurrentUserChatchawan && (
-              <DropdownField
-                label="ผู้ใช้งานจำลองสิทธิ์ / Simulating User"
-                value={selectedUser}
-                onChange={(v) => setSelectedUser(v)}
-                options={allUsers.map((u) => ({
-                  value: u,
-                  label: `${u}${u.toLowerCase() === (session.nickname || '').split('_')[0].toLowerCase() ? ' (You)' : ''}`
-                }))}
-                placeholder="เลือกผู้ใช้งาน / Select User"
-              />
-            )}
+            <DropdownField
+              label="ผู้ใช้งานจำลองสิทธิ์ / Simulating User"
+              value={selectedUser}
+              onChange={(v) => setSelectedUser(v)}
+              options={allUsers.map((u) => ({
+                value: u,
+                label: `${u}${u.toLowerCase() === (session.nickname || '').split('_')[0].toLowerCase() ? ' (You)' : ''}`
+              }))}
+              placeholder="เลือกผู้ใช้งาน / Select User"
+              disabled={!isCurrentUserChatchawan}
+            />
           </div>
 
           <div className="h-px bg-slate-700/50 w-full mb-8"></div>

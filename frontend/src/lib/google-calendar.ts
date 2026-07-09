@@ -14,20 +14,49 @@ export interface GCalConnection {
 }
 
 class GoogleCalendarService {
-  private _cachedToken: string | null = null;
-  private _tokenExpiry: number = 0;
-  private _connectedEmail: string | null = null;
+  private _tokens: Record<string, { token: string; expiry: number; email?: string }> = {};
 
   constructor() {
-    this._loadCache();
+    // Cache is loaded dynamically on-demand using userId
   }
 
-  private _loadCache() {
+  getLoggedInUserId(): string | null {
     try {
-      this._cachedToken = localStorage.getItem('gcal_access_token');
-      const expiry = localStorage.getItem('gcal_token_expiry');
-      this._tokenExpiry = expiry ? parseInt(expiry, 10) : 0;
-      this._connectedEmail = localStorage.getItem('gcal_connected_email');
+      const sessionStr = localStorage.getItem('worklog_session');
+      if (sessionStr) {
+        const session = JSON.parse(sessionStr);
+        return session.id || null;
+      }
+    } catch {}
+    return null;
+  }
+
+  private _loadCache(userId: string) {
+    if (!userId) return;
+    try {
+      const token = localStorage.getItem(`gcal_access_token_${userId}`);
+      const expiry = localStorage.getItem(`gcal_token_expiry_${userId}`);
+      const email = localStorage.getItem(`gcal_connected_email_${userId}`);
+      
+      this._tokens[userId] = {
+        token: token || '',
+        expiry: expiry ? parseInt(expiry, 10) : 0,
+        email: email || undefined
+      };
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+
+  private _saveCache(userId: string, token: string, expiry: number, email?: string) {
+    if (!userId) return;
+    this._tokens[userId] = { token, expiry, email };
+    try {
+      localStorage.setItem(`gcal_access_token_${userId}`, token);
+      localStorage.setItem(`gcal_token_expiry_${userId}`, expiry.toString());
+      if (email) {
+        localStorage.setItem(`gcal_connected_email_${userId}`, email);
+      }
     } catch {
       // Ignore localStorage errors
     }
@@ -75,15 +104,7 @@ class GoogleCalendarService {
     const duration = data.expires_in || 3600;
     const expiry = Date.now() + duration * 1000 - 60000;
 
-    this._cachedToken = data.access_token;
-    this._tokenExpiry = expiry;
-    this._connectedEmail = data.email || null;
-
-    localStorage.setItem('gcal_access_token', data.access_token);
-    localStorage.setItem('gcal_token_expiry', expiry.toString());
-    if (data.email) {
-      localStorage.setItem('gcal_connected_email', data.email);
-    }
+    this._saveCache(userId, data.access_token, expiry, data.email);
 
     return {
       connected: true,
@@ -95,7 +116,11 @@ class GoogleCalendarService {
   /**
    * Handles parsing and caching the OAuth access token from the URL hash fragment (Legacy)
    */
-  async handleCallbackHash(hash: string): Promise<GCalConnection> {
+  async handleCallbackHash(hash: string, userId?: string): Promise<GCalConnection> {
+    const resolvedUserId = userId || this.getLoggedInUserId();
+    if (!resolvedUserId) {
+      throw new Error('User not logged in');
+    }
     const hashParams = new URLSearchParams(hash.substring(1));
     const accessToken = hashParams.get('access_token');
     const expiresIn = hashParams.get('expires_in');
@@ -107,18 +132,9 @@ class GoogleCalendarService {
     const duration = expiresIn ? parseInt(expiresIn, 10) : 3600;
     const expiry = Date.now() + duration * 1000 - 60000; // 1-minute buffer
 
-    this._cachedToken = accessToken;
-    this._tokenExpiry = expiry;
-
-    localStorage.setItem('gcal_access_token', accessToken);
-    localStorage.setItem('gcal_token_expiry', expiry.toString());
-
     // Fetch user email using userinfo endpoint
     const email = await this._fetchUserEmail(accessToken);
-    if (email) {
-      this._connectedEmail = email;
-      localStorage.setItem('gcal_connected_email', email);
-    }
+    this._saveCache(resolvedUserId, accessToken, expiry, email || undefined);
 
     return {
       connected: true,
@@ -145,14 +161,19 @@ class GoogleCalendarService {
   /**
    * Retrieves active Google Access Token or null if expired/not connected
    */
-  getAccessToken(): string | null {
-    if (this._cachedToken && Date.now() < this._tokenExpiry) {
-      return this._cachedToken;
+  getAccessToken(userId?: string): string | null {
+    const resolvedUserId = userId || this.getLoggedInUserId();
+    if (!resolvedUserId) return null;
+
+    const cached = this._tokens[resolvedUserId];
+    if (cached && cached.token && Date.now() < cached.expiry) {
+      return cached.token;
     }
     // Try to load fresh from storage in case another tab wrote it
-    this._loadCache();
-    if (this._cachedToken && Date.now() < this._tokenExpiry) {
-      return this._cachedToken;
+    this._loadCache(resolvedUserId);
+    const reCached = this._tokens[resolvedUserId];
+    if (reCached && reCached.token && Date.now() < reCached.expiry) {
+      return reCached.token;
     }
     return null;
   }
@@ -161,16 +182,18 @@ class GoogleCalendarService {
    * Retrieves active Google Access Token asynchronously or attempts to refresh it using the Edge Function.
    */
   async getAccessTokenAsync(userId: string): Promise<string | null> {
-    if (this._cachedToken && Date.now() < this._tokenExpiry) {
-      return this._cachedToken;
+    if (!userId) return null;
+
+    const cached = this._tokens[userId];
+    if (cached && cached.token && Date.now() < cached.expiry) {
+      return cached.token;
     }
     // Try to load fresh from storage in case another tab wrote it
-    this._loadCache();
-    if (this._cachedToken && Date.now() < this._tokenExpiry) {
-      return this._cachedToken;
+    this._loadCache(userId);
+    const reCached = this._tokens[userId];
+    if (reCached && reCached.token && Date.now() < reCached.expiry) {
+      return reCached.token;
     }
-
-    if (!userId) return null;
 
     // Call Supabase Edge Function to refresh token
     try {
@@ -192,11 +215,7 @@ class GoogleCalendarService {
           const duration = data.expires_in || 3600;
           const expiry = Date.now() + duration * 1000 - 60000; // 1-minute buffer
 
-          this._cachedToken = data.access_token;
-          this._tokenExpiry = expiry;
-
-          localStorage.setItem('gcal_access_token', data.access_token);
-          localStorage.setItem('gcal_token_expiry', expiry.toString());
+          this._saveCache(userId, data.access_token, expiry, data.email);
 
           return data.access_token;
         }
@@ -204,7 +223,7 @@ class GoogleCalendarService {
         const errData = await res.json().catch(() => ({}));
         console.warn('[GCal] Token refresh endpoint returned error:', errData.error);
         if (errData.error && errData.error.includes('No refresh token found')) {
-          this.disconnect();
+          this.disconnect(userId);
         }
       }
     } catch (e) {
@@ -217,15 +236,18 @@ class GoogleCalendarService {
   /**
    * Revoke connection and clear credentials
    */
-  disconnect() {
-    const token = this._cachedToken;
-    this._cachedToken = null;
-    this._tokenExpiry = 0;
-    this._connectedEmail = null;
+  disconnect(userId?: string) {
+    const resolvedUserId = userId || this.getLoggedInUserId();
+    if (!resolvedUserId) return;
 
-    localStorage.removeItem('gcal_access_token');
-    localStorage.removeItem('gcal_token_expiry');
-    localStorage.removeItem('gcal_connected_email');
+    const token = this._tokens[resolvedUserId]?.token || localStorage.getItem(`gcal_access_token_${resolvedUserId}`);
+    delete this._tokens[resolvedUserId];
+
+    try {
+      localStorage.removeItem(`gcal_access_token_${resolvedUserId}`);
+      localStorage.removeItem(`gcal_token_expiry_${resolvedUserId}`);
+      localStorage.removeItem(`gcal_connected_email_${resolvedUserId}`);
+    } catch {}
 
     if (token) {
       fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`).catch(() => {});
@@ -235,8 +257,11 @@ class GoogleCalendarService {
   /**
    * Tests connection by listing events
    */
-  async testConnection(): Promise<GCalConnection> {
-    const token = this.getAccessToken();
+  async testConnection(userId?: string): Promise<GCalConnection> {
+    const resolvedUserId = userId || this.getLoggedInUserId();
+    if (!resolvedUserId) return { connected: false };
+
+    const token = this.getAccessToken(resolvedUserId);
     if (!token) {
       return { connected: false };
     }
@@ -248,14 +273,15 @@ class GoogleCalendarService {
     );
 
     if (!response.ok) {
-      this.disconnect();
+      this.disconnect(resolvedUserId);
       return { connected: false };
     }
 
     const data = await response.json();
+    const email = this._tokens[resolvedUserId]?.email || localStorage.getItem(`gcal_connected_email_${resolvedUserId}`) || 'Google Account';
     return {
       connected: true,
-      email: this._connectedEmail || localStorage.getItem('gcal_connected_email') || 'Google Account',
+      email,
       calendarName: data.summary || 'Primary Calendar'
     };
   }

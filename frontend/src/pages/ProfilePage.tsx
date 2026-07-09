@@ -98,7 +98,7 @@ export default function ProfilePage() {
         async function processOAuthCallback() {
           try {
             setIsSyncing(true);
-            const conn = await googleCalendar.handleCallbackHash(hash);
+            const conn = await googleCalendar.handleCallbackHash(hash, sessionData.id);
             if (conn.connected) {
               setGcalConnected(true);
               setGcalEmail(conn.email || '');
@@ -271,7 +271,7 @@ export default function ProfilePage() {
   };
 
   const handleDisconnectGCal = async () => {
-    googleCalendar.disconnect();
+    googleCalendar.disconnect(session?.id);
     setGcalConnected(false);
     setGcalEmail('');
     setGcalSyncEnabled(false);
@@ -322,7 +322,7 @@ export default function ProfilePage() {
     }
   };
 
-  const isTokenExpired = gcalConnected && !googleCalendar.getAccessToken();
+  const isTokenExpired = gcalConnected && !googleCalendar.getAccessToken(session?.id);
 
   return (
     <AppLayout>
