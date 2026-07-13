@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import CalendarPage from './pages/CalendarPage';
 import ReportsPage from './pages/ReportsPage';
 import HrbpPage from './pages/HrbpPage';
+import AiChatPage from './pages/AiChatPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MigratePage from './pages/MigratePage';
@@ -26,6 +27,7 @@ function App() {
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/hrbp" element={<HrbpPage />} />
+        <Route path="/ai-chat" element={<AiChatPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/projects" element={<ProjectRegistryPage />} />
         <Route path="/profile" element={<ProfilePage />} />
