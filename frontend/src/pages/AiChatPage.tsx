@@ -622,8 +622,13 @@ export default function AiChatPage() {
       }
 
       // Determine model based on webSearch toggle
+      const selectedModelInfo = AVAILABLE_MODELS.find(m => m.id === selectedModel);
+      const isFreeTierSelected = selectedModelInfo?.tier === 'free';
+
       const requestModel = webSearch
-        ? (selectedModel.startsWith('perplexity/') ? selectedModel : 'perplexity/sonar')
+        ? (selectedModel.startsWith('perplexity/') 
+            ? selectedModel 
+            : (isFreeTierSelected ? 'deepseek/deepseek-v4-flash' : 'perplexity/sonar'))
         : selectedModel;
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
