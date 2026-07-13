@@ -89,6 +89,13 @@ const AVAILABLE_MODELS: ModelInfo[] = [
     privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
   },
   {
+    id: 'opencode/big-pickle',
+    name: 'Big Pickle (Free - OpenCode)',
+    tier: 'free',
+    description: '⚡ โมเดลภาษาเขียนโค้ดและวิเคราะห์ปัญหาเชิงลึกฟรี (GLM-4.6) จากเครือข่าย OpenCode Zen',
+    privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลประมวลผลผ่านเซิร์ฟเวอร์ภายนอกของ OpenCode Zen'
+  },
+  {
     id: 'google/gemini-2.0-flash-exp:free',
     name: 'Gemini 2.0 Flash Exp (Free)',
     tier: 'free',
@@ -169,6 +176,9 @@ export default function AiChatPage() {
   const [drawMode, setDrawMode] = useState<boolean>(false);
   const [clearModalType, setClearModalType] = useState<'history' | 'key' | null>(null);
   const [activeSkillId, setActiveSkillId] = useState<string>('none');
+  const [openCodeApiKey, setOpenCodeApiKey] = useState<string>(() => localStorage.getItem('opencode_chat_api_key') || '');
+  const [showOpenCodeKey, setShowOpenCodeKey] = useState<boolean>(false);
+  const [isEditingOpenCodeKey, setIsEditingOpenCodeKey] = useState<boolean>(() => !localStorage.getItem('opencode_chat_api_key'));
 
   // Flux Custom Parameters
   const [fluxStyle, setFluxStyle] = useState<string>('none');
@@ -216,6 +226,12 @@ export default function AiChatPage() {
     localStorage.setItem('openrouter_chat_api_key', apiKey.trim());
     setIsEditingKey(false);
     showToast('บันทึก OpenRouter API Key สำเร็จ!', 'success');
+  };
+
+  const handleSaveOpenCodeApiKey = () => {
+    localStorage.setItem('opencode_chat_api_key', openCodeApiKey.trim());
+    setIsEditingOpenCodeKey(false);
+    showToast('บันทึก OpenCode API Key สำเร็จ!', 'success');
   };
 
   const handleModelChange = (modelId: string) => {
@@ -269,10 +285,13 @@ export default function AiChatPage() {
 
   const handleClearApiKey = () => {
     localStorage.removeItem('openrouter_chat_api_key');
+    localStorage.removeItem('opencode_chat_api_key');
     setApiKey('');
+    setOpenCodeApiKey('');
     setIsEditingKey(true);
+    setIsEditingOpenCodeKey(true);
     setClearModalType(null);
-    showToast('ลบ OpenRouter API Key เรียบร้อยแล้ว', 'success');
+    showToast('ลบ API Keys ทั้งหมดเรียบร้อยแล้ว', 'success');
   };
 
   const safeSaveSessions = (sessionsToSave: ChatSession[]) => {
@@ -336,10 +355,23 @@ export default function AiChatPage() {
     if (key.trim()) {
       for (const model of modelsToTry) {
         try {
-          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          const isOpenCodeModel = model.startsWith('opencode/');
+          const apiEndpoint = isOpenCodeModel
+            ? "https://api.opencode.ai/v1/chat/completions"
+            : "https://openrouter.ai/api/v1/chat/completions";
+          
+          const modelKey = isOpenCodeModel
+            ? openCodeApiKey
+            : key;
+
+          if (!modelKey.trim()) {
+            continue; // skip if key is missing
+          }
+
+          const response = await fetch(apiEndpoint, {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${key}`,
+              "Authorization": `Bearer ${modelKey}`,
               "HTTP-Referer": window.location.origin,
               "X-Title": "Worklog AI Chat Prompt Translator",
               "Content-Type": "application/json"
@@ -628,10 +660,20 @@ export default function AiChatPage() {
         ? (selectedModel.startsWith('perplexity/') ? selectedModel : 'perplexity/sonar')
         : selectedModel;
 
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      // Determine Endpoint and Authorization Key based on the actual requestModel
+      const isOpenCodeRequest = requestModel.startsWith('opencode/');
+      const apiEndpoint = isOpenCodeRequest
+        ? "https://api.opencode.ai/v1/chat/completions"
+        : "https://openrouter.ai/api/v1/chat/completions";
+      
+      const activeApiKey = isOpenCodeRequest
+        ? openCodeApiKey
+        : apiKey;
+
+      const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${apiKey}`,
+          "Authorization": `Bearer ${activeApiKey}`,
           "HTTP-Referer": window.location.origin,
           "X-Title": "Worklog AI Chat",
           "Content-Type": "application/json"
@@ -910,54 +952,107 @@ export default function AiChatPage() {
               </select>
             </div>
 
-            {/* API Key Config */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">
-                  OpenRouter API Key
-                </label>
-                <button 
-                  onClick={() => setIsEditingKey(!isEditingKey)}
-                  className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 transition-colors"
-                >
-                  {isEditingKey ? 'ยกเลิก' : (apiKey ? 'แก้ไข' : 'ใส่คีย์')}
-                </button>
-              </div>
-
-              {isEditingKey ? (
-                <div className="flex gap-1.5">
-                  <div className="relative flex-1">
-                    <input
-                      type={showApiKey ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="sk-or-v1-..."
-                      className="w-full text-xs font-mono py-2 pl-3 pr-8 rounded-xl border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-2 top-2 text-theme-text-muted hover:text-theme-text"
-                    >
-                      {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
+            {/* Dual API Key Stacked Manager */}
+            <div className="space-y-4 pt-1 border-t border-theme-border/40">
+              {/* 1. OpenRouter API Key */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn("w-1.5 h-1.5 rounded-full transition-colors", apiKey ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-rose-500 animate-pulse")} />
+                    <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider">OpenRouter Key</span>
                   </div>
-                  <button
-                    onClick={handleSaveApiKey}
-                    className="px-3 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold transition-all"
+                  <button 
+                    onClick={() => setIsEditingKey(!isEditingKey)}
+                    className="text-[9px] font-extrabold text-indigo-500 hover:text-indigo-600 transition-colors uppercase"
                   >
-                    บันทึก
+                    {isEditingKey ? 'ยกเลิก' : (apiKey ? 'แก้ไข' : 'ใส่คีย์')}
                   </button>
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-theme-surface border border-theme-border/60">
-                  <Key size={13} className="text-emerald-500 shrink-0" />
-                  <span className="text-[10px] font-mono text-theme-text-secondary truncate flex-1">
-                    {apiKey ? '••••••••••••••••••••••••••••••••' : 'ยังไม่ได้ตั้งค่าคีย์'}
-                  </span>
-                  <div className={cn("w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse", !apiKey && "bg-slate-400")} />
+
+                {isEditingKey ? (
+                  <div className="flex gap-1.5">
+                    <div className="relative flex-1">
+                      <input
+                        type={showApiKey ? 'text' : 'password'}
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="sk-or-v1-..."
+                        className="w-full text-xs font-mono py-2 pl-3 pr-8 rounded-xl border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-2 top-2 text-theme-text-muted hover:text-theme-text"
+                      >
+                        {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleSaveApiKey}
+                      className="px-3 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold transition-all shadow-md shadow-indigo-500/10"
+                    >
+                      บันทึก
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl border border-theme-border bg-theme-surface/50 text-[10px] text-theme-text-muted font-mono relative">
+                    <div className="flex items-center gap-1.5">
+                      <Key size={11} className="text-emerald-500 shrink-0" />
+                      <span>••••••••••••••••••••••••••••••••</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. OpenCode API Key */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn("w-1.5 h-1.5 rounded-full transition-colors", openCodeApiKey ? "bg-emerald-500 shadow-[0_0_8px_#10b981]" : "bg-rose-500 animate-pulse")} />
+                    <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider">OpenCode Key</span>
+                  </div>
+                  <button 
+                    onClick={() => setIsEditingOpenCodeKey(!isEditingOpenCodeKey)}
+                    className="text-[9px] font-extrabold text-indigo-500 hover:text-indigo-600 transition-colors uppercase"
+                  >
+                    {isEditingOpenCodeKey ? 'ยกเลิก' : (openCodeApiKey ? 'แก้ไข' : 'ใส่คีย์')}
+                  </button>
                 </div>
-              )}
+
+                {isEditingOpenCodeKey ? (
+                  <div className="flex gap-1.5">
+                    <div className="relative flex-1">
+                      <input
+                        type={showOpenCodeKey ? 'text' : 'password'}
+                        value={openCodeApiKey}
+                        onChange={(e) => setOpenCodeApiKey(e.target.value)}
+                        placeholder="sk-oc-..."
+                        className="w-full text-xs font-mono py-2 pl-3 pr-8 rounded-xl border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowOpenCodeKey(!showOpenCodeKey)}
+                        className="absolute right-2 top-2 text-theme-text-muted hover:text-theme-text"
+                      >
+                        {showOpenCodeKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleSaveOpenCodeApiKey}
+                      className="px-3 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold transition-all shadow-md shadow-indigo-500/10"
+                    >
+                      บันทึก
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl border border-theme-border bg-theme-surface/50 text-[10px] text-theme-text-muted font-mono relative">
+                    <div className="flex items-center gap-1.5">
+                      <Key size={11} className="text-emerald-500 shrink-0" />
+                      <span>••••••••••••••••••••••••••••••••</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
              {/* Clear Buttons */}
@@ -1053,11 +1148,19 @@ export default function AiChatPage() {
                 </div>
 
                 {/* API Key Missing Alert */}
-                {!apiKey && (
-                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs leading-relaxed space-y-2 flex gap-3">
+                {((selectedModel.startsWith('opencode/') && !openCodeApiKey) || (!selectedModel.startsWith('opencode/') && !apiKey)) && (
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs leading-relaxed space-y-2 flex gap-3 animate-fade-in">
                     <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-500" />
                     <div>
-                      <span className="font-bold">⚠️ ยังไม่มีคีย์ API เชื่อมต่อ:</span> เพื่อให้ AI ตอบคำถามได้กรุณาขอ OpenRouter API Key จากระบบของคุณและบันทึกในช่อง **"OpenRouter API Key"** แถบเมนูด้านซ้าย (หรือแถบตั้งค่าเบราว์เซอร์)
+                      {selectedModel.startsWith('opencode/') ? (
+                        <>
+                          <span className="font-bold">⚠️ ยังไม่มีคีย์ OpenCode API:</span> เพื่อใช้งานโมเดล Big Pickle กรุณาขอ OpenCode API Key ของคุณและบันทึกในช่อง **"OpenCode Key"** แถบเมนูด้านซ้าย
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-bold">⚠️ ยังไม่มีคีย์ OpenRouter API:</span> เพื่อให้ AI ตอบคำถามได้กรุณาขอ OpenRouter API Key จากระบบของคุณและบันทึกในช่อง **"OpenRouter Key"** แถบเมนูด้านซ้าย
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1166,10 +1269,14 @@ export default function AiChatPage() {
             <div className="max-w-3xl mx-auto">
               
               {/* API Key Missing warning just above input */}
-              {!apiKey && !drawMode && (
+              {((selectedModel.startsWith('opencode/') && !openCodeApiKey) || (!selectedModel.startsWith('opencode/') && !apiKey)) && !drawMode && (
                 <div className="mb-2 text-[10px] text-center text-amber-600 dark:text-amber-400 font-bold bg-amber-500/10 p-2 rounded-xl flex items-center justify-center gap-1.5 border border-amber-500/10 animate-pulse">
                   <AlertTriangle size={10} />
-                  <span>ยังไม่ได้ตั้งค่า API Key! กรุณากรอก API Key ในแถบด้านซ้ายก่อนทำการสนทนา (เว้นแต่จะใช้โหมดสร้างรูปภาพฟรี)</span>
+                  <span>
+                    {selectedModel.startsWith('opencode/') 
+                      ? "ยังไม่ได้ตั้งค่า OpenCode API Key! กรุณากรอก API Key ในแถบด้านซ้ายเพื่อเปิดสนทนาด้วย Big Pickle"
+                      : "ยังไม่ได้ตั้งค่า OpenRouter API Key! กรุณากรอก API Key ในแถบด้านซ้ายก่อนทำการสนทนา"}
+                  </span>
                 </div>
               )}
 
@@ -1344,20 +1451,24 @@ export default function AiChatPage() {
                       ? (apiKey 
                           ? "พิมพ์ภาษาไทยได้เลย! AI จะแปลและวาดรูปอัจฉริยะด้วย Flux อัตโนมัติ..." 
                           : "พิมพ์คำอธิบายรูปภาพภาษาอังกฤษเพื่อภาพที่ตรงปก (หรือใส่ API Key ด้านซ้ายเพื่อแปลไทยออโต้)...")
-                      : (apiKey 
-                          ? (webSearch 
-                              ? "ค้นหาและถามคำถามจากอินเทอร์เน็ตสดๆ..." 
-                              : (AI_SKILLS.find(s => s.id === activeSkillId)?.placeholder || "พิมพ์คำถามของคุณเพื่อคุยกับ AI..."))
-                          : "กรุณาใส่ API Key ด้านซ้ายเพื่อเริ่มสนทนา")
+                      : (selectedModel.startsWith('opencode/')
+                          ? (openCodeApiKey 
+                              ? (AI_SKILLS.find(s => s.id === activeSkillId)?.placeholder || "พิมพ์คำถามของคุณเพื่อคุยกับ AI...")
+                              : "กรุณาใส่ OpenCode API Key ด้านซ้ายเพื่อคุยกับ Big Pickle")
+                          : (apiKey 
+                              ? (webSearch 
+                                  ? "ค้นหาและถามคำถามจากอินเทอร์เน็ตสดๆ..." 
+                                  : (AI_SKILLS.find(s => s.id === activeSkillId)?.placeholder || "พิมพ์คำถามของคุณเพื่อคุยกับ AI..."))
+                              : "กรุณาใส่ OpenRouter API Key ด้านซ้ายเพื่อเริ่มสนทนา"))
                   }
-                  disabled={(!apiKey && !drawMode) || isGenerating}
+                  disabled={((selectedModel.startsWith('opencode/') ? !openCodeApiKey : !apiKey) && !drawMode) || isGenerating}
                   rows={1}
                   className="flex-1 bg-transparent border-0 outline-none text-sm text-theme-text placeholder-theme-text-muted py-2.5 px-3 resize-none max-h-32 min-h-[38px] leading-relaxed custom-scrollbar disabled:opacity-50"
                 />
                 
                 <button
                   type="submit"
-                  disabled={(!apiKey && !drawMode) || !input.trim() || isGenerating}
+                  disabled={((selectedModel.startsWith('opencode/') ? !openCodeApiKey : !apiKey) && !drawMode) || !input.trim() || isGenerating}
                   className={cn(
                     "p-2.5 rounded-xl flex items-center justify-center text-white transition-all scale-95 hover:scale-100 disabled:opacity-50 disabled:scale-95 shrink-0",
                     isGenerating
