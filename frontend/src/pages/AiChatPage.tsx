@@ -11,6 +11,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  modelUsed?: string; // Stores the actual model that served the response
 }
 
 interface ChatSession {
@@ -599,6 +600,7 @@ export default function AiChatPage() {
     }
 
     // A. CHAT LOGIC (OpenRouter API)
+    let requestModel = selectedModel;
     try {
       const formattedMessages = targetSession.messages
         .slice(0, -1) // remove placeholder
@@ -625,7 +627,7 @@ export default function AiChatPage() {
       const selectedModelInfo = AVAILABLE_MODELS.find(m => m.id === selectedModel);
       const isFreeTierSelected = selectedModelInfo?.tier === 'free';
 
-      const requestModel = webSearch
+      requestModel = webSearch
         ? (selectedModel.startsWith('perplexity/') 
             ? selectedModel 
             : (isFreeTierSelected ? 'deepseek/deepseek-v4-flash' : 'perplexity/sonar'))
@@ -685,7 +687,8 @@ export default function AiChatPage() {
                       messagesCopy[messagesCopy.length - 1] = {
                         role: 'assistant',
                         content: assistantContent,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        modelUsed: requestModel
                       };
                       return { ...s, messages: messagesCopy };
                     }
@@ -717,7 +720,8 @@ export default function AiChatPage() {
             messagesCopy[messagesCopy.length - 1] = {
               role: 'assistant',
               content: `⚠️ เกิดข้อผิดพลาด: ${err.message}\n\nกรุณาตรวจสอบความถูกต้องของ OpenRouter API Key และเครือข่ายอินเทอร์เน็ตของคุณ`,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              modelUsed: requestModel
             };
             return { ...s, messages: messagesCopy };
           }
@@ -1147,7 +1151,9 @@ export default function AiChatPage() {
                           </div>
                           {!isUser && (
                             <span className="uppercase text-[8px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded tracking-wide">
-                              {m.content.startsWith('![') ? 'Flux Image' : activeModelInfo.name.split(' (')[0]}
+                              {m.content.startsWith('![') 
+                                ? 'Flux Image' 
+                                : (AVAILABLE_MODELS.find(mod => mod.id === m.modelUsed)?.name || activeModelInfo.name).split(' (')[0]}
                             </span>
                           )}
                         </div>
