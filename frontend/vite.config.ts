@@ -116,6 +116,11 @@ export default defineConfig({
         target: 'http://api-idms.advanceagro.net',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/hrms/, '/hrms')
+      },
+      '/api/opencode': {
+        target: 'http://127.0.0.1:4096',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/opencode/, '')
       }
     }
   }

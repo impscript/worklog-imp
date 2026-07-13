@@ -357,7 +357,7 @@ export default function AiChatPage() {
         try {
           const isOpenCodeModel = model.startsWith('opencode/');
           const apiEndpoint = isOpenCodeModel
-            ? "https://api.opencode.ai/v1/chat/completions"
+            ? "/api/opencode/v1/chat/completions"
             : "https://openrouter.ai/api/v1/chat/completions";
           
           const modelKey = isOpenCodeModel
@@ -663,7 +663,7 @@ export default function AiChatPage() {
       // Determine Endpoint and Authorization Key based on the actual requestModel
       const isOpenCodeRequest = requestModel.startsWith('opencode/');
       const apiEndpoint = isOpenCodeRequest
-        ? "https://api.opencode.ai/v1/chat/completions"
+        ? "/api/opencode/v1/chat/completions"
         : "https://openrouter.ai/api/v1/chat/completions";
       
       const activeApiKey = isOpenCodeRequest
@@ -754,9 +754,10 @@ export default function AiChatPage() {
         const updated = prevSessions.map(s => {
           if (s.id === currentSessionId) {
             const messagesCopy = [...s.messages];
+            const isOC = requestModel.startsWith('opencode/');
             messagesCopy[messagesCopy.length - 1] = {
               role: 'assistant',
-              content: `⚠️ เกิดข้อผิดพลาด: ${err.message}\n\nกรุณาตรวจสอบความถูกต้องของ OpenRouter API Key และเครือข่ายอินเทอร์เน็ตของคุณ`,
+              content: `⚠️ เกิดข้อผิดพลาด: ${err.message}\n\nกรุณาตรวจสอบความถูกต้องของ ${isOC ? 'OpenCode API Key' : 'OpenRouter API Key'} และเครือข่ายอินเทอร์เน็ตของคุณ`,
               timestamp: new Date().toISOString(),
               modelUsed: requestModel
             };
