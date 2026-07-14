@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Send, Trash2, Plus, Sparkles, Key, Eye, EyeOff, 
-  Shield, Cpu, AlertTriangle, RefreshCw, MessageSquare, Info, ShieldAlert, Trash, Globe, Palette, Copy
+  Shield, Cpu, AlertTriangle, RefreshCw, MessageSquare, Info, ShieldAlert, Trash, Globe, Palette, Copy, X
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useNotification } from '../context/NotificationContext';
@@ -32,17 +32,31 @@ interface ModelInfo {
 const AVAILABLE_MODELS: ModelInfo[] = [
   // Paid Tier (Recommended for Business/Sensitive Data)
   {
-    id: 'anthropic/claude-3.5-sonnet',
-    name: 'Claude 3.5 Sonnet (Paid)',
+    id: 'anthropic/claude-sonnet-5',
+    name: 'Claude Sonnet 5 (Paid)',
     tier: 'paid',
-    description: 'โมเดลที่ดีที่สุดในปัจจุบันด้านงานวิเคราะห์ เขียนโค้ด และใช้เหตุผลเชิงลึก',
+    description: 'โมเดลที่ดีที่สุดในปัจจุบันด้านงานวิเคราะห์ เขียนโค้ด และใช้เหตุผลเชิงลึกระดับสูงสุด',
     privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
   },
   {
-    id: 'google/gemini-pro-1.5',
-    name: 'Gemini Pro 1.5 (Paid)',
+    id: 'anthropic/claude-3.5-sonnet',
+    name: 'Claude 3.5 Sonnet (Paid)',
+    tier: 'paid',
+    description: 'โมเดลยอดนิยมด้านการวิเคราะห์ เขียนโค้ด และใช้เหตุผลเชิงลึก',
+    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+  },
+  {
+    id: 'google/gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro (Paid)',
     tier: 'paid',
     description: 'โมเดลความเร็วสูง หน้าต่างบริบทใหญ่พิเศษ เหมาะสำหรับการประมวลผลเอกสารหรือเนื้อหายาวๆ',
+    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+  },
+  {
+    id: 'google/gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash (Paid)',
+    tier: 'paid',
+    description: 'โมเดลตระกูล Gemini ล่าสุด ความเร็วสูงพิเศษ เหมาะกับงานทั่วไปและการประมวลผลเร็ว',
     privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
   },
   {
@@ -96,17 +110,10 @@ const AVAILABLE_MODELS: ModelInfo[] = [
     privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
   },
   {
-    id: 'meta-llama/llama-3-8b-instruct:free',
-    name: 'Llama 3 8B (Free)',
+    id: 'meta-llama/llama-3.3-70b-instruct:free',
+    name: 'Llama 3.3 70B (Free)',
     tier: 'free',
-    description: 'โมเดลแชทระดับกลางยอดนิยมจาก Meta ตอบสนองรวดเร็วเป็นธรรมชาติ',
-    privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
-  },
-  {
-    id: 'qwen/qwen-2-7b-instruct:free',
-    name: 'Qwen 2 7B (Free)',
-    tier: 'free',
-    description: 'โมเดลที่โดดเด่นในด้านความเร็วและไวยากรณ์ภาษาทั่วไป',
+    description: 'โมเดลประสิทธิภาพสูงระดับ 70B ล่าสุดจาก Meta ตอบสนองรวดเร็วเป็นธรรมชาติ',
     privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
   }
 ];
@@ -170,6 +177,52 @@ export default function AiChatPage() {
   const [clearModalType, setClearModalType] = useState<'history' | 'key' | null>(null);
   const [activeSkillId, setActiveSkillId] = useState<string>('none');
 
+  // Dynamic OpenRouter Models
+  const [fetchedModels, setFetchedModels] = useState<ModelInfo[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
+  const [customModelId, setCustomModelId] = useState<string>(() => {
+    const stored = localStorage.getItem('openrouter_chat_model') || AVAILABLE_MODELS[0].id;
+    const isPreset = AVAILABLE_MODELS.some(m => m.id === stored);
+    return isPreset ? '' : stored;
+  });
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState<boolean>(false);
+
+  // Fetch all models dynamically from OpenRouter (public endpoint)
+  useEffect(() => {
+    const fetchOpenRouterModels = async () => {
+      try {
+        setIsLoadingModels(true);
+        const res = await fetch("https://openrouter.ai/api/v1/models");
+        if (res.ok) {
+          const json = await res.json();
+          if (json && Array.isArray(json.data)) {
+            const mapped: ModelInfo[] = json.data.map((m: any) => {
+              const promptPrice = parseFloat(m.pricing?.prompt || '0') * 1000000;
+              const isFree = promptPrice === 0;
+              return {
+                id: m.id,
+                name: m.name,
+                tier: isFree ? 'free' : 'paid',
+                description: `${m.description || ''} (Context: ${(m.context_length / 1000).toFixed(0)}k)`,
+                privacy: isFree
+                  ? '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
+                  : '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+              };
+            });
+            setFetchedModels(mapped);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch models from OpenRouter:", err);
+      } finally {
+        setIsLoadingModels(false);
+      }
+    };
+
+    fetchOpenRouterModels();
+  }, []);
+
   // Flux Custom Parameters
   const [fluxStyle, setFluxStyle] = useState<string>('none');
   const [fluxRatio, setFluxRatio] = useState<string>('1:1');
@@ -210,7 +263,14 @@ export default function AiChatPage() {
   }, [sessions, activeSessionId]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
-  const activeModelInfo = AVAILABLE_MODELS.find(m => m.id === selectedModel) || AVAILABLE_MODELS[0];
+  const activeModelInfo = AVAILABLE_MODELS.find(m => m.id === selectedModel) ||
+    fetchedModels.find(m => m.id === selectedModel) || {
+      id: selectedModel,
+      name: selectedModel,
+      tier: 'paid' as const,
+      description: 'โมเดลกำหนดเองโดยผู้ใช้',
+      privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+    };
 
   const handleSaveApiKey = () => {
     localStorage.setItem('openrouter_chat_api_key', apiKey.trim());
@@ -220,16 +280,28 @@ export default function AiChatPage() {
 
   const handleModelChange = (modelId: string) => {
     setSelectedModel(modelId);
-    localStorage.setItem('openrouter_chat_model', modelId);
-    showToast(`สลับโมเดลเป็น ${AVAILABLE_MODELS.find(m => m.id === modelId)?.name}`, 'info');
+    if (modelId !== 'custom') {
+      localStorage.setItem('openrouter_chat_model', modelId);
+      const matchedName = AVAILABLE_MODELS.find(m => m.id === modelId)?.name || 
+                          fetchedModels.find(m => m.id === modelId)?.name || 
+                          modelId;
+      showToast(`สลับโมเดลเป็น ${matchedName}`, 'info');
 
-    // Automatically toggle webSearch visual helper based on model
-    if (modelId.startsWith('perplexity/')) {
-      setWebSearch(true);
-      setDrawMode(false);
-    } else {
-      setWebSearch(false);
+      // Automatically toggle webSearch visual helper based on model
+      if (modelId.startsWith('perplexity/')) {
+        setWebSearch(true);
+        setDrawMode(false);
+      } else {
+        setWebSearch(false);
+      }
     }
+  };
+
+  const handleCustomModelChange = (val: string) => {
+    const cleanVal = val.trim();
+    setCustomModelId(cleanVal);
+    setSelectedModel(cleanVal);
+    localStorage.setItem('openrouter_chat_model', cleanVal);
   };
 
   const handleCreateNewChat = () => {
@@ -888,26 +960,62 @@ export default function AiChatPage() {
           <div className="p-4 border-t border-theme-border/60 bg-theme-surface-secondary/50 dark:bg-theme-bg-page/50 space-y-4">
             
             {/* Model Selection */}
-            <div>
-              <label className="block text-[10px] font-bold text-theme-text-muted uppercase tracking-wider mb-1.5">
-                เลือกปัญญาประดิษฐ์ (Model)
-              </label>
-              <select
-                value={selectedModel}
-                onChange={(e) => handleModelChange(e.target.value)}
-                className="w-full text-xs font-semibold py-2 px-3 rounded-xl border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 transition-colors"
-              >
-                <optgroup label="🔒 Paid Tier (ปลอดภัยสูง / แนะนำ)">
-                  {AVAILABLE_MODELS.filter(m => m.tier === 'paid').map(m => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="⚠️ Free Tier (ใช้งานทั่วไป)">
-                  {AVAILABLE_MODELS.filter(m => m.tier === 'free').map(m => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </optgroup>
-              </select>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">
+                  เลือกปัญญาประดิษฐ์ (Model)
+                </label>
+                <button
+                  onClick={() => setIsSearchModalOpen(true)}
+                  type="button"
+                  className="inline-flex items-center gap-1 text-[10px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 font-bold transition-all cursor-pointer select-none"
+                >
+                  <Globe size={11} /> ค้นหาทั้งหมด ({fetchedModels.length || '...'})
+                </button>
+              </div>
+              
+              <div className="space-y-1.5">
+                <select
+                  value={AVAILABLE_MODELS.some(m => m.id === selectedModel) ? selectedModel : 'custom'}
+                  onChange={(e) => {
+                    if (e.target.value === 'custom') {
+                      handleModelChange(customModelId || 'anthropic/claude-sonnet-5');
+                    } else {
+                      handleModelChange(e.target.value);
+                    }
+                  }}
+                  className="w-full text-xs font-semibold py-2 px-3 rounded-xl border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer"
+                >
+                  <optgroup label="🔒 Paid Tier (ปลอดภัยสูง / แนะนำ)">
+                    {AVAILABLE_MODELS.filter(m => m.tier === 'paid').map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="⚠️ Free Tier (ใช้งานทั่วไป)">
+                    {AVAILABLE_MODELS.filter(m => m.tier === 'free').map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="⚙️ Custom Config">
+                    <option value="custom">พิมพ์กำหนดเอง (Custom ID)...</option>
+                  </optgroup>
+                </select>
+
+                {(!AVAILABLE_MODELS.some(m => m.id === selectedModel)) && (
+                  <div className="space-y-1 animate-in slide-in-from-top-1 duration-150">
+                    <input
+                      type="text"
+                      value={selectedModel}
+                      onChange={(e) => handleCustomModelChange(e.target.value)}
+                      placeholder="e.g. anthropic/claude-sonnet-5"
+                      className="w-full text-xs font-mono py-2 px-3 rounded-xl border border-theme-border-strong bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                    <p className="text-[9px] text-theme-text-muted">
+                      ระบุ ID จาก OpenRouter เช่น <code className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 px-1 rounded font-mono">anthropic/claude-sonnet-5</code>
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* API Key Config */}
@@ -1014,16 +1122,31 @@ export default function AiChatPage() {
             </div>
             
             {/* Mobile indicator showing configs */}
-            <div className="md:hidden flex items-center gap-2">
+            <div className="md:hidden flex items-center gap-1.5">
               <select
-                value={selectedModel}
-                onChange={(e) => handleModelChange(e.target.value)}
-                className="text-[10px] font-semibold py-1.5 px-2.5 rounded-lg border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none"
+                value={AVAILABLE_MODELS.some(m => m.id === selectedModel) ? selectedModel : 'custom'}
+                onChange={(e) => {
+                  if (e.target.value === 'custom') {
+                    handleModelChange(customModelId || 'anthropic/claude-sonnet-5');
+                  } else {
+                    handleModelChange(e.target.value);
+                  }
+                }}
+                className="text-[10px] font-semibold py-1.5 px-2 rounded-lg border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none cursor-pointer max-w-[120px]"
               >
                 {AVAILABLE_MODELS.map(m => (
                   <option key={m.id} value={m.id}>{m.tier === 'paid' ? '🔒' : '⚠️'} {m.name}</option>
                 ))}
+                <option value="custom">⚙️ Custom...</option>
               </select>
+              <button
+                onClick={() => setIsSearchModalOpen(true)}
+                type="button"
+                className="p-1.5 rounded-lg border border-theme-border bg-theme-surface text-indigo-500 hover:text-indigo-600 cursor-pointer flex items-center justify-center shrink-0"
+                title="ค้นหาโมเดลทั้งหมด"
+              >
+                <Globe size={12} />
+              </button>
             </div>
           </header>
 
@@ -1383,6 +1506,148 @@ export default function AiChatPage() {
           </footer>
         </div>
       </div>
+
+      {/* SEARCH MODELS MODAL */}
+      {isSearchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-theme-border/80 bg-theme-surface/95 dark:bg-theme-bg-page/95 shadow-2xl overflow-hidden flex flex-col max-h-[80vh] text-theme-text animate-scale-in">
+            
+            {/* Header */}
+            <div className="p-4 border-b border-theme-border/50 bg-theme-surface-secondary/40 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="font-bold text-sm">ค้นหาโมเดล OpenRouter ทั้งหมด</h3>
+                <p className="text-[10px] text-theme-text-muted mt-0.5">เลือกจากโมเดลทั้งหมดที่ให้บริการแบบ Live บนระบบ OpenRouter</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsSearchModalOpen(false);
+                  setSearchQuery('');
+                }}
+                className="p-1 rounded-lg text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-secondary transition-all cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="p-4 border-b border-theme-border/30 bg-theme-surface-secondary/20 flex gap-2 shrink-0">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ค้นหา เช่น claude, gemini, gpt, deepseek, llama..."
+                className="flex-1 text-xs py-2.5 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
+                autoFocus
+              />
+              {isLoadingModels && (
+                <div className="flex items-center justify-center px-2">
+                  <RefreshCw size={14} className="animate-spin text-indigo-500" />
+                </div>
+              )}
+            </div>
+
+            {/* Model List */}
+            <div className="flex-1 overflow-y-auto p-2 divide-y divide-theme-border/20 custom-scrollbar">
+              {isLoadingModels && fetchedModels.length === 0 ? (
+                <div className="py-8 text-center text-xs text-theme-text-muted animate-pulse">
+                  กำลังโหลดรายการโมเดลล่าสุดจาก OpenRouter...
+                </div>
+              ) : (
+                (() => {
+                  const query = searchQuery.toLowerCase().trim();
+                  const filtered = fetchedModels.filter(
+                    m => m.id.toLowerCase().includes(query) || m.name.toLowerCase().includes(query)
+                  );
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="py-8 text-center text-xs text-theme-text-muted">
+                        ไม่พบโมเดลที่ค้นหา หรือเชื่อมโยง OpenRouter ล้มเหลว
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        handleModelChange(m.id);
+                        setCustomModelId(m.id);
+                        setIsSearchModalOpen(false);
+                        setSearchQuery('');
+                      }}
+                      className="w-full text-left p-3 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors rounded-xl flex flex-col gap-1 group cursor-pointer border border-transparent hover:border-indigo-100 dark:hover:border-indigo-500/10"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-xs font-bold group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                          {m.name}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                          m.tier === 'paid' 
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25' 
+                            : 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/25'
+                        }`}>
+                          {m.tier === 'paid' ? 'Paid' : 'Free'}
+                        </span>
+                      </div>
+                      <span className="text-[9px] font-mono text-theme-text-muted select-all">
+                        {m.id}
+                      </span>
+                      {m.description && (
+                        <p className="text-[10px] text-theme-text-secondary leading-relaxed line-clamp-2 mt-0.5">
+                          {m.description}
+                        </p>
+                      )}
+                    </button>
+                  ));
+                })()
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t border-theme-border/50 bg-theme-surface-secondary/40 text-[9px] text-theme-text-muted flex justify-between items-center shrink-0">
+              <span>พบโมเดลทั้งหมด {fetchedModels.length} รายการ</span>
+              <button
+                onClick={async () => {
+                  setFetchedModels([]);
+                  setIsLoadingModels(true);
+                  try {
+                    const res = await fetch("https://openrouter.ai/api/v1/models");
+                    if (res.ok) {
+                      const json = await res.json();
+                      if (json && Array.isArray(json.data)) {
+                        const mapped = json.data.map((m: any) => {
+                          const promptPrice = parseFloat(m.pricing?.prompt || '0') * 1000000;
+                          return {
+                            id: m.id,
+                            name: m.name,
+                            tier: promptPrice === 0 ? 'free' : 'paid',
+                            description: `${m.description || ''} (Context: ${(m.context_length / 1000).toFixed(0)}k)`,
+                            privacy: promptPrice === 0
+                              ? '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
+                              : '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+                          };
+                        });
+                        setFetchedModels(mapped);
+                        showToast('อัปเดตรายชื่อโมเดลเรียบร้อย!', 'success');
+                      }
+                    }
+                  } catch (err) {
+                    console.error("Re-fetch failed:", err);
+                    showToast('รีเฟรชข้อมูลล้มเหลว', 'error');
+                  } finally {
+                    setIsLoadingModels(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1 hover:text-theme-text font-bold transition-all cursor-pointer"
+              >
+                <RefreshCw size={10} className={isLoadingModels ? "animate-spin" : ""} /> รีเฟรชรายการ
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* CUSTOM CONFIRM CLEAR MODAL */}
       {clearModalType !== null && (

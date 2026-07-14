@@ -2533,13 +2533,13 @@ const PROVIDER_PRESET_MODELS: Record<string, { id: string; label: string }[]> = 
   ],
   openrouter: [
     { id: 'openrouter/free', label: 'OpenRouter Auto Free Router' },
-    { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (Free)' },
-    { id: 'openai/gpt-oss-20b:free', label: 'GPT-OSS 20B (Free)' },
-    { id: 'deepseek/deepseek-v4-flash:free', label: 'DeepSeek V4 Flash (Free)' },
-    { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' },
-    { id: 'meta-llama/llama-3.2-3b-instruct:free', label: 'Llama 3.2 3B (Free)' },
-    { id: 'meta-llama/llama-3-8b-instruct', label: 'Llama 3 8B (Paid/Stable)' },
-    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' }
+    { id: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5 (New)' },
+    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
+    { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+    { id: 'google/gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+    { id: 'openai/gpt-4o', label: 'GPT-4o' },
+    { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini' },
+    { id: 'deepseek/deepseek-v4-flash:free', label: 'DeepSeek V4 Flash (Free)' }
   ],
   cloudflare: [
     { id: '@cf/meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B (Free · เร็ว)' },
@@ -2549,6 +2549,7 @@ const PROVIDER_PRESET_MODELS: Record<string, { id: string; label: string }[]> = 
     { id: '@cf/mistral/mistral-7b-instruct-v0.2', label: 'Mistral 7B (Free)' },
   ],
   gemini: [
+    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
     { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
     { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }
   ],
