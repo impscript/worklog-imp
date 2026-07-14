@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { 
   User as UserIcon, Sparkles, AlertTriangle, Activity, 
   FileText, CheckCircle2, Target, PlusCircle, Save, Loader2, 
@@ -130,6 +130,26 @@ export default function HrbpPage() {
 
   // AI Prompt Template & Custom Overrides
   const [templateId, setTemplateId] = useState<string>('master');
+  const [templatesList, setTemplatesList] = useState<any[]>([
+    {
+      template_key: 'master',
+      name: 'HRBP Diagnostics (Standard)',
+      icon: '📊',
+      description: 'การวิเคราะห์มาตรฐาน: JD Alignment, Burnout Risk, Workload Allocation เหมาะสำหรับการมอนิเตอร์และรีพอร์ตทั่วไป'
+    },
+    {
+      template_key: 'individual_coach',
+      name: 'Executive Coach (5-Lens & 1:1 Guide)',
+      icon: '🎯',
+      description: 'วิเคราะห์เชิงลึก 5 มิติ: Value Mix, Work Style, Reflection และคำถาม Coaching 1:1 ไกด์นำทางสำหรับหัวหน้างาน'
+    },
+    {
+      template_key: 'coaching_fairness',
+      name: 'Coaching & Fairness Diagnostics',
+      icon: '🤝',
+      description: 'การประเมินแบบเข้าอกเข้าใจหน้างานจริง เน้นสะท้อนงานปฏิบัติงานและกลยุทธ์อย่างสมดุล (ภาษาไทยเป็นหลัก)'
+    }
+  ]);
   const [cadenceType, setCadenceType] = useState<'weekly' | 'monthly' | 'quarterly' | 'auto'>('auto');
   const [employeeLevel, setEmployeeLevel] = useState<string>('');
   const [managerName, setManagerName] = useState<string>('');
@@ -293,6 +313,19 @@ export default function HrbpPage() {
             const matchingUser = usersData.find((u: any) => u.id === session.id);
             setSelectedUser(matchingUser ? matchingUser.id : usersData[0].id);
           }
+        }
+
+        // Fetch AI prompt templates
+        const { data: templatesData, error: templatesErr } = await supabase
+          .from('tb_ai_prompt_templates')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+
+        if (templatesErr) {
+          console.warn('Failed to load templates from DB, using default static ones:', templatesErr);
+        } else if (templatesData && templatesData.length > 0) {
+          setTemplatesList(templatesData);
         }
       } catch (err: any) {
         console.error('Error loading initialization data:', err);
@@ -1119,7 +1152,7 @@ export default function HrbpPage() {
     if (!text) return null;
     const lines = text.split('\n');
     const elements: React.ReactNode[] = [];
-    let currentType: 'paragraph' | 'bullets' | null = null;
+    let currentType: 'paragraph' | 'bullets' | 'numbered' | 'table' | null = null;
     let buffer: string[] = [];
 
     const flushBuffer = (key: string | number) => {
@@ -1141,6 +1174,134 @@ export default function HrbpPage() {
             ))}
           </ul>
         );
+      } else if (currentType === 'numbered') {
+        elements.push(
+          <ol key={`ol-${key}`} className="space-y-3 pl-5 my-2 list-decimal text-xs sm:text-sm text-theme-text font-normal">
+            {buffer.map((item, idx) => {
+              const textContent = item.replace(/^\d+\.\s+/, '');
+              return (
+                <li key={idx} className="leading-relaxed pl-1 marker:text-indigo-500 marker:font-black">
+                  {parseInlineStyles(textContent)}
+                </li>
+              );
+            })}
+          </ol>
+        );
+      } else if (currentType === 'table') {
+        const rows = buffer.filter(row => !row.match(/^\|\s*:?-+:?\s*\|/));
+        if (rows.length > 0) {
+          const headerRow = rows[0];
+          const bodyRows = rows.slice(1);
+          
+          const parseCells = (rowText: string) => {
+            const clean = rowText.replace(/^\|/, '').replace(/\|$/, '');
+            return clean.split('|').map(cell => cell.trim());
+          };
+          
+          const headers = parseCells(headerRow).slice(0, 4); // Only the first 4 metric columns
+
+          const getHeaderStyle = (index: number) => {
+            if (index === 0) return "w-[40%] text-left px-5 py-4 font-black text-theme-text uppercase tracking-wider";
+            if (index === 1) return "w-[20%] text-center px-5 py-4 font-black text-theme-text uppercase tracking-wider";
+            if (index === 2) return "w-[20%] text-center px-5 py-4 font-black text-theme-text uppercase tracking-wider";
+            return "w-[20%] text-center px-5 py-4 font-black text-theme-text uppercase tracking-wider";
+          };
+          
+          elements.push(
+            <div key={`table-wrapper-${key}`} className="my-5 overflow-x-auto rounded-3xl border border-theme-border/60 bg-theme-surface-secondary dark:bg-[#090d16] shadow-xl">
+              <table className="min-w-full divide-y divide-theme-border/60 text-xs sm:text-sm table-fixed">
+                <thead className="bg-slate-200/40 dark:bg-[#0f172a]/70">
+                  <tr>
+                    {headers.map((h, i) => (
+                      <th key={i} className={getHeaderStyle(i)}>
+                        {parseInlineStyles(h)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-theme-border/40 bg-transparent">
+                  {bodyRows.map((r, rowIdx) => {
+                    const cells = parseCells(r);
+                    const isTotalRow = r.includes('คะแนนรวมถ่วงน้ำหนัก') || r.includes('Overall Score');
+                    
+                    if (isTotalRow) {
+                      const col0 = cells[0] || '';
+                      const col1 = cells[1] || '';
+                      const col2 = cells[2] || '';
+                      const col3 = cells[3] || '';
+                      const col4 = cells[4] || '';
+                      
+                      return (
+                        <Fragment key={rowIdx}>
+                          <tr className="bg-indigo-500/10 font-bold border-t-2 border-indigo-500/30">
+                            <td className="px-5 py-4 text-left font-black text-indigo-500 dark:text-indigo-400 w-[40%]">
+                              {parseInlineStyles(col0)}
+                            </td>
+                            <td className="px-5 py-4 text-center text-theme-text font-black w-[20%]">
+                              {parseInlineStyles(col1)}
+                            </td>
+                            <td className="px-5 py-4 text-center text-theme-text font-black w-[20%]">
+                              {parseInlineStyles(col2)}
+                            </td>
+                            <td className="px-5 py-4 text-center text-indigo-600 dark:text-indigo-400 font-black text-base w-[20%]">
+                              {parseInlineStyles(col3)}
+                            </td>
+                          </tr>
+                          {col4 && (
+                            <tr className="bg-indigo-500/5 dark:bg-indigo-500/10 border-b-2 border-indigo-500/30 font-bold">
+                              <td colSpan={4} className="px-5 py-3 text-right">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500 text-white dark:bg-indigo-400 dark:text-slate-950 text-xs font-black shadow-md uppercase tracking-wider">
+                                  🏆 {col4.replace('ระดับประเมิน:', '').replace('ระดับประเมิน', '').trim()}
+                                </span>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    } else {
+                      const dimension = cells[0] || '';
+                      const weight = cells[1] || '';
+                      const rawScore = cells[2] || '';
+                      const weightedScore = cells[3] || '';
+                      const explanation = cells[4] || '';
+                      
+                      return (
+                        <Fragment key={rowIdx}>
+                          <tr className="hover:bg-slate-100/30 dark:hover:bg-slate-900/20 transition-colors">
+                            <td className="px-5 py-3.5 text-left font-bold text-theme-text w-[40%]">
+                              {parseInlineStyles(dimension)}
+                            </td>
+                            <td className="px-5 py-3.5 text-center text-theme-text font-semibold w-[20%]">
+                              {parseInlineStyles(weight)}
+                            </td>
+                            <td className="px-5 py-3.5 text-center text-theme-text-secondary w-[20%]">
+                              {parseInlineStyles(rawScore)}
+                            </td>
+                            <td className="px-5 py-3.5 text-center text-theme-text-secondary font-semibold w-[20%]">
+                              {parseInlineStyles(weightedScore)}
+                            </td>
+                          </tr>
+                          {explanation && (
+                            <tr className="bg-theme-surface/50 dark:bg-slate-950/10 border-b border-theme-border/40">
+                              <td colSpan={4} className="px-5 pb-4 pt-2 text-left">
+                                <div className="pl-4 border-l-2 border-indigo-500/40 text-xs sm:text-[13px] text-theme-text-secondary leading-relaxed text-justify max-w-none">
+                                  <span className="font-bold text-theme-text dark:text-indigo-300 block mb-1 text-[10px] uppercase tracking-wider">
+                                    💡 คำชี้แจงและหลักฐานประเมิน:
+                                  </span>
+                                  {parseInlineStyles(explanation)}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    }
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
       }
       buffer = [];
       currentType = null;
@@ -1154,6 +1315,8 @@ export default function HrbpPage() {
       const isHeader3 = trimmed.startsWith('### ');
       const isBullet = trimmed.startsWith('- ') || trimmed.startsWith('* ');
       const isQuote = trimmed.startsWith('>');
+      const isTable = trimmed.startsWith('|');
+      const isNumbered = /^\d+\.\s+/.test(trimmed);
       const isEmpty = !trimmed;
 
       if (isHeader1 || isHeader2 || isHeader3 || isQuote || isEmpty) {
@@ -1190,6 +1353,18 @@ export default function HrbpPage() {
           currentType = 'bullets';
         }
         buffer.push(trimmed.replace(/^[-*]\s+/, ''));
+      } else if (isNumbered) {
+        if (currentType !== 'numbered') {
+          flushBuffer(idx);
+          currentType = 'numbered';
+        }
+        buffer.push(trimmed);
+      } else if (isTable) {
+        if (currentType !== 'table') {
+          flushBuffer(idx);
+          currentType = 'table';
+        }
+        buffer.push(trimmed);
       } else {
         if (currentType !== 'paragraph') {
           flushBuffer(idx);
@@ -1355,69 +1530,32 @@ export default function HrbpPage() {
                       <Sparkles size={14} className="text-indigo-400 animate-pulse" />
                       0. รูปแบบการวิเคราะห์ (Analysis Mode)
                     </h3>
-                    <div className="grid grid-cols-1 gap-2.5">
-                      <button
-                        onClick={() => {
-                          setTemplateId('master');
+                    <div className="space-y-3">
+                      <select
+                        value={templateId}
+                        onChange={(e) => {
+                          setTemplateId(e.target.value);
                           setAiAnalysis(null);
                         }}
-                        className={cn(
-                          "p-4 rounded-2xl border text-left transition-all flex flex-col gap-1.5 relative overflow-hidden",
-                          templateId === 'master'
-                            ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
-                            : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-theme-border hover:border-indigo-500/40 hover:text-theme-text"
-                        )}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border/60 rounded-xl px-4 py-3.5 text-sm text-theme-text outline-none focus:border-indigo-500/80 transition-colors cursor-pointer"
                       >
-                        <div className="flex items-center gap-2 font-bold text-sm">
-                          <span>📊</span>
-                          <span>HRBP Diagnostics (Standard)</span>
-                        </div>
-                        <p className="text-[10px] text-theme-text-secondary leading-relaxed">
-                          การวิเคราะห์มาตรฐาน: JD Alignment, Burnout Risk, Workload Allocation เหมาะสำหรับการมอนิเตอร์และรีพอร์ตทั่วไป
-                        </p>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setTemplateId('individual_coach');
-                          setAiAnalysis(null);
-                        }}
-                        className={cn(
-                          "p-4 rounded-2xl border text-left transition-all flex flex-col gap-1.5 relative overflow-hidden",
-                          templateId === 'individual_coach'
-                            ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
-                            : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-theme-border hover:border-indigo-500/40 hover:text-theme-text"
-                        )}
-                      >
-                        <div className="flex items-center gap-2 font-bold text-sm">
-                          <span>🎯</span>
-                          <span>Executive Coach (5-Lens & 1:1 Guide)</span>
-                        </div>
-                        <p className="text-[10px] text-theme-text-secondary leading-relaxed">
-                          วิเคราะห์เชิงลึก 5 มิติ: Value Mix, Work Style, Reflection และคำถาม Coaching 1:1 ไกด์นำทางสำหรับหัวหน้างาน
-                        </p>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setTemplateId('coaching_fairness');
-                          setAiAnalysis(null);
-                        }}
-                        className={cn(
-                          "p-4 rounded-2xl border text-left transition-all flex flex-col gap-1.5 relative overflow-hidden",
-                          templateId === 'coaching_fairness'
-                            ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
-                            : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-theme-border hover:border-indigo-500/40 hover:text-theme-text"
-                        )}
-                      >
-                        <div className="flex items-center gap-2 font-bold text-sm">
-                          <span>🤝</span>
-                          <span>Coaching &amp; Fairness Diagnostics</span>
-                        </div>
-                        <p className="text-[10px] text-theme-text-secondary leading-relaxed">
-                          การประเมินแบบเข้าอกเข้าใจหน้างานจริง เน้นสะท้อนงานปฏิบัติงานและกลยุทธ์อย่างสมดุล (ภาษาไทยเป็นหลัก)
-                        </p>
-                      </button>
+                        {templatesList.map((t) => (
+                          <option key={t.template_key} value={t.template_key} className="bg-theme-surface dark:bg-slate-900 text-theme-text">
+                            {t.icon || '🤖'} {t.name}
+                          </option>
+                        ))}
+                      </select>
+                      
+                      {(() => {
+                        const activeTemplate = templatesList.find(t => t.template_key === templateId);
+                        if (!activeTemplate) return null;
+                        return (
+                          <div className="p-4 bg-theme-surface-tertiary dark:bg-slate-950/40 border border-theme-border/50 rounded-2xl text-[10px] text-theme-text-secondary leading-relaxed transition-all duration-300 animate-in fade-in zoom-in-95">
+                            <div className="font-bold text-theme-text uppercase tracking-widest text-[9px] mb-1">คำอธิบายรูปแบบการวิเคราะห์:</div>
+                            {activeTemplate.description}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -2049,6 +2187,14 @@ export default function HrbpPage() {
                         <p className="text-xs text-theme-text-secondary font-mono">
                           {selectedUserInfo?.department || 'Department'} | ID: {selectedUserInfo?.emp_id || 'N/A'}
                         </p>
+                        {aiAnalysis && (
+                          <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+                            <span className="px-2.5 py-1 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border border-indigo-500/10 shadow-sm animate-in fade-in duration-300">
+                              <span>🎯 รูปแบบการประเมิน:</span>
+                              <span className="font-extrabold">{templatesList.find(t => t.template_key === aiAnalysis.template_id)?.name || aiAnalysis.template_id}</span>
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
