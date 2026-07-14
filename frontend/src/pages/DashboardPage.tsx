@@ -760,38 +760,68 @@ export default function DashboardPage() {
                           )}
                         </p>
                       </div>
-                    </div>
+                                   {/* Wellbeing indicators */}
+                    {(() => {
+                      const totalHrs = entries.reduce((sum, e) => sum + e.total_hours, 0);
+                      const mtgHrs = entries.filter(e => 
+                        /meeting|discuss|sync|ประชุม|คุย/i.test(e.action_name || '') || 
+                        /ประชุม|คุย/i.test(e.description || '')
+                      ).reduce((sum, e) => sum + e.total_hours, 0);
+                      const mtgPct = totalHrs > 0 ? Math.round((mtgHrs / totalHrs) * 100) : 0;
+                      const otHrs = entries.filter(e => e.is_ot).reduce((sum, e) => sum + e.total_hours, 0);
+                      const lateDays = entries.filter(e => {
+                        const endHour = parseInt(e.end_time.split(':')[0]);
+                        return endHour >= 19;
+                      }).length;
 
-                    {/* Wellbeing indicators */}
-                    <div className="space-y-3 pt-2 flex-grow flex flex-col justify-end">
-                      <h4 className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider mb-1">
-                        Risk Metrics (Last 30 Days)
-                      </h4>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-theme-surface-secondary/50 dark:bg-slate-950/20 border border-theme-border dark:border-theme-border/40 p-2.5 rounded-xl flex items-center gap-2">
-                          <Clock size={16} className="text-rose-500 shrink-0" />
-                          <div>
-                            <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">OT hours</p>
-                            <p className="text-xs font-extrabold text-theme-text font-mono">
-                              {entries.filter(e => e.is_ot).reduce((sum, e) => sum + e.total_hours, 0).toFixed(1)}h
-                            </p>
+                      return (
+                        <div className="space-y-3 pt-2 flex-grow flex flex-col justify-end">
+                          <h4 className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider mb-1">
+                            Risk Metrics (Last 30 Days)
+                          </h4>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="bg-theme-surface-secondary/50 dark:bg-slate-950/20 border border-theme-border dark:border-theme-border/40 p-2.5 rounded-xl flex items-center gap-2">
+                              <Clock size={16} className="text-rose-500 shrink-0" />
+                              <div>
+                                <p className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider leading-none">OT hours</p>
+                                <p className="text-xs font-extrabold text-theme-text font-mono mt-1">
+                                  {otHrs.toFixed(1)}h
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="bg-theme-surface-secondary/50 dark:bg-slate-950/20 border border-theme-border dark:border-theme-border/40 p-2.5 rounded-xl flex items-center gap-2">
+                              <Flame size={16} className="text-amber-500 shrink-0" />
+                              <div>
+                                <p className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider leading-none font-mono">Late logs</p>
+                                <p className="text-xs font-extrabold text-theme-text font-mono mt-1">
+                                  {lateDays} days
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className={cn(
+                              "bg-theme-surface-secondary/50 dark:bg-slate-950/20 border p-2.5 rounded-xl flex items-center gap-2",
+                              mtgPct >= 40 
+                                ? "border-rose-500/30 bg-rose-500/5" 
+                                : "border-theme-border dark:border-theme-border/40"
+                            )}>
+                              <Activity size={16} className={cn("shrink-0", mtgPct >= 40 ? "text-rose-500 animate-pulse" : "text-indigo-400")} />
+                              <div>
+                                <p className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider leading-none">Mtg Ratio</p>
+                                <p className={cn(
+                                  "text-xs font-extrabold font-mono mt-1",
+                                  mtgPct >= 40 ? "text-rose-400" : "text-theme-text"
+                                )}>
+                                  {mtgPct}%
+                                </p>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div className="bg-theme-surface-secondary/50 dark:bg-slate-950/20 border border-theme-border dark:border-theme-border/40 p-2.5 rounded-xl flex items-center gap-2">
-                          <Flame size={16} className="text-amber-500 shrink-0" />
-                          <div>
-                            <p className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">Late Logging</p>
-                            <p className="text-xs font-extrabold text-theme-text font-mono">
-                              {entries.filter(e => {
-                                const endHour = parseInt(e.end_time.split(':')[0]);
-                                return endHour >= 19;
-                              }).length} days
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                      );
+                    })()}
+                  </div>       </div>
 
                 </div>
 

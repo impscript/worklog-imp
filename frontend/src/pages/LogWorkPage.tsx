@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles, Share2, Copy, Upload, X } from 'lucide-react';
+import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles, Share2, Copy, Upload, X, Cpu, RefreshCw } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn, isChatchawanUser } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
+import ImportICSModal from '../components/modals/ImportICSModal';
 import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
 import { compressImage } from '../lib/image-compressor';
 import { useNavigate } from 'react-router-dom';
@@ -328,6 +329,10 @@ export default function LogWorkPage() {
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState<boolean>(false);
   const [createdShareLinkId, setCreatedShareLinkId] = useState<string | null>(null);
+
+  // Google Calendar .ics Import states
+  const [rawICSContent, setRawICSContent] = useState<string>('');
+  const [isICSModalOpen, setIsICSModalOpen] = useState<boolean>(false);
   
   // Form State
   const [date, setDate] = useState(() => {
@@ -351,6 +356,7 @@ export default function LogWorkPage() {
   const [isExplicitOt, setIsExplicitOt] = useState(false);
   const [isTimeCustomized, setIsTimeCustomized] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
+  const [isClassifying, setIsClassifying] = useState(false);
 
   const getWorklogGuide = () => {
     const isMeeting = /meeting|discuss|sync|ประชุม|คุย/i.test(actionName || '');
@@ -367,6 +373,25 @@ export default function LogWorkPage() {
         template: "[งานที่ทำ]: \n[ผลลัพธ์ที่ได้]: \n[KPI/เป้าหมาย]: \n[Next Steps]: "
       };
     }
+  };
+
+  const handleICSFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text) {
+        setRawICSContent(text);
+        setIsICSModalOpen(true);
+      }
+    };
+    reader.onerror = () => {
+      showToast('ไม่สามารถอ่านไฟล์ได้ / Failed to read file', 'error');
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleInjectTemplate = (templateText: string) => {
@@ -637,8 +662,10 @@ export default function LogWorkPage() {
       const targetUser = selectedUser || cleanName;
       console.log('LogWorkPage loading mappings for targetUser:', targetUser);
 
+
       const [resUser, resProj, resAct, resTpl] = await Promise.all([
         supabase.from('tb_map_user_role').select('*').ilike('name', targetUser.trim()),
+        // Use tb_map_project_structure as primary source — it has the correct holding/department_operator columns
         supabase.from('tb_map_project_structure').select('*'),
         supabase.from('tb_master_action').select('*'),
         supabase.from('tb_master_worklog_templates').select('*')
@@ -650,7 +677,36 @@ export default function LogWorkPage() {
         const fallback = await supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
         if (fallback.data) setMapUserRole(fallback.data);
       }
-      if (resProj.data) setMapProjectStructure(resProj.data);
+
+      let projData = resProj.data || [];
+      
+      // Log any errors for debugging
+      if (resProj.error) {
+        console.warn('tb_project_registry error:', resProj.error.message, '| code:', resProj.error.code);
+      }
+      if (resUser.error) {
+        console.warn('tb_map_user_role error:', resUser.error.message);
+      }
+      
+      if (projData.length === 0) {
+        console.warn('tb_project_registry returned 0 rows — trying without workspace filter');
+        // Try without workspace filter first
+        const { data: projNoWs, error: projNoWsErr } = await supabase.from('tb_project_registry').select('*');
+        if (projNoWsErr) console.warn('tb_project_registry (no filter) error:', projNoWsErr.message);
+        if (projNoWs && projNoWs.length > 0) {
+          projData = projNoWs;
+        } else {
+          // Last resort: legacy table
+          console.warn('tb_project_registry empty — falling back to tb_map_project_structure');
+          const { data: fallbackProjs, error: fallbackErr } = await supabase.from('tb_map_project_structure').select('*');
+          if (fallbackErr) console.warn('tb_map_project_structure error:', fallbackErr.message);
+          if (fallbackProjs) projData = fallbackProjs;
+        }
+      }
+      
+      console.log(`Loaded ${projData.length} project rows`);
+      setMapProjectStructure(projData);
+
       if (resAct.data) setMasterActions(resAct.data);
       if (resTpl.data && resTpl.data.length > 0) {
         setDbTemplates(resTpl.data);
@@ -1204,6 +1260,51 @@ export default function LogWorkPage() {
     }
   };
 
+  const handleAIClassify = async () => {
+    if (!description.trim()) {
+      showToast('กรุณากรอกรายละเอียดงานก่อนเพื่อใช้ในการวิเคราะห์จำแนกประเภท', 'warning');
+      return;
+    }
+    setIsClassifying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-performance', {
+        body: {
+          action: 'classify_work_description',
+          description: description,
+          workspace_projects: allowedProjects,
+          master_actions: masterActions
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.classification) {
+        const cls = data.classification;
+        
+        if (cls.holding) setSelectedHolding(cls.holding);
+        if (cls.department_operator) setSelectedRoleOperator(cls.department_operator);
+        if (cls.project_type) setProjectType(cls.project_type);
+        if (cls.project_name) {
+          const key = cls.module && cls.module !== '-'
+            ? `${cls.project_name}|${cls.module}|${cls.bu || '-'}|${cls.department || '-'}`
+            : `${cls.project_name}|-|${cls.bu || '-'}|${cls.department || '-'}`;
+          setSelectedProjectKey(key);
+          setModule(cls.module || '-');
+          setBu(cls.bu || '');
+          setDepartment(cls.department || '');
+        }
+        if (cls.action_name) setActionName(cls.action_name);
+
+        showToast(`AI จับคู่โครงการสำเร็จ! (ความมั่นใจ ${Math.round((cls.confidence_score || 1) * 100)}%) \nเหตุผล: ${cls.reason || ''}`, 'success');
+      }
+    } catch (err: any) {
+      console.error('Error classifying work:', err);
+      showToast('ไม่สามารถจับคู่โครงการด้วย AI ได้: ' + err.message, 'error');
+    } finally {
+      setIsClassifying(false);
+    }
+  };
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -1488,8 +1589,50 @@ export default function LogWorkPage() {
     <AppLayout>
       <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold text-theme-text mb-8 tracking-tight">Log Work</h1>
+
+        {/* Google Calendar .ics Import Banner */}
+        <div className="mb-6 bg-gradient-to-br from-indigo-100/70 via-violet-50 to-slate-50 dark:from-indigo-900/40 dark:via-indigo-950/40 dark:to-slate-900/50 border border-indigo-300/40 dark:border-indigo-500/20 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+            <CalendarIcon size={120} className="text-indigo-400" />
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-theme-text flex items-center gap-2">
+                <Sparkles size={16} className="text-indigo-400" />
+                <span>นำเข้าบันทึกงานด้วยไฟล์ปฏิทิน / Import via Google Calendar (.ics)</span>
+              </h3>
+              <p className="text-xs text-theme-text-secondary max-w-xl">
+                อัปโหลดไฟล์ `.ics` ที่ส่งออกมาจากระบบปฏิทินของคุณเพื่อดึงกิจกรรมเป็นรายการบันทึกงานอัตโนมัติ จากนั้นสามารถส่งให้ AI ช่วยประเมินผลงานย้อนหลังได้ทันที
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setRawICSContent('');
+                  setIsICSModalOpen(true);
+                }}
+                className="inline-flex items-center justify-center gap-2 bg-white/80 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-white border border-slate-300 dark:border-theme-border font-bold text-xs px-4 py-2.5 rounded-xl transition-all active:scale-95 shadow-md"
+              >
+                <RefreshCw size={14} />
+                <span>ซิงก์จาก Outlook / Sync Outlook</span>
+              </button>
+              
+              <label className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl border border-indigo-500/30 transition-all cursor-pointer active:scale-95 shadow-lg shadow-indigo-500/20">
+                <Upload size={14} />
+                <span>เลือกไฟล์ .ics / Upload .ics File</span>
+                <input 
+                  type="file" 
+                  accept=".ics" 
+                  onChange={handleICSFileUpload} 
+                  className="sr-only" 
+                />
+              </label>
+            </div>
+          </div>
+        </div>
         
-        <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border dark:border-theme-border/50 rounded-2xl p-6 md:p-8 shadow-xl shadow-black/20">
+        <div className="bg-theme-surface-tertiary bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border dark:border-theme-border/50 rounded-2xl p-6 md:p-8 shadow-xl shadow-black/20">
           
           {/* Date Picker & User Selector */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
@@ -2019,41 +2162,80 @@ export default function LogWorkPage() {
               </ul>
             </div>
             
-            {/* AI Enhancement Container - Restricted to Chatchawan only */}
-            {isCurrentUserChatchawan && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 gap-3 shadow-inner">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl shrink-0">
-                    <Sparkles size={16} className={cn("animate-pulse", isEnhancing && "animate-spin")} />
+            {/* AI Tools Container */}
+            {session && (
+              <div className="space-y-3">
+                {/* AI Sparkle Polish */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 gap-3 shadow-inner animate-in fade-in duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl shrink-0">
+                      <Sparkles size={16} className={cn("animate-pulse", isEnhancing && "animate-spin")} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-indigo-400 uppercase font-black tracking-widest block mb-0.5">ขัดเกลาคำด้วย AI / AI Sparkle</span>
+                      <span className="text-xs text-theme-text-secondary leading-normal block">
+                        ช่วยเกลาคำอธิบายงานให้ออกมาในแง่บวก เห็นภาพความสำเร็จ ประหยัดเวลา และประหยัดต้นทุนสำหรับผู้บริหาร
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-indigo-400 uppercase font-black tracking-widest block mb-0.5">ขัดเกลาคำด้วย AI / AI Sparkle</span>
-                    <span className="text-xs text-theme-text-secondary leading-normal block">
-                      ช่วยเกลาคำอธิบายงานให้ออกมาในแง่บวก เห็นภาพความสำเร็จ ประหยัดเวลา และประหยัดต้นทุนสำหรับผู้บริหาร
-                    </span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleEnhanceDescription}
+                    disabled={isEnhancing}
+                    className={cn(
+                      "px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 disabled:bg-theme-surface-tertiary dark:bg-theme-surface-tertiary disabled:text-slate-500 disabled:border-theme-border dark:border-theme-border/50 text-theme-text text-xs font-bold rounded-xl border border-indigo-500/30 shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95 transition-all",
+                      isEnhancing && "cursor-not-allowed"
+                    )}
+                  >
+                    {isEnhancing ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>กำลังขัดเกลา...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={13} />
+                        <span>ยกระดับด้วย AI / AI Polish</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleEnhanceDescription}
-                  disabled={isEnhancing}
-                  className={cn(
-                    "px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 disabled:bg-theme-surface-tertiary dark:bg-theme-surface-tertiary disabled:text-slate-500 disabled:border-theme-border dark:border-theme-border/50 text-theme-text text-xs font-bold rounded-xl border border-indigo-500/30 shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95 transition-all",
-                    isEnhancing && "cursor-not-allowed"
-                  )}
-                >
-                  {isEnhancing ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>กำลังขัดเกลา...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={13} />
-                      <span>ยกระดับด้วย AI / AI Polish</span>
-                    </>
-                  )}
-                </button>
+
+                {/* AI Project Classifier */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-violet-500/5 border border-violet-500/10 rounded-2xl p-4 gap-3 shadow-inner animate-in fade-in duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-violet-500/10 border border-violet-500/20 text-violet-400 rounded-xl shrink-0">
+                      <Cpu size={16} className={cn("animate-pulse", isClassifying && "animate-spin")} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-violet-400 uppercase font-black tracking-widest block mb-0.5">วิเคราะห์โครงการด้วย AI / AI Project Auto-Classify</span>
+                      <span className="text-xs text-theme-text-secondary leading-normal block">
+                        วิเคราะห์เนื้อหาการทำงาน เพื่อจับคู่โครงการ สังกัด และประเภทกิจกรรมอัตโนมัติจากทะเบียนโครงการของคุณ
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAIClassify}
+                    disabled={isClassifying}
+                    className={cn(
+                      "px-4 py-2 bg-violet-600/90 hover:bg-violet-600 disabled:bg-theme-surface-tertiary dark:bg-theme-surface-tertiary disabled:text-slate-500 disabled:border-theme-border dark:border-theme-border/50 text-theme-text text-xs font-bold rounded-xl border border-violet-500/30 shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95 transition-all",
+                      isClassifying && "cursor-not-allowed"
+                    )}
+                  >
+                    {isClassifying ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>กำลังวิเคราะห์...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Cpu size={13} />
+                        <span>วิเคราะห์โครงการ / Auto-Classify</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
             {/* AI Time Assessment Result Card */}
@@ -2224,6 +2406,16 @@ export default function LogWorkPage() {
         isOpen={!!viewingLog}
         log={viewingLog}
         onClose={() => setViewingLog(null)}
+      />
+
+      <ImportICSModal
+        isOpen={isICSModalOpen}
+        onClose={() => setIsICSModalOpen(false)}
+        rawICSContent={rawICSContent}
+        onImportSuccess={() => setRefreshTrigger(prev => prev + 1)}
+        allowedProjects={allowedProjects}
+        mapUserRole={mapUserRole}
+        session={session}
       />
 
       {createdShareLinkId && (

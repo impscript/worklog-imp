@@ -640,6 +640,77 @@ You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap i
       });
     }
 
+    // ── ACTION: classify_work_description ────────────────────────────────────
+    if (action === 'classify_work_description') {
+      const { description, workspace_projects, master_actions } = body;
+
+      if (!description) {
+        throw new Error('Missing description to classify.');
+      }
+
+      const projectsListText = Array.isArray(workspace_projects) && workspace_projects.length > 0
+        ? workspace_projects.map((p: any) => `- Holding: ${p.holding} | Operator: ${p.department_operator} | Project Type: ${p.project_type} | Project Name: ${p.project_name} | Module: ${p.module || '-'} | BU: ${p.bu} | Dept: ${p.department}`).join('\n')
+        : 'None available';
+
+      const actionsListText = Array.isArray(master_actions) && master_actions.length > 0
+        ? master_actions.map((a: any) => `- Category: ${a.action_category} | Action Name: ${a.action_name}`).join('\n')
+        : 'None available';
+
+      const systemPrompt = `You are an expert HR operation classifier and database mapping AI.
+Your job is to analyze a raw worklog description and map it to the most relevant project from the provided "Workspace Projects" list and the most relevant action from the "Master Actions" list.
+You must return your output strictly in JSON format.`;
+
+      const userPrompt = `Raw Worklog Description:
+"${description}"
+
+---------------------------
+Available Workspace Projects:
+${projectsListText}
+
+---------------------------
+Available Master Actions:
+${actionsListText}
+
+---------------------------
+Task instructions:
+1. Find the project in "Available Workspace Projects" that matches the raw description best.
+2. Find the action in "Available Master Actions" that matches the raw description best.
+3. If no project matches at all, select the first project or a general project but output a low confidence score.
+4. Output your response strictly as a JSON object containing the matched fields exactly as they appear in the lists:
+{
+  "holding": "Matched holding",
+  "department_operator": "Matched operator",
+  "project_type": "Matched project type",
+  "project_name": "Matched project name",
+  "module": "Matched module",
+  "bu": "Matched BU",
+  "department": "Matched department",
+  "action_name": "Matched action name",
+  "confidence_score": number (0.0 to 1.0),
+  "reason": "Thai reasoning explaining why this project and action were matched"
+}`;
+
+      console.log(`[PROMPT:classify_work_description] description="${description.substring(0, 100)}..."`);
+
+      const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
+        endpoint, llmHeaders, provider, model, systemPrompt, userPrompt, true
+      );
+
+      const aiResult = await response.json();
+      const rawContent = aiResult.choices?.[0]?.message?.content || '{}';
+      const parsed = robustParseJson(rawContent);
+
+      return new Response(JSON.stringify({
+        classification: parsed,
+        actualModel,
+        provider,
+        fallbackOccurred,
+        modelsTried,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
     // ── DEFAULT: Performance Diagnostics ─────────────────────────────────────
     const {
       user_id,

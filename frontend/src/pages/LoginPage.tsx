@@ -22,8 +22,9 @@ export default function LoginPage() {
         throw new Error('Please enter a username');
       }
 
+      const inviteCode = new URLSearchParams(window.location.search).get('invite') || undefined;
       // Call our centralized useAuth hook login (which auto-handles Dev vs Prod proxy & JIT provisioning)
-      await login(username, password);
+      await login(username, password, inviteCode);
       
       // Success
       navigate('/');

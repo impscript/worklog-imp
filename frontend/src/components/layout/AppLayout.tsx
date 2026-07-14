@@ -7,7 +7,15 @@ import { syncWorklogToGCal } from '../../lib/google-calendar';
 import { useNotification } from '../../context/NotificationContext';
 import { useTheme } from '../../context/ThemeContext';
 
-type SessionUser = { name: string; role: string; empId?: string };
+type SessionUser = { 
+  id: string; 
+  name: string; 
+  role: string; 
+  workspaceRole?: 'admin' | 'manager' | 'user'; 
+  empId?: string; 
+  activeWorkspaceId?: string;
+  workspaceInviteCode?: string;
+};
 
 function getSessionUser(): SessionUser | null {
   try {
@@ -28,10 +36,68 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem('sidebar_collapsed');
     return saved === 'true';
   });
-  const [user] = useState<SessionUser | null>(getSessionUser);
+  const [user, setUser] = useState<SessionUser | null>(getSessionUser);
   const navigate = useNavigate();
   const { showToast } = useNotification();
+
+  // Self-healing check: if workspaceInviteCode is missing in active session, fetch it dynamically
+  useEffect(() => {
+    if (user && user.activeWorkspaceId && !user.workspaceInviteCode) {
+      async function fetchInviteCode() {
+        try {
+          const { data } = await supabase
+            .from('workspaces')
+            .select('invite_code')
+            .eq('id', user!.activeWorkspaceId)
+            .maybeSingle();
+          if (data?.invite_code) {
+            const updatedUser = { ...user!, workspaceInviteCode: data.invite_code };
+            setUser(updatedUser);
+            localStorage.setItem('worklog_session', JSON.stringify(updatedUser));
+          }
+        } catch (e) {
+          console.error('Failed to fetch workspace invite code on layout load:', e);
+        }
+      }
+      fetchInviteCode();
+    }
+  }, [user]);
   const { theme, toggleTheme } = useTheme();
+
+  // Page access gating & redirection
+  useEffect(() => {
+    if (!user) return;
+    const path = window.location.pathname;
+    
+    const isSuperAdmin = user.role === 'admin';
+    const isWorkspaceAdmin = user.workspaceRole === 'admin';
+    const isWorkspaceManager = user.workspaceRole === 'manager';
+
+    if (path === '/admin' && !isSuperAdmin) {
+      showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
+      navigate('/');
+    }
+    if (path === '/migrate' && !(isSuperAdmin || isWorkspaceAdmin)) {
+      showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
+      navigate('/');
+    }
+    if (path === '/projects' && !(isSuperAdmin || isWorkspaceAdmin || isWorkspaceManager)) {
+      showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
+      navigate('/');
+    }
+    if (path === '/reports' && !(isSuperAdmin || isWorkspaceAdmin || isWorkspaceManager)) {
+      showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
+      navigate('/');
+    }
+    if (path === '/calendar' && !(isSuperAdmin || isWorkspaceAdmin || isWorkspaceManager)) {
+      showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
+      navigate('/');
+    }
+    if (path === '/team' && !(isSuperAdmin || isWorkspaceAdmin)) {
+      showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
+      navigate('/');
+    }
+  }, [user, navigate, showToast]);
 
   // Background runner for pending Google Calendar sync submissions/updates
   useEffect(() => {
@@ -235,14 +301,35 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <nav className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto mt-2">
             <NavItem to="/" icon={<LayoutDashboard size={18} />} label="Dashboard" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/log" icon={<PlusCircle size={18} />} label="Log Work" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/calendar" icon={<Calendar size={18} />} label="Calendar" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/reports" icon={<FileText size={18} />} label="Reports" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            
+            {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
+              <NavItem to="/calendar" icon={<Calendar size={18} />} label="Calendar" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            )}
+            
+            {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
+              <NavItem to="/reports" icon={<FileText size={18} />} label="Reports" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            )}
+            
             <NavItem to="/leaderboard" icon={<Trophy size={18} />} label="Leaderboard" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/hrbp" icon={<Cpu size={18} />} label="AI Enhance" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/ai-chat" icon={<MessageSquare size={18} />} label="AI Chat" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/migrate" icon={<UploadCloud size={18} />} label="Data Migration" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/admin" icon={<Database size={18} />} label="Master Data" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/projects" icon={<FolderTree size={18} />} label="Project Registry" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            
+            {(user?.role === 'admin' || user?.workspaceRole === 'admin') && (
+              <NavItem to="/team" icon={<User size={18} />} label="Manage Team" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            )}
+            
+            {(user?.role === 'admin' || user?.workspaceRole === 'admin') && (
+              <NavItem to="/migrate" icon={<UploadCloud size={18} />} label="Data Migration" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            )}
+            
+            {user?.role === 'admin' && (
+              <NavItem to="/admin" icon={<Database size={18} />} label="Master Data" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            )}
+            
+            {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
+              <NavItem to="/projects" icon={<FolderTree size={18} />} label="Project Registry" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            )}
+            
             <NavItem to="/profile" icon={<User size={18} />} label="Profile" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
           </nav>
 
@@ -323,9 +410,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     }}
                   />
                 </div>
-                <span className="text-sm font-bold text-theme-text hidden sm:inline-block">
-                  {user?.name || 'Loading...'}
-                </span>
+                <div className="hidden sm:flex flex-col text-left leading-none space-y-0.5">
+                  <span className="text-xs font-bold text-theme-text">
+                    {user?.name || 'Loading...'}
+                  </span>
+                  {user?.workspaceInviteCode ? (
+                    <span className="text-[9px] text-indigo-500 dark:text-indigo-400 font-mono font-bold tracking-tight" title={`Workspace ID: ${user.activeWorkspaceId}`}>
+                      WS: {user.workspaceInviteCode}
+                    </span>
+                  ) : user?.activeWorkspaceId ? (
+                    <span className="text-[9px] text-indigo-500 dark:text-indigo-400 font-mono font-bold tracking-tight" title={`Workspace ID: ${user.activeWorkspaceId}`}>
+                      WS: {user.activeWorkspaceId.substring(0, 8)}...
+                    </span>
+                  ) : null}
+                </div>
               </div>
             )}
           </div>

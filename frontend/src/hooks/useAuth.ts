@@ -8,9 +8,12 @@ export interface UserSession {
   name: string;
   nickname: string;
   role: 'user' | 'admin';
+  workspaceRole?: 'admin' | 'manager' | 'user';
   department: string;
   position?: string;
   email?: string;
+  activeWorkspaceId?: string;
+  workspaceInviteCode?: string;
 }
 
 export function useAuth() {
@@ -30,7 +33,7 @@ export function useAuth() {
     setIsLoading(false);
   }, []);
 
-  const login = async (account: string, password?: string): Promise<UserSession> => {
+  const login = async (account: string, password?: string, inviteCode?: string): Promise<UserSession> => {
     setIsLoading(true);
     try {
       const username = account.trim();
@@ -39,6 +42,11 @@ export function useAuth() {
       }
 
       let userRecord: any = null;
+      let employeeData: any = null;
+      let email = '';
+      let fullName = '';
+      let position = '';
+      let empId = '';
 
       // ==========================================
       // Mode 1: Local / Developer Staging Auth
@@ -77,6 +85,11 @@ export function useAuth() {
           if (createError) throw createError;
           userRecord = newUser;
         }
+
+        email = userRecord?.email || '';
+        fullName = userRecord?.full_name || '';
+        position = userRecord?.position || 'Specialist';
+        empId = userRecord?.emp_id || '';
       }
       // ==========================================
       // Mode 2: Live Enterprise IDMS/HRMS Auth
@@ -156,10 +169,11 @@ export function useAuth() {
         }
 
         // Map data from HRMS response with fallback to existing DB record, then to hardcoded defaults
-        const email = employeeData?.EMail || employeeData?.email || existingUser?.email || `${username.toLowerCase()}@doublea1991.com`;
-        const fullName = employeeData?.EmpName || employeeData?.full_name || existingUser?.full_name || username;
+        empId = empId || '';
+        email = employeeData?.EMail || employeeData?.email || existingUser?.email || `${username.toLowerCase()}@doublea1991.com`;
+        fullName = employeeData?.EmpName || employeeData?.full_name || existingUser?.full_name || username;
         const department = employeeData?.Department || employeeData?.department || existingUser?.department || 'IMP';
-        const position = employeeData?.Position || employeeData?.position || existingUser?.position || 'Specialist';
+        position = employeeData?.Position || employeeData?.position || existingUser?.position || 'Specialist';
         const phone = employeeData?.Sim_Number || employeeData?.phone || existingUser?.phone || '';
         
         // Extract new profile fields
@@ -209,6 +223,117 @@ export function useAuth() {
         }
       }
 
+      // Handle Invite Code Workspace Joining if provided
+      if (userRecord && inviteCode) {
+        const { data: wData } = await supabase
+          .from('workspaces')
+          .select('id, workspace_name')
+          .eq('invite_code', inviteCode.trim())
+          .maybeSingle();
+
+        if (wData) {
+          const { error: updateErr } = await supabase
+            .from('users')
+            .update({ active_workspace_id: wData.id })
+            .eq('id', userRecord.id);
+
+          if (!updateErr) {
+            const isManager = /section manager|sec mgr|department manager|dept mgr|head of|director|ผู้จัดการ/i.test(position || '');
+            const mappedRole = isManager ? 'admin' : 'user';
+
+            await supabase.from('workspace_users').upsert({
+              workspace_id: wData.id,
+              user_id: userRecord.id,
+              role: mappedRole
+            }, { onConflict: 'workspace_id,user_id' });
+
+            userRecord.active_workspace_id = wData.id;
+          }
+        }
+      }
+
+      // Perform Workspace Onboarding Sync if active_workspace_id is not set
+      if (userRecord && !userRecord.active_workspace_id) {
+        // Mode 1: Dev Simulated mapping fallback
+        if (import.meta.env.DEV && !password) {
+          const defaultWorkspaceId = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001'; // IMP Workspace UUID
+          const { error: updateErr } = await supabase
+            .from('users')
+            .update({ active_workspace_id: defaultWorkspaceId })
+            .eq('id', userRecord.id);
+
+          if (!updateErr) {
+            await supabase.from('workspace_users').upsert({
+              workspace_id: defaultWorkspaceId,
+              user_id: userRecord.id,
+              role: username.toLowerCase() === 'admin' ? 'admin' : 'user'
+            }, { onConflict: 'workspace_id,user_id' });
+            
+            userRecord.active_workspace_id = defaultWorkspaceId;
+          }
+        }
+        // Mode 2: Live mapping based on HRMS BU & Line of work
+        else {
+          const hrmsBu = employeeData?.Emp_BUWorking || employeeData?.EMp_BUWorking || employeeData?.BUWorking || '';
+          const hrmsLine = employeeData?.Emp_LineOfWork || employeeData?.LineOfWork || '';
+
+          if (hrmsBu && hrmsLine) {
+            const { data: rule } = await supabase
+              .from('tb_hrms_mapping_rule')
+              .select('mapped_workspace_id')
+              .eq('hrms_bu_working', hrmsBu)
+              .eq('hrms_line_of_work', hrmsLine)
+              .maybeSingle();
+
+            if (rule?.mapped_workspace_id) {
+              const { error: updateErr } = await supabase
+                .from('users')
+                .update({ active_workspace_id: rule.mapped_workspace_id })
+                .eq('id', userRecord.id);
+
+              if (!updateErr) {
+                const isManager = /section manager|sec mgr|department manager|dept mgr|head of|director|ผู้จัดการ/i.test(position || '');
+                const mappedRole = isManager ? 'admin' : 'user';
+
+                await supabase.from('workspace_users').upsert({
+                  workspace_id: rule.mapped_workspace_id,
+                  user_id: userRecord.id,
+                  role: mappedRole
+                }, { onConflict: 'workspace_id,user_id' });
+                
+                userRecord.active_workspace_id = rule.mapped_workspace_id;
+              }
+            } else {
+              // Log onboarding exception for manual review
+              await supabase.from('tb_onboarding_exceptions').insert({
+                emp_id: empId,
+                email: email,
+                full_name: fullName,
+                hrms_bu_working: hrmsBu,
+                hrms_line_of_work: hrmsLine,
+                position: position
+              });
+            }
+          }
+        }
+      }
+
+      // Retrieve actual workspace user role and invite code
+      let workspaceRole: 'admin' | 'manager' | 'user' = 'user';
+      let workspaceInviteCode = '';
+      if (userRecord.active_workspace_id) {
+        const [resMember, resWS] = await Promise.all([
+          supabase.from('workspace_users').select('role').eq('workspace_id', userRecord.active_workspace_id).eq('user_id', userRecord.id).maybeSingle(),
+          supabase.from('workspaces').select('invite_code').eq('id', userRecord.active_workspace_id).maybeSingle()
+        ]);
+        if (resMember.data) {
+          workspaceRole = resMember.data.role as 'admin' | 'manager' | 'user';
+        }
+        if (resWS.data) {
+          workspaceInviteCode = resWS.data.invite_code;
+        }
+      }
+
       // Success - Save session state
       const sessionObj: UserSession = {
         id: userRecord.id,
@@ -216,9 +341,12 @@ export function useAuth() {
         name: userRecord.full_name,
         nickname: userRecord.nickname || userRecord.full_name.split(' ')[0],
         role: userRecord.role as 'user' | 'admin',
+        workspaceRole,
         department: userRecord.department || 'IMP',
         position: userRecord.position,
-        email: userRecord.email
+        email: userRecord.email,
+        activeWorkspaceId: userRecord.active_workspace_id || undefined,
+        workspaceInviteCode: workspaceInviteCode || undefined
       };
 
       localStorage.setItem('worklog_session', JSON.stringify(sessionObj));

@@ -160,9 +160,24 @@ export default function ProfilePage() {
         // 3. Fetch Google Calendar Settings & HR profile details from DB (including nickname, position, and full_name)
         const { data: dbUser } = await supabase
           .from('users')
-          .select('gcal_sync_enabled, gcal_email, gcal_calendar_id, full_name, nickname, position, employee_level, role_start_date, company_name, manager_name')
+          .select('gcal_sync_enabled, gcal_email, gcal_calendar_id, full_name, nickname, position, employee_level, role_start_date, company_name, manager_name, active_workspace_id')
           .eq('id', sessionData.id)
           .maybeSingle();
+
+        let workspaceName = '';
+        let workspaceInviteCode = '';
+
+        if (dbUser?.active_workspace_id) {
+          const { data: wsData } = await supabase
+            .from('workspaces')
+            .select('workspace_name, invite_code')
+            .eq('id', dbUser.active_workspace_id)
+            .maybeSingle();
+          if (wsData) {
+            workspaceName = wsData.workspace_name;
+            workspaceInviteCode = wsData.invite_code;
+          }
+        }
 
         if (dbUser) {
           setGcalSyncEnabled(dbUser.gcal_sync_enabled || false);
@@ -179,7 +194,10 @@ export default function ProfilePage() {
             employee_level: dbUser.employee_level,
             role_start_date: dbUser.role_start_date,
             company_name: dbUser.company_name,
-            manager_name: dbUser.manager_name
+            manager_name: dbUser.manager_name,
+            activeWorkspaceId: dbUser.active_workspace_id,
+            workspaceName,
+            workspaceInviteCode
           }));
 
           if (dbUser.gcal_sync_enabled) {
@@ -360,7 +378,7 @@ export default function ProfilePage() {
             {/* Info details */}
             <div className="flex-1 text-center md:text-left space-y-4">
               <div>
-                <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full uppercase tracking-wider">
+                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full uppercase tracking-wider">
                   {session?.department || 'IMP'} Department ({session?.role || 'User'})
                 </span>
                 <h2 className="text-2xl font-black text-theme-text mt-2.5 tracking-tight">{session?.name}</h2>
@@ -415,6 +433,65 @@ export default function ProfilePage() {
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Manager Name</span>
                   <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.manager_name || 'N/A'}</span>
                 </div>
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-5 col-span-3 space-y-4">
+                  <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">Active Workspace (ฝ่ายงานที่สังกัด)</span>
+                  
+                  <div className="divide-y divide-theme-border/50">
+                    {/* Workspace Name */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3">
+                      <div>
+                        <span className="text-[9px] text-theme-text-muted uppercase font-bold tracking-wider">Workspace Name</span>
+                        <span className="text-sm font-bold text-theme-text mt-0.5 block">
+                          {session?.workspaceName || 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Workspace Code (Invite) */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                      <div>
+                        <span className="text-[9px] text-theme-text-muted uppercase font-bold tracking-wider">Workspace Code (รหัสเชิญสำหรับหัวหน้างาน)</span>
+                        <span className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 font-mono mt-0.5 block">
+                          {session?.workspaceInviteCode || 'N/A'}
+                        </span>
+                      </div>
+                      {session?.workspaceInviteCode && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(session.workspaceInviteCode);
+                            alert('คัดลอกรหัสเชิญสำเร็จ! / Copied Invite Code!');
+                          }}
+                          className="bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-indigo-500/20 transition-all active:scale-95 w-fit"
+                        >
+                          Copy Invite Code
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Workspace ID */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3">
+                      <div>
+                        <span className="text-[9px] text-theme-text-muted uppercase font-bold tracking-wider">Workspace ID (สำหรับผู้ดูแลระบบ/ไอที)</span>
+                        <span className="text-xs font-semibold text-theme-text-secondary font-mono mt-0.5 block">
+                          {session?.activeWorkspaceId || 'N/A'}
+                        </span>
+                      </div>
+                      {session?.activeWorkspaceId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(session.activeWorkspaceId);
+                            alert('คัดลอก Workspace ID สำเร็จ! / Copied Workspace ID!');
+                          }}
+                          className="bg-slate-800 hover:bg-slate-700 text-theme-text-secondary text-xs font-bold px-3 py-1.5 rounded-lg border border-theme-border transition-all active:scale-95 w-fit"
+                        >
+                          Copy Full ID
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -445,7 +522,7 @@ export default function ProfilePage() {
           
           <div className="relative z-10 space-y-6">
             <div className="flex items-center gap-3 border-b border-theme-border/80 pb-4">
-              <Award size={24} className="text-indigo-400" />
+              <Award size={24} className="text-indigo-600 dark:text-indigo-400" />
               <h3 className="text-xl font-bold text-theme-text tracking-tight">Performance Statistics</h3>
             </div>
 
@@ -459,7 +536,7 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {/* Logged Days */}
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-2xl p-5 flex items-center gap-4 hover:border-theme-border/30 transition-all duration-300">
-                  <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
+                  <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-600 dark:text-indigo-400">
                     <Calendar size={24} />
                   </div>
                   <div>
@@ -470,7 +547,7 @@ export default function ProfilePage() {
 
                 {/* Total Tasks */}
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-2xl p-5 flex items-center gap-4 hover:border-theme-border/30 transition-all duration-300">
-                  <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
+                  <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-600 dark:text-indigo-400">
                     <BookOpen size={24} />
                   </div>
                   <div>
@@ -483,12 +560,12 @@ export default function ProfilePage() {
 
                 {/* Total Hours */}
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-2xl p-5 flex items-center gap-4 hover:border-theme-border/30 transition-all duration-300">
-                  <div className="p-3 bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 border border-theme-border rounded-xl text-indigo-400">
+                  <div className="p-3 bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 border border-theme-border rounded-xl text-indigo-600 dark:text-indigo-400">
                     <Shield size={24} />
                   </div>
                   <div>
                     <span className="text-xs text-theme-text-secondary font-medium block">Total Hours</span>
-                    <span className="text-2xl font-black text-indigo-400 mt-1 block">
+                    <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1 block">
                       {stats.totalHours.toFixed(1)} <span className="text-xs text-theme-text-secondary font-normal font-mono">hrs</span>
                     </span>
                   </div>
@@ -506,7 +583,7 @@ export default function ProfilePage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-theme-border/80 pb-6">
               <div>
                 <h3 className="text-xl font-bold text-theme-text flex items-center gap-2.5">
-                  <CalendarRange className="text-indigo-400" size={24} />
+                  <CalendarRange className="text-indigo-600 dark:text-indigo-400" size={24} />
                   <span>Google Calendar Synchronization</span>
                 </h3>
                 <p className="text-sm text-theme-text-secondary mt-1">
@@ -590,7 +667,7 @@ export default function ProfilePage() {
               {/* Right Side: Account connection & status */}
               <div className="p-6 bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 border border-theme-border rounded-2xl flex flex-col justify-between space-y-4">
                 <div className="space-y-2">
-                  <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider block">Google Session</span>
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">Google Session</span>
                   {gcalConnected ? (
                     <div>
                       <span className="text-base font-bold text-theme-text block">{gcalEmail}</span>
@@ -662,7 +739,7 @@ export default function ProfilePage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
             <div className="bg-theme-surface border border-theme-border rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl relative animate-in zoom-in-95 duration-200">
               <h3 className="text-xl font-bold text-theme-text mb-4 flex items-center gap-2">
-                <Edit className="text-indigo-400" size={20} />
+                <Edit className="text-indigo-600 dark:text-indigo-400" size={20} />
                 <span>Edit User Profile</span>
               </h3>
               <p className="text-xs text-theme-text-secondary mb-6">

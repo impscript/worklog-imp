@@ -12,6 +12,7 @@ import MigratePage from './pages/MigratePage';
 import ProjectRegistryPage from './pages/ProjectRegistryPage';
 import PublicWorklogPage from './pages/PublicWorklogPage';
 import LeaderboardPage from './pages/LeaderboardPage';
+import TeamPage from './pages/TeamPage';
 import { NotificationProvider } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -30,6 +31,7 @@ function App() {
         <Route path="/ai-chat" element={<AiChatPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/projects" element={<ProjectRegistryPage />} />
+        <Route path="/team" element={<TeamPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/migrate" element={<MigratePage />} />
         <Route path="/worklog/share/:id" element={<PublicWorklogPage />} />
