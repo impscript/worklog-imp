@@ -29,11 +29,42 @@ export async function onRequest(context) {
     const supabaseKey = context.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcm1reXBweG9pdHl2ZWViZ2V4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMTQwNTAsImV4cCI6MjA5NDY5MDA1MH0.l_i-trILv4NYsUIalQEOuy4-wW7y7XZiVrhMjEQ7Mzs';
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Resolve workspace ID from JWT
+    let jwtUserId = null;
+    const authHeader = context.request.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          jwtUserId = payload.sub || null;
+        }
+      } catch (err) {
+        console.warn('Error decoding JWT payload in Cloudflare Function:', err);
+      }
+    }
+    const targetUserId = jwtUserId || user_id;
+
+    let workspaceId = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001'; // Default
+    if (targetUserId) {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('active_workspace_id')
+        .eq('id', targetUserId)
+        .maybeSingle();
+      if (userProfile?.active_workspace_id) {
+        workspaceId = userProfile.active_workspace_id;
+      }
+    }
+
     // ── Handle Sub-actions (recommend_jd) ──────────────────────────────
     if (action === 'recommend_jd') {
       const { position, target_weights } = body;
       const { data: configRows } = await supabase
-        .from('tb_system_config').select('config_key, config_value');
+        .from('tb_system_config')
+        .select('config_key, config_value')
+        .eq('workspace_id', workspaceId);
       const configs = Object.fromEntries((configRows || []).map(r => [r.config_key, r.config_value]));
 
       const jdPrompt = `You are an expert HR consultant. Recommend a realistic Job Description and key responsibility weights for the following position.
@@ -122,7 +153,9 @@ Weights must sum to exactly 100.`;
         .eq('template_key', template_id)
         .eq('is_active', true)
         .maybeSingle(),
-      supabase.from('tb_system_config').select('config_key, config_value')
+      supabase.from('tb_system_config')
+        .select('config_key, config_value')
+        .eq('workspace_id', workspaceId)
     ]);
 
     if (userRes.error) throw new Error(`User not found: ${userRes.error.message}`);
@@ -400,7 +433,8 @@ async function callAI(configs, systemPrompt, userPrompt) {
   } else if (aiProvider === 'opencode') {
     // opencode uses openai-compatible endpoint
     const openCodeBase = configs.opencode_base_url || 'https://api.opencode.ai/v1';
-    const openCodeKey = configs.opencode_api_key || '';
+    const openCodeKey = configs.opencode_api_key;
+    if (!openCodeKey) throw new Error('OpenCode API Key is not set in tb_system_config.');
     const response = await fetch(`${openCodeBase}/chat/completions`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${openCodeKey}`, 'Content-Type': 'application/json' },
