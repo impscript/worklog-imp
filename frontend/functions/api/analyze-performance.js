@@ -158,7 +158,7 @@ Weights must sum to exactly 100.`;
         .eq('workspace_id', workspaceId)
     ]);
 
-    if (userRes.error) throw new Error(`User not found: ${userRes.error.message}`);
+    if (userRes.error) throw new Error('ไม่พบข้อมูลพนักงานในระบบ');
     const userProfile = userRes.data;
     const userJd = jdRes.data;
     const rawLogs = logsRes.data || [];
@@ -166,7 +166,7 @@ Weights must sum to exactly 100.`;
     const configs = Object.fromEntries((configRes.data || []).map(r => [r.config_key, r.config_value]));
 
     if (!template) {
-      throw new Error(`Prompt template "${template_id}" not found or inactive. Please check Admin → AI Prompts.`);
+      throw new Error('ไม่พบรูปแบบการวิเคราะห์ที่เลือก หรือรูปแบบดังกล่าวถูกปิดใช้งานอยู่ โปรดตรวจสอบที่เมนู Admin → AI Prompts');
     }
 
     if (rawLogs.length === 0) {
@@ -378,7 +378,7 @@ async function callAI(configs, systemPrompt, userPrompt) {
   let aiResponseText = '';
 
   if (aiProvider === 'openrouter') {
-    if (!openrouterKey) throw new Error('OpenRouter API Key is not set in tb_system_config.');
+    if (!openrouterKey) throw new Error(`Workspace นี้ยังไม่ได้ตั้งค่าเชื่อมต่อระบบ AI (ไม่พบ API Key สำหรับ OpenRouter) กรุณาติดต่อผู้ดูแลระบบ (Admin) ให้ช่วยระบุคีย์ผ่านเมนู 'ตั้งค่า AI' (Admin → AI Settings)`);
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -401,7 +401,7 @@ async function callAI(configs, systemPrompt, userPrompt) {
     aiResponseText = data.choices?.[0]?.message?.content;
 
   } else if (aiProvider === 'openai') {
-    if (!openaiKey) throw new Error('OpenAI API Key is not set.');
+    if (!openaiKey) throw new Error(`Workspace นี้ยังไม่ได้ตั้งค่าเชื่อมต่อระบบ AI (ไม่พบ API Key สำหรับ OpenAI) กรุณาติดต่อผู้ดูแลระบบ (Admin) ให้ช่วยระบุคีย์ผ่านเมนู 'ตั้งค่า AI' (Admin → AI Settings)`);
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
@@ -416,7 +416,7 @@ async function callAI(configs, systemPrompt, userPrompt) {
     aiResponseText = data.choices?.[0]?.message?.content;
 
   } else if (aiProvider === 'gemini') {
-    if (!geminiKey) throw new Error('Gemini API Key is not set.');
+    if (!geminiKey) throw new Error(`Workspace นี้ยังไม่ได้ตั้งค่าเชื่อมต่อระบบ AI (ไม่พบ API Key สำหรับ Google Gemini) กรุณาติดต่อผู้ดูแลระบบ (Admin) ให้ช่วยระบุคีย์ผ่านเมนู 'ตั้งค่า AI' (Admin → AI Settings)`);
     const modelId = (aiModel.includes('/') ? aiModel.split('/')[1] : 'gemini-1.5-flash').replace(':free', '');
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${geminiKey}`, {
       method: 'POST',
@@ -434,7 +434,7 @@ async function callAI(configs, systemPrompt, userPrompt) {
     // opencode uses openai-compatible endpoint
     const openCodeBase = configs.opencode_base_url || 'https://api.opencode.ai/v1';
     const openCodeKey = configs.opencode_api_key;
-    if (!openCodeKey) throw new Error('OpenCode API Key is not set in tb_system_config.');
+    if (!openCodeKey) throw new Error(`Workspace นี้ยังไม่ได้ตั้งค่าเชื่อมต่อระบบ AI (ไม่พบ API Key สำหรับ OpenCode) กรุณาติดต่อผู้ดูแลระบบ (Admin) ให้ช่วยระบุคีย์ผ่านเมนู 'ตั้งค่า AI' (Admin → AI Settings)`);
     const response = await fetch(`${openCodeBase}/chat/completions`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${openCodeKey}`, 'Content-Type': 'application/json' },

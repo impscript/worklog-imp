@@ -724,7 +724,25 @@ export default function HrbpPage() {
         }
       });
 
-      if (error) throw new Error(error.message || 'AI recommendation failed');
+      if (error) {
+        let errMsg = error.message || 'AI recommendation failed';
+        if (error.context && typeof error.context.clone === 'function') {
+          try {
+            const resClone = error.context.clone();
+            const text = await resClone.text();
+            try {
+              const parsed = JSON.parse(text);
+              if (parsed.error) errMsg = parsed.error;
+              else if (parsed.message) errMsg = parsed.message;
+            } catch {
+              if (text && text.length < 150) errMsg = text;
+            }
+          } catch (e) {
+            console.error('Failed to parse error response context:', e);
+          }
+        }
+        throw new Error(errMsg);
+      }
 
       if (data?.jd_text) setJdText(data.jd_text);
       if (data?.key_responsibilities?.length > 0) setKeyResponsibilities(data.key_responsibilities);
@@ -734,7 +752,7 @@ export default function HrbpPage() {
       showToast(`AI แนะนำ JD สำหรับตำแหน่ง "${targetPos || 'General Staff'}" เรียบร้อย${engineLabel}`, 'success');
     } catch (err: any) {
       console.error('JD recommend error:', err);
-      showToast('ไม่สามารถขอคำแนะนำ JD จาก AI ได้: ' + err.message, 'error');
+      showToast(err.message || 'ไม่สามารถขอคำแนะนำ JD จาก AI ได้', 'error');
     } finally {
       setIsRecommendingJd(false);
     }
