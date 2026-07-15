@@ -524,12 +524,21 @@ export default function HrbpPage() {
       if (reportErr) throw reportErr;
       if (!report) {
         showToast('ไม่พบรายงานที่แชร์ หรือหมดอายุ / Shared report not found or expired', 'error');
+        navigate('/login');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!report.is_public) {
+        showToast('รายงานนี้ถูกตั้งค่าเป็นส่วนตัวแล้ว / This report has been set to private', 'error');
+        navigate('/login');
         setIsLoading(false);
         return;
       }
 
       if (report.expires_at && new Date(report.expires_at) < new Date()) {
         showToast('รายงานนี้หมดอายุการใช้งานแล้ว / Shared report expired', 'error');
+        navigate('/login');
         setIsLoading(false);
         return;
       }
