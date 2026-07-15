@@ -911,10 +911,15 @@ export default function HrbpPage() {
       await new Promise(r => setTimeout(r, 600));
       setAiStep(4);
       
-      // Look up system config
+      // Look up system config scoped to the active workspace
+      const sessionStr = localStorage.getItem('worklog_session');
+      const sessionData = sessionStr ? JSON.parse(sessionStr) : null;
+      const activeWsId = sessionData?.activeWorkspaceId || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
+
       const { data: configsData } = await supabase
         .from('tb_system_config')
         .select('config_key, config_value')
+        .eq('workspace_id', activeWsId)
         .in('config_key', ['ai_model', 'ai_provider']);
         
       const configs: Record<string, string> = {};
