@@ -1845,10 +1845,10 @@ export default function AdminPage() {
                     >
                       <option value="">-- เลือกพนักงาน --</option>
                       {usersList.map(u => {
-                        const val = u.nickname || u.full_name;
+                        const val = u.full_name; // Use full_name directly as the actual mapped value
                         return (
                           <option key={u.id} value={val}>
-                            {u.nickname ? `${u.nickname} (${u.full_name || ''})` : u.full_name}
+                            {u.full_name} {u.nickname ? `(${u.nickname})` : ''} — {u.emp_id || 'No ID'}
                           </option>
                         );
                       })}
