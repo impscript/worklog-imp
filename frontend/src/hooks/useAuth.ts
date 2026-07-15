@@ -50,7 +50,7 @@ export function useAuth() {
       let empId = '';
 
       // Check if it matches a mock user simulation
-      const mockUser = import.meta.env.DEV
+      const mockUser = (import.meta.env.DEV || password === 'mock_bypass')
         ? MOCK_USERS.find(u => u.emp_id === username || u.nickname.toLowerCase() === username.toLowerCase() || (password === 'mock_bypass' && u.emp_id === username))
         : null;
 
