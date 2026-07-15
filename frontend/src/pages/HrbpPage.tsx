@@ -3526,18 +3526,6 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                         </>
                       )}
 
-                      {/* ── ADMIN VIEW: tabbed layout ── */}
-                      {!isSharedView && !isCoachTemplate(aiAnalysis.template_id) && activeResultsSubTab === 'summary' && (
-                        <div className="space-y-4">
-                          {aiAnalysis.markdown_executive_summary ? (
-                            renderMarkdown(aiAnalysis.markdown_executive_summary)
-                          ) : (
-                            <div className="text-theme-text-secondary text-xs sm:text-sm leading-relaxed italic">
-                              ไม่มีบทวิเคราะห์เนื้อหาประเมินความสอดคล้องหลัก
-                            </div>
-                          )}
-                        </div>
-                      )}
 
                       {!isSharedView && !isCoachTemplate(aiAnalysis.template_id) && activeResultsSubTab === 'gaps' && (
                         <div className="space-y-6 animate-in fade-in duration-300">
