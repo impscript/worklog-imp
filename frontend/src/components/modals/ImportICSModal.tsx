@@ -191,16 +191,54 @@ export default function ImportICSModal({
     };
   }, [selectedProjectKey, module, allowedProjects]);
 
-  const [availableActions, setAvailableActions] = useState<string[]>([]);
+  const [masterActions, setMasterActions] = useState<any[]>([]);
+  
   useEffect(() => {
+    if (!isOpen) return;
     async function fetchActions() {
-      const { data } = await supabase.from('tb_master_action').select('action_name');
-      if (data) {
-        setAvailableActions(data.map(d => d.action_name).sort());
+      try {
+        const workspaceId = session?.activeWorkspaceId;
+        let useGlobal = true;
+        
+        if (workspaceId && workspaceId !== 'N/A') {
+          const { data: wsData } = await supabase
+            .from('workspaces')
+            .select('use_global_master')
+            .eq('id', workspaceId)
+            .maybeSingle();
+          if (wsData) {
+            useGlobal = wsData.use_global_master;
+          }
+        }
+
+        let query = supabase.from('tb_master_action').select('*');
+        if (workspaceId && workspaceId !== 'N/A') {
+          if (useGlobal) {
+            query = query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+          } else {
+            query = query.eq('workspace_id', workspaceId);
+          }
+        }
+
+        const { data } = await query;
+        if (data) {
+          setMasterActions(data);
+        }
+      } catch (err) {
+        console.error('Error fetching actions in ImportICSModal:', err);
       }
     }
     fetchActions();
-  }, []);
+  }, [isOpen, session]);
+
+  const availableActions = useMemo(() => {
+    if (!projectType) return [];
+    const category = projectType === 'Management' ? 'Management' : projectType.includes('Support') ? 'Support' : 'Project';
+    const filtered = masterActions
+      .filter(a => a.action_category === category)
+      .map(a => a.action_name);
+    return Array.from(new Set(filtered)).sort();
+  }, [projectType, masterActions]);
 
   // Parse ICS logic
   useEffect(() => {
