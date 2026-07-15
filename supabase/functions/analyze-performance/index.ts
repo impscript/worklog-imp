@@ -861,13 +861,27 @@ Task instructions:
       }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Fetch prompt template
-    const { data: template, error: templateErr } = await supabase
+    // Fetch prompt template scoped to workspace, fallback to default workspace if not found
+    let { data: template, error: templateErr } = await supabase
       .from('tb_ai_prompt_templates')
       .select('*')
       .eq('template_key', template_id)
+      .eq('workspace_id', workspaceId)
       .eq('is_active', true)
       .maybeSingle();
+
+    if (!template && !templateErr && workspaceId !== 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001') {
+      const { data: fallbackTemplate, error: fallbackErr } = await supabase
+        .from('tb_ai_prompt_templates')
+        .select('*')
+        .eq('template_key', template_id)
+        .eq('workspace_id', 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001')
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!fallbackErr && fallbackTemplate) {
+        template = fallbackTemplate;
+      }
+    }
 
     if (templateErr) throw new Error(`Template query error: ${templateErr.message}`);
     if (!template) {
