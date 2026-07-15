@@ -460,7 +460,8 @@ export default function ImportICSModal({
           action_name: actionName,
           description: combinedDesc,
           channel: 'Google Calendar Import',
-          is_ot: false
+          is_ot: false,
+          workspace_id: session?.activeWorkspaceId
         };
       });
 
