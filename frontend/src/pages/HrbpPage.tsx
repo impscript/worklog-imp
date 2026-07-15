@@ -33,6 +33,7 @@ interface UserProfile {
   employee_level?: string;
   role_start_date?: string;
   manager_name?: string;
+  active_workspace_id?: string;
 }
 
 interface KeyResponsibility {
