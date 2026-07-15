@@ -436,24 +436,12 @@ serve(async (req) => {
     }
 
     // Load AI config for the resolved workspace
-    let { data: configsData, error: configError } = await supabase
+    const { data: configsData, error: configError } = await supabase
       .from('tb_system_config')
       .select('config_key, config_value')
       .eq('workspace_id', workspaceId);
 
     if (configError) throw new Error('Cannot read AI config: ' + configError.message);
-
-    // If no configs found for this workspace, fallback to default workspace configs
-    if (!configsData || configsData.length === 0) {
-      const defaultWorkspaceId = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('tb_system_config')
-        .select('config_key, config_value')
-        .eq('workspace_id', defaultWorkspaceId);
-      if (!fallbackError && fallbackData) {
-        configsData = fallbackData;
-      }
-    }
 
     const configs: Record<string, string> = {};
     if (configsData) {
@@ -483,10 +471,12 @@ serve(async (req) => {
       apiKey = configs.cloudflare_api_token;
       // Use Cloudflare OpenAI-compatible endpoint (supports chat/completions format)
       endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
-      if (!accountId) throw new Error('Cloudflare Account ID is not configured. Please add it in Admin → AI Settings.');
+      if (!accountId) throw new Error('ไม่พบข้อมูล Cloudflare Account ID สำหรับ Workspace นี้ กรุณาตั้งค่าที่เมนู Admin → AI Settings');
     }
 
-    if (!apiKey) throw new Error(`API Key for provider "${provider}" is not configured.`);
+    if (!apiKey) {
+      throw new Error(`ยังไม่ได้กำหนดค่า API Key สำหรับผู้ให้บริการ "${provider}" บน Workspace นี้ กรุณาไปตั้งค่าที่เมนู Admin → AI Settings`);
+    }
 
     const llmHeaders: Record<string, string> = {
       "Authorization": `Bearer ${apiKey}`,
