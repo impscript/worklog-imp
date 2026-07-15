@@ -402,14 +402,63 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Load AI config
-    const { data: configsData, error: configError } = await supabase
+    // Resolve workspace ID from User ID or request headers
+    let userId = null;
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          userId = payload.sub || null;
+        }
+      } catch (err) {
+        console.warn('Error decoding JWT payload in Edge Function:', err);
+      }
+    }
+    
+    // Fallback to request body user_id
+    if (!userId && body.user_id) {
+      userId = body.user_id;
+    }
+
+    let workspaceId = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001'; // Default IMP Workspace UUID
+    if (userId) {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('active_workspace_id')
+        .eq('id', userId)
+        .maybeSingle();
+      if (userProfile?.active_workspace_id) {
+        workspaceId = userProfile.active_workspace_id;
+      }
+    }
+
+    // Load AI config for the resolved workspace
+    let { data: configsData, error: configError } = await supabase
       .from('tb_system_config')
-      .select('config_key, config_value');
+      .select('config_key, config_value')
+      .eq('workspace_id', workspaceId);
+
     if (configError) throw new Error('Cannot read AI config: ' + configError.message);
 
+    // If no configs found for this workspace, fallback to default workspace configs
+    if (!configsData || configsData.length === 0) {
+      const defaultWorkspaceId = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('tb_system_config')
+        .select('config_key, config_value')
+        .eq('workspace_id', defaultWorkspaceId);
+      if (!fallbackError && fallbackData) {
+        configsData = fallbackData;
+      }
+    }
+
     const configs: Record<string, string> = {};
-    configsData.forEach((row: any) => { configs[row.config_key] = row.config_value; });
+    if (configsData) {
+      configsData.forEach((row: any) => { configs[row.config_key] = row.config_value; });
+    }
 
     const provider = configs.ai_provider || 'openrouter';
     const model = configs.ai_model || 'google/gemini-2.0-flash-exp:free';
