@@ -300,10 +300,16 @@ export default function HrbpPage() {
             console.log('Swallowed user list loading error in public shared view:', e);
           }
         } else {
-          const { data: usersData, error: usersErr } = await supabase
+          let userQuery = supabase
             .from('users')
             .select('*')
             .order('full_name', { ascending: true });
+
+          if (session?.activeWorkspaceId) {
+            userQuery = userQuery.eq('active_workspace_id', session.activeWorkspaceId);
+          }
+
+          const { data: usersData, error: usersErr } = await userQuery;
 
           if (usersErr) throw usersErr;
           setUsersList(usersData || []);
@@ -316,11 +322,18 @@ export default function HrbpPage() {
         }
 
         // Fetch AI prompt templates
-        const { data: templatesData, error: templatesErr } = await supabase
+        let templatesQuery = supabase
           .from('tb_ai_prompt_templates')
           .select('*')
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true });
+          .eq('is_active', true);
+
+        if (session?.activeWorkspaceId) {
+          templatesQuery = templatesQuery.eq('workspace_id', session.activeWorkspaceId);
+        } else {
+          templatesQuery = templatesQuery.eq('workspace_id', 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001');
+        }
+
+        const { data: templatesData, error: templatesErr } = await templatesQuery.order('sort_order', { ascending: true });
 
         if (templatesErr) {
           console.warn('Failed to load templates from DB, using default static ones:', templatesErr);

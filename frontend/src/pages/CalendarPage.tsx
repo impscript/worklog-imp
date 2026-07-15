@@ -1078,11 +1078,28 @@ export default function CalendarPage() {
         setSelectedUserId(session.id);
       }
       
-      // If admin, fetch users list
-      if (session.role === 'admin') {
-        supabase.from('users').select('id, full_name, emp_id').order('full_name').then(({data}) => {
-          if (data) setUsersList(data);
-        });
+      // If admin/workspace-admin, fetch users list — scoped to current workspace
+      const wsId = session?.activeWorkspaceId;
+      const isSystemAdmin = session.role === 'admin' && (!wsId || wsId === 'N/A');
+      if (session.role === 'admin' || session.workspaceRole === 'admin') {
+        if (isSystemAdmin) {
+          // True system admin: see all users
+          supabase.from('users').select('id, full_name, emp_id').order('full_name').then(({ data }) => {
+            if (data) setUsersList(data);
+          });
+        } else if (wsId) {
+          // Workspace admin: only see members of their workspace
+          supabase
+            .from('workspace_users')
+            .select('users(id, full_name, emp_id)')
+            .eq('workspace_id', wsId)
+            .then(({ data }) => {
+              if (data) {
+                const users = data.map((row: any) => row.users).filter(Boolean);
+                setUsersList(users);
+              }
+            });
+        }
       }
     }
 

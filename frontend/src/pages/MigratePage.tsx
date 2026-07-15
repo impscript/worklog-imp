@@ -140,8 +140,12 @@ export default function MigratePage() {
       if (holidayData) {
         setHolidaysList(holidayData.map(h => h.date));
       }
-      // Load all users for selection dropdowns
-      const { data: usersData } = await supabase.from('users').select('id, full_name, nickname, department').order('full_name');
+      // Load all users for selection dropdowns filtered by active workspace
+      let userQuery = supabase.from('users').select('id, full_name, nickname, department');
+      if (user.activeWorkspaceId) {
+        userQuery = userQuery.eq('active_workspace_id', user.activeWorkspaceId);
+      }
+      const { data: usersData } = await userQuery.order('full_name');
       if (usersData) {
         setUsersList(usersData);
       }
@@ -743,7 +747,8 @@ export default function MigratePage() {
         description: row.description || '',
         is_ot: row.is_ot,
         is_implied_ot: false,
-        channel: row.action_channel || 'CSV Import'
+        channel: row.action_channel || 'CSV Import',
+        workspace_id: currentUser?.activeWorkspaceId
       };
 
       if (row.id) {

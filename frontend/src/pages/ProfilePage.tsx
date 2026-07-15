@@ -259,12 +259,16 @@ export default function ProfilePage() {
       };
       setSession(updatedSession);
 
-      // Sync back to localStorage session state
+      // Sync back to localStorage session state (ALL profile fields, not just nickname/position)
       const localStorageSession = JSON.parse(localStorage.getItem('worklog_session') || '{}');
       const updatedLocalStorageSession = {
         ...localStorageSession,
         nickname: editNickname,
-        position: editPosition
+        position: editPosition,
+        employee_level: editEmployeeLevel,
+        company_name: editCompanyName,
+        role_start_date: editRoleStartDate || null,
+        manager_name: editManagerName,
       };
       localStorage.setItem('worklog_session', JSON.stringify(updatedLocalStorageSession));
 

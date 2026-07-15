@@ -498,6 +498,7 @@ export default function LogWorkPage() {
   const [mapUserRole, setMapUserRole] = useState<any[]>([]);
   const [mapProjectStructure, setMapProjectStructure] = useState<any[]>([]);
   const [masterActions, setMasterActions] = useState<any[]>([]);
+  const [isLoadingMaster, setIsLoadingMaster] = useState(true);
 
   // Simulated User States
   const [selectedUser, setSelectedUser] = useState<string>('');
@@ -566,7 +567,12 @@ export default function LogWorkPage() {
         setIsCurrentUserChatchawan(isChatchawan);
         
         if (isChatchawan) {
-          const { data } = await supabase.from('tb_map_user_role').select('name');
+          let nameQuery = supabase.from('tb_map_user_role').select('name');
+          const wsId = session?.activeWorkspaceId;
+          if (wsId && wsId !== 'N/A') {
+            nameQuery = nameQuery.eq('workspace_id', wsId) as any;
+          }
+          const { data } = await nameQuery;
           if (data) {
             uniqueNames = Array.from(new Set(data.map(d => d.name).filter(Boolean))) as string[];
           }
@@ -620,96 +626,168 @@ export default function LogWorkPage() {
   // Fetch Data from Supabase
   useEffect(() => {
     async function loadData() {
-      let cleanName = 'Chatchawan';
-      
-      if (session.id) {
-        const { data: dbUser } = await supabase
-          .from('users')
-          .select('nickname, full_name')
-          .eq('id', session.id)
-          .maybeSingle();
-          
-        if (dbUser) {
-          const rawName = dbUser.nickname || dbUser.full_name?.split(' ')[0] || '';
-          cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+      setIsLoadingMaster(true);
+      try {
+        let cleanName = 'Chatchawan';
+        
+        if (session.id) {
+          const { data: dbUser } = await supabase
+            .from('users')
+            .select('nickname, full_name')
+            .eq('id', session.id)
+            .maybeSingle();
+            
+          if (dbUser) {
+            const rawName = dbUser.nickname || dbUser.full_name?.split(' ')[0] || '';
+            cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+          } else {
+            const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
+            cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
+          }
         } else {
           const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
           cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
         }
-      } else {
-        const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
-        cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
-      }
-      
-      let isThai = /[\u0e00-\u0e7f]/.test(cleanName);
-      if (isThai) {
-        const fallbackName = session.nickname || '';
-        if (fallbackName && !/[\u0e00-\u0e7f]/.test(fallbackName)) {
-          cleanName = fallbackName.includes('_') ? fallbackName.split('_')[0] : fallbackName;
-        } else {
+        
+        let isThai = /[\u0e00-\u0e7f]/.test(cleanName);
+        if (isThai) {
+          const fallbackName = session.nickname || '';
+          if (fallbackName && !/[\u0e00-\u0e7f]/.test(fallbackName)) {
+            cleanName = fallbackName.includes('_') ? fallbackName.split('_')[0] : fallbackName;
+          } else {
+            cleanName = 'Chatchawan';
+          }
+        }
+        if (cleanName.includes('.')) {
+          cleanName = cleanName.split('.')[0];
+        }
+        cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+        
+        if (!cleanName.trim()) {
           cleanName = 'Chatchawan';
         }
-      }
-      if (cleanName.includes('.')) {
-        cleanName = cleanName.split('.')[0];
-      }
-      cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
-      
-      if (!cleanName.trim()) {
-        cleanName = 'Chatchawan';
-      }
 
-      const targetUser = selectedUser || cleanName;
-      console.log('LogWorkPage loading mappings for targetUser:', targetUser);
+        const targetUser = selectedUser || cleanName;
+        console.log('LogWorkPage loading mappings for targetUser:', targetUser);
 
-
-      const [resUser, resProj, resAct, resTpl] = await Promise.all([
-        supabase.from('tb_map_user_role').select('*').ilike('name', targetUser.trim()),
-        // Use tb_map_project_structure as primary source — it has the correct holding/department_operator columns
-        supabase.from('tb_map_project_structure').select('*'),
-        supabase.from('tb_master_action').select('*'),
-        supabase.from('tb_master_worklog_templates').select('*')
-      ]);
-
-      if (resUser.data && resUser.data.length > 0) {
-        setMapUserRole(resUser.data);
-      } else {
-        const fallback = await supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
-        if (fallback.data) setMapUserRole(fallback.data);
-      }
-
-      let projData = resProj.data || [];
-      
-      // Log any errors for debugging
-      if (resProj.error) {
-        console.warn('tb_project_registry error:', resProj.error.message, '| code:', resProj.error.code);
-      }
-      if (resUser.error) {
-        console.warn('tb_map_user_role error:', resUser.error.message);
-      }
-      
-      if (projData.length === 0) {
-        console.warn('tb_project_registry returned 0 rows — trying without workspace filter');
-        // Try without workspace filter first
-        const { data: projNoWs, error: projNoWsErr } = await supabase.from('tb_project_registry').select('*');
-        if (projNoWsErr) console.warn('tb_project_registry (no filter) error:', projNoWsErr.message);
-        if (projNoWs && projNoWs.length > 0) {
-          projData = projNoWs;
-        } else {
-          // Last resort: legacy table
-          console.warn('tb_project_registry empty — falling back to tb_map_project_structure');
-          const { data: fallbackProjs, error: fallbackErr } = await supabase.from('tb_map_project_structure').select('*');
-          if (fallbackErr) console.warn('tb_map_project_structure error:', fallbackErr.message);
-          if (fallbackProjs) projData = fallbackProjs;
+        const workspaceId = session?.activeWorkspaceId;
+        let useGlobal = true;
+        if (workspaceId && workspaceId !== 'N/A') {
+          const { data: wsData } = await supabase.from('workspaces').select('use_global_master').eq('id', workspaceId).maybeSingle();
+          if (wsData) {
+            useGlobal = wsData.use_global_master;
+          }
         }
-      }
-      
-      console.log(`Loaded ${projData.length} project rows`);
-      setMapProjectStructure(projData);
 
-      if (resAct.data) setMasterActions(resAct.data);
-      if (resTpl.data && resTpl.data.length > 0) {
-        setDbTemplates(resTpl.data);
+        let userQuery = supabase.from('tb_map_user_role').select('*').ilike('name', targetUser.trim());
+        let projQuery = supabase.from('tb_map_project_structure').select('*');
+        let actQuery = supabase.from('tb_master_action').select('*');
+        let tplQuery = supabase.from('tb_master_worklog_templates').select('*');
+
+        if (workspaceId && workspaceId !== 'N/A') {
+          if (useGlobal) {
+            userQuery = userQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+            projQuery = projQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+            actQuery = actQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+          } else {
+            userQuery = userQuery.eq('workspace_id', workspaceId);
+            projQuery = projQuery.eq('workspace_id', workspaceId);
+            actQuery = actQuery.eq('workspace_id', workspaceId);
+          }
+          tplQuery = tplQuery.eq('workspace_id', workspaceId);
+        }
+
+        const [resUser, resProj, resAct, resTpl] = await Promise.all([
+          userQuery,
+          projQuery,
+          actQuery,
+          tplQuery
+        ]);
+
+        if (resUser.data && resUser.data.length > 0) {
+          setMapUserRole(resUser.data);
+        } else if (session && session.activeWorkspaceId && session.activeWorkspaceId !== 'N/A') {
+          // Resolve holding and team based on workspace invite code, name, or department
+          let resolvedHolding = 'Real Estate';
+          let resolvedTeam = 'IMP';
+
+          const code = (session.workspaceInviteCode || '').toUpperCase();
+          const dept = (session.department || '').toLowerCase();
+          const buLower = (session.bu_working || session.companyName || '').toLowerCase();
+          
+          if (code.includes('IT') || dept.includes('digital') || dept.includes('information')) {
+            resolvedTeam = 'IT';
+          } else {
+            resolvedTeam = 'IMP';
+          }
+
+          if (buLower.includes('real estate') || buLower.includes('re') || buLower.includes('housing') || buLower.includes('village') || buLower.includes('plaza') || buLower.includes('mgt') || buLower.includes('dap') || buLower.includes('mata') || buLower.includes('interthai')) {
+            resolvedHolding = 'Real Estate';
+          } else if (buLower.includes('double a') || buLower.includes('da') || buLower.includes('domestic') || buLower.includes('export') || buLower.includes('stationary') || buLower.includes('stationery')) {
+            resolvedHolding = 'Double A';
+          } else if (buLower.includes('logistic') || buLower.includes('marine') || buLower.includes('port') || buLower.includes('transport')) {
+            resolvedHolding = 'Logistic';
+          } else if (buLower.includes('power') || buLower.includes('nps')) {
+            resolvedHolding = 'Power';
+          } else {
+            resolvedHolding = 'Real Estate'; // Fallback
+          }
+
+          setMapUserRole([{
+            name: targetUser,
+            holding: resolvedHolding,
+            department_operator: resolvedTeam
+          }]);
+        } else {
+          const fallback = await supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
+          if (fallback.data) setMapUserRole(fallback.data);
+        }
+
+        let projData = resProj.data || [];
+        
+        // Log any errors for debugging
+        if (resProj.error) {
+          console.warn('tb_project_registry error:', resProj.error.message, '| code:', resProj.error.code);
+        }
+        if (resUser.error) {
+          console.warn('tb_map_user_role error:', resUser.error.message);
+        }
+        
+        if (projData.length === 0) {
+          console.warn('tb_project_registry returned 0 rows — trying scoped registry fallback');
+          // Fallback: try project registry with workspace scope
+          let registryFallbackQuery = supabase.from('tb_project_registry').select('*');
+          if (workspaceId && workspaceId !== 'N/A') {
+            registryFallbackQuery = registryFallbackQuery.eq('workspace_id', workspaceId) as any;
+          }
+          const { data: projNoWs, error: projNoWsErr } = await registryFallbackQuery;
+          if (projNoWsErr) console.warn('tb_project_registry (fallback) error:', projNoWsErr.message);
+          if (projNoWs && projNoWs.length > 0) {
+            projData = projNoWs;
+          } else {
+            // Last resort: legacy table (scoped)
+            console.warn('tb_project_registry empty — falling back to tb_map_project_structure');
+            let legacyQuery = supabase.from('tb_map_project_structure').select('*');
+            if (workspaceId && workspaceId !== 'N/A') {
+              legacyQuery = legacyQuery.eq('workspace_id', workspaceId) as any;
+            }
+            const { data: fallbackProjs, error: fallbackErr } = await legacyQuery;
+            if (fallbackErr) console.warn('tb_map_project_structure error:', fallbackErr.message);
+            if (fallbackProjs) projData = fallbackProjs;
+          }
+        }
+        
+        console.log(`Loaded ${projData.length} project rows`);
+        setMapProjectStructure(projData);
+
+        if (resAct.data) setMasterActions(resAct.data);
+        if (resTpl.data && resTpl.data.length > 0) {
+          setDbTemplates(resTpl.data);
+        }
+      } catch (err) {
+        console.error('loadData error:', err);
+      } finally {
+        setIsLoadingMaster(false);
       }
     }
     loadData();
@@ -1420,7 +1498,8 @@ export default function LogWorkPage() {
                 channel: 'Web App',
                 is_ot: segment.is_ot,
                 is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-                image_urls: attachedImages
+                image_urls: attachedImages,
+                workspace_id: session.activeWorkspaceId
               });
             }
           } else {
@@ -1451,7 +1530,8 @@ export default function LogWorkPage() {
               channel: 'Web App',
               is_ot: segment.is_ot,
               is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-              image_urls: attachedImages
+              image_urls: attachedImages,
+              workspace_id: session.activeWorkspaceId
             });
           }
 
@@ -1502,7 +1582,8 @@ export default function LogWorkPage() {
             channel: 'Web App',
             is_ot: segment.is_ot,
             is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-            image_urls: attachedImages
+            image_urls: attachedImages,
+            workspace_id: session.activeWorkspaceId
           }).select('id').maybeSingle();
 
           if (error) throw error;
@@ -1542,7 +1623,8 @@ export default function LogWorkPage() {
           channel: 'Web App',
           is_ot: segment.is_ot,
           is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-          image_urls: attachedImages
+          image_urls: attachedImages,
+          workspace_id: session.activeWorkspaceId
         }).select('id').maybeSingle();
 
         if (error) throw error;
@@ -1648,17 +1730,19 @@ export default function LogWorkPage() {
               </div>
             </div>
 
-            <DropdownField
-              label="ผู้ใช้งานจำลองสิทธิ์ / Simulating User"
-              value={selectedUser}
-              onChange={(v) => setSelectedUser(v)}
-              options={allUsers.map((u) => ({
-                value: u,
-                label: `${u}${u.toLowerCase() === (session.nickname || '').split('_')[0].toLowerCase() ? ' (You)' : ''}`
-              }))}
-              placeholder="เลือกผู้ใช้งาน / Select User"
-              disabled={!isCurrentUserChatchawan}
-            />
+            {isCurrentUserChatchawan && (
+              <DropdownField
+                label="ผู้ใช้งานจำลองสิทธิ์ / Simulating User"
+                value={selectedUser}
+                onChange={(v) => setSelectedUser(v)}
+                options={allUsers.map((u) => ({
+                  value: u,
+                  label: `${u}${u.toLowerCase() === (session.nickname || '').split('_')[0].toLowerCase() ? ' (You)' : ''}`
+                }))}
+                placeholder="เลือกผู้ใช้งาน / Select User"
+                disabled={!isCurrentUserChatchawan}
+              />
+            )}
           </div>
 
           <div className="h-px bg-slate-700/50 w-full mb-8"></div>
@@ -1671,8 +1755,12 @@ export default function LogWorkPage() {
               <div>
                 <label className="block text-xs font-semibold text-theme-text-secondary mb-2">HOLDING</label>
                 <div className="flex flex-wrap gap-2">
-                  {availableHoldings.length === 0 ? (
-                    <span className="text-xs text-theme-text-secondary italic">กำลังโหลด...</span>
+                  {isLoadingMaster ? (
+                    <span className="text-xs text-theme-text-secondary italic animate-pulse">กำลังโหลด...</span>
+                  ) : availableHoldings.length === 0 ? (
+                    <span className="text-xs text-amber-500 font-semibold italic bg-amber-500/5 border border-amber-500/10 px-3.5 py-2 rounded-xl">
+                      ⚠️ ไม่มีข้อมูลโครงการของแผนกคุณในระบบ (สามารถเพิ่มโครงการใหม่ได้ที่หน้า Project Registry)
+                    </span>
                   ) : (
                     availableHoldings.map((h) => {
                       const isSelected = selectedHolding === h;

@@ -9,11 +9,23 @@ type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'm
 
 export default function AdminPage() {
   const { showToast, showConfirm } = useNotification();
+  const [session, setSession] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<TableTab>('holding');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editRow, setEditRow] = useState<any | null>(null);
+
+  useEffect(() => {
+    const sessionStr = localStorage.getItem('worklog_session');
+    if (sessionStr) {
+      const user = JSON.parse(sessionStr);
+      setSession(user);
+      if (user.role !== 'admin' && user.workspaceRole === 'admin') {
+        setActiveTab('templates');
+      }
+    }
+  }, []);
   const [isMobileTabMenuOpen, setIsMobileTabMenuOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<{
     newRows: any[];
@@ -622,10 +634,62 @@ export default function AdminPage() {
     }
   };
 
-  // Load All Master Data from Supabase
   const loadAllData = async () => {
     setIsLoading(true);
+    const sessionStr = localStorage.getItem('worklog_session');
+    const userSession = sessionStr ? JSON.parse(sessionStr) : null;
+    // isSuperAdmin = true only for system-level accounts that have NO workspace assignment.
+    // Workspace admins (role=admin but WITH a workspaceId) should still be scoped to their workspace.
+    const workspaceId = userSession?.activeWorkspaceId;
+    const isSuperAdmin = userSession?.role === 'admin' && (!workspaceId || workspaceId === 'N/A');
+
     try {
+      let useGlobal = true;
+      if (workspaceId) {
+        const { data: wsData } = await supabase.from('workspaces').select('use_global_master').eq('id', workspaceId).maybeSingle();
+        if (wsData) {
+          useGlobal = wsData.use_global_master;
+        }
+      }
+
+      let holdingQuery = supabase.from('tb_master_holding').select('*');
+      let roleQuery = supabase.from('tb_master_role').select('*');
+      let typeQuery = supabase.from('tb_master_project_type').select('*');
+      let actionQuery = supabase.from('tb_master_action').select('*');
+      let userMapQuery = supabase.from('tb_map_user_role').select('*');
+      let projStructQuery = supabase.from('tb_map_project_structure').select('*');
+      let holidayQuery = supabase.from('tb_master_holiday').select('*');
+      let templateQuery = supabase.from('tb_master_worklog_templates').select('*');
+
+      if (!isSuperAdmin && workspaceId) {
+        if (useGlobal) {
+          holdingQuery = holdingQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+          roleQuery = roleQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+          typeQuery = typeQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+          actionQuery = actionQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+          userMapQuery = userMapQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+          projStructQuery = projStructQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+        } else {
+          holdingQuery = holdingQuery.eq('workspace_id', workspaceId);
+          roleQuery = roleQuery.eq('workspace_id', workspaceId);
+          typeQuery = typeQuery.eq('workspace_id', workspaceId);
+          actionQuery = actionQuery.eq('workspace_id', workspaceId);
+          userMapQuery = userMapQuery.eq('workspace_id', workspaceId);
+          projStructQuery = projStructQuery.eq('workspace_id', workspaceId);
+        }
+        templateQuery = templateQuery.eq('workspace_id', workspaceId);
+      }
+
+      let userQuery;
+      if (isSuperAdmin || !workspaceId) {
+        userQuery = supabase.from('users').select('*').order('nickname');
+      } else {
+        userQuery = supabase
+          .from('workspace_users')
+          .select('users(*)')
+          .eq('workspace_id', workspaceId);
+      }
+
       const [
         resHoldings,
         resRoles,
@@ -637,15 +701,15 @@ export default function AdminPage() {
         resHolidays,
         resTemplates
       ] = await Promise.all([
-        supabase.from('tb_master_holding').select('*').order('holding_name'),
-        supabase.from('tb_master_role').select('*').order('role_name'),
-        supabase.from('tb_master_project_type').select('*').order('type_name'),
-        supabase.from('tb_master_action').select('*').order('action_category'),
-        supabase.from('tb_map_user_role').select('*').order('name'),
-        supabase.from('tb_map_project_structure').select('*').order('project_name'),
-        supabase.from('users').select('*').order('nickname'),
-        supabase.from('tb_master_holiday').select('*').order('date', { ascending: false }),
-        supabase.from('tb_master_worklog_templates').select('*').order('template_name')
+        holdingQuery.order('holding_name'),
+        roleQuery.order('role_name'),
+        typeQuery.order('type_name'),
+        actionQuery.order('action_category'),
+        userMapQuery.order('name'),
+        projStructQuery.order('project_name'),
+        userQuery,
+        holidayQuery.order('date', { ascending: false }),
+        templateQuery.order('template_name')
       ]);
 
       if (resHoldings.data) setHoldings(resHoldings.data);
@@ -654,7 +718,13 @@ export default function AdminPage() {
       if (resActions.data) setActions(resActions.data);
       if (resUserMaps.data) setUserMappings(resUserMaps.data);
       if (resProjStructs.data) setProjectStructures(resProjStructs.data);
-      if (resUsers.data) setUsersList(resUsers.data);
+      
+      if (resUsers.data) {
+        const parsed = (isSuperAdmin || !workspaceId)
+          ? resUsers.data
+          : resUsers.data.map((w: any) => w.users).filter((u: any) => u !== null);
+        setUsersList(parsed);
+      }
       if (resHolidays.data) setHolidaysList(resHolidays.data);
       if (resTemplates.data) setTemplatesList(resTemplates.data);
     } catch (err) {
@@ -812,33 +882,39 @@ export default function AdminPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    const workspaceId = session?.activeWorkspaceId;
 
     try {
       if (activeTab === 'holding') {
         if (editRow) {
-          // Master Tables with Text PKs usually require inserting new and deleting old, 
-          // or just simple update if key doesn't change.
           showToast('Note: Cannot modify Primary Key text directly. Delete and recreate if needed.', 'warning');
         } else {
-          const { error } = await supabase.from('tb_master_holding').insert({ holding_name: formHoldingName });
+          const payload: any = { holding_name: formHoldingName };
+          if (workspaceId) payload.workspace_id = workspaceId;
+          const { error } = await supabase.from('tb_master_holding').insert(payload);
           if (error) throw error;
         }
       } else if (activeTab === 'role') {
         if (!editRow) {
-          const { error } = await supabase.from('tb_master_role').insert({ role_name: formRoleName });
+          const payload: any = { role_name: formRoleName };
+          if (workspaceId) payload.workspace_id = workspaceId;
+          const { error } = await supabase.from('tb_master_role').insert(payload);
           if (error) throw error;
         } else {
           showToast('Note: Cannot modify Primary Key text directly. Delete and recreate if needed.', 'warning');
         }
       } else if (activeTab === 'project_type') {
         if (!editRow) {
-          const { error } = await supabase.from('tb_master_project_type').insert({ type_name: formTypeName });
+          const payload: any = { type_name: formTypeName };
+          if (workspaceId) payload.workspace_id = workspaceId;
+          const { error } = await supabase.from('tb_master_project_type').insert(payload);
           if (error) throw error;
         } else {
           showToast('Note: Cannot modify Primary Key text directly. Delete and recreate if needed.', 'warning');
         }
       } else if (activeTab === 'action') {
-        const payload = { action_category: formActionCategory, action_name: formActionName };
+        const payload: any = { action_category: formActionCategory, action_name: formActionName };
+        if (workspaceId) payload.workspace_id = workspaceId;
         if (editRow) {
           const { error } = await supabase.from('tb_master_action').update(payload).eq('id', editRow.id);
           if (error) throw error;
@@ -847,7 +923,13 @@ export default function AdminPage() {
           if (error) throw error;
         }
       } else if (activeTab === 'map_user') {
-        const payload = { name: formMapUserName, holding: formMapHolding, department_operator: formMapRole };
+        if (!formMapUserName) {
+          showToast('กรุณาเลือกพนักงานก่อนบันทึกข้อมูล', 'error');
+          setIsLoading(false);
+          return;
+        }
+        const payload: any = { name: formMapUserName, holding: formMapHolding, department_operator: formMapRole };
+        if (workspaceId) payload.workspace_id = workspaceId;
         if (editRow) {
           const { error } = await supabase.from('tb_map_user_role').update(payload).eq('id', editRow.id);
           if (error) throw error;
@@ -856,7 +938,7 @@ export default function AdminPage() {
           if (error) throw error;
         }
       } else if (activeTab === 'map_project') {
-        const payload = {
+        const payload: any = {
           holding: formStructHolding,
           department_operator: formStructRole,
           project_type: formStructType,
@@ -866,6 +948,7 @@ export default function AdminPage() {
           department: formStructDept,
           project_description: formStructDescription || null
         };
+        if (workspaceId) payload.workspace_id = workspaceId;
         if (editRow) {
           const { error } = await supabase.from('tb_map_project_structure').update(payload).eq('id', editRow.id);
           if (error) throw error;
@@ -890,10 +973,14 @@ export default function AdminPage() {
           if (error) throw error;
         }
       } else if (activeTab === 'holiday') {
-        const payload = {
+        const payload: any = {
           date: formHolidayDate,
           name: formHolidayName
         };
+        if (session?.activeWorkspaceId) {
+          payload.workspace_id = session.activeWorkspaceId;
+        }
+
         if (editRow) {
           const { error } = await supabase.from('tb_master_holiday').update({ name: formHolidayName }).eq('date', editRow.date);
           if (error) throw error;
@@ -902,11 +989,15 @@ export default function AdminPage() {
           if (error) throw error;
         }
       } else if (activeTab === 'templates') {
-        const payload = {
+        const payload: any = {
           template_name: formTemplateName,
           template_content: formTemplateContent,
           icon: formTemplateIcon
         };
+        if (session?.activeWorkspaceId) {
+          payload.workspace_id = session.activeWorkspaceId;
+        }
+
         if (editRow) {
           const { error } = await supabase.from('tb_master_worklog_templates').update(payload).eq('id', editRow.id);
           if (error) throw error;
@@ -921,14 +1012,27 @@ export default function AdminPage() {
       showToast('Record saved successfully!', 'success');
     } catch (err: any) {
       console.error('Error saving record:', err);
-      showToast('Error saving record: ' + err.message, 'error');
+      let errMsg = err.message || '';
+      if (err.code === '23505' || errMsg.includes('duplicate key') || errMsg.includes('unique constraint') || errMsg.includes('already exists')) {
+        errMsg = 'ชื่อนี้ถูกลงทะเบียนไว้ในระบบแล้ว กรุณาเลือกใช้ชื่ออื่นที่แตกต่าง (This name already exists in the system, please use a unique name)';
+      }
+      showToast(errMsg, 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Delete Handler
+      // Delete Handler
   const handleDelete = async (row: any) => {
+    // Workspace admins are scoped — only system-level admin (no workspace) bypasses global-record guard
+    const delWorkspaceId = session?.activeWorkspaceId;
+    const isSuperAdmin = session?.role === 'admin' && (!delWorkspaceId || delWorkspaceId === 'N/A');
+    const isRecordGlobal = !row.workspace_id;
+    if (!isSuperAdmin && isRecordGlobal && activeTab !== 'holiday' && activeTab !== 'users') {
+      showToast('Cannot delete global/system entries / ไม่สามารถลบข้อมูลที่เป็นของส่วนกลางได้', 'error');
+      return;
+    }
+
     const confirmed = await showConfirm({
       title: 'Confirm Delete',
       message: 'Are you sure you want to delete this record? This action cannot be undone.',
@@ -983,6 +1087,36 @@ export default function AdminPage() {
     { key: 'ai_settings', label: 'AI Settings', icon: Sliders },
     { key: 'ai_prompt', label: 'AI Prompts', icon: MessageSquare }
   ];
+
+  const allowedTabs = useMemo(() => {
+    return tabs;
+  }, [tabs]);
+
+  const renderScopeBadge = (row: any) => {
+    if (activeTab === 'holiday' || activeTab === 'users' || activeTab === 'ai_settings' || activeTab === 'ai_prompt') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 shadow-sm">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+          <span>Global (ส่วนกลาง)</span>
+        </span>
+      );
+    }
+    const isGlobal = !row.workspace_id;
+    if (isGlobal) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 shadow-sm">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+          <span>Global (ส่วนกลาง)</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-400/25 shadow-sm">
+        <span className="h-1.5 w-1.5 rounded-full bg-indigo-400"></span>
+        <span>Workspace ({session?.workspaceName || 'กลุ่มนี้'})</span>
+      </span>
+    );
+  };
 
   const filteredData = getFilteredData();
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
@@ -1047,20 +1181,19 @@ export default function AdminPage() {
                   className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-theme-text px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg active:scale-95 text-sm"
                 >
                   <Plus size={16} />
-                  <span>Add Record</span>
+                  <span>Add Entry</span>
                 </button>
               </div>
             )}
           </div>
         </div>
-
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           {/* Navigation/Selector Column */}
           <div className="w-full lg:w-64 shrink-0 space-y-4 lg:sticky lg:top-4 self-start">
             {/* Desktop Tabs: Vertical List */}
             <div className="hidden lg:flex flex-col bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/60 border border-theme-border/50 rounded-2xl p-4 shadow-lg space-y-1 max-h-[calc(100vh-160px)] overflow-y-auto custom-scrollbar">
               <h2 className="px-3 py-2 text-xs font-bold text-theme-text-secondary uppercase tracking-wider mb-2">Master Tables</h2>
-              {tabs.map((tab) => {
+              {allowedTabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
                   <button
@@ -1089,7 +1222,7 @@ export default function AdminPage() {
               >
                 <div className="flex items-center gap-2">
                   {(() => {
-                    const currentTab = tabs.find(t => t.key === activeTab);
+                    const currentTab = allowedTabs.find(t => t.key === activeTab);
                     const CurrentIcon = currentTab?.icon || Database;
                     return (
                       <>
@@ -1107,7 +1240,7 @@ export default function AdminPage() {
                   {/* Backdrop */}
                   <div className="fixed inset-0 z-40" onClick={() => setIsMobileTabMenuOpen(false)} />
                   <div className="absolute left-0 right-0 mt-2 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary border border-theme-border/80 rounded-xl shadow-2xl p-2 z-50 divide-y divide-theme-border/50 max-h-[320px] overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-150">
-                    {tabs.map((tab) => {
+                    {allowedTabs.map((tab) => {
                       const Icon = tab.icon;
                       return (
                         <button
@@ -1273,18 +1406,21 @@ export default function AdminPage() {
                         {activeTab === 'holding' && (
                           <tr>
                             <th className="px-6 py-4 font-semibold">Holding Name</th>
+                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
                         {activeTab === 'role' && (
                           <tr>
                             <th className="px-6 py-4 font-semibold">Role Operator Name</th>
+                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
                         {activeTab === 'project_type' && (
                           <tr>
                             <th className="px-6 py-4 font-semibold">Project Type Name</th>
+                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1292,6 +1428,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">Category</th>
                             <th className="px-6 py-4 font-semibold">Action Name</th>
+                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1300,6 +1437,7 @@ export default function AdminPage() {
                             <th className="px-6 py-4 font-semibold">Name</th>
                             <th className="px-6 py-4 font-semibold">Holding</th>
                             <th className="px-6 py-4 font-semibold">Department Operator (Role)</th>
+                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1307,6 +1445,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">Project & Module</th>
                             <th className="px-6 py-4 font-semibold">Allocation & Context</th>
+                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1314,6 +1453,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">User Profile</th>
                             <th className="px-6 py-4 font-semibold">Affiliation & Role</th>
+                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1321,6 +1461,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">Holiday Date</th>
                             <th className="px-6 py-4 font-semibold">Holiday Name</th>
+                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1329,157 +1470,205 @@ export default function AdminPage() {
                             <th className="px-6 py-4 font-semibold">Icon</th>
                             <th className="px-6 py-4 font-semibold">Template Name</th>
                             <th className="px-6 py-4 font-semibold">Content Preview</th>
+                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
                       </thead>
                       <tbody className="divide-y divide-theme-border/50">
-                        {paginatedData.map((row, idx) => (
-                          <tr key={idx} className="hover:bg-theme-surface-secondary dark:hover:bg-theme-surface-secondary/30 transition-colors">
-                            {activeTab === 'holding' && (
-                              <>
-                                <td className="px-6 py-4 font-bold text-theme-text">{row.holding_name}</td>
-                                <td className="px-6 py-4 text-right space-x-2">
-                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </>
-                            )}
-                            {activeTab === 'role' && (
-                              <>
-                                <td className="px-6 py-4 font-bold text-theme-text">{row.role_name}</td>
-                                <td className="px-6 py-4 text-right space-x-2">
-                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </>
-                            )}
-                            {activeTab === 'project_type' && (
-                              <>
-                                <td className="px-6 py-4 font-bold text-theme-text">{row.type_name}</td>
-                                <td className="px-6 py-4 text-right space-x-2">
-                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </>
-                            )}
-                            {activeTab === 'action' && (
-                              <>
-                                <td className="px-6 py-4 text-theme-text-secondary font-semibold">{row.action_category}</td>
-                                <td className="px-6 py-4 font-bold text-theme-text">{row.action_name}</td>
-                                <td className="px-6 py-4 text-right space-x-2">
-                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
-                                    <Edit2 size={16} />
-                                  </button>
-                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </>
-                            )}
-                            {activeTab === 'map_user' && (
-                              <>
-                                <td className="px-6 py-4 font-bold text-theme-text">{row.name}</td>
-                                <td className="px-6 py-4 text-theme-text-secondary">{row.holding}</td>
-                                <td className="px-6 py-4 text-indigo-400 font-semibold">{row.department_operator}</td>
-                                <td className="px-6 py-4 text-right space-x-2">
-                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
-                                    <Edit2 size={16} />
-                                  </button>
-                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </>
-                            )}
-                            {activeTab === 'map_project' && (
-                              <>
-                                <td className="px-6 py-4">
-                                  <div className="font-bold text-indigo-400 text-sm">{row.project_name}</div>
-                                  {row.module && <div className="text-xs text-theme-text-secondary mt-0.5">Module: {row.module}</div>}
-                                  {row.project_description && <div className="text-[11px] text-theme-text-muted mt-1 italic line-clamp-2 max-w-[200px]" title={row.project_description}>{row.project_description}</div>}
-                                </td>
-                                <td className="px-6 py-4 text-xs space-y-1">
-                                  <div><span className="text-theme-text-muted font-medium">Holding:</span> <span className="text-theme-text font-semibold">{row.holding}</span></div>
-                                  <div><span className="text-theme-text-muted font-medium">Role:</span> <span className="text-indigo-400 font-semibold">{row.department_operator}</span></div>
-                                  <div><span className="text-theme-text-muted font-medium">Type:</span> <span className="text-theme-text">{row.project_type}</span></div>
-                                  <div><span className="text-theme-text-muted font-medium">BU/Dept:</span> <span className="text-theme-text font-medium">{row.bu} / {row.department}</span></div>
-                                </td>
-                                <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
-                                    <Edit2 size={16} />
-                                  </button>
-                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </>
-                            )}
-                            {activeTab === 'users' && (
-                              <>
-                                <td className="px-6 py-4">
-                                  <div className="font-bold text-theme-text flex items-center gap-1.5 flex-wrap">
-                                    <span>{row.full_name}</span>
-                                    {row.nickname && <span className="text-xs font-semibold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded">({row.nickname})</span>}
-                                  </div>
-                                  <div className="text-xs font-mono text-theme-text-secondary mt-0.5">ID: {row.emp_id}</div>
-                                  {row.email && <div className="text-xs text-theme-text-muted mt-0.5 font-medium">{row.email}</div>}
-                                </td>
-                                <td className="px-6 py-4">
-                                  <div className="text-xs text-theme-text-secondary mb-1.5">Dept: <span className="font-bold text-theme-text">{row.department}</span></div>
-                                  <span className={cn(
-                                    "px-2 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap",
-                                    row.role === 'admin' 
-                                      ? "text-amber-400 bg-amber-400/10 border-amber-400/20"
-                                      : "text-theme-text-secondary bg-slate-400/10 border-slate-400/20"
-                                  )}>
-                                    {row.role}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
-                                    <Edit2 size={16} />
-                                  </button>
-                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </>
-                            )}
-                            {activeTab === 'holiday' && (
-                              <>
-                                <td className="px-6 py-4 font-bold text-theme-text font-mono">{row.date}</td>
-                                <td className="px-6 py-4 text-theme-text font-medium">{row.name}</td>
-                                <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
-                                    <Edit2 size={16} />
-                                  </button>
-                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </>
-                            )}
-                            {activeTab === 'templates' && (
-                              <>
-                                <td className="px-6 py-4 text-2xl">{row.icon || '📝'}</td>
-                                <td className="px-6 py-4 font-bold text-theme-text">{row.template_name}</td>
-                                <td className="px-6 py-4 text-theme-text-secondary text-xs max-w-xs truncate">{row.template_content}</td>
-                                <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                                  <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
-                                    <Edit2 size={16} />
-                                  </button>
-                                  <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                    <Trash2 size={16} />
-                                  </button>
-                                </td>
-                              </>
-                            )}
-                          </tr>
-                        ))}
+                        {paginatedData.map((row, idx) => {
+                          const rowWsId = session?.activeWorkspaceId;
+                          const isSuperAdmin = session?.role === 'admin' && (!rowWsId || rowWsId === 'N/A');
+                          const isRecordOwner = row.workspace_id === session?.activeWorkspaceId;
+                          const isSpecialSharedTable = activeTab === 'holiday' || activeTab === 'users';
+                          const canModify = isSuperAdmin || isRecordOwner || isSpecialSharedTable;
+
+                          return (
+                            <tr key={idx} className="hover:bg-theme-surface-secondary dark:hover:bg-theme-surface-secondary/30 transition-colors">
+                              {activeTab === 'holding' && (
+                                <>
+                                  <td className="px-6 py-4 font-bold text-theme-text">{row.holding_name}</td>
+                                  <td className="px-6 py-4">{renderScopeBadge(row)}</td>
+                                  <td className="px-6 py-4 text-right space-x-2">
+                                    {canModify && (
+                                      <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                        <Trash2 size={16} />
+                                      </button>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              {activeTab === 'role' && (
+                                <>
+                                  <td className="px-6 py-4 font-bold text-theme-text">{row.role_name}</td>
+                                  <td className="px-6 py-4">{renderScopeBadge(row)}</td>
+                                  <td className="px-6 py-4 text-right space-x-2">
+                                    {canModify && (
+                                      <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                        <Trash2 size={16} />
+                                      </button>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              {activeTab === 'project_type' && (
+                                <>
+                                  <td className="px-6 py-4 font-bold text-theme-text">{row.type_name}</td>
+                                  <td className="px-6 py-4">{renderScopeBadge(row)}</td>
+                                  <td className="px-6 py-4 text-right space-x-2">
+                                    {canModify && (
+                                      <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                        <Trash2 size={16} />
+                                      </button>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              {activeTab === 'action' && (
+                                <>
+                                  <td className="px-6 py-4 text-theme-text-secondary font-semibold">{row.action_category}</td>
+                                  <td className="px-6 py-4 font-bold text-theme-text">{row.action_name}</td>
+                                  <td className="px-6 py-4">{renderScopeBadge(row)}</td>
+                                  <td className="px-6 py-4 text-right space-x-2">
+                                    {canModify && (
+                                      <>
+                                        <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                          <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              {activeTab === 'map_user' && (
+                                <>
+                                  <td className="px-6 py-4 font-bold text-theme-text">{row.name}</td>
+                                  <td className="px-6 py-4 text-theme-text-secondary">{row.holding}</td>
+                                  <td className="px-6 py-4 text-indigo-400 font-semibold">{row.department_operator}</td>
+                                  <td className="px-6 py-4">{renderScopeBadge(row)}</td>
+                                  <td className="px-6 py-4 text-right space-x-2">
+                                    {canModify && (
+                                      <>
+                                        <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                          <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              {activeTab === 'map_project' && (
+                                <>
+                                  <td className="px-6 py-4">
+                                    <div className="font-bold text-indigo-400 text-sm">{row.project_name}</div>
+                                    {row.module && <div className="text-xs text-theme-text-secondary mt-0.5">Module: {row.module}</div>}
+                                    {row.project_description && <div className="text-[11px] text-theme-text-muted mt-1 italic line-clamp-2 max-w-[200px]" title={row.project_description}>{row.project_description}</div>}
+                                  </td>
+                                  <td className="px-6 py-4 text-xs space-y-1">
+                                    <div><span className="text-theme-text-muted font-medium">Holding:</span> <span className="text-theme-text font-semibold">{row.holding}</span></div>
+                                    <div><span className="text-theme-text-muted font-medium">Role:</span> <span className="text-indigo-400 font-semibold">{row.department_operator}</span></div>
+                                    <div><span className="text-theme-text-muted font-medium">Type:</span> <span className="text-theme-text">{row.project_type}</span></div>
+                                    <div><span className="text-theme-text-muted font-medium">BU/Dept:</span> <span className="text-theme-text font-medium">{row.bu} / {row.department}</span></div>
+                                  </td>
+                                  <td className="px-6 py-4">{renderScopeBadge(row)}</td>
+                                  <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                    {canModify && (
+                                      <>
+                                        <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                          <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              {activeTab === 'users' && (
+                                <>
+                                  <td className="px-6 py-4">
+                                    <div className="font-bold text-theme-text flex items-center gap-1.5 flex-wrap">
+                                      <span>{row.full_name}</span>
+                                      {row.nickname && <span className="text-xs font-semibold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded">({row.nickname})</span>}
+                                    </div>
+                                    <div className="text-xs font-mono text-theme-text-secondary mt-0.5">ID: {row.emp_id}</div>
+                                    {row.email && <div className="text-xs text-theme-text-muted mt-0.5 font-medium">{row.email}</div>}
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="text-xs text-theme-text-secondary mb-1.5">Dept: <span className="font-bold text-theme-text">{row.department}</span></div>
+                                    <span className={cn(
+                                      "px-2 py-0.5 text-xs font-semibold rounded-full border whitespace-nowrap",
+                                      row.role === 'admin' 
+                                        ? "text-amber-400 bg-amber-400/10 border-amber-400/20"
+                                        : "text-theme-text-secondary bg-slate-400/10 border-slate-400/20"
+                                    )}>
+                                      {row.role}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4">{renderScopeBadge(row)}</td>
+                                  <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                    {canModify && (
+                                      <>
+                                        <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                          <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              {activeTab === 'holiday' && (
+                                <>
+                                  <td className="px-6 py-4 font-bold text-theme-text font-mono">{row.date}</td>
+                                  <td className="px-6 py-4 text-theme-text font-medium">{row.name}</td>
+                                  <td className="px-6 py-4">{renderScopeBadge(row)}</td>
+                                  <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                    {canModify && (
+                                      <>
+                                        <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                          <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              {activeTab === 'templates' && (
+                                <>
+                                  <td className="px-6 py-4 text-2xl">{row.icon || '📝'}</td>
+                                  <td className="px-6 py-4 font-bold text-theme-text">{row.template_name}</td>
+                                  <td className="px-6 py-4 text-theme-text-secondary text-xs max-w-xs truncate">{row.template_content}</td>
+                                  <td className="px-6 py-4">{renderScopeBadge(row)}</td>
+                                  <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                    {canModify && (
+                                      <>
+                                        <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                          <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1533,9 +1722,9 @@ export default function AdminPage() {
                 )}
               </div>
             ) : activeTab === 'ai_settings' ? (
-              <AISettingsManager />
+              <AISettingsManager workspaceId={session?.activeWorkspaceId} />
             ) : (
-              <AIPromptsManager />
+              <AIPromptsManager isSuperAdmin={session?.role === 'admin'} />
             )}
           </div>
         </div>
@@ -1647,15 +1836,23 @@ export default function AdminPage() {
               {activeTab === 'map_user' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Employee/User Name</label>
-                    <input 
-                      type="text" 
+                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Employee/User Name (ชื่อพนักงานที่จับคู่)</label>
+                    <select
                       value={formMapUserName}
                       onChange={(e) => setFormMapUserName(e.target.value)}
-                      placeholder="e.g. Jintana"
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-sm"
                       required
-                    />
+                    >
+                      <option value="">-- เลือกพนักงาน --</option>
+                      {usersList.map(u => {
+                        const val = u.nickname || u.full_name;
+                        return (
+                          <option key={u.id} value={val}>
+                            {u.nickname ? `${u.nickname} (${u.full_name || ''})` : u.full_name}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-theme-text-secondary mb-2">Holding</label>
@@ -2559,7 +2756,7 @@ const PROVIDER_PRESET_MODELS: Record<string, { id: string; label: string }[]> = 
   ]
 };
 
-function AISettingsManager() {
+function AISettingsManager({ workspaceId }: { workspaceId?: string }) {
   const { showToast } = useNotification();
   const [configs, setConfigs] = useState<{ [key: string]: string }>({
     ai_provider: 'opencode',
@@ -2584,7 +2781,7 @@ function AISettingsManager() {
 
   useEffect(() => {
     fetchConfigs();
-  }, []);
+  }, [workspaceId]);
 
   useEffect(() => {
     if (configs.ai_provider === 'cloudflare' && configs.cloudflare_account_id && configs.cloudflare_api_token) {
@@ -2598,9 +2795,11 @@ function AISettingsManager() {
     try {
       setLoading(true);
       setDbError(null);
+      const wsId = workspaceId || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
       const { data, error } = await supabase
         .from('tb_system_config')
-        .select('config_key, config_value');
+        .select('config_key, config_value')
+        .eq('workspace_id', wsId);
       
       if (error) throw error;
 
@@ -2613,7 +2812,7 @@ function AISettingsManager() {
       }
     } catch (err: any) {
       console.error('Error fetching AI configs:', err);
-      setDbError('ไม่พบตาราง tb_system_config ในฐานข้อมูลของคุณ กรุณาตรวจสอบให้แน่ใจว่าได้รันการอัปเกรด SQL สำเร็จแล้ว');
+      setDbError('ไม่พบตาราง tb_system_config ในฐานข้อมูลของคุณ หรือไม่มีค่าเริ่มต้นสิทธิเข้าถึง');
     } finally {
       setLoading(false);
     }
@@ -2656,9 +2855,11 @@ function AISettingsManager() {
     e.preventDefault();
     try {
       setSaving(true);
+      const wsId = workspaceId || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
       const rows = Object.entries(configs).map(([key, val]) => ({
         config_key: key,
         config_value: val,
+        workspace_id: wsId
       }));
 
       const { error } = await supabase
@@ -3352,68 +3553,6 @@ function AISettingsManager() {
 // AI PROMPT TEMPLATES MANAGER
 // ─────────────────────────────────────────────────────────────
 
-// const PROMPT_DEFAULTS = {
-//   prompt_enhance_system: `You are an expert HR Coach and Technical Writer helper. Your job is to rewrite raw employee work logs into professional, business-oriented descriptions.`,
-// 
-//   prompt_enhance_user: `Context details:
-// - Project Name: {project_name}
-// - Category/Action: {action_name}
-// - Duration of task: {duration} hours
-// 
-// RAW WORK LOG DESCRIPTION TO REPHRASE:
-// {description}
-// 
-// INSTRUCTION:
-// Politely rephrase this work log in the same language it was written (Thai or English) to sound extremely professional, emphasizing business impact, cost-saving, time efficiency, and strategic execution. Keep it concise (1-3 sentences). Only return the final refined description text. Do not include prefix comments like "Here is the rephrased text:" or similar.`,
-// 
-//   prompt_audit_system: `You are a professional HR diagnostic agent analyzing employee performance and workload. You must STRICTLY return a JSON object containing the exact keys requested. Do not return markdown wrapped JSON blocks.`,
-// 
-//   prompt_audit_user: `[EMPLOYEE PROFILE]
-// Name: {employee_name}
-// Position: {position}
-// Role: {role}
-// Department: {department}
-// 
-// [TARGET JOB DESCRIPTION]
-// {job_description}
-// 
-// [ACTUAL LOGGED WORK DATA (Past {duration_days} Days)]
-// Total effort hours logged: {total_hours} hours
-// Average hours per day: {avg_hours_per_day} hours
-// Key tasks done:
-// {worklog_summary}
-// 
-// INSTRUCTION:
-// Compare the actual logged work data against the employee's Job Description (JD). Assess how aligned their activities are to their core responsibilities, and analyze if they show signs of workload overloading or underutilization.
-// 
-// Strictly return a raw JSON object (no markdown wrapping) matching this schema:
-// {
-//   "jd_alignment_score": integer (0 to 100),
-//   "burnout_risk_score": integer (0 to 100),
-//   "workload_allocation": [
-//     {
-//       "category": "string",
-//       "target_weight_pct": number,
-//       "actual_weight_pct": number,
-//       "evaluation": "Aligned | Overloaded | Underutilized"
-//     }
-//   ],
-//   "strengths": ["string"],
-//   "improvements": ["string"],
-//   "development_plan": {
-//     "short_term_90_days": "string",
-//     "long_term_goals": "string"
-//   },
-//   "markdown_executive_summary": "string (beautifully formatted markdown summary)"
-// }`,
-// };
-
-// const PROMPT_SECTIONS = [
-//   {
-//     id: 'enhance',
-//     label: '✍️ Worklog Enhancement',
-//     description: 'ปรับปรุงการเขียนใบงานให้เป็นมืออาชีพ — AI Polish feature',
-//     color: 'indigo',
 //     fields: [
 //       {
 //         key: 'prompt_enhance_system',
@@ -3451,7 +3590,7 @@ function AISettingsManager() {
 //   },
 // ];
 
-function AIPromptsManager() {
+function AIPromptsManager({ isSuperAdmin }: { isSuperAdmin?: boolean }) {
   const { showToast } = useNotification();
 
   // ── Legacy Worklog Enhancement prompts (tb_system_config) ──────────
@@ -3529,10 +3668,12 @@ INSTRUCTION:
 
   const fetchLegacyPrompts = async () => {
     const keys = Object.keys(LEGACY_DEFAULTS);
+    const wsId = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
     const { data } = await supabase
       .from('tb_system_config')
       .select('config_key, config_value')
-      .in('config_key', keys);
+      .in('config_key', keys)
+      .eq('workspace_id', wsId);
     if (data) {
       const map: { [k: string]: string } = { ...LEGACY_DEFAULTS };
       data.forEach(r => { if (r.config_value) map[r.config_key] = r.config_value; });
@@ -3541,9 +3682,18 @@ INSTRUCTION:
   };
 
   const handleSaveLegacy = async () => {
+    if (!isSuperAdmin) {
+      showToast('คุณไม่มีสิทธิ์แก้ไขข้อมูลส่วนกลาง (View Only Mode)', 'error');
+      return;
+    }
     try {
       setSavingLegacy(true);
-      const rows = Object.entries(legacyPrompts).map(([key, val]) => ({ config_key: key, config_value: val }));
+      const wsId = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
+      const rows = Object.entries(legacyPrompts).map(([key, val]) => ({
+        config_key: key,
+        config_value: val,
+        workspace_id: wsId
+      }));
       const { error } = await supabase.from('tb_system_config').upsert(rows);
       if (error) throw error;
       showToast('บันทึก Worklog Enhancement prompt สำเร็จ', 'success');
@@ -3557,9 +3707,11 @@ INSTRUCTION:
   const fetchTemplates = async () => {
     try {
       setLoadingTemplates(true);
+      const wsId = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
       const { data, error } = await supabase
         .from('tb_ai_prompt_templates')
         .select('*')
+        .eq('workspace_id', wsId)
         .order('sort_order', { ascending: true });
       if (error) throw error;
       setTemplates(data || []);
@@ -3693,23 +3845,27 @@ INSTRUCTION:
                       <p className="text-xs text-theme-text-secondary mt-0.5 line-clamp-1">{tmpl.description}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => handleToggleActive(tmpl)}
-                        className={cn('p-1.5 rounded-lg text-xs font-semibold transition-all border', tmpl.is_active ? 'text-rose-400 border-rose-500/20 hover:bg-rose-500/10' : 'text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10')}
-                        title={tmpl.is_active ? 'Deactivate' : 'Activate'}
-                      >
-                        {tmpl.is_active ? <X size={14} /> : <Check size={14} />}
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (isEditing) { setEditingTemplate(null); setExpandedTemplateId(null); }
-                          else { handleEditTemplate(tmpl); }
-                        }}
-                        className="p-1.5 rounded-lg text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/10 transition-all"
-                        title="Edit Template"
-                      >
-                        <Edit2 size={14} />
-                      </button>
+                      {isSuperAdmin && (
+                        <>
+                          <button
+                            onClick={() => handleToggleActive(tmpl)}
+                            className={cn('p-1.5 rounded-lg text-xs font-semibold transition-all border', tmpl.is_active ? 'text-rose-400 border-rose-500/20 hover:bg-rose-500/10' : 'text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10')}
+                            title={tmpl.is_active ? 'Deactivate' : 'Activate'}
+                          >
+                            {tmpl.is_active ? <X size={14} /> : <Check size={14} />}
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (isEditing) { setEditingTemplate(null); setExpandedTemplateId(null); }
+                              else { handleEditTemplate(tmpl); }
+                            }}
+                            className="p-1.5 rounded-lg text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/10 transition-all"
+                            title="Edit Template"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                        </>
+                      )}
                       <button
                         onClick={() => setExpandedTemplateId(isExpanded && !isEditing ? null : tmpl.id)}
                         className="p-1.5 rounded-lg text-theme-text-secondary border border-theme-border/50 hover:bg-theme-surface-secondary transition-all"
@@ -3843,22 +3999,28 @@ INSTRUCTION:
               <p className="text-xs text-theme-text-secondary mb-2">{field.hint}</p>
               <textarea
                 value={legacyPrompts[field.key] || ''}
-                onChange={e => setLegacyPrompts(p => ({ ...p, [field.key]: e.target.value }))}
+                onChange={e => isSuperAdmin && setLegacyPrompts(p => ({ ...p, [field.key]: e.target.value }))}
+                readOnly={!isSuperAdmin}
                 rows={field.rows}
-                className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-sm font-mono leading-relaxed placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y transition-all"
+                className={cn(
+                  "w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-sm font-mono leading-relaxed placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y transition-all",
+                  !isSuperAdmin && "opacity-75 cursor-default"
+                )}
                 spellCheck={false}
               />
             </div>
           ))}
-          <div className="flex justify-end">
-            <button
-              onClick={handleSaveLegacy}
-              disabled={savingLegacy}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
-            >
-              {savingLegacy ? <><RefreshCw size={14} className="animate-spin" /><span>กำลังบันทึก...</span></> : <><Save size={14} /><span>บันทึก Enhancement Prompt</span></>}
-            </button>
-          </div>
+          {isSuperAdmin && (
+            <div className="flex justify-end">
+              <button
+                onClick={handleSaveLegacy}
+                disabled={savingLegacy}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
+              >
+                {savingLegacy ? <><RefreshCw size={14} className="animate-spin" /><span>กำลังบันทึก...</span></> : <><Save size={14} /><span>บันทึก Enhancement Prompt</span></>}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

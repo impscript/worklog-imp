@@ -418,6 +418,7 @@ export default function ProjectRegistryPage() {
   /* ── State ── */
   const [projects, setProjects] = useState<Project[]>([]);
   const [worklogSummary, setWorklogSummary] = useState<WorklogSummary>({});
+  const [workspaceProjectTypes, setWorkspaceProjectTypes] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -435,10 +436,34 @@ export default function ProjectRegistryPage() {
   const loadProjects = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      const sessionStr = localStorage.getItem('worklog_session');
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
+      const workspaceId = session?.activeWorkspaceId;
+
+      // Load workspace-scoped project types for the form dropdown
+      if (workspaceId) {
+        const { data: typesData } = await supabase
+          .from('tb_master_project_type')
+          .select('type_name')
+          .eq('workspace_id', workspaceId)
+          .order('type_name');
+        if (typesData && typesData.length > 0) {
+          setWorkspaceProjectTypes(typesData.map((t: any) => t.type_name));
+        } else {
+          // Generic fallback — neutral names that work for any organization
+          setWorkspaceProjectTypes(['Project', 'Support', 'Management', 'Event', 'Routine', 'Other']);
+        }
+      }
+
+      let query = supabase
         .from('tb_project_registry')
-        .select('*, parent:parent_project_id(project_name)')
-        .order('project_name');
+        .select('*, parent:parent_project_id(project_name)');
+
+      if (workspaceId) {
+        query = query.eq('workspace_id', workspaceId);
+      }
+
+      const { data, error } = await query.order('project_name');
 
       if (error) throw error;
 
@@ -625,6 +650,10 @@ export default function ProjectRegistryPage() {
 
   const handleSave = async (payload: any) => {
     try {
+      const sessionStr = localStorage.getItem('worklog_session');
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
+      const workspaceId = session?.activeWorkspaceId;
+
       if (editingProject) {
         const { error } = await supabase
           .from('tb_project_registry')
@@ -636,7 +665,10 @@ export default function ProjectRegistryPage() {
       } else {
         const { error } = await supabase
           .from('tb_project_registry')
-          .insert(payload);
+          .insert({
+            ...payload,
+            workspace_id: workspaceId
+          });
 
         if (error) throw error;
         showToast(`เพิ่ม "${payload.project_name}" สำเร็จ ✅`, 'success');
@@ -939,6 +971,7 @@ export default function ProjectRegistryPage() {
         holdings={holdings}
         teams={teams}
         parentOptions={parentOptions}
+        workspaceProjectTypes={workspaceProjectTypes}
         onSave={handleSave}
       />
 
@@ -969,6 +1002,7 @@ interface ProjectFormModalProps {
   holdings: string[];
   teams: string[];
   parentOptions: Project[];
+  workspaceProjectTypes: string[];
   onSave: (payload: any) => Promise<void>;
 }
 
@@ -979,6 +1013,7 @@ const ProjectFormModal = ({
   holdings,
   teams,
   parentOptions,
+  workspaceProjectTypes,
   onSave,
 }: ProjectFormModalProps) => {
   const { showToast } = useNotification();
@@ -1029,10 +1064,19 @@ const ProjectFormModal = ({
   useEffect(() => {
     if (!isOpen) return;
     const fetch = async () => {
-      const { data } = await supabase
+      const sessionStr = localStorage.getItem('worklog_session');
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
+      const workspaceId = session?.activeWorkspaceId;
+
+      let query = supabase
         .from('col_worklog')
-        .select('project_name, module')
-        .order('project_name');
+        .select('project_name, module');
+
+      if (workspaceId) {
+        query = query.eq('workspace_id', workspaceId);
+      }
+
+      const { data } = await query.order('project_name');
       if (data) {
         // Deduplicate by (project_name + module)
         const seen = new Set<string>();
@@ -1260,12 +1304,10 @@ const ProjectFormModal = ({
                     onChange={e => setFormData(p => ({ ...p, worklog_project_type: e.target.value }))}
                     className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border border-indigo-500/30 focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
                   >
-                    <option value="">— ไม่กำหนด (ใช้ร่วมกันได้ทุกประเภทงาน) —</option>
-                    <option value="Project">Project (โครงการ / อัปเกรด)</option>
-                    <option value="Support MA">Support MA (ซ่อมบำรุง / MA)</option>
-                    <option value="Support Go-Live">Support Go-Live (ช่วยเหลือขึ้นระบบ)</option>
-                    <option value="Upgrade">Upgrade</option>
-                    <option value="Management">Management (งานบริหาร / ประชุม)</option>
+                    <option value="">— ไม่กำหนด (ใช้ได้ทุกประเภทงาน) —</option>
+                    {workspaceProjectTypes.map((typeName) => (
+                      <option key={typeName} value={typeName}>{typeName}</option>
+                    ))}
                   </select>
                 </div>
               )}

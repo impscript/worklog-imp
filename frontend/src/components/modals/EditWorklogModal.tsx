@@ -462,17 +462,35 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         cleanName = 'Chatchawan';
       }
 
+      const workspaceId = session?.activeWorkspaceId;
+
+      // Build workspace-scoped queries for all dropdown data
+      let userQuery = supabase.from('tb_map_user_role').select('*').ilike('name', cleanName.trim());
+      let projQuery = supabase.from('tb_map_project_structure').select('*');
+      let actQuery = supabase.from('tb_master_action').select('*');
+      let tplQuery = supabase.from('tb_master_worklog_templates').select('*');
+
+      if (workspaceId) {
+        userQuery = (userQuery as any).eq('workspace_id', workspaceId);
+        projQuery = (projQuery as any).eq('workspace_id', workspaceId);
+        actQuery = (actQuery as any).eq('workspace_id', workspaceId);
+        tplQuery = (tplQuery as any).eq('workspace_id', workspaceId);
+      }
+
       const [resUser, resProj, resAct, resTpl] = await Promise.all([
-        supabase.from('tb_map_user_role').select('*').ilike('name', cleanName.trim()),
-        supabase.from('tb_map_project_structure').select('*'),
-        supabase.from('tb_master_action').select('*'),
-        supabase.from('tb_master_worklog_templates').select('*')
+        userQuery,
+        projQuery,
+        actQuery,
+        tplQuery
       ]);
 
       if (resUser.data && resUser.data.length > 0) {
          setMapUserRole(resUser.data);
       } else {
-        const fallback = await supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
+        // Fallback to Chatchawan within same workspace
+        let fallbackQuery = supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
+        if (workspaceId) fallbackQuery = (fallbackQuery as any).eq('workspace_id', workspaceId);
+        const fallback = await fallbackQuery;
         if (fallback.data) setMapUserRole(fallback.data);
       }
       if (resProj.data) setMapProjectStructure(resProj.data);
@@ -906,6 +924,10 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     if (!log) return;
     setShowConfirmModal(false);
     setIsSubmitting(true);
+    const sessionStr = localStorage.getItem('worklog_session');
+    const sessionObj = sessionStr ? JSON.parse(sessionStr) : null;
+    const workspaceId = sessionObj?.activeWorkspaceId;
+
     try {
       const { ready } = await googleCalendar.checkSessionReady(log.user_id);
       if (!ready) {
@@ -935,7 +957,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             description: description ? `${segment0Prefix} ${description}` : `${segment0.is_ot ? 'OT' : 'Normal'} portion`,
             is_ot: segment0.is_ot,
             is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt,
-            image_urls: attachedImages
+            image_urls: attachedImages,
+            workspace_id: workspaceId
           };
 
           for (let i = 1; i < preview.segments.length; i++) {
@@ -961,7 +984,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               channel: log.channel || 'Web App',
               is_ot: segment.is_ot,
               is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-              image_urls: attachedImages
+              image_urls: attachedImages,
+              workspace_id: workspaceId
             });
           }
         } else {
@@ -990,7 +1014,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             description,
             is_ot: segment.is_ot,
             is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-            image_urls: attachedImages
+            image_urls: attachedImages,
+            workspace_id: workspaceId
           };
         }
 
@@ -1049,7 +1074,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               description: description ? `${segment0Prefix} ${description}` : `${segment0.is_ot ? 'OT' : 'Normal'} portion`,
               is_ot: segment0.is_ot,
               is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt,
-              image_urls: attachedImages
+              image_urls: attachedImages,
+              workspace_id: workspaceId
             })
             .eq('id', log.id);
 
@@ -1085,7 +1111,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               channel: 'Web App',
               is_ot: segment0.is_ot,
               is_implied_ot: segment0.is_ot && !isHolidayDate && !isExplicitOt,
-              image_urls: attachedImages
+              image_urls: attachedImages,
+              workspace_id: workspaceId
             })
             .select('id')
             .maybeSingle();
@@ -1125,7 +1152,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             channel: log.channel || 'Web App',
             is_ot: segment.is_ot,
             is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-            image_urls: attachedImages
+            image_urls: attachedImages,
+            workspace_id: workspaceId
           }).select('id').maybeSingle();
 
           if (errorNew) throw errorNew;
@@ -1168,7 +1196,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               description,
               is_ot: segment.is_ot,
               is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-              image_urls: attachedImages
+              image_urls: attachedImages,
+              workspace_id: workspaceId
             })
             .eq('id', log.id);
 
@@ -1204,7 +1233,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               is_ot: segment.is_ot,
               is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
               image_urls: attachedImages,
-              channel: 'Web App'
+              channel: 'Web App',
+              workspace_id: workspaceId
             })
             .select('id')
             .maybeSingle();

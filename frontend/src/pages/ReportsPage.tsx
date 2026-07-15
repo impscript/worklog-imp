@@ -88,6 +88,7 @@ export default function ReportsPage() {
   const [customEnd, setCustomEnd] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [projectSearch, setProjectSearch] = useState('');
+  const [workspaceProjectTypes, setWorkspaceProjectTypes] = useState<string[]>([]);
 
   // Helper: YYYY-MM-DD format
   const formatDateToYMD = (date: Date) => {
@@ -157,14 +158,30 @@ export default function ReportsPage() {
     try {
       setIsLoading(true);
       
-      // 1. Fetch Users List
-      const { data: usersData, error: usersErr } = await supabase
-        .from('users')
-        .select('*')
-        .order('full_name', { ascending: true });
+      // 1. Fetch Users List filtered by active workspace
+      let userQuery = supabase.from('users').select('*');
+      if (session.activeWorkspaceId) {
+        userQuery = userQuery.eq('active_workspace_id', session.activeWorkspaceId);
+      }
+      const { data: usersData, error: usersErr } = await userQuery.order('full_name', { ascending: true });
 
       if (usersErr) throw usersErr;
       setUsersList(usersData || []);
+
+      // 1b. Fetch workspace project types for Activity Type filter
+      if (session.activeWorkspaceId) {
+        const { data: typesData } = await supabase
+          .from('tb_master_project_type')
+          .select('type_name')
+          .eq('workspace_id', session.activeWorkspaceId)
+          .order('type_name');
+        if (typesData && typesData.length > 0) {
+          setWorkspaceProjectTypes(typesData.map((t: any) => t.type_name));
+        } else {
+          // Fallback for workspaces without custom types
+          setWorkspaceProjectTypes(['Project', 'Upgrade', 'Support MA', 'Support Go-Live', 'Management']);
+        }
+      }
       if (usersData && usersData.length > 0) {
         // Pre-select current logged in user for Individual Analytics
         setSelectedUser(prev => {
@@ -186,6 +203,10 @@ export default function ReportsPage() {
           .select('*')
           .order('work_date', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (session.activeWorkspaceId) {
+          query = query.eq('workspace_id', session.activeWorkspaceId);
+        }
 
         if (dateFilter === 'this-week') {
           query = query
@@ -267,11 +288,9 @@ export default function ReportsPage() {
         if (customEnd && e.work_date > customEnd) return false;
       }
 
-      // 2. Project Type filter
+      // 2. Project Type filter — exact match against workspace-loaded types
       if (typeFilter !== 'all') {
-        if (typeFilter === 'Project' && e.project_type !== 'Project' && e.project_type !== 'Upgrade') return false;
-        if (typeFilter === 'Support' && e.project_type !== 'Support MA' && e.project_type !== 'Support Go-Live') return false;
-        if (typeFilter === 'Management' && e.project_type !== 'Management') return false;
+        if (e.project_type !== typeFilter) return false;
       }
 
       // 3. Project Name Search
@@ -1223,9 +1242,9 @@ export default function ReportsPage() {
               className="bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-semibold"
             >
               <option value="all">All Types</option>
-              <option value="Project">Project / Upgrade</option>
-              <option value="Support">Support MA / Go-Live</option>
-              <option value="Management">Management</option>
+              {workspaceProjectTypes.map((typeName) => (
+                <option key={typeName} value={typeName}>{typeName}</option>
+              ))}
             </select>
           </div>
 

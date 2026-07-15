@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree, MessageSquare, Sparkles } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
@@ -10,11 +10,15 @@ import { useTheme } from '../../context/ThemeContext';
 type SessionUser = { 
   id: string; 
   name: string; 
+  nickname?: string;
   role: string; 
   workspaceRole?: 'admin' | 'manager' | 'user'; 
   empId?: string; 
   activeWorkspaceId?: string;
   workspaceInviteCode?: string;
+  position?: string;
+  department?: string;
+  companyName?: string;
 };
 
 function getSessionUser(): SessionUser | null {
@@ -39,6 +43,130 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(getSessionUser);
   const navigate = useNavigate();
   const { showToast } = useNotification();
+
+  // Onboarding workspace states
+  const [inviteCodeInput, setInviteCodeInput] = useState('');
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [newWorkspaceCode, setNewWorkspaceCode] = useState('');
+  const [isSubmittingWorkspace, setIsSubmittingWorkspace] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState('');
+  const [onboardingTab, setOnboardingTab] = useState<'join' | 'create'>('join');
+
+  const handleJoinWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteCodeInput.trim() || !user) return;
+    setIsSubmittingWorkspace(true);
+    setWorkspaceError('');
+    try {
+      const { data: ws, error: wsErr } = await supabase
+        .from('workspaces')
+        .select('id, workspace_name')
+        .eq('invite_code', inviteCodeInput.trim().toUpperCase())
+        .maybeSingle();
+
+      if (wsErr) throw wsErr;
+      if (!ws) {
+        throw new Error('ไม่พบรหัสเชิญชวนของทีมนี้ / Invite code not found');
+      }
+
+      // Update user
+      const { error: userErr } = await supabase
+        .from('users')
+        .update({ active_workspace_id: ws.id })
+        .eq('id', user.id);
+
+      if (userErr) throw userErr;
+
+      // Add to workspace_users
+      const isManager = /section manager|sec mgr|department manager|dept mgr|head of|director|ผู้จัดการ/i.test(user.position || '');
+      const mappedRole = (isManager ? 'admin' : 'user') as 'admin' | 'manager' | 'user';
+
+      const { error: memberErr } = await supabase
+        .from('workspace_users')
+        .upsert({
+          workspace_id: ws.id,
+          user_id: user.id,
+          role: mappedRole
+        }, { onConflict: 'workspace_id,user_id' });
+
+      if (memberErr) throw memberErr;
+
+      // Update session
+      const updatedSession = {
+        ...user,
+        activeWorkspaceId: ws.id,
+        workspaceInviteCode: inviteCodeInput.trim().toUpperCase(),
+        workspaceRole: mappedRole
+      };
+      localStorage.setItem('worklog_session', JSON.stringify(updatedSession));
+      setUser(updatedSession);
+      showToast(`เข้าร่วมกลุ่ม ${ws.workspace_name} สำเร็จ!`, 'success');
+      window.location.reload();
+    } catch (err: any) {
+      setWorkspaceError(err.message || 'Failed to join workspace');
+    } finally {
+      setIsSubmittingWorkspace(false);
+    }
+  };
+
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWorkspaceName.trim() || !newWorkspaceCode.trim() || !user) return;
+    setIsSubmittingWorkspace(true);
+    setWorkspaceError('');
+    try {
+      const { data: newWs, error: createErr } = await supabase
+        .from('workspaces')
+        .insert({
+          workspace_name: newWorkspaceName.trim(),
+          invite_code: newWorkspaceCode.trim().toUpperCase()
+        })
+        .select('id')
+        .maybeSingle();
+
+      if (createErr) {
+        if (createErr.code === '23505') {
+          throw new Error('ชื่อทีมหรือรหัสเชิญนี้มีอยู่แล้ว / Workspace name or invite code already exists');
+        }
+        throw createErr;
+      }
+      if (!newWs) throw new Error('สร้าง Workspace ไม่สำเร็จ');
+
+      // Update user
+      const { error: userErr } = await supabase
+        .from('users')
+        .update({ active_workspace_id: newWs.id })
+        .eq('id', user.id);
+
+      if (userErr) throw userErr;
+
+      // Add as admin
+      const { error: memberErr } = await supabase
+        .from('workspace_users')
+        .insert({
+          workspace_id: newWs.id,
+          user_id: user.id,
+          role: 'admin'
+        });
+
+      if (memberErr) throw memberErr;
+
+      const updatedSession = {
+        ...user,
+        activeWorkspaceId: newWs.id,
+        workspaceInviteCode: newWorkspaceCode.trim().toUpperCase(),
+        workspaceRole: 'admin' as 'admin' | 'manager' | 'user'
+      };
+      localStorage.setItem('worklog_session', JSON.stringify(updatedSession));
+      setUser(updatedSession);
+      showToast(`สร้างและเข้าร่วมกลุ่ม ${newWorkspaceName} สำเร็จ!`, 'success');
+      window.location.reload();
+    } catch (err: any) {
+      setWorkspaceError(err.message || 'Failed to create workspace');
+    } finally {
+      setIsSubmittingWorkspace(false);
+    }
+  };
 
   // Self-healing check: if workspaceInviteCode is missing in active session, fetch it dynamically
   useEffect(() => {
@@ -73,7 +201,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const isWorkspaceAdmin = user.workspaceRole === 'admin';
     const isWorkspaceManager = user.workspaceRole === 'manager';
 
-    if (path === '/admin' && !isSuperAdmin) {
+    if (path === '/admin' && !(isSuperAdmin || isWorkspaceAdmin)) {
       showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
       navigate('/');
     }
@@ -322,7 +450,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <NavItem to="/migrate" icon={<UploadCloud size={18} />} label="Data Migration" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
             
-            {user?.role === 'admin' && (
+            {(user?.role === 'admin' || user?.workspaceRole === 'admin') && (
               <NavItem to="/admin" icon={<Database size={18} />} label="Master Data" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
             
@@ -431,7 +559,132 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto p-4 md:p-8">
-          {children}
+          {user && (!user.activeWorkspaceId || user.activeWorkspaceId === 'N/A') && window.location.pathname !== '/profile' ? (
+            <div className="max-w-md mx-auto my-12 p-8 ai-glass rounded-3xl border border-indigo-500/20 shadow-2xl space-y-6">
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                  <Sparkles size={24} className="animate-pulse" />
+                </div>
+                <h2 className="text-xl font-extrabold text-theme-text tracking-tight">
+                  จัดตั้งห้องทำงานของคุณ / Workspace Setup
+                </h2>
+                <p className="text-xs text-theme-text-muted">
+                  ตรวจพบประวัติพนักงานของคุณแล้ว แต่ยังไม่มีกลุ่มทำงานสังกัดในระบบ กรุณากรอกรหัสเชิญชวนของทีมคุณ หรือขอจดทะเบียนทีมงานใหม่
+                </p>
+              </div>
+
+              {workspaceError && (
+                <div className="p-3 bg-red-500/5 border border-red-500/15 rounded-xl text-red-400 text-xs font-semibold text-center">
+                  {workspaceError}
+                </div>
+              )}
+
+              {/* Tabs */}
+              <div className="flex border-b border-theme-border/60 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setOnboardingTab('join')}
+                  className={cn(
+                    "flex-1 py-2 text-xs font-extrabold transition-all border-b-2",
+                    onboardingTab === 'join' ? "border-indigo-500 text-indigo-500" : "border-transparent text-theme-text-muted"
+                  )}
+                >
+                  เข้าร่วมกลุ่ม (Join Team)
+                </button>
+                {/* Only managers or super admins can create workspaces */}
+                {(user.role === 'admin' || /section manager|sec mgr|department manager|dept mgr|head of|director|ผู้จัดการ/i.test(user.position || '')) && (
+                  <button
+                    type="button"
+                    onClick={() => setOnboardingTab('create')}
+                    className={cn(
+                      "flex-1 py-2 text-xs font-extrabold transition-all border-b-2",
+                      onboardingTab === 'create' ? "border-indigo-500 text-indigo-500" : "border-transparent text-theme-text-muted"
+                    )}
+                  >
+                    สร้างกลุ่มใหม่ (Create Team)
+                  </button>
+                )}
+              </div>
+
+              {onboardingTab === 'join' ? (
+                <form onSubmit={handleJoinWorkspace} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">
+                      รหัสเชิญชวนเข้ากลุ่ม (Invite Code)
+                    </label>
+                    <input
+                      type="text"
+                      value={inviteCodeInput}
+                      onChange={(e) => setInviteCodeInput(e.target.value)}
+                      placeholder="ตัวอย่าง: IMP-TEAM-99"
+                      className="w-full bg-theme-bg-page/60 border border-theme-border rounded-xl py-3 px-4 text-theme-text placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingWorkspace}
+                    className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-extrabold uppercase tracking-wider text-xs rounded-xl py-3 flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/10 transition-all cursor-pointer"
+                  >
+                    {isSubmittingWorkspace ? 'กำลังตรวจสอบ...' : 'เข้าร่วม Workspace'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleCreateWorkspace} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">
+                      ชื่อกลุ่มงาน / แผนก (Workspace Name)
+                    </label>
+                    <input
+                      type="text"
+                      value={newWorkspaceName}
+                      onChange={(e) => setNewWorkspaceName(e.target.value)}
+                      placeholder="ตัวอย่าง: Real Estate Marketing"
+                      className="w-full bg-theme-bg-page/60 border border-theme-border rounded-xl py-3 px-4 text-theme-text placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">
+                      รหัสคำเชิญใหม่ (Custom Invite Code)
+                    </label>
+                    <input
+                      type="text"
+                      value={newWorkspaceCode}
+                      onChange={(e) => setNewWorkspaceCode(e.target.value)}
+                      placeholder="ตัวอย่าง: RE-MKT-99"
+                      className="w-full bg-theme-bg-page/60 border border-theme-border rounded-xl py-3 px-4 text-theme-text placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-sm"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingWorkspace}
+                    className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-extrabold uppercase tracking-wider text-xs rounded-xl py-3 flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/10 transition-all cursor-pointer"
+                  >
+                    {isSubmittingWorkspace ? 'กำลังสร้าง...' : 'สร้างและเชื่อมต่อ Workspace'}
+                  </button>
+                </form>
+              )}
+
+              {/* Detected HRMS Stats Card */}
+              <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-2 text-[11px]">
+                <p className="font-bold text-slate-400 uppercase tracking-widest">
+                  ข้อมูลโปรไฟล์ทางการของคุณ (HRMS Profile)
+                </p>
+                <div className="grid grid-cols-2 gap-y-1 text-slate-300 font-medium">
+                  <div className="text-slate-400">รหัสพนักงาน:</div>
+                  <div className="font-mono text-indigo-400">{user.empId || 'N/A'}</div>
+                  <div className="text-slate-400">ตำแหน่งงาน:</div>
+                  <div className="text-slate-200">{user.position || 'N/A'}</div>
+                  <div className="text-slate-400">หน่วยงาน (BU):</div>
+                  <div className="text-slate-200">{user.department || 'N/A'}</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            children
+          )}
         </div>
       </main>
     </div>

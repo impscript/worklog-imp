@@ -80,11 +80,21 @@ export default function LeaderboardPage() {
       try {
         setIsLoading(true);
 
-        // 1. Fetch real users
-        const { data: users, error: userErr } = await supabase
+        const sessionStr = localStorage.getItem('worklog_session');
+        const session = sessionStr ? JSON.parse(sessionStr) : null;
+        const activeWorkspaceId = session?.activeWorkspaceId;
+
+        // 1. Fetch real users filtered by active workspace
+        let userQuery = supabase
           .from('users')
           .select('id, full_name, department, nickname, emp_id')
           .eq('status', 'Active');
+
+        if (activeWorkspaceId) {
+          userQuery = userQuery.eq('active_workspace_id', activeWorkspaceId);
+        }
+
+        const { data: users, error: userErr } = await userQuery;
         
         if (userErr) throw userErr;
 
@@ -94,12 +104,18 @@ export default function LeaderboardPage() {
         const startOfTimeRange = `${startOfMonth}T00:00:00+07:00`;
         const endOfTimeRange = `${endOfMonth}T23:59:59+07:00`;
 
-        // 2. Fetch real worklogs filtered by selected month
-        const { data: logs, error: logErr } = await supabase
+        // 2. Fetch real worklogs filtered by selected month and workspace_id
+        let logQuery = supabase
           .from('col_worklog')
           .select('user_id, work_date, total_hours, created_at')
           .gte('work_date', startOfMonth)
           .lte('work_date', endOfMonth);
+
+        if (activeWorkspaceId) {
+          logQuery = logQuery.eq('workspace_id', activeWorkspaceId);
+        }
+
+        const { data: logs, error: logErr } = await logQuery;
 
         if (logErr) throw logErr;
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import md5 from 'js-md5';
+import { MOCK_USERS } from '../lib/mockUsers';
 
 export interface UserSession {
   id: string;
@@ -48,10 +49,15 @@ export function useAuth() {
       let position = '';
       let empId = '';
 
+      // Check if it matches a mock user simulation
+      const mockUser = import.meta.env.DEV
+        ? MOCK_USERS.find(u => u.emp_id === username || u.nickname.toLowerCase() === username.toLowerCase() || (password === 'mock_bypass' && u.emp_id === username))
+        : null;
+
       // ==========================================
       // Mode 1: Local / Developer Staging Auth
       // ==========================================
-      if (import.meta.env.DEV && !password) {
+      if (import.meta.env.DEV && !password && !mockUser) {
         // --- Simulated (no password) — quick dev iteration ---
         console.log('[DEV SIMULATED] No password, using simulated auth...', { username });
         await new Promise((resolve) => setTimeout(resolve, 600));
@@ -93,57 +99,106 @@ export function useAuth() {
       }
       // ==========================================
       // Mode 2: Live Enterprise IDMS/HRMS Auth
-      // (PROD always, DEV when password is provided)
       // ==========================================
       else {
-        const modeLabel = import.meta.env.DEV ? '[DEV+REAL API]' : '[PROD]';
+        const isMockSimulation = !!mockUser;
+        const modeLabel = isMockSimulation ? '[MOCK SIMULATION]' : (import.meta.env.DEV ? '[DEV+REAL API]' : '[PROD]');
         console.log(`${modeLabel} Routing handshake to HRMS/IDMS proxy gateway...`);
 
-        if (!password) {
+        if (!password && !isMockSimulation) {
           throw new Error('Please enter a password');
         }
 
-        // 1. Authenticate with IDMS
-        const agentId = import.meta.env.VITE_IDMS_AGENT_ID || 'SystemMango';
-        const agentCode = import.meta.env.VITE_IDMS_AGENT_CODE || 'Np4kfRh5';
-        const serviceCode = import.meta.env.VITE_IDMS_SERVICE_CODE || '0000';
-        const hashedPassword = (md5 as any)(password);
+        if (isMockSimulation && mockUser) {
+          empId = mockUser.emp_id;
+          employeeData = {
+            EmpName: mockUser.full_name,
+            EMail: mockUser.email,
+            Department: mockUser.department,
+            Position: mockUser.position,
+            Sim_Number: mockUser.phone || '',
+            Emp_BUWorking: mockUser.bu_working,
+            Emp_LineOfWork: mockUser.line_of_work,
+            CompanyName: mockUser.company_name,
+            LevelName: mockUser.level_name || 'Senior',
+            Company_Code: '',
+            StartDate: '2023-06-12T00:00:00.000Z' // Default fallback date for this user
+          };
 
-        const idmsUrl = `/api/idms/authentication/?account=${encodeURIComponent(username)}&password=${encodeURIComponent(hashedPassword)}&Service=${serviceCode}&AgentId=${agentId}&AgentCode=${agentCode}`;
-        
-        let authText = '';
-        try {
-          const authRes = await fetch(idmsUrl);
-          authText = await authRes.text();
-        } catch (fetchErr: any) {
-          throw new Error('ไม่สามารถเชื่อมต่อระบบ HRMS ได้ (Proxy Error)');
-        }
-
-        let empId: string | null = null;
-        let isSuccess = false;
-        
-        try {
-          const authData = JSON.parse(authText);
-          isSuccess = authData.Result === 'OK' || authData.status === 'success' || authData.Status === 'Success' || authData.Code === 200 || authData.code === '200';
-          empId = authData.EmpId || authData.emp_id || authData.EmpID || authData.EmpId?.trim() || null;
-          if (empId === '0') {
-            isSuccess = false;
-            empId = null;
+          // Try to fetch real HRMS profile to get the absolute real StartDate from API
+          try {
+            const hrmsRes = await fetch(`/api/hrms/employee/${empId}`);
+            if (hrmsRes.ok) {
+              const hrmsText = await hrmsRes.text();
+              const hrmsData = JSON.parse(hrmsText);
+              const realEmp = hrmsData?.data?.employee || hrmsData || null;
+              if (realEmp) {
+                employeeData = realEmp;
+              }
+            }
+          } catch (err) {
+            console.warn('[MOCK] Failed to fetch real HRMS profile fallback, using mock template', err);
           }
-        } catch {
-          if (authText.includes('OK') || authText.includes('Success') || authText.includes('true')) {
-            isSuccess = true;
-            const match = authText.match(/EmpId["']?\s*[:=]\s*["']?(\d+)/i);
-            if (match) empId = match[1];
+          console.log(`${modeLabel} Prepared mock/fetched profile:`, employeeData);
+        } else {
+          // 1. Authenticate with IDMS
+          const agentId = import.meta.env.VITE_IDMS_AGENT_ID || 'SystemMango';
+          const agentCode = import.meta.env.VITE_IDMS_AGENT_CODE || 'Np4kfRh5';
+          const serviceCode = import.meta.env.VITE_IDMS_SERVICE_CODE || '0000';
+          const hashedPassword = (md5 as any)(password);
+
+          const idmsUrl = `/api/idms/authentication/?account=${encodeURIComponent(username)}&password=${encodeURIComponent(hashedPassword)}&Service=${serviceCode}&AgentId=${agentId}&AgentCode=${agentCode}`;
+          
+          let authText = '';
+          try {
+            const authRes = await fetch(idmsUrl);
+            authText = await authRes.text();
+          } catch (fetchErr: any) {
+            throw new Error('ไม่สามารถเชื่อมต่อระบบ HRMS ได้ (Proxy Error)');
+          }
+
+          let fetchedEmpId: string | null = null;
+          let isSuccess = false;
+          
+          try {
+            const authData = JSON.parse(authText);
+            isSuccess = authData.Result === 'OK' || authData.status === 'success' || authData.Status === 'Success' || authData.Code === 200 || authData.code === '200';
+            fetchedEmpId = authData.EmpId || authData.emp_id || authData.EmpID || authData.EmpId?.trim() || null;
+            if (fetchedEmpId === '0') {
+              isSuccess = false;
+              fetchedEmpId = null;
+            }
+          } catch {
+            if (authText.includes('OK') || authText.includes('Success') || authText.includes('true')) {
+              isSuccess = true;
+              const match = authText.match(/EmpId["']?\s*[:=]\s*["']?(\d+)/i);
+              if (match) fetchedEmpId = match[1];
+            }
+          }
+
+          if (!isSuccess || !fetchedEmpId) {
+            console.error('IDMS Raw Response:', authText);
+            throw new Error('ชื่อผู้ใช้หรือรหัสผ่านของระบบ IDMS ไม่ถูกต้อง');
+          }
+
+          empId = fetchedEmpId;
+          console.log(`${modeLabel} IDMS auth OK — EmpId: ${empId}`);
+
+          // 2. Fetch Employee Data from HRMS
+          try {
+            const hrmsRes = await fetch(`/api/hrms/employee/${empId}`);
+            if (hrmsRes.ok) {
+              const hrmsText = await hrmsRes.text();
+              const hrmsData = JSON.parse(hrmsText);
+              employeeData = hrmsData?.data?.employee || hrmsData || null;
+              console.log(`${modeLabel} HRMS profile fetched:`, employeeData);
+            } else {
+              console.warn(`${modeLabel} HRMS API returned status: ${hrmsRes.status}`);
+            }
+          } catch (err) {
+            console.warn('Failed to fetch full employee profile from HRMS:', err);
           }
         }
-
-        if (!isSuccess || !empId) {
-          console.error('IDMS Raw Response:', authText);
-          throw new Error('ชื่อผู้ใช้หรือรหัสผ่านของระบบ IDMS ไม่ถูกต้อง');
-        }
-
-        console.log(`${modeLabel} IDMS auth OK — EmpId: ${empId}`);
 
         // 1.5 Fetch existing user record from database (if any) to preserve cached values if API fails
         const { data: existingUser } = await supabase
@@ -151,22 +206,6 @@ export function useAuth() {
           .select('*')
           .eq('emp_id', empId)
           .maybeSingle();
-
-        // 2. Fetch Employee Data from HRMS
-        let employeeData: any = null;
-        try {
-          const hrmsRes = await fetch(`/api/hrms/employee/${empId}`);
-          if (hrmsRes.ok) {
-            const hrmsText = await hrmsRes.text();
-            const hrmsData = JSON.parse(hrmsText);
-            employeeData = hrmsData?.data?.employee || hrmsData || null;
-            console.log(`${modeLabel} HRMS profile fetched:`, employeeData);
-          } else {
-            console.warn(`${modeLabel} HRMS API returned status: ${hrmsRes.status}`);
-          }
-        } catch (err) {
-          console.warn('Failed to fetch full employee profile from HRMS:', err);
-        }
 
         // Map data from HRMS response with fallback to existing DB record, then to hardcoded defaults
         empId = empId || '';
@@ -335,7 +374,12 @@ export function useAuth() {
       }
 
       // Success - Save session state
-      const sessionObj: UserSession = {
+      const sessionObj: UserSession & { 
+        role_start_date?: string; 
+        employee_level?: string; 
+        company_name?: string; 
+        manager_name?: string; 
+      } = {
         id: userRecord.id,
         empId: userRecord.emp_id,
         name: userRecord.full_name,
@@ -346,7 +390,11 @@ export function useAuth() {
         position: userRecord.position,
         email: userRecord.email,
         activeWorkspaceId: userRecord.active_workspace_id || undefined,
-        workspaceInviteCode: workspaceInviteCode || undefined
+        workspaceInviteCode: workspaceInviteCode || undefined,
+        role_start_date: userRecord.role_start_date || undefined,
+        employee_level: userRecord.employee_level || undefined,
+        company_name: userRecord.company_name || undefined,
+        manager_name: userRecord.manager_name || undefined
       };
 
       localStorage.setItem('worklog_session', JSON.stringify(sessionObj));
