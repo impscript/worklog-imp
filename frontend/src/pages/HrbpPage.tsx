@@ -716,11 +716,16 @@ export default function HrbpPage() {
     const targetPos = customPosition || selectedUserInfo?.position || '';
     setIsRecommendingJd(true);
     try {
+      const sessionStr = localStorage.getItem('worklog_session');
+      const sessionData = sessionStr ? JSON.parse(sessionStr) : null;
+      const wsId = sessionData?.activeWorkspaceId;
+
       const { data, error } = await supabase.functions.invoke('analyze-performance', {
         body: {
           action: 'recommend_jd',
           position: targetPos || 'General Staff',
           target_weights: keyResponsibilities,
+          workspace_id: wsId,
         }
       });
 
@@ -945,6 +950,10 @@ export default function HrbpPage() {
         { time: new Date().toLocaleTimeString(), message: `Connecting to ${providerName}: invoking model "${activeModel}"...`, type: 'info' }
       ]);
 
+      const sessionStr = localStorage.getItem('worklog_session');
+      const sessionData = sessionStr ? JSON.parse(sessionStr) : null;
+      const wsId = sessionData?.activeWorkspaceId;
+
       const { data, error } = await supabase.functions.invoke('analyze-performance', {
         body: {
           user_id: selectedUser,
@@ -954,7 +963,8 @@ export default function HrbpPage() {
           template_id: templateId,
           cadence_type: cadenceType === 'auto' ? undefined : cadenceType,
           employee_level: employeeLevel || undefined,
-          manager_name: managerName || undefined
+          manager_name: managerName || undefined,
+          workspace_id: wsId,
         }
       });
 

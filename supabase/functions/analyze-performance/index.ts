@@ -402,36 +402,45 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Resolve workspace ID from User ID or request headers
-    let userId = null;
-    const authHeader = req.headers.get('Authorization');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-          userId = payload.sub || null;
-        }
-      } catch (err) {
-        console.warn('Error decoding JWT payload in Edge Function:', err);
-      }
-    }
-    
-    // Fallback to request body user_id
-    if (!userId && body.user_id) {
-      userId = body.user_id;
-    }
-
+    // ── Resolve Workspace ID ─────────────────────────────────────────────────
+    // Priority: 1) Explicit workspace_id in body (most reliable for mock/HRMS logins)
+    //           2) JWT sub → users.active_workspace_id lookup
+    //           3) Default IMP workspace
     let workspaceId = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001'; // Default IMP Workspace UUID
-    if (userId) {
-      const { data: userProfile } = await supabase
-        .from('users')
-        .select('active_workspace_id')
-        .eq('id', userId)
-        .maybeSingle();
-      if (userProfile?.active_workspace_id) {
-        workspaceId = userProfile.active_workspace_id;
+
+    if (body.workspace_id) {
+      // Explicit workspace_id sent from frontend — most reliable signal
+      workspaceId = body.workspace_id;
+      console.log(`[WS] Using explicit workspace_id from body: ${workspaceId}`);
+    } else {
+      // Try to resolve from JWT sub → users table
+      let userId = null;
+      const authHeader = req.headers.get('Authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+            userId = payload.sub || null;
+          }
+        } catch (err) {
+          console.warn('Error decoding JWT payload in Edge Function:', err);
+        }
+      }
+      // Fallback to body.user_id if JWT gave nothing
+      if (!userId && body.user_id) userId = body.user_id;
+
+      if (userId) {
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('active_workspace_id')
+          .eq('id', userId)
+          .maybeSingle();
+        if (userProfile?.active_workspace_id) {
+          workspaceId = userProfile.active_workspace_id;
+          console.log(`[WS] Resolved workspace_id from JWT user: ${workspaceId}`);
+        }
       }
     }
 

@@ -1292,7 +1292,8 @@ export default function LogWorkPage() {
           description: description,
           project_name: projectName,
           action_name: actionName,
-          duration: preview.normalHours + preview.otHours
+          duration: preview.normalHours + preview.otHours,
+          workspace_id: session?.activeWorkspaceId,
         }
       });
 
@@ -1350,7 +1351,8 @@ export default function LogWorkPage() {
           action: 'classify_work_description',
           description: description,
           workspace_projects: allowedProjects,
-          master_actions: masterActions
+          master_actions: masterActions,
+          workspace_id: session?.activeWorkspaceId,
         }
       });
 

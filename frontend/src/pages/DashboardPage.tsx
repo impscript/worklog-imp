@@ -171,12 +171,16 @@ export default function DashboardPage() {
       const range = getAnalysisDateRange();
       setAnalysisLogs(prev => [...prev, `Requesting AI review from ${range.start} to ${range.end}...`]);
       
+      const sessionStr = localStorage.getItem('worklog_session');
+      const sessionData = sessionStr ? JSON.parse(sessionStr) : null;
+
       const { error } = await supabase.functions.invoke('analyze-performance', {
         body: {
           user_id: user.id,
           start_date: range.start,
           end_date: range.end,
-          force_refresh: true
+          force_refresh: true,
+          workspace_id: sessionData?.activeWorkspaceId,
         }
       });
 
