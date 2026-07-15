@@ -441,7 +441,7 @@ serve(async (req) => {
       .select('config_key, config_value')
       .eq('workspace_id', workspaceId);
 
-    if (configError) throw new Error('Cannot read AI config: ' + configError.message);
+    if (configError) throw new Error('ไม่สามารถอ่านข้อมูลการตั้งค่า AI ของ Workspace ได้ กรุณาลองใหม่อีกครั้งหรือติดต่อผู้ดูแลระบบ');
 
     const configs: Record<string, string> = {};
     if (configsData) {
@@ -471,11 +471,11 @@ serve(async (req) => {
       apiKey = configs.cloudflare_api_token;
       // Use Cloudflare OpenAI-compatible endpoint (supports chat/completions format)
       endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
-      if (!accountId) throw new Error('ไม่พบข้อมูล Cloudflare Account ID สำหรับ Workspace นี้ กรุณาตั้งค่าที่เมนู Admin → AI Settings');
+      if (!accountId) throw new Error('ไม่พบข้อมูล Cloudflare Account ID สำหรับ Workspace นี้ กรุณาติดต่อผู้ดูแลระบบ (Admin) เพื่อทำการตั้งค่าที่เมนู Admin → AI Settings');
     }
 
     if (!apiKey) {
-      throw new Error(`ยังไม่ได้กำหนดค่า API Key สำหรับผู้ให้บริการ "${provider}" บน Workspace นี้ กรุณาไปตั้งค่าที่เมนู Admin → AI Settings`);
+      throw new Error(`Workspace นี้ยังไม่ได้ตั้งค่าเชื่อมต่อระบบ AI (ไม่พบ API Key สำหรับผู้ให้บริการ ${provider}) กรุณาติดต่อผู้ดูแลระบบ (Admin) ให้ระบุคีย์ผ่านเมนู 'ตั้งค่า AI' (Admin → AI Settings)`);
     }
 
     const llmHeaders: Record<string, string> = {
@@ -862,7 +862,7 @@ Task instructions:
 
     if (templateErr) throw new Error(`Template query error: ${templateErr.message}`);
     if (!template) {
-      throw new Error(`Prompt template "${template_id}" not found or inactive. Please check Admin → AI Prompts.`);
+      throw new Error(`ไม่พบรูปแบบการวิเคราะห์ "${template_id}" หรือรูปแบบดังกล่าวถูกปิดใช้งานอยู่ กรุณาติดต่อผู้ดูแลระบบ (Admin) เพื่อตรวจสอบที่เมนู Admin → AI Prompts`);
     }
 
     // Log Aggregation
