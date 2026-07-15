@@ -107,8 +107,24 @@ export default function HrbpPage() {
   const [isRecommendingJd, setIsRecommendingJd] = useState<boolean>(false);
 
   // Date Filters
-  const [dateFilter, setDateFilter] = useState<'this-week' | 'this-month' | 'this-quarter' | 'this-year' | 'quarters'>('this-month');
+  const [dateFilter, setDateFilter] = useState<'this-week' | 'this-month' | 'this-quarter' | 'this-year' | 'quarters' | 'custom'>('this-month');
   const [selectedQuarters, setSelectedQuarters] = useState<number[]>([Math.floor(new Date().getMonth() / 3) + 1]);
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const y = firstDay.getFullYear();
+    const m = String(firstDay.getMonth() + 1).padStart(2, '0');
+    const d = String(firstDay.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  });
+  const [customEndDate, setCustomEndDate] = useState<string>(() => {
+    const today = new Date();
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const y = lastDay.getFullYear();
+    const m = String(lastDay.getMonth() + 1).padStart(2, '0');
+    const d = String(lastDay.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  });
 
   // Diagnostic Logs & Progress
   const [isAiAnalyzing, setIsAiAnalyzing] = useState<boolean>(false);
@@ -358,7 +374,7 @@ export default function HrbpPage() {
     if (selectedUser && !isSharedView) {
       loadJdAndAnalysis();
     }
-  }, [selectedUser, dateFilter, selectedQuarters, templateId]);
+  }, [selectedUser, dateFilter, selectedQuarters, templateId, customStartDate, customEndDate]);
 
   // Load historical diagnostic entries
   const loadAnalysisHistory = async () => {
@@ -402,6 +418,10 @@ export default function HrbpPage() {
       const qRange = getQuartersDateRange();
       startDate = qRange.start;
       endDate = qRange.end;
+    } else if (dateFilter === 'custom') {
+      if (!customStartDate || !customEndDate) return;
+      startDate = customStartDate;
+      endDate = customEndDate;
     } else {
       startDate = dateBoundaries.month.start;
       endDate = dateBoundaries.month.end;
@@ -870,6 +890,13 @@ export default function HrbpPage() {
       const qRange = getQuartersDateRange();
       startDate = qRange.start;
       endDate = qRange.end;
+    } else if (dateFilter === 'custom') {
+      if (!customStartDate || !customEndDate) {
+        showToast('กรุณาระบุช่วงเริ่มต้นและสิ้นสุดของช่วงเวลา', 'warning');
+        return;
+      }
+      startDate = customStartDate;
+      endDate = customEndDate;
     } else {
       startDate = dateBoundaries.month.start;
       endDate = dateBoundaries.month.end;
@@ -1705,7 +1732,7 @@ export default function HrbpPage() {
                     </h3>
 
                     <div className="grid grid-cols-2 gap-2">
-                      {(['this-week', 'this-month', 'this-quarter', 'this-year', 'quarters'] as const).map((filter) => (
+                      {(['this-week', 'this-month', 'this-quarter', 'this-year', 'quarters', 'custom'] as const).map((filter) => (
                         <button
                           key={filter}
                           onClick={() => {
@@ -1714,7 +1741,6 @@ export default function HrbpPage() {
                           }}
                           className={cn(
                             "px-3 py-2 rounded-xl text-[10px] font-extrabold uppercase transition-all tracking-wider border",
-                            filter === 'quarters' ? "col-span-2" : "",
                             dateFilter === filter
                               ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
                               : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-transparent hover:border-theme-border hover:text-theme-text"
@@ -1724,10 +1750,44 @@ export default function HrbpPage() {
                           {filter === 'this-month' && 'เดือนนี้'}
                           {filter === 'this-quarter' && 'ไตรมาสนี้'}
                           {filter === 'this-year' && 'ปีนี้'}
-                          {filter === 'quarters' && 'เลือกช่วงไตรมาส (Q1 - Q4)'}
+                          {filter === 'quarters' && 'เลือกไตรมาส (Q1 - Q4)'}
+                          {filter === 'custom' && 'กำหนดช่วงเวลาเอง'}
                         </button>
                       ))}
                     </div>
+
+                    {dateFilter === 'custom' && (
+                      <div className="grid grid-cols-2 gap-3 pt-2 animate-in fade-in duration-200">
+                        <div>
+                          <label className="block text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold mb-1">
+                            วันที่เริ่มต้น
+                          </label>
+                          <input
+                            type="date"
+                            value={customStartDate}
+                            onChange={(e) => {
+                              setCustomStartDate(e.target.value);
+                              setAiAnalysis(null);
+                            }}
+                            className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border rounded-xl py-2 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold mb-1">
+                            วันที่สิ้นสุด
+                          </label>
+                          <input
+                            type="date"
+                            value={customEndDate}
+                            onChange={(e) => {
+                              setCustomEndDate(e.target.value);
+                              setAiAnalysis(null);
+                            }}
+                            className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border rounded-xl py-2 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {dateFilter === 'quarters' && (
                       <div className="space-y-2 pt-2 animate-in fade-in duration-200">
