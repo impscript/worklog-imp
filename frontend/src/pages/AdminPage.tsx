@@ -1,22 +1,17 @@
-import { useState, useEffect, useMemo, Fragment } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download, FolderTree, UserMinus } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
 
-type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings' | 'ai_prompt' | 'holiday' | 'templates' | 'workspaces';
+type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings' | 'ai_prompt' | 'holiday' | 'templates';
 
 export default function AdminPage() {
   const { showToast, showConfirm } = useNotification();
   const [session, setSession] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<TableTab>('holding');
-  const isSuperAdmin = useMemo(() => {
-    if (!session) return false;
-    const workspaceId = session.activeWorkspaceId;
-    return session.role === 'admin' && (!workspaceId || workspaceId === 'N/A');
-  }, [session]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -87,11 +82,6 @@ export default function AdminPage() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [holidaysList, setHolidaysList] = useState<any[]>([]);
   
-  // Super Admin Workspaces Monitor States
-  const [workspacesList, setWorkspacesList] = useState<any[]>([]);
-  const [workspaceUsersList, setWorkspaceUsersList] = useState<any[]>([]);
-  const [expandedWorkspaceId, setExpandedWorkspaceId] = useState<string | null>(null);
-
   // Form Field States
   const [formHoldingName, setFormHoldingName] = useState('');
   const [formRoleName, setFormRoleName] = useState('');
@@ -754,16 +744,7 @@ export default function AdminPage() {
       if (resHolidays.data) setHolidaysList(resHolidays.data);
       if (resTemplates.data) setTemplatesList(resTemplates.data);
 
-      // Load Super Admin workspaces monitor data if applicable
-      if (isSuperAdmin) {
-        const { data: wsData } = await supabase.from('workspaces').select('*').order('workspace_name');
-        if (wsData) setWorkspacesList(wsData);
 
-        const { data: wuData } = await supabase
-          .from('workspace_users')
-          .select('*, users(*)');
-        if (wuData) setWorkspaceUsersList(wuData);
-      }
     } catch (err) {
       console.error('Error fetching admin data:', err);
     } finally {
@@ -1126,14 +1107,8 @@ export default function AdminPage() {
   ];
 
   const allowedTabs = useMemo(() => {
-    if (isSuperAdmin) {
-      return [
-        ...tabs,
-        { key: 'workspaces' as TableTab, label: 'Workspaces Monitor', icon: FolderTree }
-      ];
-    }
     return tabs;
-  }, [tabs, isSuperAdmin]);
+  }, [tabs]);
 
   const renderScopeBadge = (row: any) => {
     if (activeTab === 'holiday' || activeTab === 'users' || activeTab === 'ai_settings' || activeTab === 'ai_prompt') {
@@ -1424,7 +1399,7 @@ export default function AdminPage() {
             )}
 
             {/* Table Content Card */}
-            {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && activeTab !== 'workspaces' ? (
+            {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' ? (
               <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
                 {isLoading ? (
                   <div className="p-16 text-center animate-pulse flex flex-col gap-4">
@@ -1764,17 +1739,6 @@ export default function AdminPage() {
                   </div>
                 )}
               </div>
-            ) : activeTab === 'workspaces' ? (
-              <WorkspaceMonitorPanel
-                workspaces={workspacesList}
-                workspaceUsers={workspaceUsersList}
-                allUsers={usersList}
-                expandedWorkspaceId={expandedWorkspaceId}
-                setExpandedWorkspaceId={setExpandedWorkspaceId}
-                onRefresh={loadAllData}
-                showToast={showToast}
-                showConfirm={showConfirm}
-              />
             ) : activeTab === 'ai_settings' ? (
               <AISettingsManager workspaceId={session?.activeWorkspaceId} />
             ) : (
@@ -4078,342 +4042,5 @@ INSTRUCTION:
   );
 }
 
-// ── WorkspaceMonitorPanel Component ──────────────────────────────────────────
-interface WorkspaceMonitorPanelProps {
-  workspaces: any[];
-  workspaceUsers: any[];
-  allUsers: any[];
-  expandedWorkspaceId: string | null;
-  setExpandedWorkspaceId: (id: string | null) => void;
-  onRefresh: () => void;
-  showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void;
-  showConfirm: (opts: any) => Promise<boolean>;
-}
 
-function WorkspaceMonitorPanel({
-  workspaces,
-  workspaceUsers,
-  allUsers,
-  expandedWorkspaceId,
-  setExpandedWorkspaceId,
-  onRefresh,
-  showToast,
-  showConfirm
-}: WorkspaceMonitorPanelProps) {
-  const [selectedOrphan, setSelectedOrphan] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
-
-  // Compute orphaned users
-  const orphanedUsers = useMemo(() => {
-    return allUsers.filter(u => {
-      const inWorkspace = workspaceUsers.some(wu => wu.user_id === u.id);
-      return !inWorkspace && u.emp_id; // Must have an emp_id
-    });
-  }, [allUsers, workspaceUsers]);
-
-  const handleAddUser = async (wsId: string) => {
-    if (!selectedOrphan) return;
-    setIsSubmitting(wsId);
-    try {
-      // 1. Insert into workspace_users
-      const { error: insErr } = await supabase.from('workspace_users').insert({
-        workspace_id: wsId,
-        user_id: selectedOrphan,
-        role: 'user'
-      });
-      if (insErr) throw insErr;
-
-      // 2. Set active_workspace_id in users
-      const { error: updErr } = await supabase
-        .from('users')
-        .update({ active_workspace_id: wsId })
-        .eq('id', selectedOrphan);
-      if (updErr) throw updErr;
-
-      showToast('เพิ่มพนักงานเข้าแผนกสำเร็จ!', 'success');
-      setSelectedOrphan('');
-      onRefresh();
-    } catch (err: any) {
-      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
-    } finally {
-      setIsSubmitting(null);
-    }
-  };
-
-  const handleRemoveUser = async (wuId: string, uId: string, userName: string) => {
-    const confirmed = await showConfirm({
-      title: 'ยืนยันการลบสมาชิก',
-      message: `คุณต้องการลบคุณ ${userName} ออกจากฝ่ายงานนี้หรือไม่?`,
-      confirmText: 'ลบสมาชิก',
-      type: 'danger'
-    });
-    if (!confirmed) return;
-
-    setIsSubmitting(wuId);
-    try {
-      // 1. Delete mapping
-      const { error: delErr } = await supabase.from('workspace_users').delete().eq('id', wuId);
-      if (delErr) throw delErr;
-
-      // 2. Set active_workspace_id = null
-      const { error: updErr } = await supabase
-        .from('users')
-        .update({ active_workspace_id: null, workspace_role: null })
-        .eq('id', uId);
-      if (updErr) throw updErr;
-
-      showToast('ลบสมาชิกสำเร็จ!', 'success');
-      onRefresh();
-    } catch (err: any) {
-      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
-    } finally {
-      setIsSubmitting(null);
-    }
-  };
-
-  const handleChangeRole = async (wuId: string, newRole: 'admin' | 'manager' | 'user') => {
-    try {
-      const { error } = await supabase
-        .from('workspace_users')
-        .update({ role: newRole })
-        .eq('id', wuId);
-      if (error) throw error;
-      showToast('ปรับระดับสิทธิ์สำเร็จ!', 'success');
-      onRefresh();
-    } catch (err: any) {
-      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
-    }
-  };
-
-  const handleDeleteWorkspace = async (wsId: string, wsName: string) => {
-    const confirmed = await showConfirm({
-      title: 'ยืนยันการลบ Workspace',
-      message: `คุณแน่ใจหรือไม่ว่าต้องการลบฝ่ายงาน "${wsName}"? ข้อมูลความสัมพันธ์พนักงานและโครงการทั้งหมดในกลุ่มนี้จะถูกลบออกเด็ดขาด`,
-      confirmText: 'ลบฝ่ายงาน',
-      type: 'danger'
-    });
-    if (!confirmed) return;
-
-    try {
-      const { error } = await supabase.from('workspaces').delete().eq('id', wsId);
-      if (error) throw error;
-      showToast('ลบฝ่ายงานสำเร็จ!', 'success');
-      onRefresh();
-    } catch (err: any) {
-      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      
-      {/* Overview stats & Orphaned Users Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 bg-theme-surface-secondary/40 border border-theme-border/60 rounded-2xl p-5 flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-theme-text flex items-center gap-2">
-              <FolderTree size={16} className="text-indigo-400" />
-              <span>สรุปสถานะระบบภาพรวม</span>
-            </h3>
-            <p className="text-xs text-theme-text-secondary mt-1">ตรวจสอบกลุ่มฝ่ายงานทั้งหมดและสมาชิกสังกัดภายในระบบ</p>
-          </div>
-          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-theme-border/40">
-            <div>
-              <p className="text-[10px] text-theme-text-muted uppercase tracking-wider font-semibold">Total Workspaces</p>
-              <p className="text-xl font-black text-theme-text mt-1">{workspaces.length} กลุ่ม</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-theme-text-muted uppercase tracking-wider font-semibold">Assigned Members</p>
-              <p className="text-xl font-black text-theme-text mt-1">{workspaceUsers.length} คน</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-theme-text-muted uppercase tracking-wider font-semibold">Orphaned Users</p>
-              <p className="text-xl font-black text-amber-500 mt-1">{orphanedUsers.length} คน</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Orphaned users list quick view */}
-        <div className="bg-theme-surface-secondary/40 border border-theme-border/60 rounded-2xl p-5">
-          <h3 className="text-xs font-bold text-theme-text uppercase tracking-wider flex items-center gap-1.5">
-            <AlertTriangle size={14} className="text-amber-500" />
-            <span>พนักงานรอเข้าสังกัด ({orphanedUsers.length})</span>
-          </h3>
-          <p className="text-[11px] text-theme-text-secondary mt-1">ผู้ใช้ที่ล็อกอินแล้วแต่ยังไม่มีกลุ่มทำงาน</p>
-          
-          <div className="mt-3 max-h-[110px] overflow-y-auto custom-scrollbar space-y-1.5 pr-1">
-            {orphanedUsers.length === 0 ? (
-              <p className="text-[11px] text-theme-text-muted text-center py-4">ไม่มีพนักงานตกหล่น</p>
-            ) : (
-              orphanedUsers.map(u => (
-                <div key={u.id} className="flex justify-between items-center bg-theme-surface-tertiary p-2 rounded-lg border border-theme-border/50 text-[11px]">
-                  <span className="font-semibold text-theme-text">{u.full_name} ({u.emp_id})</span>
-                  <span className="text-[10px] text-theme-text-muted font-mono">{u.department || 'No BU'}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Directory Table */}
-      <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead>
-              <tr className="bg-theme-surface-secondary/80 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border">
-                <th className="py-4 px-5 w-8"></th>
-                <th className="py-4 px-5">ฝ่ายงาน / Workspace Name</th>
-                <th className="py-4 px-5">รหัสคำเชิญ / Invite Code</th>
-                <th className="py-4 px-5">จำนวนสมาชิก</th>
-                <th className="py-4 px-5">วันที่เปิดใช้งาน</th>
-                <th className="py-4 px-5 text-right">การจัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-theme-border/50">
-              {workspaces.map(ws => {
-                const isExpanded = expandedWorkspaceId === ws.id;
-                const members = workspaceUsers.filter(wu => wu.workspace_id === ws.id);
-
-                return (
-                  <Fragment key={ws.id}>
-                    {/* Workspace Row */}
-                    <tr className="hover:bg-slate-700/10 transition-colors">
-                      <td className="py-4 px-5">
-                        <button
-                          type="button"
-                          onClick={() => setExpandedWorkspaceId(isExpanded ? null : ws.id)}
-                          className="p-1 rounded hover:bg-slate-700/30 text-theme-text-muted hover:text-theme-text transition-all"
-                        >
-                          <ChevronDown size={14} className={cn("transition-transform duration-200", isExpanded && "transform rotate-180")} />
-                        </button>
-                      </td>
-                      <td className="py-4 px-5">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-extrabold text-theme-text text-sm">{ws.workspace_name}</span>
-                          <span className="text-[10px] text-theme-text-muted font-mono">{ws.id}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-5 font-mono text-theme-text-secondary font-bold">{ws.invite_code}</td>
-                      <td className="py-4 px-5 font-semibold text-theme-text">{members.length} คน</td>
-                      <td className="py-4 px-5 text-theme-text-secondary font-mono">
-                        {new Date(ws.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
-                      </td>
-                      <td className="py-4 px-5 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteWorkspace(ws.id, ws.workspace_name)}
-                          className="p-2 border border-transparent hover:border-rose-500/20 hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-400 rounded-xl transition-all active:scale-95"
-                          title="ลบ Workspace"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-
-                    {/* Member Details (Drill-Down Row) */}
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={6} className="bg-theme-surface-secondary/40 p-6 border-b border-theme-border">
-                          <div className="space-y-4">
-                            
-                            <div className="flex justify-between items-center">
-                              <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider">
-                                รายชื่อสมาชิกฝ่าย {ws.workspace_name}
-                              </h4>
-                              
-                              {/* Add user form inline */}
-                              {orphanedUsers.length > 0 && (
-                                <div className="flex items-center gap-2">
-                                  <select
-                                    value={selectedOrphan}
-                                    onChange={e => setSelectedOrphan(e.target.value)}
-                                    className="bg-theme-surface border border-theme-border rounded-xl px-3 py-1.5 text-xs text-theme-text focus:outline-none focus:border-indigo-500"
-                                  >
-                                    <option value="">-- เลือกพนักงานไร้สังกัด --</option>
-                                    {orphanedUsers.map(u => (
-                                      <option key={u.id} value={u.id}>
-                                        {u.full_name} ({u.emp_id})
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    type="button"
-                                    disabled={!selectedOrphan || isSubmitting === ws.id}
-                                    onClick={() => handleAddUser(ws.id)}
-                                    className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition-all disabled:opacity-50"
-                                  >
-                                    <Plus size={12} />
-                                    <span>ยัดเข้าแผนก / Assign</span>
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Members Table */}
-                            {members.length === 0 ? (
-                              <p className="text-xs text-theme-text-muted text-center py-6">ยังไม่มีสมาชิกสังกัดอยู่</p>
-                            ) : (
-                              <div className="border border-theme-border/60 rounded-xl overflow-hidden bg-theme-surface">
-                                <table className="w-full text-left text-[11px]">
-                                  <thead>
-                                    <tr className="bg-theme-surface-secondary/60 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border">
-                                      <th className="py-2.5 px-4">สมาชิก</th>
-                                      <th className="py-2.5 px-4">รหัสพนักงาน / ID</th>
-                                      <th className="py-2.5 px-4">ระดับสิทธิ์ (Role)</th>
-                                      <th className="py-2.5 px-4 text-center">ถอดสมาชิก</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-theme-border/40">
-                                    {members.map(mem => (
-                                      <tr key={mem.id} className="hover:bg-slate-700/5">
-                                        <td className="py-2 px-4 font-semibold text-theme-text">
-                                          {mem.users?.full_name || 'Loading...'} 
-                                          {mem.users?.nickname && <span className="text-theme-text-muted font-normal"> ({mem.users.nickname})</span>}
-                                        </td>
-                                        <td className="py-2 px-4 font-mono text-theme-text-secondary">{mem.users?.emp_id}</td>
-                                        <td className="py-2 px-4">
-                                          <select
-                                            value={mem.role}
-                                            onChange={e => handleChangeRole(mem.id, e.target.value as any)}
-                                            className="bg-theme-surface-secondary border border-theme-border rounded px-2 py-0.5 text-[10px] font-bold text-theme-text focus:outline-none"
-                                          >
-                                            <option value="user">User</option>
-                                            <option value="manager">Manager</option>
-                                            <option value="admin">Admin (Owner)</option>
-                                          </select>
-                                        </td>
-                                        <td className="py-2 px-4 text-center">
-                                          <button
-                                            type="button"
-                                            disabled={isSubmitting === mem.id}
-                                            onClick={() => handleRemoveUser(mem.id, mem.user_id, mem.users?.full_name)}
-                                            className="p-1 text-theme-text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded transition-all"
-                                            title="ถอดออกจากฝ่าย"
-                                          >
-                                            <UserMinus size={12} />
-                                          </button>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-  );
-}
 

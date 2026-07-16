@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles, Share2, Copy, Upload, X, Cpu, RefreshCw } from 'lucide-react';
+import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles, Share2, Copy, Upload, X, Cpu, RefreshCw, Shield } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn, isChatchawanUser } from '../lib/utils';
 import { supabase } from '../lib/supabase';
@@ -1705,6 +1705,16 @@ export default function LogWorkPage() {
     <AppLayout>
       <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold text-theme-text mb-8 tracking-tight">Log Work</h1>
+
+        {session?.role === 'admin' && session?.activeWorkspaceId && (
+          <div className="mb-6 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
+            <span className="flex items-center gap-2">
+              <Shield size={16} className="animate-pulse" />
+              <span>คุณกำลังบันทึกใบงานในฐานะผู้ดูแลระบบจำลองสิทธิ์ในฝ่าย <strong>{session.workspaceName || 'Unknown'}</strong></span>
+            </span>
+            <a href="/workspaces" className="underline hover:text-rose-300">เปลี่ยนฝ่ายงาน</a>
+          </div>
+        )}
 
         {/* Google Calendar .ics Import Banner */}
         <div className="mb-6 bg-gradient-to-br from-indigo-100/70 via-violet-50 to-slate-50 dark:from-indigo-900/40 dark:via-indigo-950/40 dark:to-slate-900/50 border border-indigo-300/40 dark:border-indigo-500/20 rounded-2xl p-6 shadow-xl relative overflow-hidden">

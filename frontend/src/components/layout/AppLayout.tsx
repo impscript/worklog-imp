@@ -19,6 +19,7 @@ type SessionUser = {
   position?: string;
   department?: string;
   companyName?: string;
+  workspaceName?: string;
 };
 
 function getSessionUser(): SessionUser | null {
@@ -190,6 +191,61 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       fetchInviteCode();
     }
   }, [user]);
+
+  // Load workspaces list for switcher if Super Admin
+  const [workspacesList, setWorkspacesList] = useState<any[]>([]);
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      async function loadWorkspaces() {
+        try {
+          const { data } = await supabase
+            .from('workspaces')
+            .select('id, workspace_name, invite_code')
+            .order('workspace_name');
+          if (data) setWorkspacesList(data);
+        } catch (e) {
+          console.error('Failed to load workspaces list:', e);
+        }
+      }
+      loadWorkspaces();
+    }
+  }, [user]);
+
+  const handleSwitchWorkspace = async (workspaceId: string) => {
+    if (!user) return;
+    try {
+      let updatedSession = { ...user };
+      if (!workspaceId) {
+        // Switch back to Global
+        updatedSession.activeWorkspaceId = undefined;
+        delete (updatedSession as any).workspaceName;
+        delete (updatedSession as any).workspaceInviteCode;
+      } else {
+        const selected = workspacesList.find(w => w.id === workspaceId);
+        updatedSession.activeWorkspaceId = workspaceId;
+        (updatedSession as any).workspaceName = selected?.workspace_name || '';
+        (updatedSession as any).workspaceInviteCode = selected?.invite_code || '';
+      }
+
+      // Update database
+      const dbVal = workspaceId || null;
+      const { error: dbErr } = await supabase
+        .from('users')
+        .update({ active_workspace_id: dbVal })
+        .eq('id', user.id);
+
+      if (dbErr) throw dbErr;
+
+      localStorage.setItem('worklog_session', JSON.stringify(updatedSession));
+      setUser(updatedSession);
+      showToast(workspaceId ? `สลับไปฝ่าย ${updatedSession.workspaceName} สำเร็จ` : 'สลับกลับเป็นผู้ดูแลระบบส่วนกลางสำเร็จ', 'success');
+
+      window.location.reload();
+    } catch (err: any) {
+      showToast('เกิดข้อผิดพลาดในการสลับ Workspace: ' + err.message, 'error');
+    }
+  };
+
   const { theme, toggleTheme } = useTheme();
 
   // Page access gating & redirection
@@ -475,7 +531,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <NavItem to="/ai-chat" icon={<MessageSquare size={18} />} label="AI Chat" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
 
             {/* Section 4: ผู้ดูแลระบบใหญ่ (Super Admin) */}
-            {user?.role === 'admin' && (!user?.activeWorkspaceId || user?.activeWorkspaceId === 'N/A') && (
+            {user?.role === 'admin' && (
               <SysAdminSection isCollapsed={isCollapsed} onNav={() => setIsSidebarOpen(false)} />
             )}
           </nav>
@@ -532,6 +588,27 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
           {/* Right aligned user metadata and controls */}
           <div className="flex items-center space-x-3 ml-auto">
+            {user?.role === 'admin' && (
+              <div className="flex items-center gap-1.5 bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl shadow-sm max-w-[200px] sm:max-w-none">
+                <Shield size={13} className="text-rose-400 shrink-0" />
+                <span className="hidden lg:inline text-[9px] font-black uppercase text-rose-400 tracking-wider">
+                  Admin Context:
+                </span>
+                <select
+                  value={user.activeWorkspaceId || ''}
+                  onChange={(e) => handleSwitchWorkspace(e.target.value)}
+                  className="bg-transparent border-none text-[11px] font-bold text-rose-400 dark:text-rose-300 focus:outline-none cursor-pointer hover:text-rose-300 transition-colors py-0 pr-6 w-full truncate"
+                >
+                  <option value="" className="bg-slate-900 text-slate-300 font-semibold">🌐 Global (No WS)</option>
+                  {workspacesList.map(ws => (
+                    <option key={ws.id} value={ws.id} className="bg-slate-900 text-slate-300 font-semibold">
+                      🏢 {ws.workspace_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <span className="hidden sm:inline-block text-xs font-semibold text-theme-text-secondary bg-theme-surface-secondary border border-theme-border/80 px-3 py-1.5 rounded-lg font-mono tracking-wide">
               {getFormattedDate()}
             </span>

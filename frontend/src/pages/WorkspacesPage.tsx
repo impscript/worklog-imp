@@ -29,7 +29,7 @@ export default function WorkspacesPage() {
     if (!sessionStr) { navigate('/login'); return; }
     const user = JSON.parse(sessionStr);
     setSession(user);
-    const isSuperAdmin = user.role === 'admin' && (!user.activeWorkspaceId || user.activeWorkspaceId === 'N/A');
+    const isSuperAdmin = user.role === 'admin';
     if (!isSuperAdmin) { navigate('/'); }
   }, [navigate]);
 
