@@ -578,7 +578,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto p-4 md:p-8">
-          {user && (!user.activeWorkspaceId || user.activeWorkspaceId === 'N/A') && window.location.pathname !== '/profile' ? (
+          {user && (!user.activeWorkspaceId || user.activeWorkspaceId === 'N/A') && user.role !== 'admin' && window.location.pathname !== '/profile' ? (
             <div className="max-w-md mx-auto my-12 p-8 ai-glass rounded-3xl border border-indigo-500/20 shadow-2xl space-y-6">
               <div className="flex flex-col items-center text-center space-y-3">
                 <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
