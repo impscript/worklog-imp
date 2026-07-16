@@ -426,39 +426,67 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </div>
           )}
 
+          {/* Grouped Navigation */}
           <nav className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto mt-2">
+            
+            {/* Section 1: ข้อมูลของฉัน */}
+            {(!isCollapsed) && (
+              <h3 className="px-4 pt-2 pb-1 text-[9.5px] font-black uppercase text-indigo-400/80 tracking-widest font-mono">
+                ข้อมูลส่วนบุคคล / My Work
+              </h3>
+            )}
             <NavItem to="/" icon={<LayoutDashboard size={18} />} label="Dashboard" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/log" icon={<PlusCircle size={18} />} label="Log Work" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            
+            <NavItem to="/profile" icon={<User size={18} />} label="Profile" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+
+            {/* Section 2: การทำงานร่วมกัน */}
+            {((user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') || !isCollapsed) && (
+              <div className="border-t border-theme-border/30 my-2 pt-2">
+                {!isCollapsed && (
+                  <h3 className="px-4 pb-1 text-[9.5px] font-black uppercase text-indigo-400/80 tracking-widest font-mono">
+                    การทำงานร่วมกัน / Collaboration
+                  </h3>
+                )}
+              </div>
+            )}
             {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
               <NavItem to="/calendar" icon={<Calendar size={18} />} label="Calendar" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
-            
             {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
               <NavItem to="/reports" icon={<FileText size={18} />} label="Reports" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
-            
-            <NavItem to="/leaderboard" icon={<Trophy size={18} />} label="Leaderboard" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/hrbp" icon={<Cpu size={18} />} label="AI Enhance" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/ai-chat" icon={<MessageSquare size={18} />} label="AI Chat" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            
             {(user?.role === 'admin' || user?.workspaceRole === 'admin') && (
               <NavItem to="/team" icon={<User size={18} />} label="Manage Team" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
-            
-            {(user?.role === 'admin' || user?.workspaceRole === 'admin') && (
-              <NavItem to="/migrate" icon={<UploadCloud size={18} />} label="Data Migration" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            )}
-            
-            {(user?.role === 'admin' || user?.workspaceRole === 'admin') && (
-              <NavItem to="/admin" icon={<Database size={18} />} label="Master Data" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            )}
-            
             {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
               <NavItem to="/projects" icon={<FolderTree size={18} />} label="Project Registry" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
-            
-            <NavItem to="/profile" icon={<User size={18} />} label="Profile" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/leaderboard" icon={<Trophy size={18} />} label="Leaderboard" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+
+            {/* Section 3: ระบบผู้ช่วย AI */}
+            <div className="border-t border-theme-border/30 my-2 pt-2">
+              {!isCollapsed && (
+                <h3 className="px-4 pb-1 text-[9.5px] font-black uppercase text-indigo-400/80 tracking-widest font-mono">
+                  ระบบผู้ช่วย AI / AI Copilot
+                </h3>
+              )}
+            </div>
+            <NavItem to="/hrbp" icon={<Cpu size={18} />} label="AI Enhance" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/ai-chat" icon={<MessageSquare size={18} />} label="AI Chat" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+
+            {/* Section 4: ผู้ดูแลระบบใหญ่ (Super Admin) */}
+            {user?.role === 'admin' && (!user?.activeWorkspaceId || user?.activeWorkspaceId === 'N/A') && (
+              <div className="border-t border-theme-border/30 my-2 pt-2">
+                {!isCollapsed && (
+                  <h3 className="px-4 pb-1 text-[9.5px] font-black uppercase text-rose-400 tracking-widest font-mono">
+                    ผู้ดูแลระบบ / System Admin
+                  </h3>
+                )}
+                <NavItem to="/admin?tab=workspaces" icon={<FolderTree size={18} />} label="Workspaces Monitor" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+                <NavItem to="/admin" icon={<Database size={18} />} label="Master Data" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+                <NavItem to="/migrate" icon={<UploadCloud size={18} />} label="Data Migration" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+              </div>
+            )}
           </nav>
 
           {/* Logout button at bottom of sidebar */}

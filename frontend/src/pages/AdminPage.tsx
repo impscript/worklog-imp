@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download, FolderTree, UserMinus } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
@@ -21,16 +22,31 @@ export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editRow, setEditRow] = useState<any | null>(null);
 
+  const location = useLocation();
+
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
     if (sessionStr) {
       const user = JSON.parse(sessionStr);
       setSession(user);
-      if (user.role !== 'admin' && user.workspaceRole === 'admin') {
+      
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') as TableTab | null;
+      if (tabParam) {
+        setActiveTab(tabParam);
+      } else if (user.role !== 'admin' && user.workspaceRole === 'admin') {
         setActiveTab('templates');
       }
     }
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab') as TableTab | null;
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [location]);
   const [isMobileTabMenuOpen, setIsMobileTabMenuOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<{
     newRows: any[];
