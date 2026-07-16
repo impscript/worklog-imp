@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree, MessageSquare, Sparkles } from 'lucide-react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree, MessageSquare, Sparkles, LayoutGrid, Shield } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
@@ -476,16 +476,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
             {/* Section 4: ผู้ดูแลระบบใหญ่ (Super Admin) */}
             {user?.role === 'admin' && (!user?.activeWorkspaceId || user?.activeWorkspaceId === 'N/A') && (
-              <div className="border-t border-theme-border/30 my-2 pt-2">
-                {!isCollapsed && (
-                  <h3 className="px-4 pb-1 text-[9.5px] font-black uppercase text-rose-400 tracking-widest font-mono">
-                    ผู้ดูแลระบบ / System Admin
-                  </h3>
-                )}
-                <NavItem to="/admin?tab=workspaces" icon={<FolderTree size={18} />} label="Workspaces Monitor" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-                <NavItem to="/admin" icon={<Database size={18} />} label="Master Data" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-                <NavItem to="/migrate" icon={<UploadCloud size={18} />} label="Data Migration" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-              </div>
+              <SysAdminSection isCollapsed={isCollapsed} onNav={() => setIsSidebarOpen(false)} />
             )}
           </nav>
 
@@ -725,20 +716,24 @@ interface NavItemProps {
   label: string;
   isCollapsed?: boolean;
   onClick?: () => void;
+  forceActive?: boolean;
+  end?: boolean;
 }
 
-function NavItem({ to, icon, label, isCollapsed, onClick }: NavItemProps) {
+function NavItem({ to, icon, label, isCollapsed, onClick, forceActive, end }: NavItemProps) {
+  const activeClass = "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/25 after:absolute after:left-0 after:top-1/4 after:h-1/2 after:w-1 after:bg-indigo-600 dark:after:bg-indigo-500 after:rounded-r-full shadow-sm dark:shadow-none";
+  const inactiveClass = "text-theme-text-secondary hover:bg-theme-surface-tertiary hover:text-theme-text border border-transparent";
+
   return (
     <NavLink
       to={to}
+      end={end}
       onClick={onClick}
       className={({ isActive }) =>
         cn(
           "flex items-center rounded-xl transition-all duration-300 group text-sm font-semibold relative overflow-hidden",
           isCollapsed ? "md:justify-center space-x-3 md:space-x-0 py-3" : "space-x-3 px-4 py-3",
-          isActive 
-            ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/25 after:absolute after:left-0 after:top-1/4 after:h-1/2 after:w-1 after:bg-indigo-600 dark:after:bg-indigo-500 after:rounded-r-full shadow-sm dark:shadow-none" 
-            : "text-theme-text-secondary hover:bg-theme-surface-tertiary hover:text-theme-text border border-transparent"
+          (forceActive !== undefined ? forceActive : isActive) ? activeClass : inactiveClass
         )
       }
       title={isCollapsed ? label : undefined}
@@ -755,5 +750,46 @@ function NavItem({ to, icon, label, isCollapsed, onClick }: NavItemProps) {
         <span className="tracking-wide whitespace-nowrap animate-fade-in md:hidden">{label}</span>
       )}
     </NavLink>
+  );
+}
+
+function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: () => void }) {
+  const location = useLocation();
+  const isWorkspacesActive = location.pathname === '/admin' && location.search.includes('tab=workspaces');
+  const isMasterDataActive = location.pathname === '/admin' && !location.search.includes('tab=workspaces');
+
+  return (
+    <div className="border-t border-rose-500/20 my-2 pt-2">
+      {!isCollapsed && (
+        <h3 className="px-4 pb-1.5 flex items-center gap-1.5 text-[9.5px] font-black uppercase text-rose-400 tracking-widest font-mono">
+          <Shield size={10} />
+          ผู้ดูแลระบบ / System Admin
+        </h3>
+      )}
+      <NavItem
+        to="/admin?tab=workspaces"
+        icon={<LayoutGrid size={18} />}
+        label="Workspaces Monitor"
+        isCollapsed={isCollapsed}
+        onClick={onNav}
+        forceActive={isWorkspacesActive}
+      />
+      <NavItem
+        to="/admin"
+        icon={<Database size={18} />}
+        label="Master Data"
+        isCollapsed={isCollapsed}
+        onClick={onNav}
+        forceActive={isMasterDataActive}
+        end
+      />
+      <NavItem
+        to="/migrate"
+        icon={<UploadCloud size={18} />}
+        label="Data Migration"
+        isCollapsed={isCollapsed}
+        onClick={onNav}
+      />
+    </div>
   );
 }
