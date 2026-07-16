@@ -169,27 +169,59 @@ export default function TeamPage() {
 
     setIsAdding(true);
     try {
-      // 1. Find user by emp_id
+      // 1. Find user by emp_id (include active_workspace_id to check if already in another workspace)
       const { data: targetUser, error: userErr } = await supabase
         .from('users')
-        .select('id, full_name')
+        .select('id, full_name, active_workspace_id')
         .eq('emp_id', newEmpId.trim())
         .maybeSingle();
 
       if (userErr) throw userErr;
       if (!targetUser) {
-        showToast('ไม่พบรหัสพนักงานนี้ในระบบหลัก กรุณาตรวจสอบอีกครั้ง / Employee ID not found', 'error');
+        // Fallback: check HRMS to distinguish "never logged in" vs "invalid ID"
+        try {
+          const hrmsRes = await fetch(`/api/hrms/employee/${newEmpId.trim()}`);
+          if (hrmsRes.ok) {
+            const hrmsText = await hrmsRes.text();
+            const hrmsData = JSON.parse(hrmsText);
+            const empData = hrmsData?.data?.employee || hrmsData?.employee || hrmsData || null;
+            const empName = empData?.Emp_Fname || empData?.Emp_Name || empData?.Name || '';
+            if (empData && (empData.EmpID || empData.Emp_ID || empData.CardID)) {
+              // Employee exists in HRMS but hasn't logged into this system yet
+              showToast(
+                `พนักงาน${empName ? ` "${empName}"` : ''} (${newEmpId.trim()}) มีในระบบบริษัทแล้ว แต่ยังไม่เคย Login เข้าระบบ Worklog กรุณาแจ้งให้พนักงานล็อกอินก่อน แล้วค่อยเพิ่มเข้าทีม`,
+                'warning'
+              );
+              return;
+            }
+          }
+        } catch {
+          // HRMS lookup failed silently — fall through to generic error
+        }
+        showToast('ไม่พบรหัสพนักงานนี้ในระบบ กรุณาตรวจสอบรหัสอีกครั้ง / Employee ID not found', 'error');
         return;
       }
 
-      // 2. Check if already member
+      // 2. Check if already member of THIS workspace
       const isExist = members.some(m => m.user_id === targetUser.id);
       if (isExist) {
-        showToast('พนักงานคนนี้อยู่ในฝ่ายอยู่แล้ว / Already a member', 'warning');
+        showToast('พนักงานคนนี้อยู่ในฝ่ายนี้อยู่แล้ว / Already a member of this team', 'warning');
         return;
       }
 
-      // 3. Insert in workspace_users
+      // 3. Check if already belongs to ANOTHER workspace (1 user = 1 workspace only)
+      if (
+        targetUser.active_workspace_id &&
+        targetUser.active_workspace_id !== session.activeWorkspaceId
+      ) {
+        showToast(
+          `คุณ ${targetUser.full_name} สังกัดฝ่ายงานอื่นอยู่แล้ว ไม่สามารถเพิ่มได้ / Employee already belongs to another team`,
+          'error'
+        );
+        return;
+      }
+
+      // 4. Insert in workspace_users
       const { error: insertErr } = await supabase
         .from('workspace_users')
         .insert({
