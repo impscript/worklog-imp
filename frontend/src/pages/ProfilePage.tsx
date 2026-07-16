@@ -438,63 +438,83 @@ export default function ProfilePage() {
                   <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.manager_name || 'N/A'}</span>
                 </div>
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-5 col-span-3 space-y-4">
-                  <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">Active Workspace (ฝ่ายงานที่สังกัด)</span>
-                  
-                  <div className="divide-y divide-theme-border/50">
-                    {/* Workspace Name */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3">
+                  {session?.role === 'admin' && (!session?.activeWorkspaceId || session?.activeWorkspaceId === 'N/A') ? (
+                    /* Super Admin — no workspace */
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+                        <Shield size={20} className="text-rose-400" />
+                      </div>
                       <div>
-                        <span className="text-[9px] text-theme-text-muted uppercase font-bold tracking-wider">Workspace Name</span>
+                        <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider block">Super Admin Account</span>
                         <span className="text-sm font-bold text-theme-text mt-0.5 block">
-                          {session?.workspaceName || 'N/A'}
+                          บัญชีนี้เป็นผู้ดูแลระบบส่วนกลาง ไม่ได้สังกัดฝ่ายงานใดๆ
+                        </span>
+                        <span className="text-xs text-theme-text-muted mt-1 block">
+                          มีสิทธิ์เข้าถึงทุก Workspace และจัดการข้อมูลได้ทั้งระบบ
                         </span>
                       </div>
                     </div>
+                  ) : (
+                    /* Normal user — show workspace info */
+                    <>
+                      <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">Active Workspace (ฝ่ายงานที่สังกัด)</span>
+                      <div className="divide-y divide-theme-border/50">
+                        {/* Workspace Name */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3">
+                          <div>
+                            <span className="text-[9px] text-theme-text-muted uppercase font-bold tracking-wider">Workspace Name</span>
+                            <span className="text-sm font-bold text-theme-text mt-0.5 block">
+                              {session?.workspaceName || 'N/A'}
+                            </span>
+                          </div>
+                        </div>
 
-                    {/* Workspace Code (Invite) */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
-                      <div>
-                        <span className="text-[9px] text-theme-text-muted uppercase font-bold tracking-wider">Workspace Code (รหัสเชิญสำหรับหัวหน้างาน)</span>
-                        <span className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 font-mono mt-0.5 block">
-                          {session?.workspaceInviteCode || 'N/A'}
-                        </span>
-                      </div>
-                      {session?.workspaceInviteCode && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(session.workspaceInviteCode);
-                            alert('คัดลอกรหัสเชิญสำเร็จ! / Copied Invite Code!');
-                          }}
-                          className="bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-indigo-500/20 transition-all active:scale-95 w-fit"
-                        >
-                          Copy Invite Code
-                        </button>
-                      )}
-                    </div>
+                        {/* Workspace Code (Invite) */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+                          <div>
+                            <span className="text-[9px] text-theme-text-muted uppercase font-bold tracking-wider">Workspace Code (รหัสเชิญสำหรับหัวหน้างาน)</span>
+                            <span className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 font-mono mt-0.5 block">
+                              {session?.workspaceInviteCode || 'N/A'}
+                            </span>
+                          </div>
+                          {session?.workspaceInviteCode && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(session.workspaceInviteCode);
+                                alert('คัดลอกรหัสเชิญสำเร็จ! / Copied Invite Code!');
+                              }}
+                              className="bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-indigo-500/20 transition-all active:scale-95 w-fit"
+                            >
+                              Copy Invite Code
+                            </button>
+                          )}
+                        </div>
 
-                    {/* Workspace ID */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3">
-                      <div>
-                        <span className="text-[9px] text-theme-text-muted uppercase font-bold tracking-wider">Workspace ID (สำหรับผู้ดูแลระบบ/ไอที)</span>
-                        <span className="text-xs font-semibold text-theme-text-secondary font-mono mt-0.5 block">
-                          {session?.activeWorkspaceId || 'N/A'}
-                        </span>
+                        {/* Workspace ID */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3">
+                          <div>
+                            <span className="text-[9px] text-theme-text-muted uppercase font-bold tracking-wider">Workspace ID (สำหรับผู้ดูแลระบบ/ไอที)</span>
+                            <span className="text-xs font-semibold text-theme-text-secondary font-mono mt-0.5 block">
+                              {session?.activeWorkspaceId || 'N/A'}
+                            </span>
+                          </div>
+                          {session?.activeWorkspaceId && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(session.activeWorkspaceId);
+                                alert('คัดลอก Workspace ID สำเร็จ! / Copied Workspace ID!');
+                              }}
+                              className="bg-slate-800 hover:bg-slate-700 text-theme-text-secondary text-xs font-bold px-3 py-1.5 rounded-lg border border-theme-border transition-all active:scale-95 w-fit"
+                            >
+                              Copy Full ID
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      {session?.activeWorkspaceId && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(session.activeWorkspaceId);
-                            alert('คัดลอก Workspace ID สำเร็จ! / Copied Workspace ID!');
-                          }}
-                          className="bg-slate-800 hover:bg-slate-700 text-theme-text-secondary text-xs font-bold px-3 py-1.5 rounded-lg border border-theme-border transition-all active:scale-95 w-fit"
-                        >
-                          Copy Full ID
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

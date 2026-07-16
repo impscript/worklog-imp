@@ -1669,6 +1669,38 @@ export default function LogWorkPage() {
     }
   };
 
+  // ── Super Admin Guard ──────────────────────────────────────────────────────
+  const isSuperAdmin = session?.role === 'admin' && (!session?.activeWorkspaceId || session?.activeWorkspaceId === 'N/A');
+  if (isSuperAdmin) {
+    return (
+      <AppLayout>
+        <div className="max-w-2xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-rose-400">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-theme-text">Super Admin ไม่สามารถบันทึกใบงานได้</h2>
+            <p className="text-sm text-theme-text-secondary mt-2 max-w-md">
+              บัญชีของคุณเป็น <strong className="text-rose-400">ผู้ดูแลระบบส่วนกลาง</strong> ซึ่งไม่ได้สังกัดฝ่ายงานใดๆ
+              การบันทึกใบงานต้องระบุ Workspace ที่สังกัดก่อน
+            </p>
+            <p className="text-xs text-theme-text-muted mt-3">
+              หากต้องการบันทึกใบงานส่วนตัว กรุณาเข้าร่วม Workspace ฝ่ายของคุณก่อนผ่านหน้า Workspaces Monitor
+            </p>
+          </div>
+          <a
+            href="/workspaces"
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-6 py-3 rounded-xl transition-all"
+          >
+            ไปหน้า Workspaces Monitor
+          </a>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto">

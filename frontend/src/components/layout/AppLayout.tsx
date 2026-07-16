@@ -755,8 +755,8 @@ function NavItem({ to, icon, label, isCollapsed, onClick, forceActive, end }: Na
 
 function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: () => void }) {
   const location = useLocation();
-  const isWorkspacesActive = location.pathname === '/admin' && location.search.includes('tab=workspaces');
-  const isMasterDataActive = location.pathname === '/admin' && !location.search.includes('tab=workspaces');
+  const isWorkspacesActive = location.pathname === '/workspaces';
+  const isMasterDataActive = location.pathname === '/admin';
 
   return (
     <div className="border-t border-rose-500/20 my-2 pt-2">
@@ -767,7 +767,7 @@ function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: 
         </h3>
       )}
       <NavItem
-        to="/admin?tab=workspaces"
+        to="/workspaces"
         icon={<LayoutGrid size={18} />}
         label="Workspaces Monitor"
         isCollapsed={isCollapsed}
