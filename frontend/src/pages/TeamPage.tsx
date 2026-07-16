@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
-import { Users, UserMinus, Plus, QrCode, RefreshCw, Copy, Check, Shield, AlertCircle } from 'lucide-react';
+import { Users, UserMinus, Plus, QrCode, RefreshCw, Copy, Check, Shield, AlertCircle, ClipboardList } from 'lucide-react';
 
 interface TeamMember {
   id: string; // workspace_users id
@@ -16,6 +16,15 @@ interface TeamMember {
     department: string;
     email: string;
   };
+}
+
+interface AuditEntry {
+  id: string;
+  action: string;
+  actor_name: string | null;
+  target_name: string | null;
+  metadata: Record<string, any>;
+  created_at: string;
 }
 
 export default function TeamPage() {
@@ -33,6 +42,52 @@ export default function TeamPage() {
   // Custom confirmation modal state
   const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
+
+  // Audit log state
+  const [activeTab, setActiveTab] = useState<'members' | 'audit'>('members');
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [isAuditLoading, setIsAuditLoading] = useState(false);
+
+  // --- Audit Log Helper ---
+  const logAudit = useCallback(async (
+    action: string,
+    targetId: string | null,
+    targetName: string | null,
+    metadata: Record<string, any> = {}
+  ) => {
+    if (!session?.activeWorkspaceId) return;
+    try {
+      await supabase.from('tb_audit_log').insert({
+        workspace_id: session.activeWorkspaceId,
+        actor_id: session.id,
+        actor_name: session.full_name || session.name || null,
+        action,
+        target_id: targetId,
+        target_name: targetName,
+        metadata,
+      });
+    } catch {
+      // Audit log failure is non-blocking
+    }
+  }, [session]);
+
+  const fetchAuditLog = useCallback(async (wId: string) => {
+    setIsAuditLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('tb_audit_log')
+        .select('id, action, actor_name, target_name, metadata, created_at')
+        .eq('workspace_id', wId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setAuditLog(data || []);
+    } catch {
+      setAuditLog([]);
+    } finally {
+      setIsAuditLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
@@ -153,6 +208,12 @@ export default function TeamPage() {
         .update({ active_workspace_id: null, workspace_role: null })
         .eq('id', memberToRemove.user_id);
 
+      // Audit log
+      await logAudit('MEMBER_REMOVED', memberToRemove.user_id, memberToRemove.users.full_name, {
+        emp_id: memberToRemove.users.emp_id,
+        previous_role: memberToRemove.role,
+      });
+
       setMembers(prev => prev.filter(m => m.id !== memberToRemove.id));
       showToast(`ลบคุณ ${memberToRemove.users.full_name} ออกจากฝ่ายสำเร็จ!`, 'success');
     } catch (err: any) {
@@ -231,11 +292,14 @@ export default function TeamPage() {
         });
       if (insertErr) throw insertErr;
 
-      // 4. Update user's active workspace
+      // 5. Update user's active workspace
       await supabase
         .from('users')
         .update({ active_workspace_id: session.activeWorkspaceId })
         .eq('id', targetUser.id);
+
+      // 6. Audit log
+      await logAudit('MEMBER_ADDED', targetUser.id, targetUser.full_name, { role: 'user' });
 
       showToast(`เพิ่มคุณ ${targetUser.full_name} เข้าทีมเรียบร้อย!`, 'success');
       setNewEmpId('');
@@ -256,6 +320,19 @@ export default function TeamPage() {
     : '';
 
   const isWAdmin = session?.workspaceRole === 'admin' || session?.role === 'admin';
+
+  // Fetch audit log when tab switches
+  useEffect(() => {
+    if (activeTab === 'audit' && session?.activeWorkspaceId) {
+      fetchAuditLog(session.activeWorkspaceId);
+    }
+  }, [activeTab, session, fetchAuditLog]);
+
+  const ACTION_LABEL: Record<string, { label: string; color: string }> = {
+    MEMBER_ADDED:   { label: 'เพิ่มสมาชิก', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+    MEMBER_REMOVED: { label: 'ลบสมาชิก',   color: 'text-rose-400 bg-rose-500/10 border-rose-500/20' },
+    ROLE_CHANGED:   { label: 'เปลี่ยน Role', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+  };
 
   return (
     <AppLayout>
@@ -387,91 +464,182 @@ export default function TeamPage() {
 
             </div>
 
-            {/* Right: Members List (2 Columns) */}
+            {/* Right: Members List + Audit Log (2 Columns) */}
             <div className="lg:col-span-2 space-y-4">
-              
-              <div className="flex justify-between items-center">
-                <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider">
-                  2. รายชื่อสมาชิกทีม ({members.length} คน)
-                </h3>
+
+              {/* Tab switcher */}
+              <div className="flex items-center gap-1 bg-theme-surface-secondary border border-theme-border rounded-xl p-1 w-fit">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('members')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    activeTab === 'members'
+                      ? 'bg-indigo-600 text-white shadow'
+                      : 'text-theme-text-secondary hover:text-theme-text'
+                  }`}
+                >
+                  <Users size={12} />
+                  <span>สมาชิก ({members.length})</span>
+                </button>
+                {isWAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('audit')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      activeTab === 'audit'
+                        ? 'bg-indigo-600 text-white shadow'
+                        : 'text-theme-text-secondary hover:text-theme-text'
+                    }`}
+                  >
+                    <ClipboardList size={12} />
+                    <span>Audit Log</span>
+                  </button>
+                )}
               </div>
 
-              <div className="bg-theme-surface-tertiary border border-theme-border rounded-2xl overflow-hidden shadow-xl">
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left text-xs">
-                    <thead>
-                      <tr className="bg-theme-surface-secondary/80 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border">
-                        <th className="py-4 px-5">สมาชิก / Member</th>
-                        <th className="py-4 px-5">รหัสพนักงาน / ID</th>
-                        <th className="py-4 px-5">ตำแหน่ง / Position</th>
-                        <th className="py-4 px-5">ระดับสิทธิ์ฝ่าย</th>
-                        {isWAdmin && <th className="py-4 px-5 w-20 text-center">จัดการ</th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-theme-border/50">
-                      {members.map((mem) => {
-                        const isSelf = mem.user_id === session?.id;
-                        return (
-                          <tr key={mem.id} className="hover:bg-slate-700/10 transition-colors">
-                            <td className="py-3.5 px-5">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden border border-slate-600 shrink-0">
-                                  <img 
-                                    src={`https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID=${mem.users.emp_id}`}
-                                    alt="User Avatar"
-                                    className="w-full h-full object-cover"
-                                    onError={e => {
-                                      e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(mem.users.full_name)}&background=6366f1&color=fff`;
-                                    }}
-                                  />
+              {/* Members Tab */}
+              {activeTab === 'members' && (
+                <div className="bg-theme-surface-tertiary border border-theme-border rounded-2xl overflow-hidden shadow-xl">
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-left text-xs">
+                      <thead>
+                        <tr className="bg-theme-surface-secondary/80 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border">
+                          <th className="py-4 px-5">สมาชิก / Member</th>
+                          <th className="py-4 px-5">รหัสพนักงาน / ID</th>
+                          <th className="py-4 px-5">ตำแหน่ง / Position</th>
+                          <th className="py-4 px-5">ระดับสิทธิ์ฝ่าย</th>
+                          {isWAdmin && <th className="py-4 px-5 w-20 text-center">จัดการ</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-theme-border/50">
+                        {members.map((mem) => {
+                          const isSelf = mem.user_id === session?.id;
+                          return (
+                            <tr key={mem.id} className="hover:bg-slate-700/10 transition-colors">
+                              <td className="py-3.5 px-5">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden border border-slate-600 shrink-0">
+                                    <img 
+                                      src={`https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID=${mem.users.emp_id}`}
+                                      alt="User Avatar"
+                                      className="w-full h-full object-cover"
+                                      onError={e => {
+                                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(mem.users.full_name)}&background=6366f1&color=fff`;
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <span className="font-bold text-theme-text block">
+                                      {mem.users.full_name} {isSelf && <span className="text-[10px] text-indigo-400 font-mono">(You)</span>}
+                                    </span>
+                                    <span className="text-[10px] text-theme-text-muted block">{mem.users.email}</span>
+                                  </div>
                                 </div>
-                                <div className="space-y-0.5">
-                                  <span className="font-bold text-theme-text block">
-                                    {mem.users.full_name} {isSelf && <span className="text-[10px] text-indigo-400 font-mono">(You)</span>}
+                              </td>
+                              <td className="py-3.5 px-5 font-mono text-theme-text-secondary font-semibold">{mem.users.emp_id}</td>
+                              <td className="py-3.5 px-5 text-theme-text-secondary">{mem.users.position}</td>
+                              <td className="py-3.5 px-5">
+                                {mem.role === 'admin' ? (
+                                  <span className="inline-flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 text-rose-300 font-bold px-2 py-0.5 rounded-md text-[10px] uppercase font-mono">
+                                    <Shield size={10} />
+                                    <span>Admin</span>
                                   </span>
-                                  <span className="text-[10px] text-theme-text-muted block">{mem.users.email}</span>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-5 font-mono text-theme-text-secondary font-semibold">{mem.users.emp_id}</td>
-                            <td className="py-3.5 px-5 text-theme-text-secondary">{mem.users.position}</td>
-                            <td className="py-3.5 px-5">
-                              {mem.role === 'admin' ? (
-                                <span className="inline-flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 text-rose-300 font-bold px-2 py-0.5 rounded-md text-[10px] uppercase font-mono">
-                                  <Shield size={10} />
-                                  <span>Admin</span>
-                                </span>
-                              ) : mem.role === 'manager' ? (
-                                <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-md text-[10px] uppercase font-mono">
-                                  <span>Manager</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-bold px-2 py-0.5 rounded-md text-[10px] uppercase font-mono">
-                                  <span>User</span>
-                                </span>
-                              )}
-                            </td>
-                            {isWAdmin && (
-                              <td className="py-3.5 px-5 text-center">
-                                {!isSelf && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveClick(mem)}
-                                    title="Remove from Team"
-                                    className="p-2 border border-transparent hover:border-rose-500/20 hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-400 rounded-xl transition-all active:scale-95"
-                                  >
-                                    <UserMinus size={14} />
-                                  </button>
+                                ) : mem.role === 'manager' ? (
+                                  <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-md text-[10px] uppercase font-mono">
+                                    <span>Manager</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-bold px-2 py-0.5 rounded-md text-[10px] uppercase font-mono">
+                                    <span>User</span>
+                                  </span>
                                 )}
                               </td>
-                            )}
-                          </tr>
+                              {isWAdmin && (
+                                <td className="py-3.5 px-5 text-center">
+                                  {!isSelf && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveClick(mem)}
+                                      title="Remove from Team"
+                                      className="p-2 border border-transparent hover:border-rose-500/20 hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-400 rounded-xl transition-all active:scale-95"
+                                    >
+                                      <UserMinus size={14} />
+                                    </button>
+                                  )}
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Audit Log Tab */}
+              {activeTab === 'audit' && isWAdmin && (
+                <div className="bg-theme-surface-tertiary border border-theme-border rounded-2xl overflow-hidden shadow-xl">
+                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-theme-border bg-theme-surface-secondary/50">
+                    <div className="flex items-center gap-2">
+                      <ClipboardList size={14} className="text-indigo-400" />
+                      <span className="text-xs font-black uppercase text-indigo-400 tracking-wider">Audit Log</span>
+                      <span className="text-[10px] text-theme-text-muted">— บันทึกการเปลี่ยนแปลงสมาชิก (50 รายการล่าสุด)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => session?.activeWorkspaceId && fetchAuditLog(session.activeWorkspaceId)}
+                      className="p-1.5 rounded-lg hover:bg-slate-700 text-theme-text-muted hover:text-theme-text transition-all"
+                      title="Refresh"
+                    >
+                      <RefreshCw size={12} className={isAuditLoading ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+
+                  {isAuditLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="w-6 h-6 border-2 border-indigo-500/30 border-t-indigo-400 rounded-full animate-spin" />
+                    </div>
+                  ) : auditLog.length === 0 ? (
+                    <div className="text-center py-12 text-theme-text-muted text-xs">
+                      <ClipboardList className="mx-auto mb-2 opacity-30" size={28} />
+                      ยังไม่มีบันทึกกิจกรรม
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-theme-border/50">
+                      {auditLog.map(entry => {
+                        const info = ACTION_LABEL[entry.action] ?? { label: entry.action, color: 'text-slate-400 bg-slate-500/10 border-slate-500/20' };
+                        const ts = new Date(entry.created_at);
+                        const dateStr = ts.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
+                        const timeStr = ts.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                        return (
+                          <div key={entry.id} className="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-700/10 transition-colors">
+                            <span className={`mt-0.5 shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border font-mono uppercase ${info.color}`}>
+                              {info.label}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-theme-text">
+                                <span className="font-semibold">{entry.actor_name || 'Unknown'}</span>
+                                {' → '}
+                                <span className="font-semibold">{entry.target_name || '—'}</span>
+                              </p>
+                              {Object.keys(entry.metadata || {}).length > 0 && (
+                                <p className="text-[10px] text-theme-text-muted mt-0.5 font-mono">
+                                  {Object.entries(entry.metadata).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                                </p>
+                              )}
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <span className="text-[10px] text-theme-text-muted block font-mono">{dateStr}</span>
+                              <span className="text-[10px] text-theme-text-muted block font-mono">{timeStr}</span>
+                            </div>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
             </div>
 
