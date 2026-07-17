@@ -764,7 +764,9 @@ export default function DashboardPage() {
                           )}
                         </p>
                       </div>
-                                   {/* Wellbeing indicators */}
+                    </div>
+
+                    {/* Wellbeing indicators */}
                     {(() => {
                       const totalHrs = entries.reduce((sum, e) => sum + e.total_hours, 0);
                       const mtgHrs = entries.filter(e => 
@@ -779,8 +781,8 @@ export default function DashboardPage() {
                       }).length;
 
                       return (
-                        <div className="space-y-3 pt-2 flex-grow flex flex-col justify-end">
-                          <h4 className="text-xs font-bold text-theme-text-secondary uppercase tracking-wider mb-1">
+                        <div className="space-y-3 pt-2 border-t border-theme-border/40">
+                          <h4 className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider">
                             Risk Metrics (Last 30 Days)
                           </h4>
                           <div className="grid grid-cols-3 gap-3">
@@ -797,7 +799,7 @@ export default function DashboardPage() {
                             <div className="bg-theme-surface-secondary/50 dark:bg-slate-950/20 border border-theme-border dark:border-theme-border/40 p-2.5 rounded-xl flex items-center gap-2">
                               <Flame size={16} className="text-amber-500 shrink-0" />
                               <div>
-                                <p className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider leading-none font-mono">Late logs</p>
+                                <p className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider leading-none">Late logs</p>
                                 <p className="text-xs font-extrabold text-theme-text font-mono mt-1">
                                   {lateDays} days
                                 </p>
@@ -812,7 +814,7 @@ export default function DashboardPage() {
                             )}>
                               <Activity size={16} className={cn("shrink-0", mtgPct >= 40 ? "text-rose-500 animate-pulse" : "text-indigo-400")} />
                               <div>
-                                <p className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider leading-none">Mtg Ratio</p>
+                                <p className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider leading-none font-mono">Mtg Ratio</p>
                                 <p className={cn(
                                   "text-xs font-extrabold font-mono mt-1",
                                   mtgPct >= 40 ? "text-rose-400" : "text-theme-text"
@@ -825,8 +827,7 @@ export default function DashboardPage() {
                         </div>
                       );
                     })()}
-                  </div>       </div>
-
+                  </div>
                 </div>
 
                 {/* AI Coaching & Development Action Items */}
