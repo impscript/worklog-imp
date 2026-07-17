@@ -2382,8 +2382,8 @@ export default function LogWorkPage() {
               </ul>
             </div>
             
-            {/* AI Tools Container */}
-            {session && (
+            {/* AI Tools Container — Admin only */}
+            {session && session.role === 'admin' && (
               <div className="space-y-3">
                 {/* AI Sparkle Polish */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 gap-3 shadow-inner animate-in fade-in duration-300">
