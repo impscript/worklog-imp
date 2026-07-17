@@ -11,6 +11,7 @@ type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'm
 export default function AdminPage() {
   const { showToast, showConfirm } = useNotification();
   const [session, setSession] = useState<any>(null);
+  const [workspaceNames, setWorkspaceNames] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<TableTab>('holding');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +21,9 @@ export default function AdminPage() {
   const location = useLocation();
 
   useEffect(() => {
+    supabase.from('workspaces').select('id, workspace_name').then(({ data }) => {
+      if (data) setWorkspaceNames(Object.fromEntries(data.map((ws: any) => [ws.id, ws.workspace_name])));
+    });
     const sessionStr = localStorage.getItem('worklog_session');
     if (sessionStr) {
       const user = JSON.parse(sessionStr);
@@ -1158,14 +1162,6 @@ export default function AdminPage() {
   }, [tabs]);
 
   const renderScopeBadge = (row: any) => {
-    if (activeTab === 'holiday' || activeTab === 'users' || activeTab === 'ai_settings' || activeTab === 'ai_prompt') {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 shadow-sm">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-          <span>Global (ส่วนกลาง)</span>
-        </span>
-      );
-    }
     const isGlobal = !row.workspace_id;
     if (isGlobal) {
       return (
@@ -1178,7 +1174,7 @@ export default function AdminPage() {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-400/25 shadow-sm">
         <span className="h-1.5 w-1.5 rounded-full bg-indigo-400"></span>
-        <span>Workspace ({session?.workspaceName || 'กลุ่มนี้'})</span>
+        <span>Workspace ({workspaceNames[row.workspace_id] || (session?.activeWorkspaceId === row.workspace_id ? session?.workspaceName : row.workspace_id) || 'ไม่ระบุ'})</span>
       </span>
     );
   };
@@ -3788,12 +3784,13 @@ INSTRUCTION:
   const fetchTemplates = async () => {
     try {
       setLoadingTemplates(true);
-      const wsId = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
-      const { data, error } = await supabase
-        .from('tb_ai_prompt_templates')
-        .select('*')
-        .eq('workspace_id', wsId)
-        .order('sort_order', { ascending: true });
+      const sessionStr = localStorage.getItem('worklog_session');
+      const currentSession = sessionStr ? JSON.parse(sessionStr) : null;
+      let query = supabase.from('tb_ai_prompt_templates').select('*').order('workspace_id').order('sort_order', { ascending: true });
+      if (currentSession?.activeWorkspaceId) {
+        query = query.eq('workspace_id', currentSession.activeWorkspaceId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       setTemplates(data || []);
     } catch (err: any) {
