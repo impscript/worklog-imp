@@ -434,38 +434,33 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     if (!isOpen || !log) return;
     
     async function loadDropdownData() {
+      const targetUserId = log?.user_id || session.id;
+      const workspaceId = session?.activeWorkspaceId;
+
+      // 1. First fetch user details from DB to build cleanName fallback
       let cleanName = 'Chatchawan';
-      
-      // Fetch user from database to get the latest nickname, to avoid stale localStorage issues
-      if (session.id) {
+      let dbEmpId = '';
+      if (targetUserId) {
         const { data: dbUser } = await supabase
           .from('users')
-          .select('nickname, full_name')
-          .eq('id', session.id)
+          .select('nickname, full_name, emp_id')
+          .eq('id', targetUserId)
           .maybeSingle();
           
         if (dbUser) {
+          dbEmpId = dbUser.emp_id || '';
           const rawName = dbUser.nickname || dbUser.full_name?.split(' ')[0] || '';
           cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
-        } else {
-          const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
-          cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
         }
-      } else {
-        const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
-        cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
       }
-      
-      // Trim and ignore Thai names for matching user role in mapping
+
       const isThai = /[\u0e00-\u0e7f]/.test(cleanName);
       if (isThai || !cleanName.trim()) {
         cleanName = 'Chatchawan';
       }
 
-      const workspaceId = session?.activeWorkspaceId;
-
-      // Build workspace-scoped queries for all dropdown data
-      let userQuery = supabase.from('tb_map_user_role').select('*').ilike('name', cleanName.trim());
+      // Build workspace-scoped queries for dropdown data
+      let userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', targetUserId);
       let projQuery = supabase.from('tb_map_project_structure').select('*');
       let actQuery = supabase.from('tb_master_action').select('*');
       let tplQuery = supabase.from('tb_master_worklog_templates').select('*');
@@ -485,14 +480,37 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       ]);
 
       if (resUser.data && resUser.data.length > 0) {
-         setMapUserRole(resUser.data);
+        setMapUserRole(resUser.data);
       } else {
-        // Fallback to Chatchawan within same workspace
-        let fallbackQuery = supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
-        if (workspaceId) fallbackQuery = (fallbackQuery as any).eq('workspace_id', workspaceId);
-        const fallback = await fallbackQuery;
-        if (fallback.data) setMapUserRole(fallback.data);
+        // Fallback 1: Query by cleanName/nickname
+        let nameQuery = supabase.from('tb_map_user_role').select('*').ilike('name', cleanName.trim());
+        if (workspaceId) nameQuery = nameQuery.eq('workspace_id', workspaceId);
+        const { data: nameData } = await nameQuery;
+
+        if (nameData && nameData.length > 0) {
+          setMapUserRole(nameData);
+        } else {
+          // Fallback 2: Query by empId if available
+          let empData = null;
+          if (dbEmpId) {
+            let empQuery = supabase.from('tb_map_user_role').select('*').eq('name', dbEmpId);
+            if (workspaceId) empQuery = empQuery.eq('workspace_id', workspaceId);
+            const { data } = await empQuery;
+            empData = data;
+          }
+
+          if (empData && empData.length > 0) {
+            setMapUserRole(empData);
+          } else {
+            // Fallback 3: Chatchawan
+            let fallbackQuery = supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
+            if (workspaceId) fallbackQuery = (fallbackQuery as any).eq('workspace_id', workspaceId);
+            const fallback = await fallbackQuery;
+            if (fallback.data) setMapUserRole(fallback.data);
+          }
+        }
       }
+
       if (resProj.data) setMapProjectStructure(resProj.data);
       if (resAct.data) setMasterActions(resAct.data);
       if (resTpl.data && resTpl.data.length > 0) {

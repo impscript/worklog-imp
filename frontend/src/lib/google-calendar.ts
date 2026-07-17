@@ -480,6 +480,174 @@ class GoogleCalendarService {
     const token = await this.getAccessTokenAsync(userId);
     return { ready: !!token, syncEnabled: true };
   }
+
+  /**
+   * Parses the structured description string of a synced Google Calendar event
+   * back into a valid col_worklog object format.
+   */
+  parseEventDescriptionToWorklog(evt: any, userId: string): any | null {
+    const desc = evt.description || '';
+    if (!desc.includes('Synced from Worklog NewGen Web App') && !desc.includes('📋 Worklog Entry')) {
+      return null;
+    }
+
+    try {
+      // 1. Extract UUID ID
+      const idMatch = desc.match(/🆔 ID:\s*([0-9a-fA-F-]{36})/);
+      const logId = idMatch ? idMatch[1] : null;
+      if (!logId) return null;
+
+      // 2. Extract Project Name
+      const projectMatch = desc.match(/🎯 Project:\s*([^\n]+)/);
+      const projectName = projectMatch ? projectMatch[1].trim() : 'Work Log';
+
+      // 3. Extract BU and Dept
+      const buDeptMatch = desc.match(/🏢 BU:\s*([^|]+)\s*\|\s*Dept:\s*([^\n]+)/);
+      const bu = buDeptMatch ? buDeptMatch[1].trim() : 'N/A';
+      const department = buDeptMatch ? buDeptMatch[2].trim() : 'N/A';
+
+      // 4. Extract Hours
+      const hoursMatch = desc.match(/⏱ Hours:\s*([0-9.]+)/);
+      const totalHours = hoursMatch ? parseFloat(hoursMatch[1]) : 8.0;
+
+      // 5. Extract Action Name
+      const actionMatch = desc.match(/⚡ Action:\s*([^\n]+)/);
+      const actionName = actionMatch ? actionMatch[1].trim() : 'Others';
+
+      // 6. Extract Category (OT)
+      const isOT = desc.includes('Category: Overtime (OT)');
+
+      // 7. Extract Description (between 📝 and the next line/divider)
+      let description = '';
+      const descLines = desc.split('\n');
+      const startIndex = descLines.findIndex((line: string) => line.startsWith('📝'));
+      if (startIndex !== -1) {
+        const remaining = descLines.slice(startIndex);
+        // Find next divider or ID line
+        const endIndex = remaining.findIndex((line: string, i: number) => i > 0 && (line.startsWith('━━') || line.startsWith('🆔') || line.startsWith('📌')));
+        const descriptionLines = endIndex !== -1 ? remaining.slice(0, endIndex) : remaining;
+        description = descriptionLines.join('\n').replace(/^📝\s*/, '').trim();
+      }
+
+      // 8. Extract Date and Times from the event object
+      const startDateTime = evt.start?.dateTime || evt.start?.date;
+      const endDateTime = evt.end?.dateTime || evt.end?.date;
+      
+      const work_date = startDateTime ? startDateTime.split('T')[0] : new Date().toISOString().split('T')[0];
+      const start_time = startDateTime && startDateTime.includes('T') ? startDateTime.split('T')[1].slice(0, 8) : '08:00:00';
+      let end_time = endDateTime && endDateTime.includes('T') ? endDateTime.split('T')[1].slice(0, 8) : '17:00:00';
+
+      return {
+        id: logId,
+        user_id: userId,
+        work_date,
+        start_time,
+        end_time,
+        total_hours: totalHours,
+        project_name: projectName,
+        bu: bu === 'N/A' ? '' : bu,
+        department: department === 'N/A' ? '' : department,
+        action_name: actionName,
+        description: description,
+        channel: 'Web App',
+        is_ot: isOT,
+        gcal_event_id: evt.id
+      };
+    } catch (err) {
+      console.warn('[GCal Recovery] Failed to parse event:', evt.id, err);
+      return null;
+    }
+  }
+
+  /**
+   * Scan and recover missing worklogs from Google Calendar events for the month range
+   */
+  async recoverWorklogsFromGCal(userId: string, calendarId: string, monthStart: string, monthEnd: string): Promise<{ total: number; recovered: number }> {
+    // 1. Fetch all events from Google Calendar for the month
+    const allEvents = await this.listEventsForRange(userId, calendarId, monthStart, monthEnd);
+    
+    // 2. Filter and parse events created by the app
+    const parsedLogs: any[] = [];
+    allEvents.forEach(evt => {
+      const parsed = this.parseEventDescriptionToWorklog(evt, userId);
+      if (parsed) {
+        parsedLogs.push(parsed);
+      }
+    });
+
+    if (parsedLogs.length === 0) {
+      return { total: 0, recovered: 0 };
+    }
+
+    // 3. Query the database to find which IDs already exist in col_worklog
+    const parsedIds = parsedLogs.map(l => l.id);
+    const { data: existingLogs, error: checkErr } = await supabase
+      .from('col_worklog')
+      .select('id')
+      .in('id', parsedIds);
+
+    if (checkErr) {
+      throw new Error(`Failed to check existing worklogs: ${checkErr.message}`);
+    }
+
+    const existingIdsSet = new Set((existingLogs || []).map(l => l.id));
+    
+    // 4. Filter out the ones that already exist in DB
+    const missingLogs = parsedLogs.filter(l => !existingIdsSet.has(l.id));
+
+    if (missingLogs.length === 0) {
+      return { total: parsedLogs.length, recovered: 0 };
+    }
+
+    // 5. Build full records including required mapping fallbacks for holding, department_operator, etc.
+    // Fetch user details first to assign default holding/role mappings
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('emp_id, active_workspace_id, nickname, full_name')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const workspaceId = dbUser?.active_workspace_id || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
+    
+    // Query mapping rules
+    const { data: userMapping } = await supabase
+      .from('tb_map_user_role')
+      .select('*')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+
+    const defaultHolding = userMapping?.holding || 'Double A';
+    const defaultRole = userMapping?.department_operator || 'IMP';
+
+    const inserts = missingLogs.map(log => ({
+      ...log,
+      holding: defaultHolding,
+      department_operator: defaultRole,
+      project_type: log.project_name === 'TeamOps' || log.project_name === 'Policy' ? 'Management' : 'Project',
+      workspace_id: workspaceId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+
+    // 6. Insert missing records back into database in batches of 50
+    const batchSize = 50;
+    for (let i = 0; i < inserts.length; i += batchSize) {
+      const batch = inserts.slice(i, i + batchSize);
+      const { error: insertErr } = await supabase
+        .from('col_worklog')
+        .insert(batch);
+      
+      if (insertErr) {
+        throw new Error(`Failed to restore batch starting at index ${i}: ${insertErr.message}`);
+      }
+    }
+
+    return {
+      total: parsedLogs.length,
+      recovered: inserts.length
+    };
+  }
 }
 
 export const googleCalendar = new GoogleCalendarService();

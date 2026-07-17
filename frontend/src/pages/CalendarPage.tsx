@@ -1382,6 +1382,78 @@ export default function CalendarPage() {
       }
     });
   };
+
+  // ── Month Recover Logs Handler ──────────────────────────────────────────────────
+  const handleRecoverLogs = async () => {
+    if (isSyncing) return;
+    if (!gcalConnected) {
+      setSyncAlert({
+        isOpen: true,
+        title: 'Google Calendar ยังไม่ได้เชื่อมต่อ',
+        message: 'Google Calendar ยังไม่ได้เชื่อมต่อ หรือ Session หมดอายุ\nต้องการเชื่อมต่อระบบ Google Calendar ตอนนี้เลยหรือไม่?',
+        type: 'warning',
+        isConfirm: true,
+        onConfirm: () => {
+          handleConnectGCal();
+        }
+      });
+      return;
+    }
+
+    setSyncAlert({
+      isOpen: true,
+      title: '🔍 ยืนยันการกู้คืนใบงานจาก GCal',
+      message: `ระบบจะสแกนปฏิทิน Google Calendar ในเดือน ${monthNames[month]} ${year} เพื่อตรวจหาใบงานที่เคยสร้างจากแอปนี้ และกู้คืนรายการที่ขาดหายไปกลับเข้าสู่ฐานข้อมูลโดยอัตโนมัติ\n\nต้องการดำเนินการต่อหรือไม่?`,
+      type: 'info',
+      isConfirm: true,
+      onConfirm: async () => {
+        if (isSyncing) return;
+        setSyncAlert(null);
+        setIsSyncing(true);
+        setSyncProgress({ current: 0, total: 1, status: 'กำลังดึงรายการนัดหมายเพื่อตรวจสอบ...' });
+
+        try {
+          const userObj = sessionUser;
+          if (!userObj?.id) return;
+          const { data: user } = await supabase
+            .from('users')
+            .select('gcal_calendar_id')
+            .eq('id', userObj.id)
+            .maybeSingle();
+            
+          const calendarId = user?.gcal_calendar_id || 'primary';
+          
+          const result = await googleCalendar.recoverWorklogsFromGCal(
+            userObj.id,
+            calendarId,
+            monthStart,
+            monthEnd
+          );
+
+          // Refresh component entries
+          setRefreshTrigger((t) => t + 1);
+
+          setSyncAlert({
+            isOpen: true,
+            title: 'กู้คืนใบงานสำเร็จ',
+            message: `สแกนพบใบงานทั้งหมดบนปฏิทิน: ${result.total} รายการ\nกู้คืนสำเร็จกลับสู่ฐานข้อมูล: ${result.recovered} รายการที่ขาดหายไป`,
+            type: 'success'
+          });
+        } catch (err: any) {
+          console.error('[Recovery] Error during recovery:', err);
+          setSyncAlert({
+            isOpen: true,
+            title: 'เกิดข้อผิดพลาดในการกู้คืน',
+            message: `เกิดข้อผิดพลาด: ${err.message || err}`,
+            type: 'error'
+          });
+        } finally {
+          setIsSyncing(false);
+          setSyncProgress(null);
+        }
+      }
+    });
+  };
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Calendar calculations
@@ -1592,6 +1664,24 @@ export default function CalendarPage() {
                         <span>ล้างและซิงค์ใหม่</span>
                       </button>
                     )}
+
+                    {/* Recover Logs Button (กู้คืนใบงานจาก GCal) */}
+                    <button
+                      onClick={handleRecoverLogs}
+                      disabled={isSyncing}
+                      title="สแกนปฏิทิน Google Calendar เพื่อกู้คืนใบงานที่หายไปกลับคืนฐานข้อมูล"
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all active:scale-95 cursor-pointer",
+                        isSyncing
+                          ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-400/50 cursor-not-allowed"
+                          : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                      )}
+                    >
+                      <svg className={cn("w-3.5 h-3.5", isSyncing ? 'animate-spin' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      <span>กู้คืนใบงานจาก GCal</span>
+                    </button>
                   </div>
                 )}
               </>
