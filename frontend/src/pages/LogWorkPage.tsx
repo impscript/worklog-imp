@@ -713,41 +713,46 @@ export default function LogWorkPage() {
 
         // Build user role mapping query
         // Strategy (most reliable → least):
-        // 1. user_id FK (exact UUID match) — works for all users with backfilled/new data
-        // 2. name-based OR match (backward compat for old rows without user_id)
+        // 1. user_id FK (exact UUID match)
+        // 2. name exact match (.eq) for simulation case — avoids .or() breaking on Thai names with spaces
+        // 3. name candidates OR match for backward compat
         let userQuery;
         const isSimulating = isChatchawanUser(session) && selectedUser && selectedUser !== cleanName;
 
         if (isSimulating) {
-          // Chatchawan simulating another user — find that user's UUID first, then query by user_id
-          const { data: simUserData } = await supabase
-            .from('users')
-            .select('id')
-            .or(`full_name.ilike.${selectedUser},emp_id.eq.${selectedUser},nickname.ilike.%${selectedUser}%`)
-            .limit(1)
-            .maybeSingle();
+          // Chatchawan simulating another user
+          // selectedUser = exact 'name' value from tb_map_user_role (e.g. "พิจิตราภรณ์ เกษมสุข")
+          // Try to resolve the UUID via full_name or emp_id (separate queries to avoid .or() with spaces)
+          let simUserId: string | null = null;
 
-          if (simUserData?.id) {
-            // Try user_id first, fall back to name
-            userQuery = supabase.from('tb_map_user_role').select('*')
-              .or(`user_id.eq.${simUserData.id},name.ilike.${selectedUser}`);
+          const { data: byFullName } = await supabase
+            .from('users').select('id').eq('full_name', selectedUser).limit(1).maybeSingle();
+          if (byFullName?.id) {
+            simUserId = byFullName.id;
           } else {
-            userQuery = supabase.from('tb_map_user_role').select('*').ilike('name', selectedUser.trim());
+            const { data: byEmpId } = await supabase
+              .from('users').select('id').eq('emp_id', selectedUser).limit(1).maybeSingle();
+            if (byEmpId?.id) simUserId = byEmpId.id;
+          }
+
+          if (simUserId) {
+            // Found UUID — query by user_id (most reliable)
+            userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', simUserId);
+          } else {
+            // No UUID match — query by exact name (handles names that aren't in users table)
+            userQuery = supabase.from('tb_map_user_role').select('*').eq('name', selectedUser.trim());
           }
         } else if (session.id) {
-          // Normal user: query by user_id first, then fall back to name candidates
-          const nameOrFilter = uniqueCandidates.length > 0
-            ? uniqueCandidates.map(c => `name.ilike.${c}`).join(',')
-            : `name.ilike.${targetUser.trim()}`;
-
-          userQuery = supabase.from('tb_map_user_role').select('*')
-            .or(`user_id.eq.${session.id},${nameOrFilter}`);
+          // Normal user: query by user_id (primary) + name candidates fallback in one shot
+          // NOTE: name candidates may contain spaces — use separate OR parts
+          userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', session.id);
+          // We'll union with name-based results after if needed (handled in resUser.data check below)
         } else {
           // No session id — name-only fallback
-          const orFilter = uniqueCandidates.length > 0
+          const nameFilter = uniqueCandidates.length > 0
             ? uniqueCandidates.map(c => `name.ilike.${c}`).join(',')
             : `name.ilike.${targetUser.trim()}`;
-          userQuery = supabase.from('tb_map_user_role').select('*').or(orFilter);
+          userQuery = supabase.from('tb_map_user_role').select('*').or(nameFilter);
         }
 
         let projQuery = supabase.from('tb_map_project_structure').select('*');
@@ -775,8 +780,29 @@ export default function LogWorkPage() {
         ]);
 
         if (resUser.data && resUser.data.length > 0) {
+          console.log('✅ User role mapping found:', resUser.data.length, 'rows');
           setMapUserRole(resUser.data);
-        } else if (session && session.activeWorkspaceId && session.activeWorkspaceId !== 'N/A') {
+        } else if (!isSimulating && session.id && uniqueCandidates.length > 0) {
+          // user_id query returned no rows — try name-based fallback for old unbackfilled data
+          console.warn('user_id query returned 0 rows, trying name-based fallback for candidates:', uniqueCandidates);
+          const nameFallbackQuery = supabase.from('tb_map_user_role').select('*')
+            .in('name', uniqueCandidates);
+          const wsQuery = workspaceId && workspaceId !== 'N/A'
+            ? nameFallbackQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
+            : nameFallbackQuery;
+          const { data: nameFallbackData } = await wsQuery;
+          if (nameFallbackData && nameFallbackData.length > 0) {
+            console.log('✅ Name fallback found:', nameFallbackData.length, 'rows');
+            setMapUserRole(nameFallbackData);
+          } else if (session && session.activeWorkspaceId && session.activeWorkspaceId !== 'N/A') {
+            // Workspace-based guess
+            let resolvedHolding = 'Real Estate';
+            let resolvedTeam = 'IMP';
+            const dept = (session.department || '').toLowerCase();
+            if (dept.includes('digital') || dept.includes('information') || dept.includes('it')) resolvedTeam = 'IT';
+            setMapUserRole([{ name: targetUser, holding: resolvedHolding, department_operator: resolvedTeam }]);
+          }
+        } else if (resUser.data && resUser.data.length === 0 && session && session.activeWorkspaceId && session.activeWorkspaceId !== 'N/A') {
           // Resolve holding and team based on workspace invite code, name, or department
           let resolvedHolding = 'Real Estate';
           let resolvedTeam = 'IMP';
@@ -808,7 +834,7 @@ export default function LogWorkPage() {
             holding: resolvedHolding,
             department_operator: resolvedTeam
           }]);
-        } else {
+        } else if (!resUser.data || resUser.data.length === 0) {
           const fallback = await supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
           if (fallback.data) setMapUserRole(fallback.data);
         }
