@@ -651,6 +651,100 @@ class GoogleCalendarService {
     const defaultHolding = userMapping?.holding || 'Double A';
     const defaultRole = userMapping?.department_operator || 'IMP';
 
+    // Fetch existing projects from registry to check/add in memory
+    const { data: allProjects, error: projFetchErr } = await supabase
+      .from('tb_project_registry')
+      .select('id, project_name');
+    
+    if (projFetchErr) {
+      throw new Error(`Failed to fetch project registry: ${projFetchErr.message}`);
+    }
+
+    const projectsMap = new Map<string, string>(); // name -> id
+    allProjects.forEach(p => projectsMap.set(p.project_name.toLowerCase(), p.id));
+
+    // Fetch existing project structure mappings
+    const { data: allMappings, error: mapFetchErr } = await supabase
+      .from('tb_map_project_structure')
+      .select('id, project_name, module, project_type, holding, department_operator')
+      .eq('workspace_id', workspaceId);
+
+    if (mapFetchErr) {
+      throw new Error(`Failed to fetch project structure mappings: ${mapFetchErr.message}`);
+    }
+
+    const getMappingKey = (projName: string, mod: string | null, type: string, hold: string, deptOp: string) => {
+      return `${projName.toLowerCase()}|${(mod || '').toLowerCase()}|${type.toLowerCase()}|${hold.toLowerCase()}|${deptOp.toLowerCase()}`;
+    };
+
+    const mappingsSet = new Set<string>();
+    allMappings.forEach(m => {
+      mappingsSet.add(getMappingKey(m.project_name, m.module, m.project_type || '', m.holding || '', m.department_operator || ''));
+    });
+
+    // Ensure projects and mappings exist for all missingLogs
+    for (const log of missingLogs) {
+      const lowerProjName = log.project_name.toLowerCase();
+      let projectId = projectsMap.get(lowerProjName);
+
+      // 1. If project doesn't exist in registry, create it!
+      if (!projectId) {
+        console.log(`[Auto-provision] Creating missing project in registry: ${log.project_name}`);
+        const { data: newProj, error: newProjErr } = await supabase
+          .from('tb_project_registry')
+          .insert({
+            project_name: log.project_name,
+            project_type: 'other',
+            status: 'active',
+            workspace_id: workspaceId
+          })
+          .select('id')
+          .maybeSingle();
+
+        if (newProjErr) {
+          console.warn(`[Auto-provision] Failed to create project ${log.project_name}:`, newProjErr);
+        } else if (newProj) {
+          projectId = newProj.id;
+          projectsMap.set(lowerProjName, newProj.id);
+        }
+      }
+
+      // Assign projectId to the log payload
+      log.project_id = projectId || null;
+
+      // 2. If project mapping doesn't exist in tb_map_project_structure, create it!
+      const mappingKey = getMappingKey(
+        log.project_name,
+        log.module || null,
+        log.project_type || 'Project',
+        defaultHolding,
+        defaultRole
+      );
+
+      if (!mappingsSet.has(mappingKey)) {
+        console.log(`[Auto-provision] Creating missing structure mapping: ${log.project_name} -> ${log.module || 'None'}`);
+        const { error: newMapErr } = await supabase
+          .from('tb_map_project_structure')
+          .insert({
+            workspace_id: workspaceId,
+            project_id: projectId || null,
+            project_name: log.project_name,
+            project_type: log.project_type || 'Project',
+            module: log.module || null,
+            holding: defaultHolding,
+            department_operator: defaultRole,
+            bu: log.bu || '-',
+            department: log.department || '-'
+          });
+
+        if (newMapErr) {
+          console.warn(`[Auto-provision] Failed to create mapping:`, newMapErr);
+        } else {
+          mappingsSet.add(mappingKey);
+        }
+      }
+    }
+
     const inserts = missingLogs.map(log => ({
       ...log,
       holding: defaultHolding,
