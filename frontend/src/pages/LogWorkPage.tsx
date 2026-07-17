@@ -319,6 +319,7 @@ export default function LogWorkPage() {
 
   const [editingLog, setEditingLog] = useState<any | null>(null);
   const [viewingLog, setViewingLog] = useState<any | null>(null);
+  const [userDisplayLabels, setUserDisplayLabels] = useState<Record<string, string>>({});
 
   // Dynamic template & image attachment states
   const [dbTemplates, setDbTemplates] = useState<any[]>([
@@ -576,6 +577,28 @@ export default function LogWorkPage() {
           if (data) {
             uniqueNames = Array.from(new Set(data.map(d => d.name).filter(Boolean))) as string[];
           }
+
+          // Fetch all user records from DB to translate uniqueNames to readable display labels
+          const { data: dbUsers } = await supabase
+            .from('users')
+            .select('id, emp_id, full_name, nickname');
+            
+          if (dbUsers) {
+            const labelMap: Record<string, string> = {};
+            uniqueNames.forEach(name => {
+              const matchedUser = dbUsers.find(u => 
+                u.emp_id === name || 
+                u.full_name?.toLowerCase() === name.toLowerCase() || 
+                u.nickname?.toLowerCase() === name.toLowerCase()
+              );
+              if (matchedUser) {
+                labelMap[name] = `${matchedUser.full_name} (${matchedUser.emp_id})`;
+              } else {
+                labelMap[name] = name;
+              }
+            });
+            setUserDisplayLabels(labelMap);
+          }
         } else {
           uniqueNames = [currentCleanName];
         }
@@ -598,17 +621,21 @@ export default function LogWorkPage() {
     loadUsersAndResolve();
   }, [session]);
 
-  // Resolve user_id whenever selectedUser changes
+  // Resolve user_id whenever selectedUser changes (supports emp_id, full_name, or nickname)
   useEffect(() => {
     async function resolveUser() {
       if (!selectedUser) return;
       try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .ilike('nickname', `%${selectedUser}%`)
-          .limit(1)
-          .maybeSingle();
+        let query = supabase.from('users').select('id');
+        if (/^\d+$/.test(selectedUser)) {
+          // If it's a numeric employee ID
+          query = query.eq('emp_id', selectedUser);
+        } else {
+          // Else search full_name or nickname
+          query = query.or(`full_name.ilike.%${selectedUser}%,nickname.ilike.%${selectedUser}%`);
+        }
+
+        const { data: userData } = await query.limit(1).maybeSingle();
         
         if (userData) {
           setResolvedUserId(userData.id);
@@ -800,12 +827,13 @@ export default function LogWorkPage() {
       let userId = resolvedUserId;
       if (selectedUser) {
         try {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('id')
-            .ilike('nickname', `%${selectedUser}%`)
-            .limit(1)
-            .maybeSingle();
+          let query = supabase.from('users').select('id');
+          if (/^\d+$/.test(selectedUser)) {
+            query = query.eq('emp_id', selectedUser);
+          } else {
+            query = query.or(`full_name.ilike.%${selectedUser}%,nickname.ilike.%${selectedUser}%`);
+          }
+          const { data: userData } = await query.limit(1).maybeSingle();
           if (userData && active) {
             userId = userData.id;
           }
@@ -1781,7 +1809,7 @@ export default function LogWorkPage() {
                 onChange={(v) => setSelectedUser(v)}
                 options={allUsers.map((u) => ({
                   value: u,
-                  label: `${u}${u.toLowerCase() === (session.nickname || '').split('_')[0].toLowerCase() ? ' (You)' : ''}`
+                  label: `${userDisplayLabels[u] || u}${u.toLowerCase() === (session.nickname || '').split('_')[0].toLowerCase() ? ' (You)' : ''}`
                 }))}
                 placeholder="เลือกผู้ใช้งาน / Select User"
                 disabled={!isCurrentUserChatchawan}
