@@ -962,31 +962,53 @@ export default function LogWorkPage() {
 
   const availableRoleOperators = useMemo(() => {
     if (!selectedHolding) return [];
+    
+    // Find matching role operators from User Mappings
+    const matches = mapUserRole.filter(ur => {
+      const urHolding = (ur.holding || '').trim().toLowerCase();
+      const selHolding = selectedHolding.trim().toLowerCase();
+      return urHolding === 'all' || urHolding === 'all holding' || urHolding === selHolding;
+    });
+
+    // If any mapping is ALL/wildcard for operator, or we want to resolve to actual projects,
+    // we should extract the actual department_operators available in the projects under this holding
+    const hasWildcardDept = matches.some(ur => (ur.department_operator || '').trim().toLowerCase() === 'all');
+    
+    if (hasWildcardDept) {
+      // Return all actual departments available in allowedProjects for this holding
+      const depts = allowedProjects
+        .filter(p => (p.holding || '').trim().toLowerCase() === selectedHolding.trim().toLowerCase())
+        .map(p => p.department_operator)
+        .filter(Boolean);
+      return Array.from(new Set(depts)).sort() as string[];
+    }
+
     return Array.from(new Set(
-      mapUserRole
-        .filter(ur => (ur.holding || '').trim().toLowerCase() === selectedHolding.trim().toLowerCase())
+      matches
         .map(ur => ur.department_operator)
         .filter(Boolean)
     )).sort() as string[];
-  }, [mapUserRole, selectedHolding]);
+  }, [mapUserRole, selectedHolding, allowedProjects]);
 
   const availableProjectTypes = useMemo(() => {
     if (!selectedHolding || !selectedRoleOperator) return [];
-    const filtered = allowedProjects.filter(p => 
-      (p.holding || '').trim().toLowerCase() === selectedHolding.trim().toLowerCase() && 
-      (p.department_operator || '').trim().toLowerCase() === selectedRoleOperator.trim().toLowerCase()
-    );
+    const filtered = allowedProjects.filter(p => {
+      const hMatch = (p.holding || '').trim().toLowerCase() === selectedHolding.trim().toLowerCase() || selectedHolding.toLowerCase() === 'all';
+      const rMatch = (p.department_operator || '').trim().toLowerCase() === selectedRoleOperator.trim().toLowerCase() || selectedRoleOperator.toLowerCase() === 'all';
+      return hMatch && rMatch;
+    });
     return Array.from(new Set(filtered.map(p => p.project_type))).sort();
   }, [allowedProjects, selectedHolding, selectedRoleOperator]);
 
   const availableProjects = useMemo(() => {
     if (!projectType || !selectedHolding || !selectedRoleOperator) return [];
     
-    const typeProjs = allowedProjects.filter(p => 
-      p.project_type === projectType && 
-      (p.holding || '').trim().toLowerCase() === selectedHolding.trim().toLowerCase() && 
-      (p.department_operator || '').trim().toLowerCase() === selectedRoleOperator.trim().toLowerCase()
-    );
+    const typeProjs = allowedProjects.filter(p => {
+      const tMatch = p.project_type === projectType;
+      const hMatch = (p.holding || '').trim().toLowerCase() === selectedHolding.trim().toLowerCase() || selectedHolding.toLowerCase() === 'all';
+      const rMatch = (p.department_operator || '').trim().toLowerCase() === selectedRoleOperator.trim().toLowerCase() || selectedRoleOperator.toLowerCase() === 'all';
+      return tMatch && hMatch && rMatch;
+    });
     const seen = new Set<string>();
     const options: { label: string; value: string }[] = [];
     
