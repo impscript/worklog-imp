@@ -517,6 +517,18 @@ class GoogleCalendarService {
       // 6. Extract Category (OT)
       const isOT = desc.includes('Category: Overtime (OT)');
 
+      // Extract Project Type from summary/title bracket prefix (e.g. "[Management] COACH - TeamOps" or "[OT / Management]")
+      let parsedProjectType = 'Project';
+      const summary = evt.summary || '';
+      const typeMatch = summary.match(/^\[([^\]]+)\]/);
+      if (typeMatch) {
+        let typeStr = typeMatch[1].trim();
+        if (typeStr.startsWith('OT / ')) {
+          typeStr = typeStr.replace('OT / ', '').trim();
+        }
+        parsedProjectType = typeStr;
+      }
+
       // 7. Extract Description (between 📝 and the next line/divider)
       let description = '';
       const descLines = desc.split('\n');
@@ -545,6 +557,7 @@ class GoogleCalendarService {
         end_time,
         total_hours: totalHours,
         project_name: projectName,
+        project_type: parsedProjectType,
         bu: bu === 'N/A' ? '' : bu,
         department: department === 'N/A' ? '' : department,
         action_name: actionName,
@@ -624,7 +637,7 @@ class GoogleCalendarService {
       ...log,
       holding: defaultHolding,
       department_operator: defaultRole,
-      project_type: log.project_name === 'TeamOps' || log.project_name === 'Policy' ? 'Management' : 'Project',
+      project_type: log.project_type || (log.project_name === 'TeamOps' || log.project_name === 'Policy' ? 'Management' : 'Project'),
       workspace_id: workspaceId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
