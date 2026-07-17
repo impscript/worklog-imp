@@ -52,31 +52,27 @@ export default function PublicWorklogPage() {
       if (!id) return;
       try {
         setLoading(true);
-        // Query the worklog
-        const { data: worklogData, error: worklogErr } = await supabase
-          .from('col_worklog')
-          .select('*')
-          .eq('id', id)
-          .single();
+        // Public shares use a narrow SECURITY DEFINER RPC. Do not expose the
+        // tenant worklog table or user profile query to anonymous callers.
+        const { data: sharedRows, error: worklogErr } = await supabase
+          .rpc('get_public_worklog', { p_worklog_id: id });
+        const shared = sharedRows?.[0];
 
-        if (worklogErr || !worklogData) {
+        if (worklogErr || !shared) {
           throw new Error(worklogErr?.message || 'ไม่พบข้อมูลใบงานนี้ / Worklog not found');
         }
 
-        setLog(worklogData);
-
-        // Fetch User profile to display operator name and employee details
-        if (worklogData.user_id) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('emp_id, full_name, nickname, position, department, role, employee_level, phone')
-            .eq('id', worklogData.user_id)
-            .single();
-          
-          if (userData) {
-            setUserProfile(userData);
-          }
-        }
+        setLog(shared);
+        setUserProfile({
+          emp_id: shared.emp_id,
+          full_name: shared.full_name,
+          nickname: shared.nickname,
+          position: shared.employee_position,
+          department: shared.employee_department,
+          role: shared.employee_role,
+          employee_level: shared.employee_level,
+          phone: shared.phone
+        });
       } catch (err: any) {
         setError(err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
       } finally {
