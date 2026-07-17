@@ -1571,7 +1571,20 @@ export default function AdminPage() {
                               )}
                               {activeTab === 'map_user' && (
                                 <>
-                                  <td className="px-6 py-4 font-bold text-theme-text">{row.name}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="font-bold text-theme-text">{row.name}</div>
+                                    {(() => {
+                                      const matchedUser = usersList.find(u => u.id === row.user_id || u.emp_id === row.name);
+                                      if (matchedUser) {
+                                        return (
+                                          <div className="text-xs text-theme-text-secondary mt-0.5 font-medium">
+                                            {matchedUser.full_name} {matchedUser.nickname ? `(${matchedUser.nickname})` : ''}
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
+                                  </td>
                                   <td className="px-6 py-4 text-theme-text-secondary">{row.holding}</td>
                                   <td className="px-6 py-4 text-indigo-400 font-semibold">{row.department_operator}</td>
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
