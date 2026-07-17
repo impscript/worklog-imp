@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree, MessageSquare, Sparkles, LayoutGrid, Shield } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
@@ -16,10 +16,10 @@ type SessionUser = {
   empId?: string; 
   activeWorkspaceId?: string;
   workspaceInviteCode?: string;
+  workspaceName?: string;
   position?: string;
   department?: string;
   companyName?: string;
-  workspaceName?: string;
 };
 
 function getSessionUser(): SessionUser | null {
@@ -194,6 +194,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   // Load workspaces list for switcher if Super Admin
   const [workspacesList, setWorkspacesList] = useState<any[]>([]);
+  const [isWorkspacePickerOpen, setIsWorkspacePickerOpen] = useState(false);
+  const [workspaceSearch, setWorkspaceSearch] = useState('');
   useEffect(() => {
     if (user?.role === 'admin') {
       async function loadWorkspaces() {
@@ -214,7 +216,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const handleSwitchWorkspace = async (workspaceId: string) => {
     if (!user) return;
     try {
-      const isSuperAdmin = user.role === 'admin' && !user.activeWorkspaceId;
+      // A global admin remains a Super Admin while viewing any workspace.
+      // Selecting a workspace is context, not a loss of global authority.
+      const isSuperAdmin = user.role === 'admin';
 
       // Non-super-admins must be a member of the destination workspace before switching.
       if (workspaceId && !isSuperAdmin) {
@@ -255,12 +259,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         metadata: { from: user.activeWorkspaceId || 'Global', to: workspaceId || 'Global', is_super_admin: isSuperAdmin }
       });
 
-      // Update database
+      // Update the profile through the authenticated identity mapping.
+      const { data: { user: authUser }, error: authUserError } = await supabase.auth.getUser();
+      if (authUserError || !authUser) throw authUserError || new Error('ไม่พบ Supabase Auth session');
       const dbVal = workspaceId || null;
       const { error: dbErr } = await supabase
         .from('users')
         .update({ active_workspace_id: dbVal })
-        .eq('id', user.id);
+        .eq('auth_user_id', authUser.id);
 
       if (dbErr) throw dbErr;
 
@@ -617,18 +623,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 <span className="hidden lg:inline text-[9px] font-black uppercase text-rose-400 tracking-wider">
                   Admin Context:
                 </span>
-                <select
-                  value={user.activeWorkspaceId || ''}
-                  onChange={(e) => handleSwitchWorkspace(e.target.value)}
-                  className="bg-transparent border-none text-[11px] font-bold text-rose-400 dark:text-rose-300 focus:outline-none cursor-pointer hover:text-rose-300 transition-colors py-0 pr-6 w-full truncate"
+                <button
+                  type="button"
+                  onClick={() => { setWorkspaceSearch(''); setIsWorkspacePickerOpen(true); }}
+                  className="flex items-center gap-2 bg-transparent text-[11px] font-bold text-rose-400 dark:text-rose-300 focus:outline-none cursor-pointer hover:text-rose-300 transition-colors py-0 pr-1 max-w-[190px]"
+                  title="เลือก Workspace"
                 >
-                  <option value="" className="bg-slate-900 text-slate-300 font-semibold">🌐 Global (No WS)</option>
-                  {workspacesList.map(ws => (
-                    <option key={ws.id} value={ws.id} className="bg-slate-900 text-slate-300 font-semibold">
-                      🏢 {ws.workspace_name}
-                    </option>
-                  ))}
-                </select>
+                  <span className="truncate">{user.workspaceName || (user.activeWorkspaceId ? 'Workspace' : 'Global')}</span>
+                  <ChevronsUpDown size={13} className="shrink-0" />
+                </button>
               </div>
             )}
 
@@ -675,6 +678,53 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             )}
           </div>
         </header>
+
+        {isWorkspacePickerOpen && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={() => setIsWorkspacePickerOpen(false)}>
+            <div className="w-full max-w-lg rounded-2xl border border-theme-border bg-theme-surface-modal p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-base font-black text-theme-text">เลือก Workspace</h2>
+                  <p className="text-xs text-theme-text-muted mt-1">เลือกบริบทการทำงานและการบันทึกใบงาน</p>
+                </div>
+                <button type="button" onClick={() => setIsWorkspacePickerOpen(false)} className="p-2 rounded-lg hover:bg-theme-surface-tertiary text-theme-text-muted"><X size={18} /></button>
+              </div>
+              <div className="relative mb-3">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-muted" />
+                <input
+                  autoFocus
+                  value={workspaceSearch}
+                  onChange={(e) => setWorkspaceSearch(e.target.value)}
+                  placeholder="ค้นหาชื่อ Workspace..."
+                  className="w-full rounded-xl border border-theme-border bg-theme-surface-secondary py-2.5 pl-9 pr-3 text-sm text-theme-text outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div className="max-h-[min(55vh,420px)] overflow-y-auto space-y-1">
+                <button
+                  type="button"
+                  onClick={() => { setIsWorkspacePickerOpen(false); handleSwitchWorkspace(''); }}
+                  className={cn('w-full flex items-center justify-between rounded-xl px-3 py-3 text-left hover:bg-theme-surface-tertiary', !user?.activeWorkspaceId && 'bg-indigo-500/10')}
+                >
+                  <span><span className="block text-sm font-bold text-theme-text">Global</span><span className="block text-xs text-theme-text-muted">ยังไม่เลือก Workspace</span></span>
+                  {!user?.activeWorkspaceId && <Check size={17} className="text-indigo-400" />}
+                </button>
+                {workspacesList
+                  .filter((ws) => ws.workspace_name.toLowerCase().includes(workspaceSearch.trim().toLowerCase()))
+                  .map((ws) => (
+                    <button
+                      type="button"
+                      key={ws.id}
+                      onClick={() => { setIsWorkspacePickerOpen(false); handleSwitchWorkspace(ws.id); }}
+                      className={cn('w-full flex items-center justify-between rounded-xl px-3 py-3 text-left hover:bg-theme-surface-tertiary', user?.activeWorkspaceId === ws.id && 'bg-indigo-500/10')}
+                    >
+                      <span><span className="block text-sm font-bold text-theme-text">{ws.workspace_name}</span><span className="block text-[10px] font-mono text-theme-text-muted">{ws.id}</span></span>
+                      {user?.activeWorkspaceId === ws.id && <Check size={17} className="text-indigo-400" />}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto p-4 md:p-8">

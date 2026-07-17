@@ -1476,6 +1476,11 @@ export default function LogWorkPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
+    if (!session?.activeWorkspaceId) {
+      showToast('กรุณาเลือก Workspace ก่อนบันทึกใบงาน', 'error');
+      return;
+    }
+
     // 1. Perform validation checks to let the user know what's missing
     if (!projectType) {
       showToast('กรุณาเลือกประเภทงาน / Please select Project Type', 'error');
@@ -1757,50 +1762,26 @@ export default function LogWorkPage() {
     }
   };
 
-  // ── Super Admin Guard ──────────────────────────────────────────────────────
-  const isSuperAdmin = session?.role === 'admin' && (!session?.activeWorkspaceId || session?.activeWorkspaceId === 'N/A');
-  if (isSuperAdmin) {
-    return (
-      <AppLayout>
-        <div className="max-w-2xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-rose-400">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-          </div>
-          <div>
-            <h2 className="text-xl font-black text-theme-text">Super Admin ไม่สามารถบันทึกใบงานได้</h2>
-            <p className="text-sm text-theme-text-secondary mt-2 max-w-md">
-              บัญชีของคุณเป็น <strong className="text-rose-400">ผู้ดูแลระบบส่วนกลาง</strong> ซึ่งไม่ได้สังกัดฝ่ายงานใดๆ
-              การบันทึกใบงานต้องระบุ Workspace ที่สังกัดก่อน
-            </p>
-            <p className="text-xs text-theme-text-muted mt-3">
-              หากต้องการบันทึกใบงานส่วนตัว กรุณาเข้าร่วม Workspace ฝ่ายของคุณก่อนผ่านหน้า Workspaces Monitor
-            </p>
-          </div>
-          <a
-            href="/workspaces"
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-6 py-3 rounded-xl transition-all"
-          >
-            ไปหน้า Workspaces Monitor
-          </a>
-        </div>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold text-theme-text mb-8 tracking-tight">Log Work</h1>
 
-        {session?.role === 'admin' && session?.activeWorkspaceId && (
-          <div className="mb-6 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
+        {!session?.activeWorkspaceId ? (
+          <div className="mb-6 bg-amber-500/10 border border-amber-500/25 text-amber-300 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
             <span className="flex items-center gap-2">
-              <Shield size={16} className="animate-pulse" />
-              <span>คุณกำลังบันทึกใบงานในฐานะผู้ดูแลระบบจำลองสิทธิ์ในฝ่าย <strong>{session.workspaceName || 'Unknown'}</strong></span>
+              <Shield size={16} />
+              <span>กรุณาเลือก Workspace ก่อนบันทึกใบงาน ระบบจะบันทึกงานของคุณใน Workspace ที่เลือก</span>
             </span>
-            <a href="/workspaces" className="underline hover:text-rose-300">เปลี่ยนฝ่ายงาน</a>
+            <a href="/workspaces" className="underline hover:text-amber-200">เลือก Workspace</a>
+          </div>
+        ) : (
+          <div className="mb-6 bg-indigo-500/10 border border-indigo-500/20 text-indigo-200 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
+            <span className="flex items-center gap-2">
+              <Shield size={16} />
+              <span>กำลังบันทึกใบงานใน Workspace: <strong>{session.workspaceName || session.activeWorkspaceId}</strong></span>
+            </span>
+            <a href="/workspaces" className="underline hover:text-indigo-100">เปลี่ยน Workspace</a>
           </div>
         )}
 

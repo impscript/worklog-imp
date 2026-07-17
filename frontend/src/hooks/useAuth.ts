@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import md5 from 'js-md5';
 import { MOCK_USERS } from '../lib/mockUsers';
 
 export interface UserSession {
@@ -15,6 +14,7 @@ export interface UserSession {
   email?: string;
   activeWorkspaceId?: string;
   workspaceInviteCode?: string;
+  workspaceName?: string;
 }
 
 export function useAuth() {
@@ -22,16 +22,49 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const sessionStr = localStorage.getItem('worklog_session');
-    if (sessionStr) {
-      try {
-        setUser(JSON.parse(sessionStr));
-      } catch (e) {
-        console.error('Failed to parse active session:', e);
+    let mounted = true;
+    const hydrate = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_user_id', session.user.id)
+          .maybeSingle();
+        if (profile) {
+          const cached = localStorage.getItem('worklog_session');
+          setUser(cached ? JSON.parse(cached) : {
+            id: profile.id,
+            empId: profile.emp_id,
+            name: profile.full_name,
+            nickname: profile.nickname || profile.full_name,
+            role: profile.role,
+            department: profile.department || 'IMP',
+            position: profile.position,
+            email: profile.email,
+            activeWorkspaceId: profile.active_workspace_id
+          });
+        }
+      } else {
         localStorage.removeItem('worklog_session');
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+    hydrate().catch((error) => {
+      console.error('Failed to hydrate Supabase Auth session:', error);
+      if (mounted) setIsLoading(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        localStorage.removeItem('worklog_session');
+        setUser(null);
+      }
+    });
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (account: string, password?: string, inviteCode?: string): Promise<UserSession> => {
@@ -44,6 +77,7 @@ export function useAuth() {
 
       let userRecord: any = null;
       let employeeData: any = null;
+      let isBridgeLogin = false;
       let email = '';
       let fullName = '';
       let position = '';
@@ -141,63 +175,28 @@ export function useAuth() {
           }
           console.log(`${modeLabel} Prepared mock/fetched profile:`, employeeData);
         } else {
-          // 1. Authenticate with IDMS
-          const agentId = import.meta.env.VITE_IDMS_AGENT_ID || 'SystemMango';
-          const agentCode = import.meta.env.VITE_IDMS_AGENT_CODE || 'Np4kfRh5';
-          const serviceCode = import.meta.env.VITE_IDMS_SERVICE_CODE || '0000';
-          const hashedPassword = (md5 as any)(password);
-
-          const idmsUrl = `/api/idms/authentication/?account=${encodeURIComponent(username)}&password=${encodeURIComponent(hashedPassword)}&Service=${serviceCode}&AgentId=${agentId}&AgentCode=${agentCode}`;
-          
-          let authText = '';
-          try {
-            const authRes = await fetch(idmsUrl);
-            authText = await authRes.text();
-          } catch (fetchErr: any) {
-            throw new Error('ไม่สามารถเชื่อมต่อระบบ HRMS ได้ (Proxy Error)');
+          // Authentication and HRMS provisioning happen server-side. Credentials and
+          // IDMS agent secrets must never be exposed in the browser bundle.
+          const bridgeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hrms-auth`;
+          const bridgeRes = await fetch(bridgeUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({ account: username, password })
+          });
+          const bridgeData = await bridgeRes.json().catch(() => null);
+          if (!bridgeRes.ok || !bridgeData?.session || !bridgeData?.employee) {
+            throw new Error(bridgeData?.error || 'ชื่อผู้ใช้หรือรหัสผ่านของระบบ IDMS ไม่ถูกต้อง');
           }
-
-          let fetchedEmpId: string | null = null;
-          let isSuccess = false;
-          
-          try {
-            const authData = JSON.parse(authText);
-            isSuccess = authData.Result === 'OK' || authData.status === 'success' || authData.Status === 'Success' || authData.Code === 200 || authData.code === '200';
-            fetchedEmpId = authData.EmpId || authData.emp_id || authData.EmpID || authData.EmpId?.trim() || null;
-            if (fetchedEmpId === '0') {
-              isSuccess = false;
-              fetchedEmpId = null;
-            }
-          } catch {
-            if (authText.includes('OK') || authText.includes('Success') || authText.includes('true')) {
-              isSuccess = true;
-              const match = authText.match(/EmpId["']?\s*[:=]\s*["']?(\d+)/i);
-              if (match) fetchedEmpId = match[1];
-            }
-          }
-
-          if (!isSuccess || !fetchedEmpId) {
-            console.error('IDMS Raw Response:', authText);
-            throw new Error('ชื่อผู้ใช้หรือรหัสผ่านของระบบ IDMS ไม่ถูกต้อง');
-          }
-
-          empId = fetchedEmpId;
-          console.log(`${modeLabel} IDMS auth OK — EmpId: ${empId}`);
-
-          // 2. Fetch Employee Data from HRMS
-          try {
-            const hrmsRes = await fetch(`/api/hrms/employee/${empId}`);
-            if (hrmsRes.ok) {
-              const hrmsText = await hrmsRes.text();
-              const hrmsData = JSON.parse(hrmsText);
-              employeeData = hrmsData?.data?.employee || hrmsData || null;
-              console.log(`${modeLabel} HRMS profile fetched:`, employeeData);
-            } else {
-              console.warn(`${modeLabel} HRMS API returned status: ${hrmsRes.status}`);
-            }
-          } catch (err) {
-            console.warn('Failed to fetch full employee profile from HRMS:', err);
-          }
+          const { error: sessionError } = await supabase.auth.setSession(bridgeData.session);
+          if (sessionError) throw sessionError;
+          userRecord = bridgeData.employee;
+          empId = userRecord.emp_id;
+          employeeData = userRecord;
+          isBridgeLogin = true;
+          console.log(`${modeLabel} Supabase Auth session established — EmpId: ${empId}`);
         }
 
         // 1.5 Fetch existing user record from database (if any) to preserve cached values if API fails
@@ -223,36 +222,25 @@ export function useAuth() {
         const companyCode = employeeData?.Company_Code || existingUser?.company_code || '';
         const companyName = employeeData?.CompanyName || existingUser?.company_name || '';
 
-        // Upsert corporate profile dynamically (Just-In-Time provisioning)
-        const { data: upsertedUser, error: upsertErr } = await supabase
-          .rpc('provision_hrms_user', {
-            p_emp_id: empId,
-            p_email: email,
-            p_full_name: fullName,
-            p_nickname: username,
-            p_department: department,
-            p_position: position,
-            p_phone: phone,
-            p_employee_level: employeeLevel,
-            p_role_start_date: roleStartDate,
-            p_company_code: companyCode,
-            p_company_name: companyName
-          });
-
-        if (upsertErr) throw upsertErr;
-
-        // Fallback: if upsert didn't return data (RLS blocks read-after-write),
-        // do a plain SELECT to retrieve the user record
-        if (!upsertedUser) {
-          const { data: fetchedUser, error: fetchErr } = await supabase
-            .from('users')
-            .select('*')
-            .eq('emp_id', empId)
-            .maybeSingle();
-          if (fetchErr) throw fetchErr;
-          if (!fetchedUser) throw new Error('ไม่สามารถดึงข้อมูลผู้ใช้งานได้หลังจาก Login');
-          userRecord = fetchedUser;
-        } else {
+        if (!isBridgeLogin) {
+          // Legacy mock/development provisioning only. Live login is provisioned
+          // server-side by hrms-auth and must not write through an anon RPC.
+          const { data: upsertedUser, error: upsertErr } = await supabase
+            .rpc('provision_hrms_user', {
+              p_emp_id: empId,
+              p_email: email,
+              p_full_name: fullName,
+              p_nickname: username,
+              p_department: department,
+              p_position: position,
+              p_phone: phone,
+              p_employee_level: employeeLevel,
+              p_role_start_date: roleStartDate,
+              p_company_code: companyCode,
+              p_company_name: companyName
+            });
+          if (upsertErr) throw upsertErr;
+          if (!upsertedUser) throw new Error('ไม่สามารถดึงข้อมูลผู้ใช้งานได้หลังจาก Login');
           userRecord = upsertedUser;
         }
       }
@@ -355,16 +343,18 @@ export function useAuth() {
       // Retrieve actual workspace user role and invite code
       let workspaceRole: 'admin' | 'manager' | 'user' = 'user';
       let workspaceInviteCode = '';
+      let workspaceName = '';
       if (userRecord.active_workspace_id) {
         const [resMember, resWS] = await Promise.all([
           supabase.from('workspace_users').select('role').eq('workspace_id', userRecord.active_workspace_id).eq('user_id', userRecord.id).maybeSingle(),
-          supabase.from('workspaces').select('invite_code').eq('id', userRecord.active_workspace_id).maybeSingle()
+          supabase.from('workspaces').select('invite_code, workspace_name').eq('id', userRecord.active_workspace_id).maybeSingle()
         ]);
         if (resMember.data) {
           workspaceRole = resMember.data.role as 'admin' | 'manager' | 'user';
         }
         if (resWS.data) {
           workspaceInviteCode = resWS.data.invite_code;
+          workspaceName = resWS.data.workspace_name;
         }
       }
 
@@ -386,6 +376,7 @@ export function useAuth() {
         email: userRecord.email,
         activeWorkspaceId: userRecord.active_workspace_id || undefined,
         workspaceInviteCode: workspaceInviteCode || undefined,
+        workspaceName: workspaceName || undefined,
         role_start_date: userRecord.role_start_date || undefined,
         employee_level: userRecord.employee_level || undefined,
         company_name: userRecord.company_name || undefined,
@@ -404,7 +395,8 @@ export function useAuth() {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem('worklog_session');
     setUser(null);
   };

@@ -7,14 +7,13 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// Authentication is handled by the HRMS/IDMS handshake, not Supabase Auth.
-// Do not persist or refresh a stale Supabase session: an invalid access token
-// would override the anon key and make otherwise permitted REST requests fail
-// with 401 Unauthorized.
+// HRMS/IDMS authenticates the user through the server-side bridge, which returns
+// a real Supabase Auth session. Persist that JWT so RLS remains effective after
+// refresh; the application session object is only a UI cache.
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
+    persistSession: true,
+    autoRefreshToken: true,
     detectSessionInUrl: false
   }
 });
