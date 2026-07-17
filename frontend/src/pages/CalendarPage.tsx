@@ -613,6 +613,8 @@ export default function CalendarPage() {
     };
 
     const handleMouseUp = async () => {
+      const sessionStr = localStorage.getItem('worklog_session');
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
       const changed = dragState.currentWorkDate !== dragState.startWorkDate || 
                       dragState.currentStartMin !== dragState.startMin || 
                       dragState.currentEndMin !== dragState.endMin;
@@ -646,7 +648,8 @@ export default function CalendarPage() {
           const { error } = await supabase
             .from('col_worklog')
             .update(updates)
-            .eq('id', targetEntryId);
+            .eq('id', targetEntryId)
+            .eq('workspace_id', session?.activeWorkspaceId);
 
           if (error) {
             showToast('Error updating worklog: ' + error.message, 'error');
@@ -1240,6 +1243,8 @@ export default function CalendarPage() {
 
   // ── Month Clean & Re-Sync Handler ──────────────────────────────────────────────
   const handleMonthCleanSync = async () => {
+    const sessionStr = localStorage.getItem('worklog_session');
+    const session = sessionStr ? JSON.parse(sessionStr) : null;
     if (isSyncing) return;
     if (!gcalConnected) {
       setSyncAlert({
@@ -1327,7 +1332,8 @@ export default function CalendarPage() {
             await supabase
               .from('col_worklog')
               .update({ gcal_event_id: null })
-              .in('id', entryIds);
+              .in('id', entryIds)
+              .eq('workspace_id', session?.activeWorkspaceId);
           }
 
           // 4. Fresh re-sync of all currentMonthEntries

@@ -83,7 +83,8 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
       const { error } = await supabase
         .from('col_worklog')
         .delete()
-        .eq('id', log.id);
+        .eq('id', log.id)
+        .eq('workspace_id', session?.activeWorkspaceId);
 
       if (error) throw error;
 
@@ -569,6 +570,12 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
                 <h3 className="text-base font-black text-theme-text">ต้องการลบใบงานนี้ใช่หรือไม่?</h3>
                 <p className="text-xs text-theme-text-secondary mt-1 leading-relaxed">
                   การกระทำนี้จะไม่สามารถย้อนกลับได้ ใบงานบันทึกเวลาของวันที่ <span className="text-rose-400 font-bold font-mono">{log.work_date}</span> โครงการ <span className="text-theme-text font-bold">"{log.project_name}"</span> จะถูกลบออกจากฐานข้อมูลอย่างถาวร
+                </p>
+                <p className="text-xs text-amber-400 mt-3 leading-relaxed bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+                  ⚠️ ใบงานนี้อยู่ใน Workspace: <span className="font-bold">{log.workspace_id === session?.activeWorkspaceId ? (session?.workspaceName || 'ปัจจุบัน') : (log.workspace_id || 'ไม่ระบุ')}</span>
+                  {log.workspace_id !== session?.activeWorkspaceId && session?.workspaceName && (
+                    <span className="block mt-1 text-amber-300/80">คุณกำลังดำเนินการนอก Workspace ปัจจุบัน ({session.workspaceName}) — กรุณาตรวจสอบให้แน่ใจ</span>
+                  )}
                 </p>
               </div>
             </div>

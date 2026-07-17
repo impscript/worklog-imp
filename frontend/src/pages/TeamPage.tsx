@@ -660,6 +660,9 @@ export default function TeamPage() {
                   <p className="text-xs text-theme-text-secondary leading-relaxed">
                     คุณแน่ใจหรือไม่ว่าต้องการลบคุณ <span className="font-extrabold text-theme-text">{memberToRemove.users.full_name}</span> ({memberToRemove.users.emp_id}) ออกจากการสังกัดฝ่ายงานนี้?
                   </p>
+                  <p className="text-xs text-amber-400 mt-3 leading-relaxed bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+                    ⚠️ Workspace ที่จะลบสมาชิก: <span className="font-bold">{session?.workspaceName || session?.activeWorkspaceId || 'ไม่ระบุ'}</span>
+                  </p>
                 </div>
 
                 <div className="flex w-full gap-3 pt-3 border-t border-theme-border/60 mt-4">

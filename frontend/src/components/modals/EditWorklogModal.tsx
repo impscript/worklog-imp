@@ -1112,7 +1112,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               image_urls: attachedImages,
               workspace_id: workspaceId
             })
-            .eq('id', log.id);
+            .eq('id', log.id)
+            .eq('workspace_id', workspaceId);
 
           if (errorNormal) throw errorNormal;
           
@@ -1234,7 +1235,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               image_urls: attachedImages,
               workspace_id: workspaceId
             })
-            .eq('id', log.id);
+            .eq('id', log.id)
+            .eq('workspace_id', workspaceId);
 
           if (error) throw error;
           

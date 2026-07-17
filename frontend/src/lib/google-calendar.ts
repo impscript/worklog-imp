@@ -619,7 +619,8 @@ class GoogleCalendarService {
         const { error: updateErr } = await supabase
           .from('col_worklog')
           .update({ project_type: logToUpdate.project_type })
-          .eq('id', logToUpdate.id);
+          .eq('id', logToUpdate.id)
+          .eq('workspace_id', 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001');
         if (!updateErr) {
           updatedCount++;
         }
@@ -879,7 +880,8 @@ export async function syncWorklogToGCal(logId: string, action: 'insert' | 'updat
         await supabase
           .from('col_worklog')
           .update({ gcal_event_id: match.id })
-          .eq('id', logId);
+          .eq('id', logId)
+          .eq('workspace_id', log.workspace_id);
       }
     }
 
@@ -892,7 +894,8 @@ export async function syncWorklogToGCal(logId: string, action: 'insert' | 'updat
       await supabase
         .from('col_worklog')
         .update({ gcal_event_id: newEventId })
-        .eq('id', logId);
+        .eq('id', logId)
+        .eq('workspace_id', log.workspace_id);
       
       console.log('[GCal Sync] Event created successfully:', newEventId);
     } else {
@@ -909,7 +912,8 @@ export async function syncWorklogToGCal(logId: string, action: 'insert' | 'updat
           await supabase
             .from('col_worklog')
             .update({ gcal_event_id: newEventId })
-            .eq('id', logId);
+            .eq('id', logId)
+            .eq('workspace_id', log.workspace_id);
         } else {
           throw err;
         }

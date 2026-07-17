@@ -1008,7 +1008,8 @@ export default function AdminPage() {
         }
 
         if (editRow) {
-          const { error } = await supabase.from('tb_master_holiday').update({ name: formHolidayName }).eq('date', editRow.date);
+          const holidayWs = session?.activeWorkspaceId || editRow.workspace_id;
+          const { error } = await supabase.from('tb_master_holiday').update({ name: formHolidayName }).eq('date', editRow.date).eq('workspace_id', holidayWs);
           if (error) throw error;
         } else {
           const { error } = await supabase.from('tb_master_holiday').insert(payload);
@@ -1059,10 +1060,41 @@ export default function AdminPage() {
       return;
     }
 
+    // Resolve the human-readable workspace name for the row being deleted,
+    // so the confirm dialog can show exactly which workspace is affected.
+    const rowWsId = row.workspace_id || delWorkspaceId;
+    const rowWsName = rowWsId
+      ? (session?.activeWorkspaceId === rowWsId
+          ? (session?.workspaceName || rowWsId)
+          : rowWsId)
+      : 'ทั้งระบบ (Global)';
+
+    const labelMap: Record<string, string> = {
+      holding: 'หน่วยธุรกิจ (Holding)',
+      role: 'บทบาท (Role)',
+      project_type: 'ประเภทโครงการ (Project Type)',
+      action: 'Action',
+      map_user: 'การจับคู่ User-Role',
+      map_project: 'โครงสร้างโครงการ (Project Structure)',
+      holiday: 'วันหยุด (Holiday)',
+      templates: 'เทมเพลต',
+      users: 'ผู้ใช้ (User)'
+    };
+    const recordLabel = activeTab === 'holding' ? row.holding_name
+      : activeTab === 'role' ? row.role_name
+      : activeTab === 'project_type' ? row.type_name
+      : activeTab === 'holiday' ? String(row.date)
+      : activeTab === 'users' ? (row.full_name || row.email || row.emp_id || row.id)
+      : (row.name || row.id);
+
     const confirmed = await showConfirm({
-      title: 'Confirm Delete',
-      message: 'Are you sure you want to delete this record? This action cannot be undone.',
-      confirmText: 'Delete',
+      title: 'ยืนยันการลบข้อมูล',
+      message:
+        `คุณกำลังจะลบ${labelMap[activeTab] || 'รายการ'}:\n` +
+        `• ชื่อ: "${recordLabel}"\n` +
+        `• Workspace: ${rowWsName}\n\n` +
+        `การกระทำนี้ไม่สามารถย้อนกลับได้ และจะลบเฉพาะข้อมูลใน Workspace นี้เท่านั้น`,
+      confirmText: 'ลบถาวร (Delete)',
       type: 'danger'
     });
     if (!confirmed) return;
@@ -1080,12 +1112,19 @@ export default function AdminPage() {
         activeTab === 'templates' ? 'tb_master_worklog_templates' : 'users'
       );
 
-      let deleteOp;
-      if (activeTab === 'holding') deleteOp = query.delete().eq('holding_name', row.holding_name);
-      else if (activeTab === 'role') deleteOp = query.delete().eq('role_name', row.role_name);
-      else if (activeTab === 'project_type') deleteOp = query.delete().eq('type_name', row.type_name);
-      else if (activeTab === 'holiday') deleteOp = query.delete().eq('date', row.date);
-      else deleteOp = query.delete().eq('id', row.id);
+      // CRITICAL: delete by primary key + workspace_id to prevent cross-workspace
+      // deletion when master names are duplicated across workspaces.
+      // Note: tb_master_holding/role/project_type/holiday use composite PK (name, workspace_id)
+      // and have NO single 'id' column; the rest use a real 'id' column.
+      // wsFilter always resolves to a concrete workspace_id (prefer the admin's active
+      // workspace, fall back to the row's own workspace_id) so the delete never broadens.
+      const wsFilter = delWorkspaceId || row.workspace_id;
+      let deleteOp: any;
+      if (activeTab === 'holding') deleteOp = query.delete().eq('holding_name', row.holding_name).eq('workspace_id', wsFilter);
+      else if (activeTab === 'role') deleteOp = query.delete().eq('role_name', row.role_name).eq('workspace_id', wsFilter);
+      else if (activeTab === 'project_type') deleteOp = query.delete().eq('type_name', row.type_name).eq('workspace_id', wsFilter);
+      else if (activeTab === 'holiday') deleteOp = query.delete().eq('date', row.date).eq('workspace_id', wsFilter);
+      else deleteOp = query.delete().eq('id', row.id).eq('workspace_id', wsFilter);
 
       const { error } = await deleteOp;
       if (error) throw error;

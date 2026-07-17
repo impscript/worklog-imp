@@ -214,6 +214,23 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const handleSwitchWorkspace = async (workspaceId: string) => {
     if (!user) return;
     try {
+      const isSuperAdmin = user.role === 'admin' && !user.activeWorkspaceId;
+
+      // Non-super-admins must be a member of the destination workspace before switching.
+      if (workspaceId && !isSuperAdmin) {
+        const { data: membership, error: memErr } = await supabase
+          .from('workspace_users')
+          .select('id')
+          .eq('workspace_id', workspaceId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (memErr) throw memErr;
+        if (!membership) {
+          showToast('คุณไม่มีสิทธิ์เข้าถึง Workspace นี้', 'error');
+          return;
+        }
+      }
+
       let updatedSession = { ...user };
       if (!workspaceId) {
         // Switch back to Global
@@ -226,6 +243,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         (updatedSession as any).workspaceName = selected?.workspace_name || '';
         (updatedSession as any).workspaceInviteCode = selected?.invite_code || '';
       }
+
+      // Audit: record any workspace switch (including super-admin cross-tenant support access)
+      await supabase.from('tb_audit_log').insert({
+        workspace_id: workspaceId || user.activeWorkspaceId || null,
+        actor_id: user.id,
+        actor_name: user.name || user.empId || user.id,
+        action: 'SUPERADMIN_WORKSPACE_SWITCH',
+        target_id: workspaceId || null,
+        target_name: workspaceId ? workspacesList.find(w => w.id === workspaceId)?.workspace_name || '' : 'Global',
+        metadata: { from: user.activeWorkspaceId || 'Global', to: workspaceId || 'Global', is_super_admin: isSuperAdmin }
+      });
 
       // Update database
       const dbVal = workspaceId || null;
@@ -323,7 +351,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           const { error } = await supabase
             .from('col_worklog')
             .update(pending.updatePayload)
-            .eq('id', pending.logId);
+            .eq('id', pending.logId)
+            .eq('workspace_id', user?.activeWorkspaceId);
 
           if (error) throw error;
 

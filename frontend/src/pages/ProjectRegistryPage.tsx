@@ -19,6 +19,7 @@ type ProjectStatus = 'planning' | 'development' | 'active' | 'inactive' | 'sunse
 interface Project {
   id: string;
   project_name: string;
+  workspace_id?: string | null;
   project_slug: string;
   description: string | null;
   parent_project_id: string | null;
@@ -658,7 +659,8 @@ export default function ProjectRegistryPage() {
         const { error } = await supabase
           .from('tb_project_registry')
           .update(payload)
-          .eq('id', editingProject.id);
+          .eq('id', editingProject.id)
+          .eq('workspace_id', workspaceId);
 
         if (error) throw error;
         showToast(`อัปเดต "${payload.project_name}" สำเร็จ ✅`, 'success');
@@ -704,7 +706,8 @@ export default function ProjectRegistryPage() {
       const { error } = await supabase
         .from('tb_project_registry')
         .delete()
-        .eq('id', deleteTarget.id);
+        .eq('id', deleteTarget.id)
+        .eq('workspace_id', deleteTarget.workspace_id);
 
       if (error) throw error;
 
@@ -717,9 +720,15 @@ export default function ProjectRegistryPage() {
   };
 
   const handleDeleteClick = async (project: Project) => {
+    const sessionStr = localStorage.getItem('worklog_session');
+    const session = sessionStr ? JSON.parse(sessionStr) : null;
     const confirmed = await showConfirm({
-      title: 'ยืนยันการลบ',
-      message: `แน่ใจว่าจะลบโปรเจค "${project.project_name}"?\n\nการกระทำนี้ไม่สามารถย้อนกลับได้`,
+      title: 'ยืนยันการลบโปรเจค',
+      message:
+        `คุณกำลังจะลบโปรเจค:\n` +
+        `• ชื่อ: "${project.project_name}"\n` +
+        `• Workspace: ${project.workspace_id === session?.activeWorkspaceId ? (session?.workspaceName || project.workspace_id) : (project.workspace_id || 'ไม่ระบุ')}\n\n` +
+        `การกระทำนี้ไม่สามารถย้อนกลับได้ และจะลบเฉพาะใน Workspace นี้`,
       type: 'danger'
     });
     if (confirmed) {

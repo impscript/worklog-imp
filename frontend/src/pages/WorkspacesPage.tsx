@@ -85,10 +85,12 @@ export default function WorkspacesPage() {
     }
   };
 
-  const handleRemoveUser = async (wuId: string, uId: string, userName: string) => {
+  const handleRemoveUser = async (wuId: string, uId: string, userName: string, wsName?: string) => {
     const ok = await showConfirm({
       title: 'ยืนยันการลบสมาชิก',
-      message: `ต้องการลบ ${userName} ออกจากฝ่ายงานนี้หรือไม่?`,
+      message:
+        `ต้องการลบ ${userName} ออกจากฝ่ายงานนี้หรือไม่?\n\n` +
+        `• Workspace: ${wsName || 'นี้'}`,
       confirmText: 'ลบสมาชิก',
       type: 'danger',
     });
@@ -123,9 +125,16 @@ export default function WorkspacesPage() {
 
   const handleDeleteWorkspace = async (wsId: string, wsName: string) => {
     const ok = await showConfirm({
-      title: 'ยืนยันการลบ Workspace',
-      message: `ต้องการลบฝ่ายงาน "${wsName}"? ข้อมูลความสัมพันธ์พนักงานทั้งหมดในกลุ่มนี้จะถูกลบออกเด็ดขาด`,
-      confirmText: 'ลบฝ่ายงาน',
+      title: '⚠️ ยืนยันการลบ Workspace',
+      message:
+        `คุณกำลังจะลบ Workspace: "${wsName}"\n` +
+        `• ID: ${wsId}\n\n` +
+        `การลบนี้จะลบข้อมูลต่อไปนี้ใน Workspace นี้เท่านั้น:\n` +
+        `  - ความสัมพันธ์พนักงาน (workspace_users)\n` +
+        `  - Master data และ Mapping ทั้งหมดของ Workspace นี้\n` +
+        `  - ใบงานบันทึก (worklog) ทั้งหมดของ Workspace นี้\n\n` +
+        `การกระทำไม่สามารถย้อนกลับได้ กรุณาตรวจสอบชื่อ Workspace ให้ถูกต้อง`,
+      confirmText: 'ลบ Workspace ถาวร',
       type: 'danger',
     });
     if (!ok) return;
@@ -401,7 +410,7 @@ export default function WorkspacesPage() {
                                                 type="button"
                                                 disabled={isSubmitting === mem.id}
                                                 onClick={() =>
-                                                  handleRemoveUser(mem.id, mem.user_id, mem.users?.full_name)
+                                                  handleRemoveUser(mem.id, mem.user_id, mem.users?.full_name, ws.workspace_name)
                                                 }
                                                 className="p-1 text-theme-text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded transition-all"
                                                 title="ถอดออกจากฝ่าย"
