@@ -145,7 +145,8 @@ export default function ProfilePage() {
         const { data: logs } = await supabase
           .from('col_worklog')
           .select('work_date, total_hours')
-          .eq('user_id', sessionData.id);
+          .eq('user_id', sessionData.id)
+          .eq('workspace_id', sessionData.activeWorkspaceId);
 
         if (logs) {
           const totalHours = logs.reduce((sum, item) => sum + parseFloat(item.total_hours), 0);

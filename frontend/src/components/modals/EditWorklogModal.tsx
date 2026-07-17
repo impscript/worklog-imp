@@ -49,6 +49,7 @@ const validateAndFormatTime = (timeStr: string, fallback: string): string => {
 interface WorklogEntry {
   id: string;
   user_id: string;
+  workspace_id: string;
   work_date: string;
   holding: string;
   department_operator: string;
@@ -568,12 +569,14 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     const currentUserId = log.user_id;
 
     async function loadDailyData() {
+      if (!log) return;
       // 1. Fetch other logs on this date (exclude current log if editing)
       let query = supabase
         .from('col_worklog')
         .select('*')
         .eq('user_id', currentUserId)
-        .eq('work_date', date);
+        .eq('work_date', date)
+        .eq('workspace_id', log.workspace_id);
       
       if (currentLogId) {
         query = query.neq('id', currentLogId);

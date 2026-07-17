@@ -1115,7 +1115,8 @@ export default function CalendarPage() {
         const { data, error } = await supabase
           .from('col_worklog')
           .select('*')
-          .eq('user_id', currentTargetId);
+          .eq('user_id', currentTargetId)
+          .eq('workspace_id', session.activeWorkspaceId);
 
         if (error) {
           console.error('Error fetching calendar entries:', error);

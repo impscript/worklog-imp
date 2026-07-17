@@ -933,6 +933,7 @@ export default function HrbpPage() {
         .from('col_worklog')
         .select('project_name, action_name, description, total_hours')
         .eq('user_id', selectedUser)
+        .eq('workspace_id', sessionUser?.activeWorkspaceId)
         .gte('work_date', startDate)
         .lte('work_date', endDate);
         

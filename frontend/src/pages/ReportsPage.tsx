@@ -34,6 +34,7 @@ import {
 interface WorklogEntry {
   id: string;
   user_id: string;
+  workspace_id: string;
   work_date: string;
   holding: string;
   department_operator: string;
