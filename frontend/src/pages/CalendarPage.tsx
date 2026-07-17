@@ -1436,7 +1436,7 @@ export default function CalendarPage() {
           setSyncAlert({
             isOpen: true,
             title: 'กู้คืนใบงานสำเร็จ',
-            message: `สแกนพบใบงานทั้งหมดบนปฏิทิน: ${result.total} รายการ\nกู้คืนสำเร็จกลับสู่ฐานข้อมูล: ${result.recovered} รายการที่ขาดหายไป`,
+            message: `สแกนพบใบงานทั้งหมดบนปฏิทิน: ${result.total} รายการ\nกู้คืนสำเร็จกลับสู่ฐานข้อมูล: ${result.recovered} รายการที่ขาดหายไป\nอัปเดต / ซ่อมแซม Project Type: ${result.updated || 0} รายการ`,
             type: 'success'
           });
         } catch (err: any) {

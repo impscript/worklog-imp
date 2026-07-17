@@ -575,7 +575,7 @@ class GoogleCalendarService {
   /**
    * Scan and recover missing worklogs from Google Calendar events for the month range
    */
-  async recoverWorklogsFromGCal(userId: string, calendarId: string, monthStart: string, monthEnd: string): Promise<{ total: number; recovered: number }> {
+  async recoverWorklogsFromGCal(userId: string, calendarId: string, monthStart: string, monthEnd: string): Promise<{ total: number; recovered: number; updated: number }> {
     // 1. Fetch all events from Google Calendar for the month
     const allEvents = await this.listEventsForRange(userId, calendarId, monthStart, monthEnd);
     
@@ -589,27 +589,45 @@ class GoogleCalendarService {
     });
 
     if (parsedLogs.length === 0) {
-      return { total: 0, recovered: 0 };
+      return { total: 0, recovered: 0, updated: 0 };
     }
 
     // 3. Query the database to find which IDs already exist in col_worklog
     const parsedIds = parsedLogs.map(l => l.id);
     const { data: existingLogs, error: checkErr } = await supabase
       .from('col_worklog')
-      .select('id')
+      .select('id, project_type')
       .in('id', parsedIds);
 
     if (checkErr) {
       throw new Error(`Failed to check existing worklogs: ${checkErr.message}`);
     }
 
-    const existingIdsSet = new Set((existingLogs || []).map(l => l.id));
+    const existingLogsMap = new Map<string, string>((existingLogs || []).map(l => [l.id, l.project_type || '']));
     
     // 4. Filter out the ones that already exist in DB
-    const missingLogs = parsedLogs.filter(l => !existingIdsSet.has(l.id));
+    const missingLogs = parsedLogs.filter(l => !existingLogsMap.has(l.id));
+    const logsNeedingTypeUpdate = parsedLogs.filter(l => {
+      if (!existingLogsMap.has(l.id)) return false;
+      const currentType = existingLogsMap.get(l.id);
+      return !currentType || (currentType === 'Project' && l.project_type !== 'Project');
+    });
+
+    let updatedCount = 0;
+    if (logsNeedingTypeUpdate.length > 0) {
+      for (const logToUpdate of logsNeedingTypeUpdate) {
+        const { error: updateErr } = await supabase
+          .from('col_worklog')
+          .update({ project_type: logToUpdate.project_type })
+          .eq('id', logToUpdate.id);
+        if (!updateErr) {
+          updatedCount++;
+        }
+      }
+    }
 
     if (missingLogs.length === 0) {
-      return { total: parsedLogs.length, recovered: 0 };
+      return { total: parsedLogs.length, recovered: 0, updated: updatedCount };
     }
 
     // 5. Build full records including required mapping fallbacks for holding, department_operator, etc.
@@ -658,7 +676,8 @@ class GoogleCalendarService {
 
     return {
       total: parsedLogs.length,
-      recovered: inserts.length
+      recovered: inserts.length,
+      updated: updatedCount
     };
   }
 }
