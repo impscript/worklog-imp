@@ -929,10 +929,19 @@ export default function LogWorkPage() {
 
   const allowedProjects = useMemo(() => {
     return mapProjectStructure.filter(proj => 
-      mapUserRole.some(ur => 
-        (ur.holding || '').trim().toLowerCase() === (proj.holding || '').trim().toLowerCase() && 
-        (ur.department_operator || '').trim().toLowerCase() === (proj.department_operator || '').trim().toLowerCase()
-      )
+      mapUserRole.some(ur => {
+        // "ALL" or "All Holding" in user mapping means wildcard — matches any project holding/dept
+        const holdingWild = (ur.holding || '').trim().toLowerCase() === 'all' ||
+          (ur.holding || '').trim().toLowerCase() === 'all holding';
+        const deptWild = (ur.department_operator || '').trim().toLowerCase() === 'all';
+
+        const holdingMatch = holdingWild ||
+          (ur.holding || '').trim().toLowerCase() === (proj.holding || '').trim().toLowerCase();
+        const deptMatch = deptWild ||
+          (ur.department_operator || '').trim().toLowerCase() === (proj.department_operator || '').trim().toLowerCase();
+
+        return holdingMatch && deptMatch;
+      })
     );
   }, [mapProjectStructure, mapUserRole]);
 
