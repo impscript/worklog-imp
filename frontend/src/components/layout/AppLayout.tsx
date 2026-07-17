@@ -412,8 +412,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem('worklog_session');
+    localStorage.removeItem('gcal_pending_sync');
+    localStorage.removeItem('gcal_pending_origin');
     navigate('/login');
   };
 

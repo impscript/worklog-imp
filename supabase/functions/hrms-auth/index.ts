@@ -2,15 +2,23 @@ import "@supabase/functions-js/edge-runtime.d.ts";
 import md5 from "npm:js-md5@0.7.3";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+const allowedOrigins = new Set(
+  (Deno.env.get("AUTH_ALLOWED_ORIGINS") || "http://localhost:5173,https://worklog-imp.pages.dev")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+
+const corsHeadersFor = (origin: string | null) => ({
+  "Access-Control-Allow-Origin": origin && allowedOrigins.has(origin) ? origin : "null",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+  "Vary": "Origin",
+});
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+const json = (body: unknown, status = 200, origin: string | null = null) => new Response(JSON.stringify(body), {
   status,
-  headers: { ...corsHeaders, "Content-Type": "application/json" },
+  headers: { ...corsHeadersFor(origin), "Content-Type": "application/json" },
 });
 
 const requiredEnv = (name: string) => {
@@ -35,13 +43,20 @@ const parseIdmsResponse = (text: string) => {
 const stableAuthEmail = (empId: string) => `emp-${empId}@auth.worklog.local`;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  const origin = req.headers.get("origin");
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeadersFor(origin) });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);
 
   try {
     const { account, password } = await req.json();
-    if (typeof account !== "string" || typeof password !== "string" || !account || !password) {
-      return json({ error: "account and password are required" }, 400);
+    if (
+      typeof account !== "string" ||
+      typeof password !== "string" ||
+      account.length < 1 || account.length > 128 ||
+      password.length < 1 || password.length > 256 ||
+      /[\u0000-\u001f\u007f]/.test(account)
+    ) {
+      return json({ error: "account and password are required" }, 400, origin);
     }
 
     const idmsBaseUrl = requiredEnv("IDMS_BASE_URL").replace(/\/$/, "");
@@ -62,14 +77,21 @@ Deno.serve(async (req) => {
     idmsUrl.searchParams.set("AgentCode", agentCode);
 
     let idmsResponse: Response;
+    const upstreamController = new AbortController();
+    const upstreamTimeout = setTimeout(() => upstreamController.abort(), 10_000);
     try {
-      idmsResponse = await fetch(idmsUrl, { headers: { Accept: "application/json" } });
+      idmsResponse = await fetch(idmsUrl, {
+        headers: { Accept: "application/json" },
+        signal: upstreamController.signal,
+      });
     } catch (error) {
       console.error("IDMS upstream request failed", error instanceof Error ? error.message : error);
-      return json({ error: "IDMS authentication service unavailable" }, 502);
+      return json({ error: "IDMS authentication service unavailable" }, 502, origin);
+    } finally {
+      clearTimeout(upstreamTimeout);
     }
     const idms = parseIdmsResponse(await idmsResponse.text());
-    if (!idmsResponse.ok || !idms.success || !idms.empId) return json({ error: "Invalid credentials" }, 401);
+    if (!idmsResponse.ok || !idms.success || !idms.empId) return json({ error: "Invalid credentials" }, 401, origin);
 
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -81,7 +103,7 @@ Deno.serve(async (req) => {
     const { data: employee, error: employeeError } = await admin
       .from("users").select("*").eq("emp_id", idms.empId).maybeSingle();
     if (employeeError) throw employeeError;
-    if (!employee) return json({ error: "Employee is not provisioned" }, 403);
+    if (!employee) return json({ error: "Employee is not provisioned" }, 403, origin);
 
     const authEmail = stableAuthEmail(idms.empId);
     let authUserId = employee.auth_user_id as string | null;
@@ -107,9 +129,9 @@ Deno.serve(async (req) => {
     });
     if (signInError || !session.session) throw signInError || new Error("Could not create session");
 
-    return json({ session: session.session, employee: { ...employee, auth_user_id: authUserId } });
+    return json({ session: session.session, employee: { id: employee.id, emp_id: employee.emp_id, full_name: employee.full_name, nickname: employee.nickname, role: employee.role, department: employee.department, position: employee.position, email: employee.email, active_workspace_id: employee.active_workspace_id, workspace_role: employee.workspace_role, auth_user_id: authUserId } }, 200, origin);
   } catch (error) {
     console.error("HRMS auth bridge failed", error instanceof Error ? error.message : error);
-    return json({ error: "Authentication service unavailable" }, 500);
+    return json({ error: "Authentication service unavailable" }, 500, origin);
   }
 });

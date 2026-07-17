@@ -84,8 +84,8 @@ export function useAuth() {
       let empId = '';
 
       // Check if it matches a mock user simulation
-      const mockUser = (import.meta.env.DEV || password === 'mock_bypass')
-        ? MOCK_USERS.find(u => u.emp_id === username || u.nickname.toLowerCase() === username.toLowerCase() || (password === 'mock_bypass' && u.emp_id === username))
+      const mockUser = import.meta.env.DEV
+        ? MOCK_USERS.find(u => u.emp_id === username || u.nickname.toLowerCase() === username.toLowerCase())
         : null;
 
       // ==========================================
@@ -199,50 +199,15 @@ export function useAuth() {
           console.log(`${modeLabel} Supabase Auth session established — EmpId: ${empId}`);
         }
 
-        // 1.5 Fetch existing user record from database (if any) to preserve cached values if API fails
-        const { data: existingUser } = await supabase
-          .from('users')
-          .select('*')
-          .eq('emp_id', empId)
-          .maybeSingle();
-
-        // Map data from HRMS response with fallback to existing DB record, then to hardcoded defaults
-        empId = empId || '';
-        email = employeeData?.EMail || employeeData?.email || existingUser?.email || `${username.toLowerCase()}@doublea1991.com`;
-        fullName = employeeData?.EmpName || employeeData?.full_name || existingUser?.full_name || username;
-        const department = employeeData?.Department || employeeData?.department || existingUser?.department || 'IMP';
-        position = employeeData?.Position || employeeData?.position || existingUser?.position || 'Specialist';
-        const phone = employeeData?.Sim_Number || employeeData?.phone || existingUser?.phone || '';
-        
-        // Extract new profile fields
-        const roleStartDate = employeeData?.StartDate 
-          ? employeeData.StartDate.split('T')[0] 
-          : (existingUser?.role_start_date || null);
-        const employeeLevel = employeeData?.LevelName || existingUser?.employee_level || 'Senior';
-        const companyCode = employeeData?.Company_Code || existingUser?.company_code || '';
-        const companyName = employeeData?.CompanyName || existingUser?.company_name || '';
-
         if (!isBridgeLogin) {
-          // Legacy mock/development provisioning only. Live login is provisioned
-          // server-side by hrms-auth and must not write through an anon RPC.
-          const { data: upsertedUser, error: upsertErr } = await supabase
-            .rpc('provision_hrms_user', {
-              p_emp_id: empId,
-              p_email: email,
-              p_full_name: fullName,
-              p_nickname: username,
-              p_department: department,
-              p_position: position,
-              p_phone: phone,
-              p_employee_level: employeeLevel,
-              p_role_start_date: roleStartDate,
-              p_company_code: companyCode,
-              p_company_name: companyName
-            });
-          if (upsertErr) throw upsertErr;
-          if (!upsertedUser) throw new Error('ไม่สามารถดึงข้อมูลผู้ใช้งานได้หลังจาก Login');
-          userRecord = upsertedUser;
+          throw new Error('บัญชีนี้ต้องเข้าสู่ระบบผ่าน HRMS/IDMS Auth Bridge');
         }
+
+        // The bridge returns an authoritative, minimal employee profile.
+        empId = userRecord.emp_id || '';
+        email = userRecord.email || '';
+        fullName = userRecord.full_name || username;
+        position = userRecord.position || 'Specialist';
       }
 
       // Handle Invite Code Workspace Joining if provided
