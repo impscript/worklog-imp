@@ -79,12 +79,11 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
         }
       }
 
-      // 2. Delete from Supabase Database
-      const { error } = await supabase
-        .from('col_worklog')
-        .delete()
-        .eq('id', log.id)
-        .eq('workspace_id', session?.activeWorkspaceId);
+      // 2. Delete through the actor/workspace-validated RPC.
+      const { error } = await supabase.rpc('delete_worklog_secure', {
+        p_worklog_id: log.id,
+        p_workspace_id: session?.activeWorkspaceId
+      });
 
       if (error) throw error;
 

@@ -1650,19 +1650,15 @@ export default function LogWorkPage() {
       }
 
       let savedId = null;
-
-      if (finalSegments.length > 1) {
-        // We need to SPLIT this entry!
-        for (let i = 0; i < finalSegments.length; i++) {
-          const segment = finalSegments[i];
-          const segmentPrefix = segment.is_ot ? '[OT]' : '[Normal]';
-
-          const { data, error } = await supabase.from('col_worklog').insert({
-            user_id: userId,
+      const createSecureWorklog = async (segment: any, descriptionValue: string, breakTime: boolean) => {
+        return supabase.rpc('create_worklog_secure', {
+          p_workspace_id: session.activeWorkspaceId,
+          p_target_user_id: userId,
+          p_payload: {
             work_date: segment.work_date,
             start_time: segment.start_time + ':00',
             end_time: segment.end_time + ':00',
-            break_time: !segment.is_ot ? isBreak : false,
+            break_time: breakTime,
             total_hours: segment.hours,
             holding,
             department_operator: role,
@@ -1673,13 +1669,26 @@ export default function LogWorkPage() {
             department,
             action_name: actionName,
             action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
-            description: description ? `${segmentPrefix} ${description}` : `${segment.is_ot ? 'OT' : 'Normal'} portion`,
+            description: descriptionValue,
             channel: 'Web App',
             is_ot: segment.is_ot,
             is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-            image_urls: attachedImages,
-            workspace_id: session.activeWorkspaceId
-          }).select('id').maybeSingle();
+            image_urls: attachedImages
+          }
+        });
+      };
+
+      if (finalSegments.length > 1) {
+        // We need to SPLIT this entry!
+        for (let i = 0; i < finalSegments.length; i++) {
+          const segment = finalSegments[i];
+          const segmentPrefix = segment.is_ot ? '[OT]' : '[Normal]';
+
+          const { data, error } = await createSecureWorklog(
+            segment,
+            description ? `${segmentPrefix} ${description}` : `${segment.is_ot ? 'OT' : 'Normal'} portion`,
+            !segment.is_ot ? isBreak : false
+          );
 
           if (error) throw error;
           if (data) {
@@ -1698,29 +1707,11 @@ export default function LogWorkPage() {
           is_ot: isExplicitOt || isHolidayDate
         };
 
-        const { data, error } = await supabase.from('col_worklog').insert({
-          user_id: userId,
-          work_date: segment.work_date,
-          start_time: segment.start_time + ':00',
-          end_time: segment.end_time + ':00',
-          break_time: timeMode === 'range' ? isBreak : false,
-          total_hours: segment.hours,
-          holding,
-          department_operator: role,
-          project_type: projectType,
-          project_name: projectName,
-          module: module || null,
-          bu,
-          department,
-          action_name: actionName,
-          action_channel: selectedActionChannels.length > 0 ? selectedActionChannels.join(', ') : null,
-          description: description,
-          channel: 'Web App',
-          is_ot: segment.is_ot,
-          is_implied_ot: segment.is_ot && !isHolidayDate && !isExplicitOt,
-          image_urls: attachedImages,
-          workspace_id: session.activeWorkspaceId
-        }).select('id').maybeSingle();
+        const { data, error } = await createSecureWorklog(
+          segment,
+          description,
+          timeMode === 'range' ? isBreak : false
+        );
 
         if (error) throw error;
         if (data) {
