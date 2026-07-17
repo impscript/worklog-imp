@@ -616,16 +616,33 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   }, [isHolidayDate]);
 
   // Memoized dropdown constraints matching LogWorkPage
-  const availableHoldings = useMemo(() => Array.from(new Set(mapUserRole.map(m => m.holding))).sort(), [mapUserRole]);
+  const availableHoldings = useMemo(() => {
+    return Array.from(new Set(mapProjectStructure.map(p => p.holding).filter(Boolean))).sort() as string[];
+  }, [mapProjectStructure]);
   
   const availableRoles = useMemo(() => {
     if (!holding) return [];
-    return Array.from(new Set(
-      mapUserRole
-        .filter(m => (m.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase())
-        .map(m => m.department_operator)
-    )).sort();
-  }, [holding, mapUserRole]);
+    
+    // Find matching role operators from User Mappings
+    const matches = mapUserRole.filter(ur => {
+      const urHolding = (ur.holding || '').trim().toLowerCase();
+      const selHolding = holding.trim().toLowerCase();
+      return urHolding === 'all' || urHolding === 'all holding' || urHolding === selHolding;
+    });
+
+    const hasWildcardDept = matches.some(ur => (ur.department_operator || '').trim().toLowerCase() === 'all');
+    
+    if (hasWildcardDept || matches.length === 0) {
+      // Fallback to extracting all department operators defined on actual projects in this holding
+      const structureOperators = mapProjectStructure
+        .filter(p => (p.holding || '').trim().toLowerCase() === holding.trim().toLowerCase())
+        .map(p => p.department_operator)
+        .filter(Boolean);
+      return Array.from(new Set(structureOperators)).sort() as string[];
+    }
+
+    return Array.from(new Set(matches.map(m => m.department_operator).filter(Boolean))).sort() as string[];
+  }, [holding, mapUserRole, mapProjectStructure]);
 
   const availableProjectTypes = useMemo(() => {
     if (!holding || !role) return [];
