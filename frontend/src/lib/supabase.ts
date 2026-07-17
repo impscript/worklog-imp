@@ -7,4 +7,14 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Authentication is handled by the HRMS/IDMS handshake, not Supabase Auth.
+// Do not persist or refresh a stale Supabase session: an invalid access token
+// would override the anon key and make otherwise permitted REST requests fail
+// with 401 Unauthorized.
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false
+  }
+});

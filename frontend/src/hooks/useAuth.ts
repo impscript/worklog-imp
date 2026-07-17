@@ -225,24 +225,19 @@ export function useAuth() {
 
         // Upsert corporate profile dynamically (Just-In-Time provisioning)
         const { data: upsertedUser, error: upsertErr } = await supabase
-          .from('users')
-          .upsert({
-            emp_id: empId,
-            email: email,
-            full_name: fullName,
-            nickname: username,
-            department: department,
-            position: position,
-            phone: phone,
-            employee_level: employeeLevel,
-            role_start_date: roleStartDate,
-            company_code: companyCode,
-            company_name: companyName,
-            status: 'Active',
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'emp_id' })
-          .select('*')
-          .maybeSingle();
+          .rpc('provision_hrms_user', {
+            p_emp_id: empId,
+            p_email: email,
+            p_full_name: fullName,
+            p_nickname: username,
+            p_department: department,
+            p_position: position,
+            p_phone: phone,
+            p_employee_level: employeeLevel,
+            p_role_start_date: roleStartDate,
+            p_company_code: companyCode,
+            p_company_name: companyName
+          });
 
         if (upsertErr) throw upsertErr;
 
