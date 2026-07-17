@@ -91,6 +91,7 @@ export default function AdminPage() {
   
   // Mappings Form States
   const [formMapUserName, setFormMapUserName] = useState('');
+  const [formMapUserId, setFormMapUserId] = useState(''); // user_id FK — for reliable matching
   const [formMapHolding, setFormMapHolding] = useState('');
   const [formMapRole, setFormMapRole] = useState('');
 
@@ -836,7 +837,8 @@ export default function AdminPage() {
         setFormActionCategory(row.action_category);
         setFormActionName(row.action_name);
       } else if (activeTab === 'map_user') {
-        setFormMapUserName(row.name);
+        setFormMapUserName(row.name || '');
+        setFormMapUserId(row.user_id || ''); // populate UUID if available
         setFormMapHolding(row.holding);
         setFormMapRole(row.department_operator);
       } else if (activeTab === 'map_project') {
@@ -871,6 +873,7 @@ export default function AdminPage() {
       setFormActionCategory('Project');
       setFormActionName('');
       setFormMapUserName('');
+      setFormMapUserId('');
       setFormMapHolding(holdings[0]?.holding_name || '');
       setFormMapRole(roles[0]?.role_name || '');
       setFormStructHolding('');
@@ -946,7 +949,12 @@ export default function AdminPage() {
           setIsLoading(false);
           return;
         }
-        const payload: any = { name: formMapUserName, holding: formMapHolding, department_operator: formMapRole };
+        const payload: any = {
+          name: formMapUserName,
+          user_id: formMapUserId || null,
+          holding: formMapHolding,
+          department_operator: formMapRole
+        };
         if (workspaceId) payload.workspace_id = workspaceId;
         if (editRow) {
           const { error } = await supabase.from('tb_map_user_role').update(payload).eq('id', editRow.id);
@@ -1856,20 +1864,23 @@ export default function AdminPage() {
                   <div>
                     <label className="block text-sm font-medium text-theme-text-secondary mb-2">Employee/User Name (ชื่อพนักงานที่จับคู่)</label>
                     <select
-                      value={formMapUserName}
-                      onChange={(e) => setFormMapUserName(e.target.value)}
+                      value={formMapUserId}
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        setFormMapUserId(selectedId);
+                        // Also store the display name (full_name) for backward compat
+                        const matched = usersList.find(u => u.id === selectedId);
+                        setFormMapUserName(matched?.full_name || selectedId);
+                      }}
                       className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-sm"
                       required
                     >
                       <option value="">-- เลือกพนักงาน --</option>
-                      {usersList.map(u => {
-                        const val = u.full_name; // Use full_name directly as the actual mapped value
-                        return (
-                          <option key={u.id} value={val}>
-                            {u.full_name} {u.nickname ? `(${u.nickname})` : ''} — {u.emp_id || 'No ID'}
-                          </option>
-                        );
-                      })}
+                      {usersList.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name} {u.nickname ? `(${u.nickname})` : ''} — {u.emp_id || 'No ID'}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>

@@ -655,47 +655,52 @@ export default function LogWorkPage() {
     async function loadData() {
       setIsLoadingMaster(true);
       try {
-        let cleanName = 'Chatchawan';
-        
+        // Fetch full user record from DB (emp_id, full_name, nickname)
+        let dbUserRecord: { nickname: string; full_name: string; emp_id: string } | null = null;
         if (session.id) {
           const { data: dbUser } = await supabase
             .from('users')
-            .select('nickname, full_name')
+            .select('nickname, full_name, emp_id')
             .eq('id', session.id)
             .maybeSingle();
-            
-          if (dbUser) {
-            const rawName = dbUser.nickname || dbUser.full_name?.split(' ')[0] || '';
-            cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
-          } else {
-            const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
-            cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
-          }
-        } else {
-          const rawName = session.nickname || session.name?.split(' ')[0] || 'Chatchawan';
-          cleanName = rawName.includes('_') ? rawName.split('_')[0] : rawName;
-        }
-        
-        let isThai = /[\u0e00-\u0e7f]/.test(cleanName);
-        if (isThai) {
-          const fallbackName = session.nickname || '';
-          if (fallbackName && !/[\u0e00-\u0e7f]/.test(fallbackName)) {
-            cleanName = fallbackName.includes('_') ? fallbackName.split('_')[0] : fallbackName;
-          } else {
-            cleanName = 'Chatchawan';
-          }
-        }
-        if (cleanName.includes('.')) {
-          cleanName = cleanName.split('.')[0];
-        }
-        cleanName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
-        
-        if (!cleanName.trim()) {
-          cleanName = 'Chatchawan';
+          if (dbUser) dbUserRecord = dbUser;
         }
 
+        // Build a list of candidate name values to match in tb_map_user_role
+        const candidateNames: string[] = [];
+        if (dbUserRecord) {
+          if (dbUserRecord.full_name) candidateNames.push(dbUserRecord.full_name.trim());
+          if (dbUserRecord.emp_id) candidateNames.push(dbUserRecord.emp_id.trim());
+          if (dbUserRecord.nickname) {
+            const nn = dbUserRecord.nickname.includes('_')
+              ? dbUserRecord.nickname.split('_')[0]
+              : dbUserRecord.nickname;
+            candidateNames.push(nn.trim());
+            // Capitalize version
+            if (nn) candidateNames.push(nn.charAt(0).toUpperCase() + nn.slice(1));
+          }
+        }
+        // Fallback from session
+        const rawSessionName = session.nickname || session.name?.split(' ')[0] || '';
+        const sessionClean = rawSessionName.includes('_') ? rawSessionName.split('_')[0] : rawSessionName;
+        if (sessionClean) candidateNames.push(sessionClean);
+
+        // Deduplicate
+        const uniqueCandidates = Array.from(new Set(candidateNames.filter(Boolean)));
+
+        // Resolve cleanName for display (prefer English/alphanumeric)
+        let cleanName = 'Chatchawan';
+        if (dbUserRecord?.nickname && !/^[\d]+$/.test(dbUserRecord.nickname)) {
+          const nn = dbUserRecord.nickname.includes('_') ? dbUserRecord.nickname.split('_')[0] : dbUserRecord.nickname;
+          if (!/[\u0e00-\u0e7f]/.test(nn)) cleanName = nn.charAt(0).toUpperCase() + nn.slice(1);
+          else cleanName = dbUserRecord.full_name || cleanName;
+        } else if (dbUserRecord?.full_name) {
+          cleanName = dbUserRecord.full_name;
+        }
+        if (!cleanName.trim()) cleanName = 'Chatchawan';
+
         const targetUser = selectedUser || cleanName;
-        console.log('LogWorkPage loading mappings for targetUser:', targetUser);
+        console.log('LogWorkPage loading mappings for targetUser:', targetUser, '| candidates:', uniqueCandidates);
 
         const workspaceId = session?.activeWorkspaceId;
         let useGlobal = true;
@@ -706,7 +711,45 @@ export default function LogWorkPage() {
           }
         }
 
-        let userQuery = supabase.from('tb_map_user_role').select('*').ilike('name', targetUser.trim());
+        // Build user role mapping query
+        // Strategy (most reliable → least):
+        // 1. user_id FK (exact UUID match) — works for all users with backfilled/new data
+        // 2. name-based OR match (backward compat for old rows without user_id)
+        let userQuery;
+        const isSimulating = isChatchawanUser(session) && selectedUser && selectedUser !== cleanName;
+
+        if (isSimulating) {
+          // Chatchawan simulating another user — find that user's UUID first, then query by user_id
+          const { data: simUserData } = await supabase
+            .from('users')
+            .select('id')
+            .or(`full_name.ilike.${selectedUser},emp_id.eq.${selectedUser},nickname.ilike.%${selectedUser}%`)
+            .limit(1)
+            .maybeSingle();
+
+          if (simUserData?.id) {
+            // Try user_id first, fall back to name
+            userQuery = supabase.from('tb_map_user_role').select('*')
+              .or(`user_id.eq.${simUserData.id},name.ilike.${selectedUser}`);
+          } else {
+            userQuery = supabase.from('tb_map_user_role').select('*').ilike('name', selectedUser.trim());
+          }
+        } else if (session.id) {
+          // Normal user: query by user_id first, then fall back to name candidates
+          const nameOrFilter = uniqueCandidates.length > 0
+            ? uniqueCandidates.map(c => `name.ilike.${c}`).join(',')
+            : `name.ilike.${targetUser.trim()}`;
+
+          userQuery = supabase.from('tb_map_user_role').select('*')
+            .or(`user_id.eq.${session.id},${nameOrFilter}`);
+        } else {
+          // No session id — name-only fallback
+          const orFilter = uniqueCandidates.length > 0
+            ? uniqueCandidates.map(c => `name.ilike.${c}`).join(',')
+            : `name.ilike.${targetUser.trim()}`;
+          userQuery = supabase.from('tb_map_user_role').select('*').or(orFilter);
+        }
+
         let projQuery = supabase.from('tb_map_project_structure').select('*');
         let actQuery = supabase.from('tb_master_action').select('*');
         let tplQuery = supabase.from('tb_master_worklog_templates').select('*');
