@@ -2,26 +2,26 @@
 BEGIN;
 
 -- 1. Insert unique Holdings into tb_master_holding
-INSERT INTO tb_master_holding (holding_name) VALUES ('Real Estate') ON CONFLICT (holding_name) DO NOTHING;
-INSERT INTO tb_master_holding (holding_name) VALUES ('Double A') ON CONFLICT (holding_name) DO NOTHING;
-INSERT INTO tb_master_holding (holding_name) VALUES ('All Holding') ON CONFLICT (holding_name) DO NOTHING;
-INSERT INTO tb_master_holding (holding_name) VALUES ('Logistic') ON CONFLICT (holding_name) DO NOTHING;
-INSERT INTO tb_master_holding (holding_name) VALUES ('Power') ON CONFLICT (holding_name) DO NOTHING;
+INSERT INTO tb_master_holding (holding_name) VALUES ('Real Estate') ON CONFLICT (holding_name, workspace_id) DO NOTHING;
+INSERT INTO tb_master_holding (holding_name) VALUES ('Double A') ON CONFLICT (holding_name, workspace_id) DO NOTHING;
+INSERT INTO tb_master_holding (holding_name) VALUES ('All Holding') ON CONFLICT (holding_name, workspace_id) DO NOTHING;
+INSERT INTO tb_master_holding (holding_name) VALUES ('Logistic') ON CONFLICT (holding_name, workspace_id) DO NOTHING;
+INSERT INTO tb_master_holding (holding_name) VALUES ('Power') ON CONFLICT (holding_name, workspace_id) DO NOTHING;
 
 -- 2. Insert unique Roles into tb_master_role
-INSERT INTO tb_master_role (role_name) VALUES ('IT') ON CONFLICT (role_name) DO NOTHING;
-INSERT INTO tb_master_role (role_name) VALUES ('IMP') ON CONFLICT (role_name) DO NOTHING;
-INSERT INTO tb_master_role (role_name) VALUES ('IMP&IT') ON CONFLICT (role_name) DO NOTHING;
+INSERT INTO tb_master_role (role_name) VALUES ('IT') ON CONFLICT (role_name, workspace_id) DO NOTHING;
+INSERT INTO tb_master_role (role_name) VALUES ('IMP') ON CONFLICT (role_name, workspace_id) DO NOTHING;
+INSERT INTO tb_master_role (role_name) VALUES ('IMP&IT') ON CONFLICT (role_name, workspace_id) DO NOTHING;
 
 -- 3. Insert unique Project Types into tb_master_project_type
-INSERT INTO tb_master_project_type (type_name) VALUES ('Management') ON CONFLICT (type_name) DO NOTHING;
-INSERT INTO tb_master_project_type (type_name) VALUES ('Project') ON CONFLICT (type_name) DO NOTHING;
-INSERT INTO tb_master_project_type (type_name) VALUES ('Support Go-Live') ON CONFLICT (type_name) DO NOTHING;
-INSERT INTO tb_master_project_type (type_name) VALUES ('Support MA') ON CONFLICT (type_name) DO NOTHING;
-INSERT INTO tb_master_project_type (type_name) VALUES ('Upgrade') ON CONFLICT (type_name) DO NOTHING;
+INSERT INTO tb_master_project_type (type_name) VALUES ('Management') ON CONFLICT (type_name, workspace_id) DO NOTHING;
+INSERT INTO tb_master_project_type (type_name) VALUES ('Project') ON CONFLICT (type_name, workspace_id) DO NOTHING;
+INSERT INTO tb_master_project_type (type_name) VALUES ('Support Go-Live') ON CONFLICT (type_name, workspace_id) DO NOTHING;
+INSERT INTO tb_master_project_type (type_name) VALUES ('Support MA') ON CONFLICT (type_name, workspace_id) DO NOTHING;
+INSERT INTO tb_master_project_type (type_name) VALUES ('Upgrade') ON CONFLICT (type_name, workspace_id) DO NOTHING;
 
 -- 4. Delete old project structure mapping table as requested ("ล้างของเก่า เอาของใหม่ไปแทน")
-DELETE FROM tb_map_project_structure;
+DELETE FROM tb_map_project_structure WHERE workspace_id = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
 
 -- 5. Insert all rows into tb_map_project_structure
 INSERT INTO tb_map_project_structure (holding, department_operator, project_type, project_name, module, bu, department) VALUES ('Real Estate', 'IT', 'Management', 'Policy', NULL, 'Corporate', 'IT');
