@@ -712,47 +712,44 @@ export default function LogWorkPage() {
         }
 
         // Build user role mapping query
-        // Strategy (most reliable → least):
-        // 1. user_id FK (exact UUID match)
-        // 2. name exact match (.eq) for simulation case — avoids .or() breaking on Thai names with spaces
-        // 3. name candidates OR match for backward compat
+        // After DB normalization, tb_map_user_role.name is now always emp_id (e.g. "688166")
+        // Primary lookup: user_id FK (most reliable, covers all backfilled rows)
+        // Fallback:       name = emp_id  (for old rows without user_id, or CRMC-style entries)
         let userQuery;
         const isSimulating = isChatchawanUser(session) && selectedUser && selectedUser !== cleanName;
 
         if (isSimulating) {
-          // Chatchawan simulating another user
-          // selectedUser = exact 'name' value from tb_map_user_role (e.g. "พิจิตราภรณ์ เกษมสุข")
-          // Try to resolve the UUID via full_name or emp_id (separate queries to avoid .or() with spaces)
+          // selectedUser is the 'name' value from tb_map_user_role — now emp_id format
+          // Resolve UUID: try emp_id first, then full_name as backup
           let simUserId: string | null = null;
 
-          const { data: byFullName } = await supabase
-            .from('users').select('id').eq('full_name', selectedUser).limit(1).maybeSingle();
-          if (byFullName?.id) {
-            simUserId = byFullName.id;
+          const { data: byEmpId } = await supabase
+            .from('users').select('id').eq('emp_id', selectedUser).limit(1).maybeSingle();
+          if (byEmpId?.id) {
+            simUserId = byEmpId.id;
           } else {
-            const { data: byEmpId } = await supabase
-              .from('users').select('id').eq('emp_id', selectedUser).limit(1).maybeSingle();
-            if (byEmpId?.id) simUserId = byEmpId.id;
+            // selectedUser might still be an old-format full_name (edge case)
+            const { data: byFullName } = await supabase
+              .from('users').select('id').eq('full_name', selectedUser).limit(1).maybeSingle();
+            if (byFullName?.id) simUserId = byFullName.id;
           }
 
           if (simUserId) {
-            // Found UUID — query by user_id (most reliable)
             userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', simUserId);
           } else {
-            // No UUID match — query by exact name (handles names that aren't in users table)
+            // CRMC-style special name — query by exact name
             userQuery = supabase.from('tb_map_user_role').select('*').eq('name', selectedUser.trim());
           }
         } else if (session.id) {
-          // Normal user: query by user_id (primary) + name candidates fallback in one shot
-          // NOTE: name candidates may contain spaces — use separate OR parts
+          // Normal user — query by user_id FK (primary)
+          // Fallback handled after query if empty (see below)
           userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', session.id);
-          // We'll union with name-based results after if needed (handled in resUser.data check below)
         } else {
-          // No session id — name-only fallback
-          const nameFilter = uniqueCandidates.length > 0
-            ? uniqueCandidates.map(c => `name.ilike.${c}`).join(',')
-            : `name.ilike.${targetUser.trim()}`;
-          userQuery = supabase.from('tb_map_user_role').select('*').or(nameFilter);
+          // No session id — fallback by emp_id or nickname
+          const empId = dbUserRecord?.emp_id || '';
+          userQuery = empId
+            ? supabase.from('tb_map_user_role').select('*').eq('name', empId)
+            : supabase.from('tb_map_user_role').select('*').eq('name', 'CRMC');
         }
 
         let projQuery = supabase.from('tb_map_project_structure').select('*');
@@ -782,60 +779,21 @@ export default function LogWorkPage() {
         if (resUser.data && resUser.data.length > 0) {
           console.log('✅ User role mapping found:', resUser.data.length, 'rows');
           setMapUserRole(resUser.data);
-        } else if (!isSimulating && session.id && uniqueCandidates.length > 0) {
-          // user_id query returned no rows — try name-based fallback for old unbackfilled data
-          console.warn('user_id query returned 0 rows, trying name-based fallback for candidates:', uniqueCandidates);
-          const nameFallbackQuery = supabase.from('tb_map_user_role').select('*')
-            .in('name', uniqueCandidates);
-          const wsQuery = workspaceId && workspaceId !== 'N/A'
-            ? nameFallbackQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
-            : nameFallbackQuery;
-          const { data: nameFallbackData } = await wsQuery;
-          if (nameFallbackData && nameFallbackData.length > 0) {
-            console.log('✅ Name fallback found:', nameFallbackData.length, 'rows');
-            setMapUserRole(nameFallbackData);
-          } else if (session && session.activeWorkspaceId && session.activeWorkspaceId !== 'N/A') {
-            // Workspace-based guess
-            let resolvedHolding = 'Real Estate';
-            let resolvedTeam = 'IMP';
-            const dept = (session.department || '').toLowerCase();
-            if (dept.includes('digital') || dept.includes('information') || dept.includes('it')) resolvedTeam = 'IT';
-            setMapUserRole([{ name: targetUser, holding: resolvedHolding, department_operator: resolvedTeam }]);
+        } else if (!isSimulating && session.id && dbUserRecord?.emp_id) {
+          // user_id query returned no rows — try name = emp_id fallback (old data before backfill)
+          const empIdKey = dbUserRecord.emp_id;
+          console.warn('user_id query returned 0 rows, trying emp_id fallback:', empIdKey);
+          let empFallbackQuery = supabase.from('tb_map_user_role').select('*').eq('name', empIdKey);
+          if (workspaceId && workspaceId !== 'N/A') {
+            empFallbackQuery = empFallbackQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`) as any;
           }
-        } else if (resUser.data && resUser.data.length === 0 && session && session.activeWorkspaceId && session.activeWorkspaceId !== 'N/A') {
-          // Resolve holding and team based on workspace invite code, name, or department
-          let resolvedHolding = 'Real Estate';
-          let resolvedTeam = 'IMP';
-
-          const code = (session.workspaceInviteCode || '').toUpperCase();
-          const dept = (session.department || '').toLowerCase();
-          const buLower = (session.bu_working || session.companyName || '').toLowerCase();
-          
-          if (code.includes('IT') || dept.includes('digital') || dept.includes('information')) {
-            resolvedTeam = 'IT';
-          } else {
-            resolvedTeam = 'IMP';
+          const { data: empFallbackData } = await empFallbackQuery;
+          if (empFallbackData && empFallbackData.length > 0) {
+            console.log('✅ emp_id fallback found:', empFallbackData.length, 'rows');
+            setMapUserRole(empFallbackData);
           }
-
-          if (buLower.includes('real estate') || buLower.includes('re') || buLower.includes('housing') || buLower.includes('village') || buLower.includes('plaza') || buLower.includes('mgt') || buLower.includes('dap') || buLower.includes('mata') || buLower.includes('interthai')) {
-            resolvedHolding = 'Real Estate';
-          } else if (buLower.includes('double a') || buLower.includes('da') || buLower.includes('domestic') || buLower.includes('export') || buLower.includes('stationary') || buLower.includes('stationery')) {
-            resolvedHolding = 'Double A';
-          } else if (buLower.includes('logistic') || buLower.includes('marine') || buLower.includes('port') || buLower.includes('transport')) {
-            resolvedHolding = 'Logistic';
-          } else if (buLower.includes('power') || buLower.includes('nps')) {
-            resolvedHolding = 'Power';
-          } else {
-            resolvedHolding = 'Real Estate'; // Fallback
-          }
-
-          setMapUserRole([{
-            name: targetUser,
-            holding: resolvedHolding,
-            department_operator: resolvedTeam
-          }]);
         } else if (!resUser.data || resUser.data.length === 0) {
-          const fallback = await supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
+          const fallback = await supabase.from('tb_map_user_role').select('*').eq('name', '10005208');
           if (fallback.data) setMapUserRole(fallback.data);
         }
 

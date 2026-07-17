@@ -1868,9 +1868,9 @@ export default function AdminPage() {
                       onChange={(e) => {
                         const selectedId = e.target.value;
                         setFormMapUserId(selectedId);
-                        // Also store the display name (full_name) for backward compat
+                        // Store emp_id as the name key — consistent, unique, no spaces
                         const matched = usersList.find(u => u.id === selectedId);
-                        setFormMapUserName(matched?.full_name || selectedId);
+                        setFormMapUserName(matched?.emp_id || matched?.full_name || selectedId);
                       }}
                       className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-sm"
                       required
