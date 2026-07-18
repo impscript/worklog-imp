@@ -1,6 +1,7 @@
 import { Zap, X, Calendar, Clock, Briefcase, Tag, Layers, Printer, CheckCircle2, Laptop, AlertTriangle, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 import { googleCalendar } from '../../lib/google-calendar';
@@ -13,6 +14,7 @@ interface ViewWorklogModalProps {
 }
 
 export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess }: ViewWorklogModalProps) {
+  const { t } = useTranslation();
   const [showConfirm, setShowConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { showToast } = useNotification();
@@ -49,7 +51,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
 
   const handleDelete = async () => {
     if (!isOwner) {
-      showToast('คุณไม่มีสิทธิ์ในการลบใบงานนี้ / You do not have permission to delete this worklog.', 'error');
+      showToast(t('worklog.noPermission'), 'error');
       return;
     }
 
@@ -87,7 +89,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
 
       if (error) throw error;
 
-      showToast('ลบใบงานบันทึกงานเรียบร้อยแล้ว! / Worklog successfully deleted!', 'success');
+      showToast(t('worklog.deleteSuccess'), 'success');
       
       if (onDeleteSuccess) {
         onDeleteSuccess();
@@ -97,7 +99,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
       onClose();
     } catch (err: any) {
       console.error('Error deleting worklog:', err);
-      showToast('ไม่สามารถลบใบงานได้: ' + (err.message || err), 'error');
+      showToast(t('worklog.deleteError') + (err.message || err), 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -410,7 +412,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(`${window.location.origin}/worklog/share/${log.id}`);
-                  showToast('คัดลอกลิงก์แชร์เรียบร้อยแล้ว! / Share link copied!', 'success');
+                  showToast(t('worklog.copied'), 'success');
                 }}
                 className="px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:scale-95 transition-all text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-500/10 shrink-0"
               >
@@ -566,12 +568,12 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
                 <AlertTriangle size={24} />
               </div>
               <div>
-                <h3 className="text-base font-black text-theme-text">ต้องการลบใบงานนี้ใช่หรือไม่?</h3>
+                <h3 className="text-base font-black text-theme-text">{t('worklog.deleteConfirm')}</h3>
                 <p className="text-xs text-theme-text-secondary mt-1 leading-relaxed">
-                  การกระทำนี้จะไม่สามารถย้อนกลับได้ ใบงานบันทึกเวลาของวันที่ <span className="text-rose-400 font-bold font-mono">{log.work_date}</span> โครงการ <span className="text-theme-text font-bold">"{log.project_name}"</span> จะถูกลบออกจากฐานข้อมูลอย่างถาวร
+                  {t('worklog.deleteWarning', { date: log.work_date, project: log.project_name })}
                 </p>
                 <p className="text-xs text-amber-400 mt-3 leading-relaxed bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-                  ⚠️ ใบงานนี้อยู่ใน Workspace: <span className="font-bold">{log.workspace_id === session?.activeWorkspaceId ? (session?.workspaceName || 'ปัจจุบัน') : (log.workspace_id || 'ไม่ระบุ')}</span>
+                  ⚠️ {t('worklog.workspaceWarning')} <span className="font-bold">{log.workspace_id === session?.activeWorkspaceId ? (session?.workspaceName || 'ปัจจุบัน') : (log.workspace_id || 'ไม่ระบุ')}</span>
                   {log.workspace_id !== session?.activeWorkspaceId && session?.workspaceName && (
                     <span className="block mt-1 text-amber-300/80">คุณกำลังดำเนินการนอก Workspace ปัจจุบัน ({session.workspaceName}) — กรุณาตรวจสอบให้แน่ใจ</span>
                   )}

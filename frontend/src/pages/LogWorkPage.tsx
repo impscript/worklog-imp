@@ -10,6 +10,7 @@ import ImportICSModal from '../components/modals/ImportICSModal';
 import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
 import { compressImage } from '../lib/image-compressor';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 // Generate Time Options in 15-minute intervals (00:00 to 24:00 - 24 Hours)
 const timeOptions = Array.from({ length: 97 }, (_, i) => {
@@ -307,6 +308,7 @@ function findSmartTimeSlot(hoursNeeded: number, existingEntries: any[]): { start
 export default function LogWorkPage() {
   const { showToast } = useNotification();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [session] = useState(() => JSON.parse(localStorage.getItem('worklog_session') || '{}'));
 
   useEffect(() => {
@@ -1477,36 +1479,36 @@ export default function LogWorkPage() {
 
   const handleSubmit = async () => {
     if (!session?.activeWorkspaceId) {
-      showToast('กรุณาเลือก Workspace ก่อนบันทึกใบงาน', 'error');
+      showToast(t('logWork.selectWorkspaceFirst'), 'error');
       return;
     }
 
     // 1. Perform validation checks to let the user know what's missing
     if (!projectType) {
-      showToast('กรุณาเลือกประเภทงาน / Please select Project Type', 'error');
+      showToast(t('logWork.selectProjectType'), 'error');
       return;
     }
     if (!selectedProjectKey || !projectName) {
-      showToast('กรุณาเลือกโครงการ / Please select Project Name', 'error');
+      showToast(t('logWork.selectProject'), 'error');
       return;
     }
     if (availableModules.length > 0 && !module) {
-      showToast('กรุณาเลือกโมดูล / Please select Module', 'error');
+      showToast(t('logWork.selectModule'), 'error');
       return;
     }
     const isBuDeptSelectable = noModuleMode || (projectName && module && (availableBUsForModule.length > 1 || availableDeptsForModule.length > 1));
     if (isBuDeptSelectable) {
       if (!bu) {
-        showToast('กรุณาเลือก Business Unit (BU) / Please select Business Unit', 'error');
+        showToast(t('logWork.selectBU'), 'error');
         return;
       }
       if (!department) {
-        showToast('กรุณาเลือก Target Department / Please select Target Department', 'error');
+        showToast(t('logWork.selectDepartment'), 'error');
         return;
       }
     }
     if (!actionName) {
-      showToast('กรุณาเลือกกิจกรรม / Please select Action', 'error');
+      showToast(t('logWork.selectAction'), 'error');
       return;
     }
     if (preview.duration <= 0) {
@@ -1725,7 +1727,7 @@ export default function LogWorkPage() {
         setCreatedShareLinkId(savedId);
       }
       
-      showToast('บันทึกใบงานสำเร็จแล้ว! / Work log saved successfully!', 'success');
+      showToast(t('logWork.saveSuccess'), 'success');
       
       // Clear form inputs so the user has a clean state for the next entry
       setProjectType('');
@@ -1747,7 +1749,7 @@ export default function LogWorkPage() {
       
     } catch (err: any) {
       console.error(err);
-      showToast('Error saving worklog: ' + err.message, 'error');
+      showToast(t('logWork.saveError') + err.message, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -1770,9 +1772,9 @@ export default function LogWorkPage() {
           <div className="mb-6 bg-indigo-500/10 border border-indigo-500/20 text-indigo-200 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
             <span className="flex items-center gap-2">
               <Shield size={16} />
-              <span>กำลังบันทึกใบงานใน Workspace: <strong>{session.workspaceName || session.activeWorkspaceId}</strong></span>
+              <span>{t('logWork.recordingIn')} <strong>{session.workspaceName || session.activeWorkspaceId}</strong></span>
             </span>
-            <a href="/workspaces" className="underline hover:text-indigo-100">เปลี่ยน Workspace</a>
+            <a href="/workspaces" className="underline hover:text-indigo-100">{t('logWork.changeWorkspace')}</a>
           </div>
         )}
 
@@ -2506,7 +2508,7 @@ export default function LogWorkPage() {
               <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 text-amber-200">
                 <CalendarIcon className="text-amber-400 shrink-0 mt-0.5" size={18} />
                 <div>
-                  <h4 className="font-semibold text-amber-300">วันหยุดนักขัตฤกษ์ / วันหยุดเสาร์-อาทิตย์ ({holidayName})</h4>
+                  <h4 className="font-semibold text-amber-300">{t('logWork.isHoliday')} ({holidayName})</h4>
                   <p className="text-sm text-amber-400 mt-1">ชั่วโมงทำงานทั้งหมดของวันหยุดจะถูกคิดสัดส่วนสะสมเป็นชั่วโมง OT ทั้งหมด 🌟</p>
                 </div>
               </div>

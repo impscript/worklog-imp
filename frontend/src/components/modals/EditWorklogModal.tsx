@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Clock, AlertTriangle, Calendar as CalendarIcon, Zap, ChevronDown, Check, Upload } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
@@ -292,6 +293,7 @@ interface EditWorklogModalProps {
 }
 
 export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }: EditWorklogModalProps) {
+  const { t } = useTranslation();
   const { showToast } = useNotification();
   const [session] = useState(() => JSON.parse(localStorage.getItem('worklog_session') || '{}'));
 
@@ -934,23 +936,23 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   // Handle Updates
   const handleSave = () => {
     if (!log || !holding || !role || !projectType || !projectName || !actionName || preview.duration <= 0) {
-      showToast('โปรดกรอกข้อมูลให้ครบทุกช่องก่อนบันทึก', 'warning');
+      showToast(t('editWorklog.formIncomplete'), 'warning');
       return;
     }
-    
+
     if (availableModules.length > 0 && !module) {
-      showToast('กรุณาเลือกโมดูล / Please select Module', 'warning');
+      showToast(t('editWorklog.selectModule'), 'warning');
       return;
     }
 
     const isBuDeptSelectable = noModuleMode || (projectName && module && (availableBUsForModule.length > 1 || availableDeptsForModule.length > 1));
     if (isBuDeptSelectable) {
       if (!bu) {
-        showToast('กรุณาเลือก Business Unit (BU) / Please select Business Unit', 'warning');
+        showToast(t('editWorklog.selectBU'), 'warning');
         return;
       }
       if (!department) {
-        showToast('กรุณาเลือก Target Department / Please select Target Department', 'warning');
+        showToast(t('editWorklog.selectDepartment'), 'warning');
         return;
       }
     }
@@ -1290,12 +1292,12 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         }
       }
 
-      showToast(log.id ? 'Worklog updated successfully!' : 'Worklog created successfully!', 'success');
+      showToast(log.id ? t('editWorklog.saveSuccess') : t('editWorklog.saveSuccess', { defaultValue: 'Worklog created successfully!' }), 'success');
       onSaveSuccess();
       onClose();
     } catch (err: any) {
       console.error(err);
-      showToast('Error saving updates: ' + err.message, 'error');
+      showToast(t('editWorklog.saveError') + err.message, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -1420,7 +1422,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               <div className="flex items-center gap-4 text-xs font-semibold">
                 {isHolidayDate && (
                   <span className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] uppercase font-bold tracking-wider">
-                    🎉 {holidayName || 'Holiday / Weekend'}
+                    🎉 {t('editWorklog.holidayDetected', { name: holidayName || 'Holiday / Weekend' })}
                   </span>
                 )}
                 <div className="text-right">
@@ -1442,7 +1444,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-3 text-amber-400 text-xs">
                 <Zap size={18} className="shrink-0 animate-bounce" />
                 <span>
-                  จะคำนวณเข้าสู่ระบบเป็น <strong>Normal {preview.normalHours.toFixed(1)}h</strong> และ <strong>OT {preview.otHours.toFixed(1)}h</strong> ({isHolidayDate ? 'วันหยุดปฏิบัติงาน' : 'ชั่วโมงส่วนที่เกิน 8h ในหนึ่งวัน'})
+                  {t('editWorklog.willCalculate', { normal: preview.normalHours.toFixed(1), ot: preview.otHours.toFixed(1) })} ({isHolidayDate ? t('editWorklog.holidayWorkday', { defaultValue: 'วันหยุดปฏิบัติงาน' }) : t('editWorklog.overtimeExcess', { defaultValue: 'ชั่วโมงส่วนที่เกิน 8h ในหนึ่งวัน' })})
                 </span>
               </div>
             )}

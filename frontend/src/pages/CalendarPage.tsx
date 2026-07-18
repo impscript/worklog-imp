@@ -8,6 +8,7 @@ import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import { googleCalendar, syncWorklogToGCal } from '../lib/google-calendar';
 import { useNotification } from '../context/NotificationContext';
+import { useTranslation } from 'react-i18next';
 
 interface WorklogEntry {
   id: string;
@@ -77,6 +78,7 @@ export default function CalendarPage() {
     return now.getHours() * 60 + now.getMinutes();
   });
   const { showToast } = useNotification();
+  const { t } = useTranslation();
   const [showSidePanel, setShowSidePanel] = useState(true);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const hasDraggedRef = useRef(false);
@@ -1607,7 +1609,7 @@ export default function CalendarPage() {
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-indigo-500/30 text-xs font-bold bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 active:scale-95 transition-all cursor-pointer shadow-md shadow-indigo-500/5 animate-pulse"
                   >
                     <CalendarCheck size={14} className="text-indigo-400 shrink-0" />
-                    <span>Connect Google Calendar</span>
+                    <span>{t('calendar.gcalConnect')}</span>
                   </button>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2">
@@ -1765,7 +1767,7 @@ export default function CalendarPage() {
               onClick={today}
               className="px-4 py-2 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl text-sm font-semibold text-theme-text-secondary hover:text-theme-text transition-all hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary"
             >
-              Today
+              {t('calendar.today')}
             </button>
             <div className="flex bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 border border-theme-border/50 rounded-xl overflow-hidden shadow-md">
               <button onClick={prevDate} className="p-2.5 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors">
@@ -1789,7 +1791,7 @@ export default function CalendarPage() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-bold text-indigo-400 flex items-center gap-1.5">
                 <RefreshCw size={11} className="animate-spin" />
-                กำลัง Sync Google Calendar...
+                {t('calendar.syncGCal', { defaultValue: 'Sync Google Calendar' })}...
               </span>
               <span className="text-[11px] font-mono text-theme-text-secondary">
                 {syncProgress.current} / {syncProgress.total}
@@ -2025,7 +2027,7 @@ export default function CalendarPage() {
                           className="inline-flex items-center gap-1 text-[11px] font-bold text-theme-text-secondary hover:text-theme-text transition-colors uppercase tracking-wider cursor-pointer"
                         >
                           <Eye size={12} />
-                          <span>ดูใบงาน / View</span>
+                          <span>{t('calendar.viewWorklog')}</span>
                         </button>
                         {/* Only show Edit button for the log owner */}
                         {sessionUser && (e as any).user_id === sessionUser.id && (
@@ -2036,7 +2038,7 @@ export default function CalendarPage() {
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                            <span>แก้ไข / Edit</span>
+                            <span>{t('calendar.editWorklog')}</span>
                           </button>
                         )}
                       </div>
@@ -2124,7 +2126,7 @@ export default function CalendarPage() {
                   onClick={() => setSyncAlert(null)}
                   className="flex-1 py-2.5 border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary text-xs font-black rounded-xl transition-all active:scale-[0.98] cursor-pointer"
                 >
-                  ยกเลิก
+                  {t('common.cancel')}
                 </button>
                 <button
                   onClick={() => {
@@ -2134,7 +2136,7 @@ export default function CalendarPage() {
                   }}
                   className="flex-1 py-2.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-rose-500/10 cursor-pointer"
                 >
-                  ยืนยัน
+                  {t('common.confirm')}
                 </button>
               </div>
             ) : (
@@ -2142,7 +2144,7 @@ export default function CalendarPage() {
                 onClick={() => setSyncAlert(null)}
                 className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-indigo-500/10 uppercase tracking-wider cursor-pointer"
               >
-                รับทราบ
+                {t('common.acknowledge', { defaultValue: 'รับทราบ' })}
               </button>
             )}
           </div>
