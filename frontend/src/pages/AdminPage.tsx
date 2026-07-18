@@ -2859,7 +2859,7 @@ function AISettingsManager({ workspaceId, isSuperAdmin }: { workspaceId?: string
   useEffect(() => {
     if (isSuperAdmin) {
       supabase.from('workspaces').select('id, workspace_name').order('workspace_name').then(({ data }) => {
-        if (data) setWorkspaceList(data);
+        if (data) setWorkspaceList(data.map((ws: any) => ({ id: ws.id, name: ws.workspace_name })));
       });
     }
   }, [isSuperAdmin]);
@@ -3163,7 +3163,7 @@ function AISettingsManager({ workspaceId, isSuperAdmin }: { workspaceId?: string
                 className="flex-1 bg-theme-surface-secondary border border-theme-border rounded-xl py-2 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 {workspaceList.map((ws) => (
-                  <option key={ws.id} value={ws.id}>{ws.workspace_name}</option>
+                  <option key={ws.id} value={ws.id}>{ws.name}</option>
                 ))}
               </select>
             </div>
@@ -3968,7 +3968,6 @@ INSTRUCTION:
             {templates.map(tmpl => {
               const isEditing = editingTemplate?.id === tmpl.id;
               const isExpanded = expandedTemplateId === tmpl.id;
-              const current = isEditing ? editingTemplate : tmpl;
               return (
                 <div key={tmpl.id} className="transition-all">
                   {/* Template Row Header */}
