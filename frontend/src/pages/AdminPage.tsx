@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download, Power, PowerOff } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -1793,7 +1793,7 @@ export default function AdminPage() {
                 )}
               </div>
             ) : activeTab === 'ai_settings' ? (
-              <AISettingsManager workspaceId={session?.activeWorkspaceId} />
+              <AISettingsManager workspaceId={session?.activeWorkspaceId} isSuperAdmin={session?.role === 'admin'} />
             ) : (
               <AIPromptsManager isSuperAdmin={session?.role === 'admin'} />
             )}
@@ -2830,7 +2830,7 @@ const PROVIDER_PRESET_MODELS: Record<string, { id: string; label: string }[]> = 
   ]
 };
 
-function AISettingsManager({ workspaceId }: { workspaceId?: string }) {
+function AISettingsManager({ workspaceId, isSuperAdmin }: { workspaceId?: string; isSuperAdmin?: boolean }) {
   const { showToast } = useNotification();
   const [configs, setConfigs] = useState<{ [key: string]: string }>({
     ai_provider: 'opencode',
@@ -2852,10 +2852,24 @@ function AISettingsManager({ workspaceId }: { workspaceId?: string }) {
   const [dbError, setDbError] = useState<string | null>(null);
   const [cfUsage, setCfUsage] = useState<{ used: number; limit: number } | null>(null);
   const [loadingCfUsage, setLoadingCfUsage] = useState(false);
+  const [workspaceList, setWorkspaceList] = useState<{ id: string; name: string }[]>([]);
+  const [selectedWsId, setSelectedWsId] = useState<string>(workspaceId || '');
+
+  // Super Admin: load all workspaces for the selector dropdown
+  useEffect(() => {
+    if (isSuperAdmin) {
+      supabase.from('workspaces').select('id, workspace_name').order('workspace_name').then(({ data }) => {
+        if (data) setWorkspaceList(data);
+      });
+    }
+  }, [isSuperAdmin]);
+
+  // Determine which workspace to fetch/save — override when super admin picks one
+  const effectiveWsId = (isSuperAdmin && selectedWsId) ? selectedWsId : (workspaceId || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001');
 
   useEffect(() => {
     fetchConfigs();
-  }, [workspaceId]);
+  }, [effectiveWsId]);
 
   useEffect(() => {
     if (configs.ai_provider === 'cloudflare' && configs.cloudflare_account_id && configs.cloudflare_api_token) {
@@ -2869,7 +2883,7 @@ function AISettingsManager({ workspaceId }: { workspaceId?: string }) {
     try {
       setLoading(true);
       setDbError(null);
-      const wsId = workspaceId || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
+      const wsId = effectiveWsId;
       const { data, error } = await supabase
         .from('tb_system_config')
         .select('config_key, config_value')
@@ -2929,7 +2943,7 @@ function AISettingsManager({ workspaceId }: { workspaceId?: string }) {
     e.preventDefault();
     try {
       setSaving(true);
-      const wsId = workspaceId || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
+      const wsId = effectiveWsId;
       const rows = Object.entries(configs).map(([key, val]) => ({
         config_key: key,
         config_value: val,
@@ -3139,7 +3153,22 @@ function AISettingsManager({ workspaceId }: { workspaceId?: string }) {
       {/* Right panel: Config Forms */}
       <div className="lg:col-span-2 space-y-6">
         <form onSubmit={handleSave} className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 md:p-8 shadow-xl space-y-6">
-          
+
+          {isSuperAdmin && workspaceList.length > 0 && (
+            <div className="flex items-center gap-3 pb-4 border-b border-theme-border/50">
+              <label className="text-xs font-semibold text-theme-text-secondary whitespace-nowrap">ตรวจสอบ / แก้ไข workspace:</label>
+              <select
+                value={selectedWsId}
+                onChange={(e) => setSelectedWsId(e.target.value)}
+                className="flex-1 bg-theme-surface-secondary border border-theme-border rounded-xl py-2 px-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                {workspaceList.map((ws) => (
+                  <option key={ws.id} value={ws.id}>{ws.workspace_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* Active Provider */}
@@ -3783,9 +3812,13 @@ INSTRUCTION:
       setLoadingTemplates(true);
       const sessionStr = localStorage.getItem('worklog_session');
       const currentSession = sessionStr ? JSON.parse(sessionStr) : null;
-      let query = supabase.from('tb_ai_prompt_templates').select('*').order('workspace_id').order('sort_order', { ascending: true });
+      let query = supabase.from('tb_ai_prompt_templates').select('*').order('workspace_id', { nullsFirst: true }).order('sort_order', { ascending: true });
       if (currentSession?.activeWorkspaceId) {
-        query = query.eq('workspace_id', currentSession.activeWorkspaceId);
+        // Load this workspace's templates PLUS any company-wide core prompts (workspace_id IS NULL).
+        query = query.or(`workspace_id.eq.${currentSession.activeWorkspaceId},workspace_id.is.null`);
+      } else {
+        // No active workspace (e.g. Super Admin in global view): show everything including core.
+        query = query.or('workspace_id.is.null,workspace_id.not.is.null');
       }
       const { data, error } = await query;
       if (error) throw error;
@@ -3797,9 +3830,12 @@ INSTRUCTION:
     }
   };
 
-  const handleEditTemplate = (tmpl: any) => {
+  const openEditModal = (tmpl: any) => {
     setEditingTemplate({ ...tmpl });
-    setExpandedTemplateId(tmpl.id);
+  };
+
+  const closeEditModal = () => {
+    setEditingTemplate(null);
   };
 
   const handleSaveTemplate = async () => {
@@ -3823,6 +3859,7 @@ INSTRUCTION:
       showToast(`บันทึก template "${editingTemplate.name}" สำเร็จ`, 'success');
       setEditingTemplate(null);
       fetchTemplates();
+      return;
     } catch (err: any) {
       showToast('บันทึกไม่สำเร็จ: ' + err.message, 'error');
     } finally {
@@ -3841,6 +3878,35 @@ INSTRUCTION:
       fetchTemplates();
     } catch (err: any) {
       showToast('อัปเดตสถานะไม่สำเร็จ: ' + err.message, 'error');
+    }
+  };
+
+  const handleToggleCore = async (tmpl: any) => {
+    try {
+      const sessionStr = localStorage.getItem('worklog_session');
+      const currentSession = sessionStr ? JSON.parse(sessionStr) : null;
+      const becomingCore = !tmpl.is_core;
+      // Marking as core detaches it from any single workspace (workspace_id = NULL)
+      // so every workspace sees it as a shared default. Unmarking restores it to
+      // the current admin's active workspace.
+      const { error } = await supabase
+        .from('tb_ai_prompt_templates')
+        .update({
+          is_core: becomingCore,
+          workspace_id: becomingCore ? null : (currentSession?.activeWorkspaceId ?? tmpl.workspace_id),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tmpl.id);
+      if (error) throw error;
+      showToast(
+        becomingCore
+          ? `ตั้ง "${tmpl.name}" เป็น Core Public เรียบร้อย (ใช้เป็นมาตรฐานกลางทุก workspace)`
+          : `ยกเลิก Core Public ของ "${tmpl.name}" แล้ว`,
+        'success'
+      );
+      fetchTemplates();
+    } catch (err: any) {
+      showToast('อัปเดต Core ไม่สำเร็จ: ' + err.message, 'error');
     }
   };
 
@@ -3915,8 +3981,13 @@ INSTRUCTION:
                         {tmpl.cadence_aware && <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">Cadence-aware</span>}
                         {tmpl.requires_level && <span className="text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/20 px-1.5 py-0.5 rounded">Level-aware</span>}
                         <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-semibold', tmpl.is_active ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20')}>
-                          {tmpl.is_active ? '● Active' : '○ Inactive'}
+                          {tmpl.is_active ? '● ใช้งาน' : '○ ปิดใช้งาน'}
                         </span>
+                        {tmpl.is_core && (
+                          <span className="text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-semibold">
+                            ★ Core / Public
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-theme-text-secondary mt-0.5 line-clamp-1">{tmpl.description}</p>
                     </div>
@@ -3925,18 +3996,22 @@ INSTRUCTION:
                         <>
                           <button
                             onClick={() => handleToggleActive(tmpl)}
-                            className={cn('p-1.5 rounded-lg text-xs font-semibold transition-all border', tmpl.is_active ? 'text-rose-400 border-rose-500/20 hover:bg-rose-500/10' : 'text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10')}
-                            title={tmpl.is_active ? 'Deactivate' : 'Activate'}
+                            className={cn('p-1.5 rounded-lg text-xs font-semibold transition-all border flex items-center gap-1', tmpl.is_active ? 'text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10' : 'text-rose-400 border-rose-500/20 hover:bg-rose-500/10')}
+                            title={tmpl.is_active ? 'คลิกเพื่อปิดใช้งาน' : 'คลิกเพื่อเปิดใช้งาน'}
                           >
-                            {tmpl.is_active ? <X size={14} /> : <Check size={14} />}
+                            {tmpl.is_active ? <><Power size={14} /><span>ใช้งาน</span></> : <><PowerOff size={14} /><span>ปิด</span></>}
                           </button>
                           <button
-                            onClick={() => {
-                              if (isEditing) { setEditingTemplate(null); setExpandedTemplateId(null); }
-                              else { handleEditTemplate(tmpl); }
-                            }}
+                            onClick={() => handleToggleCore(tmpl)}
+                            className={cn('p-1.5 rounded-lg text-xs font-semibold transition-all border', tmpl.is_core ? 'text-blue-400 border-blue-500/20 hover:bg-blue-500/10' : 'text-theme-text-secondary border-theme-border/50 hover:bg-theme-surface-secondary')}
+                            title={tmpl.is_core ? 'ยกเลิก Core Public' : 'ตั้งเป็น Core Public (มาตรฐานกลางทุก workspace)'}
+                          >
+                            {tmpl.is_core ? '★' : '☆'}
+                          </button>
+                          <button
+                            onClick={() => openEditModal(tmpl)}
                             className="p-1.5 rounded-lg text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/10 transition-all"
-                            title="Edit Template"
+                            title="แก้ไข Template"
                           >
                             <Edit2 size={14} />
                           </button>
@@ -3952,7 +4027,7 @@ INSTRUCTION:
                     </div>
                   </div>
 
-                  {/* Expanded Edit / Preview */}
+                  {/* Expanded Preview (read-only) — editing moved to modal */}
                   {isExpanded && (
                     <div className="px-6 pb-6 space-y-4 bg-theme-surface/30">
                       {/* Variable hints */}
@@ -3965,84 +4040,27 @@ INSTRUCTION:
                         </div>
                       </div>
 
-                      {/* Name & Description */}
-                      {isEditing && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Template Name</label>
-                            <input
-                              value={current.name}
-                              onChange={e => setEditingTemplate((p: any) => ({ ...p, name: e.target.value }))}
-                              className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2 px-3 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Description</label>
-                            <input
-                              value={current.description || ''}
-                              onChange={e => setEditingTemplate((p: any) => ({ ...p, description: e.target.value }))}
-                              className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2 px-3 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* System Prompt */}
+                      {/* System Prompt (preview only) */}
                       <div>
                         <div className="flex justify-between items-center mb-1.5">
                           <label className="text-sm font-semibold text-theme-text">System Prompt</label>
-                          <span className="text-xs text-theme-text-secondary font-mono">{(current.system_prompt || '').length} chars</span>
+                          <span className="text-xs text-theme-text-secondary font-mono">{(tmpl.system_prompt || '').length} chars</span>
                         </div>
-                        <textarea
-                          value={current.system_prompt || ''}
-                          onChange={e => isEditing && setEditingTemplate((p: any) => ({ ...p, system_prompt: e.target.value }))}
-                          readOnly={!isEditing}
-                          rows={8}
-                          className={cn(
-                            'w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-xs font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all',
-                            !isEditing && 'opacity-70 cursor-default'
-                          )}
-                          spellCheck={false}
-                        />
+                        <pre className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-xs font-mono leading-relaxed whitespace-pre-wrap">
+{tmpl.system_prompt}
+                        </pre>
                       </div>
 
-                      {/* User Prompt Template */}
+                      {/* User Prompt Template (preview only) */}
                       <div>
                         <div className="flex justify-between items-center mb-1.5">
                           <label className="text-sm font-semibold text-theme-text">User Prompt Template</label>
-                          <span className="text-xs text-theme-text-secondary font-mono">{(current.user_prompt_template || '').length} chars</span>
+                          <span className="text-xs text-theme-text-secondary font-mono">{(tmpl.user_prompt_template || '').length} chars</span>
                         </div>
-                        <textarea
-                          value={current.user_prompt_template || ''}
-                          onChange={e => isEditing && setEditingTemplate((p: any) => ({ ...p, user_prompt_template: e.target.value }))}
-                          readOnly={!isEditing}
-                          rows={12}
-                          className={cn(
-                            'w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-xs font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all',
-                            !isEditing && 'opacity-70 cursor-default'
-                          )}
-                          spellCheck={false}
-                        />
+                        <pre className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-xs font-mono leading-relaxed whitespace-pre-wrap">
+{tmpl.user_prompt_template}
+                        </pre>
                       </div>
-
-                      {/* Save / Cancel */}
-                      {isEditing && (
-                        <div className="flex justify-end gap-3">
-                          <button
-                            onClick={() => { setEditingTemplate(null); setExpandedTemplateId(null); }}
-                            className="px-5 py-2.5 border border-theme-border text-theme-text-secondary hover:text-theme-text rounded-xl font-semibold text-sm transition-all"
-                          >
-                            ยกเลิก
-                          </button>
-                          <button
-                            onClick={handleSaveTemplate}
-                            disabled={savingTemplate}
-                            className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
-                          >
-                            {savingTemplate ? <><RefreshCw size={14} className="animate-spin" /><span>กำลังบันทึก...</span></> : <><Save size={14} /><span>บันทึก Template</span></>}
-                          </button>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -4095,6 +4113,119 @@ INSTRUCTION:
           )}
         </div>
       </div>
+
+      {/* ── Edit Template Modal ─────────────────────────────────────── */}
+      {editingTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={closeEditModal}>
+          <div
+            className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-theme-surface border border-theme-border rounded-2xl shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-theme-border sticky top-0 bg-theme-surface z-10">
+              <div>
+                <h3 className="font-bold text-theme-text flex items-center gap-2">
+                  <Edit2 size={16} className="text-indigo-400" /> แก้ไข Template
+                </h3>
+                <p className="text-xs text-theme-text-secondary mt-0.5">{editingTemplate.template_key}</p>
+              </div>
+              <button onClick={closeEditModal} className="p-2 rounded-lg text-theme-text-secondary hover:bg-theme-surface-secondary transition-all">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="px-6 py-5 space-y-5">
+              {/* Name & Description */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Template Name</label>
+                  <input
+                    value={editingTemplate.name}
+                    onChange={e => setEditingTemplate((p: any) => ({ ...p, name: e.target.value }))}
+                    className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2 px-3 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-theme-text-secondary mb-1.5">Description</label>
+                  <input
+                    value={editingTemplate.description || ''}
+                    onChange={e => setEditingTemplate((p: any) => ({ ...p, description: e.target.value }))}
+                    className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2 px-3 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Active toggle */}
+              <div className="flex items-center justify-between bg-theme-surface-secondary rounded-xl px-4 py-3 border border-theme-border">
+                <div>
+                  <p className="text-sm font-semibold text-theme-text">สถานะการใช้งาน</p>
+                  <p className="text-xs text-theme-text-secondary mt-0.5">{editingTemplate.is_active ? 'Template นี้พร้อมให้ใช้งานประเมิน' : 'Template นี้ถูกปิดใช้งาน (ไม่โผล่ในรายการเลือก)'}</p>
+                </div>
+                <button
+                  onClick={() => setEditingTemplate((p: any) => ({ ...p, is_active: !p.is_active }))}
+                  className={cn(
+                    'relative w-14 h-7 rounded-full transition-all flex items-center px-0.5',
+                    editingTemplate.is_active ? 'bg-emerald-500 justify-end' : 'bg-rose-500 justify-start'
+                  )}
+                  title={editingTemplate.is_active ? 'คลิกเพื่อปิดใช้งาน' : 'คลิกเพื่อเปิดใช้งาน'}
+                >
+                  <span className="w-6 h-6 rounded-full bg-white shadow flex items-center justify-center text-[10px]">
+                    {editingTemplate.is_active ? <Power size={12} className="text-emerald-600" /> : <PowerOff size={12} className="text-rose-600" />}
+                  </span>
+                </button>
+              </div>
+
+              {/* System Prompt */}
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="text-sm font-semibold text-theme-text">System Prompt</label>
+                  <span className="text-xs text-theme-text-secondary font-mono">{(editingTemplate.system_prompt || '').length} chars</span>
+                </div>
+                <textarea
+                  value={editingTemplate.system_prompt || ''}
+                  onChange={e => setEditingTemplate((p: any) => ({ ...p, system_prompt: e.target.value }))}
+                  rows={8}
+                  className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-xs font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all"
+                  spellCheck={false}
+                />
+              </div>
+
+              {/* User Prompt Template */}
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="text-sm font-semibold text-theme-text">User Prompt Template</label>
+                  <span className="text-xs text-theme-text-secondary font-mono">{(editingTemplate.user_prompt_template || '').length} chars</span>
+                </div>
+                <textarea
+                  value={editingTemplate.user_prompt_template || ''}
+                  onChange={e => setEditingTemplate((p: any) => ({ ...p, user_prompt_template: e.target.value }))}
+                  rows={12}
+                  className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-xs font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all"
+                  spellCheck={false}
+                />
+              </div>
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-theme-border sticky bottom-0 bg-theme-surface z-10">
+              <button
+                onClick={closeEditModal}
+                className="px-5 py-2.5 border border-theme-border text-theme-text-secondary hover:text-theme-text rounded-xl font-semibold text-sm transition-all"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleSaveTemplate}
+                disabled={savingTemplate}
+                className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
+              >
+                {savingTemplate ? <><RefreshCw size={14} className="animate-spin" /><span>กำลังบันทึก...</span></> : <><Save size={14} /><span>บันทึก Template</span></>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

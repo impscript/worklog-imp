@@ -4,7 +4,7 @@ import {
   FileText, CheckCircle2, Target, PlusCircle, Save, Loader2, 
   Globe, Lock, Printer, Copy, X, UserCheck, 
   ChevronRight, ArrowRight, ArrowLeft, Terminal, Cpu, Award, 
-  Check, Info, Trash2, Calendar, FileSpreadsheet, TrendingUp, Clock, RefreshCw
+  Check, Info, Trash2, Calendar, FileSpreadsheet, TrendingUp, Clock, RefreshCw, RotateCcw
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
@@ -189,6 +189,8 @@ export default function HrbpPage() {
     return usersList.find(u => u.id === selectedUser);
   }, [usersList, selectedUser]);
 
+  // Identity to display on the results card. In a shared/public view we use the
+  // point-in-time snapshot stored on the analysis row (anon viewers cannot read
   useEffect(() => {
     if (selectedUserInfo) {
       setEmployeeLevel(selectedUserInfo.employee_level || 'Senior');
@@ -198,6 +200,24 @@ export default function HrbpPage() {
 
   // Shared View / Public Share Link
   const [isSharedView, setIsSharedView] = useState<boolean>(false);
+
+  // Identity to display on the results card. In a shared/public view we use the
+  // point-in-time snapshot stored on the analysis row (anon viewers cannot read
+  // live `users`/`tb_user_jd` via RLS, and historical reports must keep the
+  // identity they had when evaluated). Otherwise fall back to the live profile.
+  const displayUser = useMemo(() => {
+    if (isSharedView && aiAnalysis) {
+      return {
+        full_name: aiAnalysis.evaluated_full_name,
+        nickname: aiAnalysis.evaluated_nickname,
+        position: aiAnalysis.evaluated_position,
+        department: aiAnalysis.evaluated_department,
+        emp_id: aiAnalysis.evaluated_avatar_emp_id,
+        employee_level: (selectedUserInfo as any)?.employee_level,
+      };
+    }
+    return selectedUserInfo;
+  }, [isSharedView, aiAnalysis, selectedUserInfo]);
 
   // Target YYYY-MM-DD
   const formatDateToYMD = (date: Date) => {
@@ -345,9 +365,11 @@ export default function HrbpPage() {
           .eq('is_active', true);
 
         if (session?.activeWorkspaceId) {
-          templatesQuery = templatesQuery.eq('workspace_id', session.activeWorkspaceId);
+          // Include this workspace's templates PLUS company-wide core prompts (workspace_id IS NULL),
+          // so every workspace can use the shared standard default.
+          templatesQuery = templatesQuery.or(`workspace_id.eq.${session.activeWorkspaceId},workspace_id.is.null`);
         } else {
-          templatesQuery = templatesQuery.eq('workspace_id', 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001');
+          templatesQuery = templatesQuery.or(`workspace_id.eq.a59b2075-8ce6-4b95-a4df-1e8ea36a0001,workspace_id.is.null`);
         }
 
         const { data: templatesData, error: templatesErr } = await templatesQuery.order('sort_order', { ascending: true });
@@ -523,22 +545,35 @@ export default function HrbpPage() {
 
       if (reportErr) throw reportErr;
       if (!report) {
-        showToast('ไม่พบรายงานที่แชร์ หรือหมดอายุ / Shared report not found or expired', 'error');
-        navigate('/login');
+        const confirmLeave = window.confirm(
+          'ไม่พบรายงานที่แชร์ หรือหมดอายุ / Shared report not found or expired\n\nกด OK เพื่อกลับไปหน้า Login หรือ Cancel เพื่ออยู่หน้านี้'
+        );
+        if (confirmLeave) {
+          navigate('/login');
+        }
         setIsLoading(false);
         return;
       }
 
       if (!report.is_public) {
-        showToast('รายงานนี้ถูกตั้งค่าเป็นส่วนตัวแล้ว / This report has been set to private', 'error');
-        navigate('/login');
+        const confirmLeave = window.confirm(
+          'รายงานนี้ถูกตั้งค่าเป็นส่วนตัวแล้ว / This report has been set to private\n\nกด OK เพื่อกลับไปหน้า Login หรือ Cancel เพื่ออยู่หน้านี้'
+        );
+        if (confirmLeave) {
+          navigate('/login');
+        }
         setIsLoading(false);
         return;
       }
 
       if (report.expires_at && new Date(report.expires_at) < new Date()) {
-        showToast('รายงานนี้หมดอายุการใช้งานแล้ว / Shared report expired', 'error');
-        navigate('/login');
+        const expiryStr = new Date(report.expires_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        const confirmLeave = window.confirm(
+          `รายงานนี้หมดอายุแล้ว (${expiryStr}) กรุณาขอเจ้าของสร้างลิงก์ใหม่ / Report expired (${expiryStr})\n\nกด OK เพื่อกลับไปหน้า Login หรือ Cancel เพื่ออยู่หน้านี้`
+        );
+        if (confirmLeave) {
+          navigate('/login');
+        }
         setIsLoading(false);
         return;
       }
@@ -579,23 +614,26 @@ export default function HrbpPage() {
         console.error('Swallowed JD fetch error in shared view:', jdErr);
       }
 
-      // Query work logs to compute total hours and logs count (wrapped in try-catch for unauthenticated users)
-      let totalHours = 0;
-      let logsCount = 0;
-      try {
-        const { data: logs } = await supabase
-          .from('col_worklog')
-          .select('total_hours')
-          .eq('user_id', report.user_id)
-          .gte('work_date', report.start_date)
-          .lte('work_date', report.end_date);
-        
-        if (logs) {
-          totalHours = logs.reduce((sum, e) => sum + Number(e.total_hours || 0), 0);
-          logsCount = logs.length;
+      // Worklog hours are snapshotted on the analysis row (total_hours / logs_count)
+      // so the shared view works without querying col_worklog (anon blocked by RLS).
+      // Fall back to the old live query for legacy rows that lack the snapshot.
+      let totalHours = Number(report.total_hours) || 0;
+      let logsCount = Number(report.logs_count) || 0;
+      if (!totalHours && !logsCount) {
+        try {
+          const { data: logs } = await supabase
+            .from('col_worklog')
+            .select('total_hours')
+            .eq('user_id', report.user_id)
+            .gte('work_date', report.start_date)
+            .lte('work_date', report.end_date);
+          if (logs) {
+            totalHours = logs.reduce((sum, e) => sum + Number(e.total_hours || 0), 0);
+            logsCount = logs.length;
+          }
+        } catch (logsErr) {
+          console.log('Skipping log metrics calculation in shared view (read-only):', logsErr);
         }
-      } catch (logsErr) {
-        console.log('Skipping log metrics calculation in shared view (read-only):', logsErr);
       }
 
       setTemplateId(report.template_id || 'master');
@@ -628,7 +666,17 @@ export default function HrbpPage() {
         end_date: report.end_date,
         total_hours: totalHours,
         logs_count: logsCount,
-        weights: []
+
+        // Identity snapshot — used by displayUser in shared view so the name /
+        // position / department show even though anon cannot read the live FK.
+        evaluated_full_name: report.evaluated_full_name,
+        evaluated_nickname: report.evaluated_nickname,
+        evaluated_position: report.evaluated_position,
+        evaluated_department: report.evaluated_department,
+        evaluated_avatar_emp_id: report.evaluated_avatar_emp_id,
+        evaluated_jd_text: report.jd_text || report.evaluated_jd_text,
+        evaluated_key_responsibilities: report.evaluated_key_responsibilities,
+        weights: report.evaluated_key_responsibilities || []
       });
 
       setActiveResultsSubTab('summary');
@@ -1182,6 +1230,30 @@ export default function HrbpPage() {
     showToast('คัดลอกลิงก์ผลการวิเคราะห์ลง Clipboard สำเร็จ', 'success');
   };
 
+  const [extendingShare, setExtendingShare] = useState(false);
+  const extendShareExpiry = async () => {
+    if (!aiAnalysis || !aiAnalysis.id) return;
+    try {
+      setExtendingShare(true);
+      const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .update({ expires_at: newExpiry, is_public: true })
+        .eq('id', aiAnalysis.id);
+
+      if (error) throw error;
+
+      setAiAnalysis((prev: any) => ({ ...prev, expires_at: newExpiry, is_public: true }));
+      setAnalysisHistory(prev => prev.map(item => item.id === aiAnalysis.id ? { ...item, expires_at: newExpiry, is_public: true } : item));
+      showToast('ต่ออายุลิงก์แชร์อีก 30 วันเรียบร้อย', 'success');
+    } catch (err: any) {
+      console.error('Error extending share expiry:', err);
+      showToast('ไม่สามารถต่ออายุลิงก์ได้: ' + err.message, 'error');
+    } finally {
+      setExtendingShare(false);
+    }
+  };
+
   const toggleHistoryRecordShare = async (recordId: string, currentIsPublic: boolean) => {
     const newIsPublic = !currentIsPublic;
     try {
@@ -1624,7 +1696,7 @@ export default function HrbpPage() {
                       >
                         {templatesList.map((t) => (
                           <option key={t.template_key} value={t.template_key} className="bg-theme-surface dark:bg-slate-900 text-theme-text">
-                            {t.icon || '🤖'} {t.name}
+                            {t.icon || '🤖'} {t.name}{t.is_core || t.workspace_id === null ? '  🌐 Core' : ''}
                           </option>
                         ))}
                       </select>
@@ -2243,10 +2315,9 @@ export default function HrbpPage() {
             {/* STEP 3: RESULTS & HISTORY */}
             {/* ========================================================================= */}
             {step === 3 && aiAnalysis && (
-              <div className="space-y-6 animate-in fade-in duration-300">
-                
-                {/* 3.0 Employee Profile & JD Summary (Performance CV Card) */}
+              <>
                 <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-r dark:from-[#0d1527] dark:to-[#0a0d16] border border-theme-border/80 shadow-2xl relative overflow-hidden space-y-4">
+                  {/* 3.0 Employee Profile & JD Summary (Performance CV Card) */}
                   {/* Subtle design gradients */}
                   <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
                   <div className="absolute bottom-0 left-0 w-36 h-36 bg-pink-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -2258,30 +2329,30 @@ export default function HrbpPage() {
                       <div className="relative shrink-0">
                         <div className="w-16 h-16 rounded-full overflow-hidden border border-indigo-400/20 shadow-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-0.5">
                           <div className="w-full h-full rounded-full overflow-hidden bg-theme-surface dark:bg-theme-bg-page flex items-center justify-center font-black text-xl text-theme-text">
-                            {selectedUserInfo?.emp_id ? (
+                            {displayUser?.emp_id ? (
                               <img 
-                                src={`${import.meta.env.VITE_HRMS_FACE_IMAGE_URL || 'https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID='}${selectedUserInfo.emp_id}`} 
-                                alt={selectedUserInfo.full_name} 
+                                src={`${import.meta.env.VITE_HRMS_FACE_IMAGE_URL || 'https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID='}${displayUser.emp_id}`} 
+                                alt={displayUser.full_name} 
                                 onError={(e) => {
                                   e.currentTarget.style.display = 'none';
                                   const parent = e.currentTarget.parentElement;
                                   if (parent && !parent.querySelector('.fallback-letter')) {
                                     const span = document.createElement('span');
                                     span.className = 'fallback-letter text-xl font-black text-theme-text';
-                                    span.innerText = selectedUserInfo?.nickname?.slice(0, 2).toUpperCase() || selectedUserInfo?.full_name?.charAt(0) || 'E';
+                                    span.innerText = displayUser?.nickname?.slice(0, 2).toUpperCase() || displayUser?.full_name?.charAt(0) || 'E';
                                     parent.appendChild(span);
                                   }
                                 }} 
                                 className="w-full h-full object-cover animate-in fade-in duration-300"
                               />
                             ) : (
-                              <span className="fallback-letter">{selectedUserInfo?.nickname?.slice(0, 2).toUpperCase() || selectedUserInfo?.full_name?.charAt(0) || 'E'}</span>
+                              <span className="fallback-letter">{displayUser?.nickname?.slice(0, 2).toUpperCase() || displayUser?.full_name?.charAt(0) || 'E'}</span>
                             )}
                           </div>
                         </div>
-                        {selectedUserInfo?.employee_level && (
+                        {displayUser?.employee_level && (
                           <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 text-[8px] font-black uppercase bg-emerald-500 text-slate-950 rounded-md border border-slate-900 shadow-sm whitespace-nowrap z-10" title="Employee Level">
-                            {selectedUserInfo.employee_level}
+                            {displayUser.employee_level}
                           </span>
                         )}
                       </div>
@@ -2289,19 +2360,19 @@ export default function HrbpPage() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h2 className="text-xl font-extrabold text-theme-text tracking-tight">
-                            {selectedUserInfo?.full_name || 'Employee Name'}
+                            {displayUser?.full_name || 'Employee Name'}
                           </h2>
-                          {selectedUserInfo?.nickname && (
+                          {displayUser?.nickname && (
                             <span className="px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 text-[10px] font-black uppercase tracking-wider">
-                              ({selectedUserInfo.nickname})
+                              ({displayUser.nickname})
                             </span>
                           )}
                         </div>
                         <p className="text-sm font-semibold text-theme-text-secondary">
-                          {selectedUserInfo?.position || customPosition || 'General Specialist'}
+                          {displayUser?.position || customPosition || 'General Specialist'}
                         </p>
                         <p className="text-xs text-theme-text-secondary font-mono">
-                          {selectedUserInfo?.department || 'Department'} | ID: {selectedUserInfo?.emp_id || 'N/A'}
+                          {displayUser?.department || 'Department'} | ID: {displayUser?.emp_id || 'N/A'}
                         </p>
                         {aiAnalysis && (
                           <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
@@ -2352,7 +2423,7 @@ export default function HrbpPage() {
                         </h4>
                       </div>
                       <div className="p-4 rounded-2xl bg-theme-surface dark:bg-theme-bg-page/40 border border-theme-border/80 text-xs text-theme-text leading-relaxed min-h-[120px] max-h-[300px] overflow-y-auto scrollbar-thin whitespace-pre-line font-light">
-                        {jdText || 'ไม่มีข้อมูลรายละเอียดงานในระบบ / No Job Description defined.'}
+                        {jdText || aiAnalysis?.evaluated_jd_text || 'ไม่มีข้อมูลรายละเอียดงานในระบบ / No Job Description defined.'}
                       </div>
                     </div>
 
@@ -2367,7 +2438,7 @@ export default function HrbpPage() {
                           <div className="text-xs text-theme-text-secondary italic">ไม่มีข้อมูลน้ำหนักความรับผิดชอบเป้าหมาย / No target weights defined.</div>
                         ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {(keyResponsibilities.length > 0 ? keyResponsibilities.map((item: any) => ({ category: item.category, weight: item.weight })) : chartData.map((item: any) => ({ category: item.name, weight: item['Target %'] }))).map((item: any, idx: number) => (
+                            {(keyResponsibilities.length > 0 ? keyResponsibilities.map((item: any) => ({ category: item.category, weight: item.weight })) : aiAnalysis?.evaluated_key_responsibilities?.length > 0 ? aiAnalysis.evaluated_key_responsibilities.map((item: any) => ({ category: item.category, weight: item.weight })) : chartData.map((item: any) => ({ category: item.name, weight: item['Target %'] }))).map((item: any, idx: number) => (
                               <div key={idx} className="flex items-center justify-between p-2 bg-theme-surface-secondary dark:bg-theme-surface-secondary/60 border border-theme-border/80 rounded-xl text-[11px]">
                                 <span className="font-bold text-theme-text truncate pr-2" title={item.category}>
                                   {item.category}
@@ -2382,9 +2453,10 @@ export default function HrbpPage() {
                       </div>
                     </div>
                   </div>
-                </div>                {/* 3.1 Top Highlights Analytics Row (Premium Cards) */}
+                </div>
                 {isCoachTemplate(aiAnalysis.template_id) ? (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* 3.1 Top Highlights Analytics Row (Premium Cards) */}
                     {/* Card 1: Job Description Alignment Score */}
                     <div className="p-6 rounded-3xl bg-theme-surface-secondary dark:bg-gradient-to-br dark:from-[#0B0F19] dark:to-[#0A0D15] border border-theme-border/80 shadow-2xl relative overflow-hidden flex items-center justify-between">
                       <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
@@ -2705,7 +2777,8 @@ export default function HrbpPage() {
 
                       {/* Action buttons */}
                       <div className="flex items-center gap-2">
-                        {/* Share link panel */}
+                        {/* Share link panel — only owner can toggle public/private */}
+                        {!isSharedView && (
                         <div className="flex items-center bg-theme-surface dark:bg-theme-surface-secondary border border-theme-border rounded-xl p-0.5">
                           <button
                             onClick={toggleSharePublicly}
@@ -2731,6 +2804,44 @@ export default function HrbpPage() {
                             </button>
                           )}
                         </div>
+                        )}
+
+                        {/* In shared/public view, just show the current status as a badge */}
+                        {isSharedView && (
+                          <span className={cn(
+                            'px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1',
+                            aiAnalysis.is_public
+                              ? 'bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
+                              : 'bg-rose-600/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                          )}>
+                            {aiAnalysis.is_public ? <><Globe size={11} /> Public</> : <><Lock size={11} /> Private</>}
+                          </span>
+                        )}
+
+                        {/* Expiry info + extend button (owner only, shown when public) */}
+                        {!isSharedView && aiAnalysis.share_token && aiAnalysis.is_public && (
+                          <div className="flex items-center gap-2 text-[9px] font-mono">
+                            <span className={cn(
+                              'px-2 py-1 rounded-lg border',
+                              aiAnalysis.expires_at && new Date(aiAnalysis.expires_at) > new Date()
+                                ? 'text-theme-text-secondary border-theme-border'
+                                : 'text-rose-400 border-rose-500/20 bg-rose-500/10'
+                            )}>
+                              {aiAnalysis.expires_at
+                                ? `หมดอายุ ${new Date(aiAnalysis.expires_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}`
+                                : 'กำลังจะหมดอายุ'}
+                            </span>
+                            <button
+                              onClick={extendShareExpiry}
+                              disabled={extendingShare}
+                              className="px-2 py-1 rounded-lg bg-emerald-600/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all flex items-center gap-1 disabled:opacity-50"
+                              title="ต่ออายุลิงก์แชร์อีก 30 วัน"
+                            >
+                              {extendingShare ? <RefreshCw size={10} className="animate-spin" /> : <RotateCcw size={10} />}
+                              <span>ต่ออายุ 30 วัน</span>
+                            </button>
+                          </div>
+                        )}
 
                         {/* View mode switcher */}
                         {isCoachTemplate(aiAnalysis.template_id) && (
@@ -3818,7 +3929,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
 
                 </div>
 
-              </div>
+              </>
             )}
 
             {/* If no analysis runs exist yet and we are in step 3 */}

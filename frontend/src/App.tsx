@@ -33,8 +33,12 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     return () => { active = false; };
   }, []);
 
+  // Public share links (?share=token) must open without a login session,
+  // so the router does not redirect anonymous viewers to /login.
+  const isPublicShare = new URLSearchParams(window.location.search).has('share');
+
   if (state === 'loading') return <div className="min-h-screen bg-slate-950" />;
-  if (state === 'anonymous') return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (state === 'anonymous' && !isPublicShare) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return <>{children}</>;
 }
 

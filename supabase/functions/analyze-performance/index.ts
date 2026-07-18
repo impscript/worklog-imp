@@ -883,6 +883,20 @@ Task instructions:
       }
     }
 
+    // Fallback 2: company-wide Core / Public template (workspace_id IS NULL)
+    if (!template && !templateErr) {
+      const { data: coreTemplate, error: coreErr } = await supabase
+        .from('tb_ai_prompt_templates')
+        .select('*')
+        .eq('template_key', template_id)
+        .is('workspace_id', null)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!coreErr && coreTemplate) {
+        template = coreTemplate;
+      }
+    }
+
     if (templateErr) throw new Error(`Template query error: ${templateErr.message}`);
     if (!template) {
       throw new Error(`ไม่พบรูปแบบการวิเคราะห์ "${template_id}" หรือรูปแบบดังกล่าวถูกปิดใช้งานอยู่ กรุณาติดต่อผู้ดูแลระบบ (Admin) เพื่อตรวจสอบที่เมนู Admin → AI Prompts`);
@@ -1056,6 +1070,27 @@ Task instructions:
       coaching_guide: parsedReport.coaching_guide || null,
       well_being_signal: parsedReport.well_being_signal || null,
       message_to_employee: parsedReport.message_to_employee || null,
+
+      // Point-in-time identity snapshot (see migration 20260721000000).
+      // Stored so the shared/public view works for anon viewers and so historical
+      // reports keep the correct identity even if the employee later changes
+      // position / department / JD.
+      evaluated_full_name: userProfile?.full_name || null,
+      evaluated_nickname: userProfile?.nickname || null,
+      evaluated_position: userProfile?.position || null,
+      evaluated_department: userProfile?.department || null,
+      evaluated_jd_text: jdText || null,
+      evaluated_avatar_emp_id: userProfile?.emp_id || null,
+
+      // Snapshot of the JD's key responsibilities / weights so the shared
+      // (public) view can display the full target weight structure without
+      // querying tb_user_jd (anon viewers are blocked by RLS).
+      evaluated_key_responsibilities: keyResponsibilities.length > 0 ? keyResponsibilities : null,
+
+      // Worklog snapshot so the shared (public) view can show hours without
+      // querying col_worklog (anon readers are blocked by workspace RLS).
+      total_hours: totalHours,
+      logs_count: logs.length,
     };
 
     console.log('[AI] Inserting report into tb_ai_individual_analysis...');
