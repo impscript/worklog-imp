@@ -6,6 +6,8 @@ import { supabase } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
 import { useNotification } from '../../context/NotificationContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import LanguageToggle from '../LanguageToggle';
 
 type SessionUser = { 
   id: string; 
@@ -36,6 +38,7 @@ function getErrorMessage(error: unknown) {
 }
 
 export default function AppLayout({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebar_collapsed');
@@ -519,48 +522,48 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           {/* Grouped Navigation */}
           <nav className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto mt-2">
             
-            {/* Section 1: ข้อมูลของฉัน */}
+            {/* Section 1: My Work */}
             {(!isCollapsed) && (
               <h3 className="px-4 pt-2 pb-1 text-[9.5px] font-black uppercase text-indigo-400/80 tracking-widest font-mono">
-                ข้อมูลส่วนบุคคล / My Work
+                {t('nav.myWork')}
               </h3>
             )}
-            <NavItem to="/" icon={<LayoutDashboard size={18} />} label="Dashboard" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/log" icon={<PlusCircle size={18} />} label="Log Work" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/calendar" icon={<Calendar size={18} />} label="Calendar" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/profile" icon={<User size={18} />} label="Profile" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/" icon={<LayoutDashboard size={18} />} label={t('nav.dashboard')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/log" icon={<PlusCircle size={18} />} label={t('nav.logWork')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/calendar" icon={<Calendar size={18} />} label={t('nav.calendar')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/profile" icon={<User size={18} />} label={t('nav.profile')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
 
-            {/* Section 2: การทำงานร่วมกัน */}
+            {/* Section 2: Collaboration */}
             {((user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') || !isCollapsed) && (
               <div className="border-t border-theme-border/30 my-2 pt-2">
                 {!isCollapsed && (
                   <h3 className="px-4 pb-1 text-[9.5px] font-black uppercase text-indigo-400/80 tracking-widest font-mono">
-                    การทำงานร่วมกัน / Collaboration
+                    {t('nav.collaboration')}
                   </h3>
                 )}
               </div>
             )}
             {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
-              <NavItem to="/reports" icon={<FileText size={18} />} label="Reports" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+              <NavItem to="/reports" icon={<FileText size={18} />} label={t('nav.reports')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
             {(user?.role === 'admin' || user?.workspaceRole === 'admin') && (
-              <NavItem to="/team" icon={<User size={18} />} label="Manage Team" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+              <NavItem to="/team" icon={<User size={18} />} label={t('nav.team')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
             {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
-              <NavItem to="/projects" icon={<FolderTree size={18} />} label="Project Registry" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+              <NavItem to="/projects" icon={<FolderTree size={18} />} label={t('nav.projects')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
-            <NavItem to="/leaderboard" icon={<Trophy size={18} />} label="Leaderboard" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/leaderboard" icon={<Trophy size={18} />} label={t('nav.leaderboard')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
 
-            {/* Section 3: ระบบผู้ช่วย AI */}
+            {/* Section 3: AI Copilot */}
             <div className="border-t border-theme-border/30 my-2 pt-2">
               {!isCollapsed && (
                 <h3 className="px-4 pb-1 text-[9.5px] font-black uppercase text-indigo-400/80 tracking-widest font-mono">
-                  ระบบผู้ช่วย AI / AI Copilot
+                  {t('nav.aiCopilot')}
                 </h3>
               )}
             </div>
             <NavItem to="/hrbp" icon={<Cpu size={18} />} label="AI Enhance" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-            <NavItem to="/ai-chat" icon={<MessageSquare size={18} />} label="AI Chat" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/ai-chat" icon={<MessageSquare size={18} />} label={t('nav.aiChat')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
 
             {/* Section 4: ผู้ดูแลระบบใหญ่ (Super Admin) */}
             {user?.role === 'admin' && (
@@ -576,13 +579,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 "flex items-center rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20 transition-all text-sm font-semibold tracking-wide w-full",
                 isCollapsed ? "md:justify-center space-x-3 md:space-x-0 py-3" : "space-x-3 px-4 py-3"
               )}
-              title={isCollapsed ? "Sign Out" : undefined}
+              title={isCollapsed ? t('nav.logout') : undefined}
             >
               <LogOut size={18} className="shrink-0" />
               {!isCollapsed ? (
-                <span className="whitespace-nowrap animate-fade-in">Sign Out</span>
+                <span className="whitespace-nowrap animate-fade-in">{t('nav.logout')}</span>
               ) : (
-                <span className="whitespace-nowrap animate-fade-in md:hidden">Sign Out</span>
+                <span className="whitespace-nowrap animate-fade-in md:hidden">{t('nav.logout')}</span>
               )}
             </button>
           </div>
@@ -650,6 +653,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             >
               {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
+
+            <LanguageToggle />
 
             {!isSharedView && (
               <div className="flex items-center space-x-3 pl-3 border-l border-theme-border shrink-0">
@@ -907,6 +912,7 @@ function NavItem({ to, icon, label, isCollapsed, onClick, forceActive, end }: Na
 }
 
 function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: () => void }) {
+  const { t } = useTranslation();
   const location = useLocation();
   const isWorkspacesActive = location.pathname === '/workspaces';
   const isMasterDataActive = location.pathname === '/admin';
@@ -916,13 +922,13 @@ function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: 
       {!isCollapsed && (
         <h3 className="px-4 pb-1.5 flex items-center gap-1.5 text-[9.5px] font-black uppercase text-rose-400 tracking-widest font-mono">
           <Shield size={10} />
-          ผู้ดูแลระบบ / System Admin
+          {t('nav.systemAdmin')}
         </h3>
       )}
       <NavItem
         to="/workspaces"
         icon={<LayoutGrid size={18} />}
-        label="Workspaces Monitor"
+        label={t('nav.workspaces')}
         isCollapsed={isCollapsed}
         onClick={onNav}
         forceActive={isWorkspacesActive}
@@ -930,7 +936,7 @@ function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: 
       <NavItem
         to="/admin"
         icon={<Database size={18} />}
-        label="Master Data"
+        label={t('nav.admin')}
         isCollapsed={isCollapsed}
         onClick={onNav}
         forceActive={isMasterDataActive}
@@ -939,7 +945,7 @@ function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: 
       <NavItem
         to="/migrate"
         icon={<UploadCloud size={18} />}
-        label="Data Migration"
+        label={t('nav.migrate')}
         isCollapsed={isCollapsed}
         onClick={onNav}
       />

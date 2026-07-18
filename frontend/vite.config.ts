@@ -106,6 +106,8 @@ const mockUploadPlugin = () => ({
 export default defineConfig({
   plugins: [react(), tailwindcss(), mockUploadPlugin()],
   server: {
+    port: 5173,
+    strictPort: true,
     proxy: {
       '/api/idms': {
         target: 'http://mobiledev.advanceagro.net',
@@ -116,6 +118,11 @@ export default defineConfig({
         target: 'http://api-idms.advanceagro.net',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/hrms/, '/hrms')
+      },
+      '/functions': {
+        target: 'https://mcrmkyppxoityveebgex.supabase.co',
+        changeOrigin: true,
+        secure: true
       }
     }
   }

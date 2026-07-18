@@ -177,7 +177,9 @@ export function useAuth() {
         } else {
           // Authentication and HRMS provisioning happen server-side. Credentials and
           // IDMS agent secrets must never be exposed in the browser bundle.
-          const bridgeUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hrms-auth`;
+          const bridgeUrl = import.meta.env.DEV
+            ? '/functions/v1/hrms-auth'
+            : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hrms-auth`;
           const bridgeRes = await fetch(bridgeUrl, {
             method: 'POST',
             headers: {

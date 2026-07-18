@@ -4,8 +4,11 @@ import { LogIn, KeyRound, User as UserIcon, Sparkles, ChevronDown, ChevronUp, Us
 import { useAuth } from '../hooks/useAuth';
 import { MOCK_USERS } from '../lib/mockUsers';
 import type { MockHRMSUser } from '../lib/mockUsers';
+import { useTranslation } from 'react-i18next';
+import LanguageToggle from '../components/LanguageToggle';
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,18 +26,18 @@ export default function LoginPage() {
     try {
       const username = account.trim();
       if (!username) {
-        throw new Error('Please enter a username');
+        throw new Error(t('login.enterUsername'));
       }
 
       const inviteCode = new URLSearchParams(window.location.search).get('invite') || undefined;
       // Call our centralized useAuth hook login (which auto-handles Dev vs Prod proxy & JIT provisioning)
       await login(username, password, inviteCode);
-      
+
       // Success
       navigate('/');
-      
+
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.');
+      setError(err.message || t('common.error'));
     } finally {
       setIsLoading(false);
     }
@@ -48,7 +51,7 @@ export default function LoginPage() {
       await login(user.emp_id, 'mock_bypass', inviteCode);
       navigate('/');
     } catch (err: any) {
-      setError(err.message || 'Simulated login failed.');
+      setError(err.message || t('common.error'));
     } finally {
       setIsLoading(false);
     }
@@ -68,16 +71,20 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-theme-bg-page ai-cyber-grid flex flex-col items-center justify-center p-4 relative overflow-y-auto">
-      
+
       {/* Background decorations */}
       <div className="absolute top-[-10%] left-[-10%] w-[450px] h-[450px] rounded-full bg-indigo-600/10 blur-[120px] pointer-events-none animate-pulse-slow"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] rounded-full bg-violet-600/5 blur-[100px] pointer-events-none"></div>
 
+      <div className="absolute top-4 right-4 z-20">
+        <LanguageToggle />
+      </div>
+
       <div className="w-full max-w-lg flex flex-col gap-6 relative z-10 py-8">
-        
+
         {/* Main Login Card */}
         <div className="w-full ai-glass rounded-3xl p-8 shadow-2xl border border-theme-border/80">
-          
+
           <div className="flex flex-col items-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center mb-4 shadow-lg shadow-indigo-500/25 border border-indigo-400/20">
               <Sparkles className="w-8 h-8 text-theme-text dark:text-theme-text-invert animate-pulse" />
@@ -99,16 +106,16 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold text-theme-text-muted dark:text-theme-text-secondary uppercase tracking-wider mb-2 ml-1">Username</label>
+              <label className="block text-xs font-bold text-theme-text-muted dark:text-theme-text-secondary uppercase tracking-wider mb-2 ml-1">{t('login.username')}</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <UserIcon size={16} className="text-slate-500" />
                 </div>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={account}
                   onChange={(e) => setAccount(e.target.value)}
-                  placeholder="HRMS Username"
+                  placeholder={t('login.usernamePlaceholder')}
                   className="w-full bg-theme-surface/80 dark:bg-theme-bg-page/60 border border-theme-border rounded-xl py-3 pl-11 pr-4 text-theme-text placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold text-sm"
                   required
                 />
@@ -116,13 +123,13 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-theme-text-muted dark:text-theme-text-secondary uppercase tracking-wider mb-2 ml-1">Password</label>
+              <label className="block text-xs font-bold text-theme-text-muted dark:text-theme-text-secondary uppercase tracking-wider mb-2 ml-1">{t('login.password')}</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <KeyRound size={16} className="text-slate-500" />
                 </div>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -132,8 +139,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={isLoading}
               className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 disabled:cursor-not-allowed text-theme-text dark:text-theme-text-invert font-extrabold uppercase tracking-wider text-xs rounded-xl py-3.5 shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all active:scale-[0.98] mt-6 flex items-center justify-center gap-2 border border-indigo-400/20"
             >
@@ -142,7 +149,7 @@ export default function LoginPage() {
               ) : (
                 <>
                   <LogIn size={15} />
-                  <span>Sign In</span>
+                  <span>{t('login.submit')}</span>
                 </>
               )}
             </button>
@@ -151,15 +158,15 @@ export default function LoginPage() {
 
         {/* Development Workspace Mock Profiles Simulator */}
         <div className="w-full ai-glass rounded-3xl border border-indigo-500/20 overflow-hidden shadow-xl transition-all duration-300">
-          <button 
+          <button
             onClick={() => {
               if (!showSimPanel) {
                 // When opening, we prompt for passcode if not already verified
-                const code = prompt('กรุณากรอกรหัสผ่านเพื่อเข้าใช้งานจำลองสิทธิ์:');
+                const code = prompt(t('login.simPasscodePrompt', { defaultValue: 'กรุณากรอกรหัสผ่านเพื่อเข้าใช้งานจำลองสิทธิ์:' }));
                 if (code === '337999') {
                   setShowSimPanel(true);
                 } else {
-                  alert('รหัสผ่านไม่ถูกต้อง ❌');
+                  alert(t('login.simPasscodeWrong', { defaultValue: 'รหัสผ่านไม่ถูกต้อง ❌' }));
                 }
               } else {
                 setShowSimPanel(false);
@@ -177,7 +184,7 @@ export default function LoginPage() {
           {showSimPanel && (
             <div className="p-6 bg-slate-950/40 border-t border-indigo-500/15 space-y-4">
               <p className="text-xs text-slate-400 leading-relaxed">
-                Select a mock user profile to test the JIT user provisioning and automatic workspace assignment rules.
+                {t('login.simDescription', { defaultValue: 'Select a mock user profile to test the JIT user provisioning and automatic workspace assignment rules.' })}
               </p>
 
               {/* Group Selector Tabs */}
@@ -187,8 +194,8 @@ export default function LoginPage() {
                     key={groupName}
                     onClick={() => setSelectedGroup(groupName)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      selectedGroup === groupName 
-                        ? 'bg-indigo-500 text-white shadow-md' 
+                      selectedGroup === groupName
+                        ? 'bg-indigo-500 text-white shadow-md'
                         : 'bg-slate-900/60 text-slate-400 hover:text-slate-200'
                     }`}
                   >
