@@ -1005,15 +1005,12 @@ export default function AdminPage() {
       } else if (activeTab === 'holiday') {
         const payload: any = {
           date: formHolidayDate,
-          name: formHolidayName
+          name: formHolidayName,
+          workspace_id: null
         };
-        if (session?.activeWorkspaceId) {
-          payload.workspace_id = session.activeWorkspaceId;
-        }
 
         if (editRow) {
-          const holidayWs = session?.activeWorkspaceId || editRow.workspace_id;
-          const { error } = await supabase.from('tb_master_holiday').update({ name: formHolidayName }).eq('date', editRow.date).eq('workspace_id', holidayWs);
+          const { error } = await supabase.from('tb_master_holiday').update({ name: formHolidayName }).eq('date', editRow.date).is('workspace_id', null);
           if (error) throw error;
         } else {
           const { error } = await supabase.from('tb_master_holiday').insert(payload);
@@ -1059,7 +1056,7 @@ export default function AdminPage() {
     const delWorkspaceId = session?.activeWorkspaceId;
     const isSuperAdmin = session?.role === 'admin' && (!delWorkspaceId || delWorkspaceId === 'N/A');
     const isRecordGlobal = !row.workspace_id;
-    if (!isSuperAdmin && isRecordGlobal && activeTab !== 'holiday' && activeTab !== 'users') {
+    if (!isSuperAdmin && (isRecordGlobal || activeTab === 'holiday') && activeTab !== 'users') {
       showToast('Cannot delete global/system entries / ไม่สามารถลบข้อมูลที่เป็นของส่วนกลางได้', 'error');
       return;
     }
@@ -1127,7 +1124,7 @@ export default function AdminPage() {
       if (activeTab === 'holding') deleteOp = query.delete().eq('holding_name', row.holding_name).eq('workspace_id', wsFilter);
       else if (activeTab === 'role') deleteOp = query.delete().eq('role_name', row.role_name).eq('workspace_id', wsFilter);
       else if (activeTab === 'project_type') deleteOp = query.delete().eq('type_name', row.type_name).eq('workspace_id', wsFilter);
-      else if (activeTab === 'holiday') deleteOp = query.delete().eq('date', row.date).eq('workspace_id', wsFilter);
+      else if (activeTab === 'holiday') deleteOp = query.delete().eq('date', row.date).is('workspace_id', null);
       else deleteOp = query.delete().eq('id', row.id).eq('workspace_id', wsFilter);
 
       const { error } = await deleteOp;
