@@ -175,24 +175,31 @@ export function useAuth() {
           }
           console.log(`${modeLabel} Prepared mock/fetched profile:`, employeeData);
 
-          // Provision/get database user for simulation session using security definer function to bypass RLS
-          const { data: provisionedUser, error: provErr } = await supabase.rpc('provision_hrms_user', {
-            p_emp_id: empId,
-            p_email: mockUser.email,
-            p_full_name: mockUser.full_name,
-            p_nickname: mockUser.nickname,
-            p_department: mockUser.department,
-            p_position: mockUser.position,
-            p_phone: mockUser.phone || null,
-            p_employee_level: mockUser.level_name || null,
-            p_role_start_date: null,
-            p_company_code: null,
-            p_company_name: mockUser.company_name || null
+          // Authenticate simulation through the secure hrms-auth Edge Function to establish a real Supabase Auth session
+          const bridgeUrl = import.meta.env.DEV
+            ? '/functions/v1/hrms-auth'
+            : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hrms-auth`;
+          const bridgeRes = await fetch(bridgeUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({
+              account: empId,
+              password: 'mock_bypass',
+              mockEmployee: mockUser
+            })
           });
+          const bridgeData = await bridgeRes.json().catch(() => null);
+          if (!bridgeRes.ok || !bridgeData?.session || !bridgeData?.employee) {
+            throw new Error(bridgeData?.error || 'ไม่สามารถสร้าง Session จำลองสิทธิ์ได้');
+          }
 
-          if (provErr) throw provErr;
-          userRecord = provisionedUser;
+          const { error: sessionError } = await supabase.auth.setSession(bridgeData.session);
+          if (sessionError) throw sessionError;
 
+          userRecord = bridgeData.employee;
           isBridgeLogin = true;
         } else {
           // Authentication and HRMS provisioning happen server-side. Credentials and

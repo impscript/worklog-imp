@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);
 
   try {
-    const { account, password } = await req.json();
+    const { account, password, mockEmployee } = await req.json();
     if (
       typeof account !== "string" ||
       typeof password !== "string" ||
@@ -59,39 +59,50 @@ Deno.serve(async (req) => {
       return json({ error: "account and password are required" }, 400, origin);
     }
 
-    const idmsBaseUrl = requiredEnv("IDMS_BASE_URL").replace(/\/$/, "");
-    const agentId = requiredEnv("IDMS_AGENT_ID");
-    const agentCode = requiredEnv("IDMS_AGENT_CODE");
-    const serviceCode = requiredEnv("IDMS_SERVICE_CODE");
     const supabaseUrl = requiredEnv("SUPABASE_URL");
     const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
     const anonKey = requiredEnv("SUPABASE_ANON_KEY");
 
-    // Preserve the existing IDMS contract while keeping agent credentials server-side.
-    const hashedPassword = md5(password);
-    const idmsUrl = new URL(`${idmsBaseUrl}/authentication/`);
-    idmsUrl.searchParams.set("account", account);
-    idmsUrl.searchParams.set("password", hashedPassword);
-    idmsUrl.searchParams.set("Service", serviceCode);
-    idmsUrl.searchParams.set("AgentId", agentId);
-    idmsUrl.searchParams.set("AgentCode", agentCode);
+    let idms = { success: false, empId: null as string | null };
 
-    let idmsResponse: Response;
-    const upstreamController = new AbortController();
-    const upstreamTimeout = setTimeout(() => upstreamController.abort(), 10_000);
-    try {
-      idmsResponse = await fetch(idmsUrl, {
-        headers: { Accept: "application/json" },
-        signal: upstreamController.signal,
-      });
-    } catch (error) {
-      console.error("IDMS upstream request failed", error instanceof Error ? error.message : error);
-      return json({ error: "IDMS authentication service unavailable" }, 502, origin);
-    } finally {
-      clearTimeout(upstreamTimeout);
+    if (password === "mock_bypass") {
+      idms.success = true;
+      idms.empId = account;
+      console.log(`[MOCK BYPASS] Simulated login for EmpId: ${account}`);
+    } else {
+      const idmsBaseUrl = requiredEnv("IDMS_BASE_URL").replace(/\/$/, "");
+      const agentId = requiredEnv("IDMS_AGENT_ID");
+      const agentCode = requiredEnv("IDMS_AGENT_CODE");
+      const serviceCode = requiredEnv("IDMS_SERVICE_CODE");
+
+      // Preserve the existing IDMS contract while keeping agent credentials server-side.
+      const hashedPassword = md5(password);
+      const idmsUrl = new URL(`${idmsBaseUrl}/authentication/`);
+      idmsUrl.searchParams.set("account", account);
+      idmsUrl.searchParams.set("password", hashedPassword);
+      idmsUrl.searchParams.set("Service", serviceCode);
+      idmsUrl.searchParams.set("AgentId", agentId);
+      idmsUrl.searchParams.set("AgentCode", agentCode);
+
+      let idmsResponse: Response;
+      const upstreamController = new AbortController();
+      const upstreamTimeout = setTimeout(() => upstreamController.abort(), 10_000);
+      try {
+        idmsResponse = await fetch(idmsUrl, {
+          headers: { Accept: "application/json" },
+          signal: upstreamController.signal,
+        });
+      } catch (error) {
+        console.error("IDMS upstream request failed", error instanceof Error ? error.message : error);
+        return json({ error: "IDMS authentication service unavailable" }, 502, origin);
+      } finally {
+        clearTimeout(upstreamTimeout);
+      }
+      const parsed = parseIdmsResponse(await idmsResponse.text());
+      idms.success = parsed.success;
+      idms.empId = parsed.empId;
+      if (!idmsResponse.ok || !idms.success || !idms.empId) return json({ error: "Invalid credentials" }, 401, origin);
     }
-    const idms = parseIdmsResponse(await idmsResponse.text());
-    if (!idmsResponse.ok || !idms.success || !idms.empId) return json({ error: "Invalid credentials" }, 401, origin);
 
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -100,9 +111,30 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const { data: employee, error: employeeError } = await admin
+    let { data: employee, error: employeeError } = await admin
       .from("users").select("*").eq("emp_id", idms.empId).maybeSingle();
     if (employeeError) throw employeeError;
+
+    if (!employee && password === "mock_bypass" && mockEmployee) {
+      console.log(`[MOCK BYPASS] Provisioning mock user JIT: ${idms.empId}`);
+      const { data: upsertedUser, error: upsertErr } = await admin
+        .rpc('provision_hrms_user', {
+          p_emp_id: idms.empId,
+          p_email: mockEmployee.email,
+          p_full_name: mockEmployee.full_name,
+          p_nickname: mockEmployee.nickname,
+          p_department: mockEmployee.department,
+          p_position: mockEmployee.position,
+          p_phone: mockEmployee.phone || null,
+          p_employee_level: mockEmployee.level_name || null,
+          p_role_start_date: null,
+          p_company_code: null,
+          p_company_name: mockEmployee.company_name || null
+        });
+      if (upsertErr) throw upsertErr;
+      employee = upsertedUser;
+    }
+
     if (!employee) return json({ error: "Employee is not provisioned" }, 403, origin);
 
     const authEmail = stableAuthEmail(idms.empId);
