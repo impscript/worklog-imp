@@ -764,6 +764,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 )}
               </div>
 
+              {/* Fallback: ถ้า user ไม่ใช่ระดับ manager ให้แจ้งติดต่อ Admin */}
+              {!(user.role === 'admin' || /section manager|sec mgr|department manager|dept mgr|head of|director|ผู้จัดการ/i.test(user.position || '')) && (
+                <div className="mt-1 flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/5 border border-amber-500/15 text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                  <span className="text-base leading-none mt-0.5">💡</span>
+                  <span>
+                    หากยังไม่มีกลุ่มงานในระบบ กรุณาติดต่อ <strong>Admin HR ที่สังกัด</strong> เพื่อขอรหัสเชิญชวน (Invite Code) หรือให้ Admin สร้างกลุ่มงานให้
+                  </span>
+                </div>
+              )}
+
+
               {onboardingTab === 'join' ? (
                 <form onSubmit={handleJoinWorkspace} className="space-y-4">
                   <div className="space-y-2">
