@@ -336,6 +336,7 @@ export default function LogWorkPage() {
   // Google Calendar .ics Import states
   const [rawICSContent, setRawICSContent] = useState<string>('');
   const [isICSModalOpen, setIsICSModalOpen] = useState<boolean>(false);
+  const [isICSCollapseOpen, setIsICSCollapseOpen] = useState<boolean>(false);
   
   // Form State
   const [date, setDate] = useState(() => {
@@ -1787,63 +1788,64 @@ export default function LogWorkPage() {
         <h1 className="text-2xl font-bold text-theme-text mb-8 tracking-tight">Log Work</h1>
 
         {!session?.activeWorkspaceId ? (
-          <div className="mb-6 bg-amber-500/10 border border-amber-500/25 text-amber-300 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
+          <div className="mb-6 bg-amber-500/10 border border-amber-500/25 text-amber-800 dark:text-amber-300 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
             <span className="flex items-center gap-2">
-              <Shield size={16} />
+              <Shield size={16} className="text-amber-600 dark:text-amber-400" />
               <span>กรุณาเลือก Workspace ก่อนบันทึกใบงาน ระบบจะบันทึกงานของคุณใน Workspace ที่เลือก</span>
             </span>
-            <a href="/workspaces" className="underline hover:text-amber-200">เลือก Workspace</a>
+            <a href="/workspaces" className="underline text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-200">เลือก Workspace</a>
           </div>
         ) : (
-          <div className="mb-6 bg-indigo-500/10 border border-indigo-500/20 text-indigo-200 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
+          <div className="mb-6 bg-indigo-500/10 border border-indigo-500/20 text-indigo-800 dark:text-indigo-200 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
             <span className="flex items-center gap-2">
-              <Shield size={16} />
+              <Shield size={16} className="text-indigo-600 dark:text-indigo-400" />
               <span>{t('logWork.recordingIn')} <strong>{session.workspaceName || session.activeWorkspaceId}</strong></span>
             </span>
-            <a href="/workspaces" className="underline hover:text-indigo-100">{t('logWork.changeWorkspace')}</a>
+            <a href="/workspaces" className="underline text-indigo-700 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-100">{t('logWork.changeWorkspace')}</a>
           </div>
         )}
 
-        {/* Google Calendar .ics Import Banner */}
-        <div className="mb-6 bg-gradient-to-br from-indigo-100/70 via-violet-50 to-slate-50 dark:from-indigo-900/40 dark:via-indigo-950/40 dark:to-slate-900/50 border border-indigo-300/40 dark:border-indigo-500/20 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-            <CalendarIcon size={120} className="text-indigo-400" />
+        {/* Collapsible Google Calendar .ics Import Banner */}
+        <div className="mb-6 bg-gradient-to-br from-indigo-100/40 via-violet-50/20 to-slate-50/10 dark:from-indigo-900/20 dark:via-indigo-950/20 dark:to-slate-900/30 border border-indigo-200/50 dark:border-indigo-500/10 rounded-2xl p-4 shadow-sm relative overflow-hidden transition-all duration-300">
+          <div className="flex items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={() => setIsICSCollapseOpen(!isICSCollapseOpen)}
+              className="flex-1 flex items-center justify-between text-left focus:outline-none"
+            >
+              <div className="flex items-center gap-2">
+                <CalendarIcon size={16} className="text-indigo-600 dark:text-indigo-400" />
+                <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                  นำเข้าบันทึกงานด้วยไฟล์ปฏิทิน (.ics) / Import Google Calendar
+                </span>
+              </div>
+              <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-bold hover:underline">
+                {isICSCollapseOpen ? 'ซ่อนรายละเอียด / Collapse' : 'ขยายข้อมูลนำเข้า / Expand'}
+              </span>
+            </button>
           </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h3 className="text-sm font-bold text-theme-text flex items-center gap-2">
-                <Sparkles size={16} className="text-indigo-400" />
-                <span>นำเข้าบันทึกงานด้วยไฟล์ปฏิทิน / Import via Google Calendar (.ics)</span>
-              </h3>
-              <p className="text-xs text-theme-text-secondary max-w-xl">
-                อัปโหลดไฟล์ `.ics` ที่ส่งออกมาจากระบบปฏิทินของคุณเพื่อดึงกิจกรรมเป็นรายการบันทึกงานอัตโนมัติ จากนั้นสามารถส่งให้ AI ช่วยประเมินผลงานย้อนหลังได้ทันที
-              </p>
+
+          {isICSCollapseOpen && (
+            <div className="mt-4 pt-4 border-t border-indigo-200/30 dark:border-indigo-500/15 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="space-y-1">
+                <p className="text-xs text-theme-text-secondary max-w-xl">
+                  อัปโหลดไฟล์ `.ics` ที่ส่งออกมาจากระบบปฏิทินของคุณเพื่อดึงกิจกรรมเป็นรายการบันทึกงานอัตโนมัติ จากนั้นสามารถส่งให้ AI ช่วยประเมินผลงานย้อนหลังได้ทันที
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                <label className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl border border-indigo-500/30 transition-all cursor-pointer active:scale-95 shadow-lg shadow-indigo-500/20">
+                  <Upload size={14} />
+                  <span>เลือกไฟล์ .ics / Upload .ics File</span>
+                  <input 
+                    type="file" 
+                    accept=".ics" 
+                    onChange={handleICSFileUpload} 
+                    className="sr-only" 
+                  />
+                </label>
+              </div>
             </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setRawICSContent('');
-                  setIsICSModalOpen(true);
-                }}
-                className="inline-flex items-center justify-center gap-2 bg-white/80 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-white border border-slate-300 dark:border-theme-border font-bold text-xs px-4 py-2.5 rounded-xl transition-all active:scale-95 shadow-md"
-              >
-                <RefreshCw size={14} />
-                <span>ซิงก์จาก Outlook / Sync Outlook</span>
-              </button>
-              
-              <label className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl border border-indigo-500/30 transition-all cursor-pointer active:scale-95 shadow-lg shadow-indigo-500/20">
-                <Upload size={14} />
-                <span>เลือกไฟล์ .ics / Upload .ics File</span>
-                <input 
-                  type="file" 
-                  accept=".ics" 
-                  onChange={handleICSFileUpload} 
-                  className="sr-only" 
-                />
-              </label>
-            </div>
-          </div>
+          )}
         </div>
         
         <div className="bg-theme-surface-tertiary bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border dark:border-theme-border/50 rounded-2xl p-6 md:p-8 shadow-xl shadow-black/20">
@@ -1877,7 +1879,7 @@ export default function LogWorkPage() {
             )}
           </div>
 
-          <div className="h-px bg-slate-700/50 w-full mb-8"></div>
+          <div className="h-px bg-slate-200 dark:bg-slate-700/50 w-full mb-8"></div>
 
           {/* Cascading Logic Area */}
           <div className="space-y-6 mb-8">
@@ -1994,7 +1996,7 @@ export default function LogWorkPage() {
 
             {selectedProjectDescription && (
               <div className="p-4 rounded-xl bg-indigo-500/5 dark:bg-indigo-500/5 border border-indigo-500/10 dark:border-indigo-500/10 text-xs text-theme-text-secondary leading-relaxed flex flex-col gap-1.5 shadow-sm mt-2">
-                <div className="flex items-center gap-1.5 font-bold text-indigo-400">
+                <div className="flex items-center gap-1.5 font-bold text-indigo-600 dark:text-indigo-400">
                   <span>📖 Project Background & Objectives:</span>
                 </div>
                 <p className="font-normal text-theme-text-secondary italic">
@@ -2011,7 +2013,7 @@ export default function LogWorkPage() {
                         });
                       }
                     }}
-                    className="px-2 py-1 text-[10px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded border border-indigo-500/20 transition-all cursor-pointer"
+                    className="px-2 py-1 text-[10px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded border border-indigo-500/20 dark:border-indigo-500/30 transition-all cursor-pointer"
                   >
                     ➕ แทรกบริบทโปรเจกต์ลงรายละเอียดงาน / Insert Context
                   </button>
@@ -2200,7 +2202,7 @@ export default function LogWorkPage() {
                               setEndTime(prev => addMinutesToTime(prev, mins));
                               setIsTimeCustomized(true);
                             }}
-                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-theme-border/60 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 text-theme-text-secondary hover:text-indigo-400 transition-all cursor-pointer active:scale-95"
+                            className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-theme-border/60 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 text-theme-text-secondary hover:text-indigo-600 dark:hover:text-indigo-400 transition-all cursor-pointer active:scale-95"
                           >
                             {label}
                           </button>
@@ -2296,7 +2298,7 @@ export default function LogWorkPage() {
                   key={tpl.id}
                   type="button"
                   onClick={() => handleInjectTemplate(tpl.template_content)}
-                  className="px-2.5 py-1 text-[11px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg border border-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-1 text-[11px] font-bold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg border border-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>{tpl.icon || '📝'}</span>
                   <span>{tpl.template_name}</span>
@@ -2306,7 +2308,7 @@ export default function LogWorkPage() {
 
             {/* Guide Info Box */}
             <div className="mb-3 p-3 rounded-xl bg-indigo-500/5 dark:bg-slate-900/30 border border-indigo-500/10 dark:border-indigo-500/5 text-xs text-theme-text-secondary leading-relaxed flex items-start gap-2 shadow-sm">
-              <span className="text-indigo-400 shrink-0">💡</span>
+              <span className="text-indigo-600 dark:text-indigo-400 shrink-0">💡</span>
               <p className="font-medium text-theme-text-secondary">
                 {getWorklogGuide().guide}
               </p>
@@ -2388,11 +2390,11 @@ export default function LogWorkPage() {
                 {/* AI Sparkle Polish */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 gap-3 shadow-inner animate-in fade-in duration-300">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl shrink-0">
+                    <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-xl shrink-0">
                       <Sparkles size={16} className={cn("animate-pulse", isEnhancing && "animate-spin")} />
                     </div>
                     <div>
-                      <span className="text-[10px] text-indigo-400 uppercase font-black tracking-widest block mb-0.5">ขัดเกลาคำด้วย AI / AI Sparkle</span>
+                      <span className="text-[10px] text-indigo-600 dark:text-indigo-400 uppercase font-black tracking-widest block mb-0.5">ขัดเกลาคำด้วย AI / AI Sparkle</span>
                       <span className="text-xs text-theme-text-secondary leading-normal block">
                         ช่วยเกลาคำอธิบายงานให้ออกมาในแง่บวก เห็นภาพความสำเร็จ ประหยัดเวลา และประหยัดต้นทุนสำหรับผู้บริหาร
                       </span>
@@ -2521,31 +2523,31 @@ export default function LogWorkPage() {
           {/* Validation & Holiday Premium Alerts */}
           <div className="space-y-4 mt-6">
             {preview.isOverlap && (holding || isTimeCustomized) && (
-              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-3 text-red-200">
-                <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={18} />
+              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-3 text-red-800 dark:text-red-200">
+                <AlertTriangle className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" size={18} />
                 <div>
-                  <h4 className="font-semibold text-red-300">ช่วงเวลาทำงานทับซ้อนกัน / Time Overlap Alert</h4>
-                  <p className="text-sm text-red-400 mt-1">เวลาที่คุณเลือกทับซ้อนกับรายการที่บันทึกแล้ว: <span className="font-semibold text-theme-text">{preview.overlappingEvent}</span></p>
+                  <h4 className="font-semibold text-red-950 dark:text-red-300">ช่วงเวลาทำงานทับซ้อนกัน / Time Overlap Alert</h4>
+                  <p className="text-xs text-red-700 dark:text-red-400 mt-1">เวลาที่คุณเลือกทับซ้อนกับรายการที่บันทึกแล้ว: <span className="font-semibold text-theme-text">{preview.overlappingEvent}</span></p>
                 </div>
               </div>
             )}
 
             {isHolidayDate && (
-              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 text-amber-200">
-                <CalendarIcon className="text-amber-400 shrink-0 mt-0.5" size={18} />
+              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 text-amber-800 dark:text-amber-200">
+                <CalendarIcon className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" size={18} />
                 <div>
-                  <h4 className="font-semibold text-amber-300">{t('logWork.isHoliday')} ({holidayName})</h4>
-                  <p className="text-sm text-amber-400 mt-1">ชั่วโมงทำงานทั้งหมดของวันหยุดจะถูกคิดสัดส่วนสะสมเป็นชั่วโมง OT ทั้งหมด 🌟</p>
+                  <h4 className="font-semibold text-amber-950 dark:text-amber-300">{t('logWork.isHoliday')} ({holidayName})</h4>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">ชั่วโมงทำงานทั้งหมดของวันหยุดจะถูกคิดสัดส่วนสะสมเป็นชั่วโมง OT ทั้งหมด 🌟</p>
                 </div>
               </div>
             )}
 
             {preview.isImpliedOt && (holding || isTimeCustomized) && (
-              <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-xl flex items-start gap-3 text-indigo-200">
-                <Zap className="text-indigo-400 shrink-0 mt-0.5" size={18} />
+              <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-xl flex items-start gap-3 text-indigo-800 dark:text-indigo-200">
+                <Zap className="text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" size={18} />
                 <div>
-                  <h4 className="font-semibold text-indigo-300">ชั่วโมงสะสมปกติเกิน 8 ชม. ต่อวัน / Implied Overtime</h4>
-                  <p className="text-sm text-indigo-400 mt-1">
+                  <h4 className="font-semibold text-indigo-950 dark:text-indigo-300">ชั่วโมงสะสมปกติเกิน 8 ชม. ต่อวัน / Implied Overtime</h4>
+                  <p className="text-xs text-indigo-700 dark:text-indigo-400 mt-1 font-normal">
                     ยอดรวมชั่วโมงงานปกติในวันนี้ของคุณเต็ม 8 ชม. แล้ว ส่วนต่างอีก <span className="font-semibold text-theme-text">{preview.otHours.toFixed(1)} ชม.</span> จะถูกปัดเป็น OT แฝงให้อัตโนมัติ
                   </p>
                 </div>
@@ -2569,8 +2571,8 @@ export default function LogWorkPage() {
                         <span className={cn(
                           "px-2 py-0.5 text-[10px] font-medium rounded-full",
                           entry.is_ot || entry.is_implied_ot 
-                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
-                            : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                            ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20" 
+                            : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20"
                         )}>
                           {entry.is_ot ? 'OT' : entry.is_implied_ot ? 'OT แฝง' : 'ปกติ'}
                         </span>
@@ -2868,7 +2870,7 @@ function SearchableCombobox({
                           isSelected ? 'opacity-100' : 'opacity-0'
                         )}
                       >
-                        <Check size={13} className="text-indigo-400" />
+                        <Check size={13} className="text-indigo-600 dark:text-indigo-400" />
                       </span>
                       <span className="leading-snug">{optLabel}</span>
                     </button>
@@ -2953,8 +2955,8 @@ function TimeSelectInput({
                 className={cn(
                   "w-full text-left px-4 py-2 text-xs transition-colors flex items-center gap-2",
                   opt.value === value
-                    ? "bg-indigo-500/20 text-indigo-300 font-semibold"
-                    : "text-theme-text-secondary hover:bg-slate-700/60 hover:text-theme-text"
+                    ? "bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-semibold"
+                    : "text-theme-text-secondary hover:bg-theme-surface-tertiary hover:text-theme-text"
                 )}
               >
                 {opt.label}

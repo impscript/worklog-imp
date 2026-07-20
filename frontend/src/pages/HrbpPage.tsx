@@ -2700,9 +2700,16 @@ export default function HrbpPage() {
                           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                             <BarChart
                               data={chartData}
-                              margin={{ top: 10, right: 10, left: -20, bottom: 5 }}
+                              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                             >
-                              <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} />
+                              <XAxis
+                                dataKey="name"
+                                stroke="#64748b"
+                                fontSize={8}
+                                tickLine={false}
+                                axisLine={false}
+                                tickFormatter={(_: any, index: number) => `${index + 1}`}
+                              />
                               <YAxis stroke="#64748b" fontSize={9} tickLine={false} />
                               <Tooltip 
                                 content={({ active, payload, label }) => {
@@ -2735,14 +2742,17 @@ export default function HrbpPage() {
                           {chartData.map((item: any, idx: number) => {
                             const diff = Math.round(item['Actual %'] - item['Target %']);
                             return (
-                              <div key={idx} className="p-3 bg-theme-surface dark:bg-theme-surface-secondary/40 border border-theme-border/60 rounded-xl flex items-center justify-between text-xs">
-                                <div className="space-y-0.5">
-                                  <span className="font-bold text-theme-text block truncate max-w-[150px]">{item.name}</span>
+                              <div key={idx} className="p-3 bg-theme-surface dark:bg-theme-surface-secondary/40 border border-theme-border/60 rounded-xl flex items-center justify-between text-xs gap-2">
+                                <div className="space-y-0.5 flex-1 min-w-0">
+                                  <span className="font-bold text-theme-text flex items-center gap-1.5">
+                                    <span className="text-[9px] font-mono text-theme-text-secondary bg-theme-surface-secondary dark:bg-theme-surface px-1.5 py-0.5 rounded border border-theme-border/40 shrink-0">{idx + 1}</span>
+                                    <span className="truncate">{item.name}</span>
+                                  </span>
                                   <span className="text-[10px] text-theme-text-secondary font-mono">จริง: {item['Actual %']}% | เป้าหมาย: {item['Target %']}% ({item['Actual Hours']} ชม.)</span>
                                 </div>
 
                                 <div className={cn(
-                                  "px-2 py-0.5 rounded-lg text-[9px] font-bold font-mono tracking-wider",
+                                  "px-2 py-0.5 rounded-lg text-[9px] font-bold font-mono tracking-wider shrink-0",
                                   diff > 15 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
                                   diff < -15 ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" :
                                   "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
