@@ -175,34 +175,23 @@ export function useAuth() {
           }
           console.log(`${modeLabel} Prepared mock/fetched profile:`, employeeData);
 
-          // Get or create database user for simulation session
-          const { data: matchedUsers, error: queryErr } = await supabase
-            .from('users')
-            .select('*')
-            .eq('emp_id', empId)
-            .maybeSingle();
+          // Provision/get database user for simulation session using security definer function to bypass RLS
+          const { data: provisionedUser, error: provErr } = await supabase.rpc('provision_hrms_user', {
+            p_emp_id: empId,
+            p_email: mockUser.email,
+            p_full_name: mockUser.full_name,
+            p_nickname: mockUser.nickname,
+            p_department: mockUser.department,
+            p_position: mockUser.position,
+            p_phone: mockUser.phone || null,
+            p_employee_level: mockUser.level_name || null,
+            p_role_start_date: null,
+            p_company_code: null,
+            p_company_name: mockUser.company_name || null
+          });
 
-          if (queryErr) throw queryErr;
-
-          if (!matchedUsers) {
-            const { data: newUser, error: createError } = await supabase
-              .from('users')
-              .insert({
-                emp_id: empId,
-                email: mockUser.email,
-                full_name: mockUser.full_name,
-                nickname: mockUser.nickname,
-                role: 'user',
-                department: mockUser.department,
-                position: mockUser.position
-              })
-              .select('*')
-              .single();
-            if (createError) throw createError;
-            userRecord = newUser;
-          } else {
-            userRecord = matchedUsers;
-          }
+          if (provErr) throw provErr;
+          userRecord = provisionedUser;
 
           isBridgeLogin = true;
         } else {
