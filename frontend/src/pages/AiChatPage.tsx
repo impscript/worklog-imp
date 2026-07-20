@@ -1364,7 +1364,7 @@ export default function AiChatPage() {
 
                   {/* Engine Toggle Selection */}
                   <div className="space-y-1">
-                    <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">บริการเครื่องยนต์รูปภาพ (Image Generation Engine)</label>
+                    <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">บริการสร้างรูปภาพ (Image Generation Engine)</label>
                     <div className="flex gap-2">
                       <button
                         type="button"
