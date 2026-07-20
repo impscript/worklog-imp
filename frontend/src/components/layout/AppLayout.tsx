@@ -496,27 +496,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
           
-          {/* Connection status box */}
-          {!isCollapsed ? (
-            <div className="mt-4 mx-4 px-4 py-3.5 rounded-xl bg-theme-surface/80 dark:bg-theme-bg-page/50 border border-theme-border/80 flex items-center justify-between text-[11px] backdrop-blur-md animate-fade-in shadow-sm">
-              <div className="flex items-center gap-2 text-theme-text-secondary font-mono">
-                <Cpu size={12} className="text-indigo-600 dark:text-indigo-400 animate-pulse" />
-                <span className="font-semibold tracking-wider">AI COPILOT</span>
-              </div>
-              <div className="flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-                <span>ONLINE</span>
-              </div>
-            </div>
-          ) : (
-            <div 
-              className="mt-4 mx-auto w-10 h-10 rounded-xl bg-theme-surface/80 dark:bg-theme-bg-page/50 border border-theme-border/80 flex items-center justify-center backdrop-blur-md relative group cursor-pointer shadow-sm"
-              title="AI Copilot: Online"
-            >
-              <Cpu size={16} className="text-indigo-600 dark:text-indigo-400 animate-pulse" />
-              <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-emerald-500 border border-white dark:border-theme-bg-page" />
-            </div>
-          )}
+
 
           {/* Grouped Navigation */}
           <nav className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto mt-2">
