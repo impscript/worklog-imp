@@ -2932,9 +2932,9 @@ const PROVIDER_PRESET_MODELS: Record<string, { id: string; label: string }[]> = 
   openrouter: [
     { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini (แนะนำ · คุ้มค่าที่สุด)' },
     { id: 'deepseek/deepseek-chat', label: 'DeepSeek Chat (ฉลาด · ราคาประหยัด)' },
-    { id: 'google/gemini-2.0-flash', label: 'Gemini 2.0 Flash (เร็วที่สุด)' },
+    { id: 'google/gemini-2.0-flash', label: 'Gemini 2.0 Flash (Paid)' },
     { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (ฉลาดที่สุด)' },
-    { id: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)' },
+    { id: 'google/gemini-2.0-flash:free', label: 'Gemini 2.0 Flash (Free)' },
     { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' }
   ],
   cloudflare: [
@@ -3016,12 +3016,25 @@ function AISettingsManager({ workspaceId, isSuperAdmin }: { workspaceId?: string
       
       if (error) throw error;
 
+      const defaultConfig = {
+        ai_provider: 'opencode',
+        ai_model: 'big-pickle',
+        openai_api_key: '',
+        gemini_api_key: '',
+        openrouter_api_key: '',
+        opencode_api_key: '',
+        cloudflare_account_id: '',
+        cloudflare_api_token: '',
+      };
+
       if (data && data.length > 0) {
         const configMap: { [key: string]: string } = {};
         data.forEach((row) => {
           configMap[row.config_key] = row.config_value;
         });
-        setConfigs((prev) => ({ ...prev, ...configMap }));
+        setConfigs({ ...defaultConfig, ...configMap });
+      } else {
+        setConfigs(defaultConfig);
       }
     } catch (err: any) {
       console.error('Error fetching AI configs:', err);

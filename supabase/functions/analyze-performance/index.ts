@@ -183,7 +183,7 @@ async function callLlmWithFallback(
 
   if (provider === 'openrouter') {
     const fallbacks = [
-      'google/gemini-2.0-flash-exp:free',
+      'google/gemini-2.0-flash:free',
       'meta-llama/llama-3.3-70b-instruct:free',
       'openai/gpt-4o-mini',
       'deepseek/deepseek-chat',
@@ -456,7 +456,7 @@ serve(async (req) => {
     }
 
     const provider = configs.ai_provider || 'openrouter';
-    const model = configs.ai_model || 'google/gemini-2.0-flash-exp:free';
+    const model = configs.ai_model || 'google/gemini-2.0-flash:free';
 
     let apiKey = '';
     let endpoint = '';

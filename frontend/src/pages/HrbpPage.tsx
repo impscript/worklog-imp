@@ -1074,7 +1074,7 @@ export default function HrbpPage() {
       (configsData || []).forEach(row => { configs[row.config_key] = row.config_value; });
 
       const activeProvider = configs.ai_provider || 'openrouter';
-      const activeModel = configs.ai_model || 'google/gemini-2.0-flash-exp:free';
+      const activeModel = configs.ai_model || 'google/gemini-2.0-flash:free';
 
       setAiProvider(activeProvider);
       setAiModel(activeModel);

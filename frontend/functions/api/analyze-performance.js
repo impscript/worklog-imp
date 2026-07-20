@@ -370,7 +370,7 @@ function buildPeriodLabel(cadence, start, end) {
 
 async function callAI(configs, systemPrompt, userPrompt) {
   const aiProvider = configs.ai_provider || 'openrouter';
-  const aiModel = configs.ai_model || 'google/gemini-2.0-flash-exp:free';
+  const aiModel = configs.ai_model || 'google/gemini-2.0-flash:free';
   const openrouterKey = configs.openrouter_api_key;
   const openaiKey = configs.openai_api_key;
   const geminiKey = configs.gemini_api_key;
