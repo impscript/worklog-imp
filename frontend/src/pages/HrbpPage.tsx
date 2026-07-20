@@ -1753,11 +1753,11 @@ export default function HrbpPage() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-theme-text-secondary">แผนกงาน:</span>
-                            <span className="text-indigo-300 font-bold">{selectedUserInfo.department}</span>
+                            <span className="text-indigo-600 dark:text-indigo-300 font-bold">{selectedUserInfo.department}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-theme-text-secondary">ตำแหน่ง HRMS:</span>
-                            <span className="text-indigo-400 font-bold">{selectedUserInfo.position || 'General Staff'}</span>
+                            <span className="text-indigo-600 dark:text-indigo-400 font-bold">{selectedUserInfo.position || 'General Staff'}</span>
                           </div>
                         </div>
 
@@ -1789,10 +1789,10 @@ export default function HrbpPage() {
                           </div>
                         )}
 
-                        <div className="p-3.5 bg-indigo-950/20 border border-indigo-900/30 rounded-2xl flex items-center justify-between text-xs">
+                        <div className="p-3.5 bg-indigo-500/5 dark:bg-indigo-950/20 border border-indigo-500/10 dark:border-indigo-900/30 rounded-2xl flex items-center justify-between text-xs">
                           <div className="space-y-0.5">
                             <span className="text-[10px] text-theme-text-secondary block uppercase font-bold tracking-wider">ประวัติการวิเคราะห์ / History</span>
-                            <span className="text-indigo-300 font-mono font-bold">มีบันทึก {analysisHistory.length} รายการ</span>
+                            <span className="text-indigo-600 dark:text-indigo-300 font-mono font-bold">มีบันทึก {analysisHistory.length} รายการ</span>
                           </div>
                           <button
                             onClick={() => {
@@ -1800,7 +1800,7 @@ export default function HrbpPage() {
                               setActiveResultsSubTab('history');
                               loadAnalysisHistory();
                             }}
-                            className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/20 hover:text-indigo-300 text-[10px] font-black uppercase tracking-wider transition-all"
+                            className="px-3 py-1.5 rounded-xl bg-indigo-650 hover:bg-indigo-700 text-white dark:bg-indigo-600/20 dark:hover:bg-indigo-600/30 dark:text-indigo-400 dark:hover:text-indigo-300 border border-indigo-500/20 text-[10px] font-black uppercase tracking-wider transition-all"
                           >
                             จัดการประวัติ
                           </button>
@@ -1827,7 +1827,7 @@ export default function HrbpPage() {
                           className={cn(
                             "px-3 py-2 rounded-xl text-[10px] font-extrabold uppercase transition-all tracking-wider border",
                             dateFilter === filter
-                              ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/30"
+                              ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30"
                               : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-transparent hover:border-theme-border hover:text-theme-text"
                           )}
                         >
@@ -1903,7 +1903,7 @@ export default function HrbpPage() {
                                 className={cn(
                                   "py-2 rounded-xl text-xs font-bold transition-all border",
                                   isSelected
-                                    ? "bg-indigo-500/15 text-indigo-400 border-indigo-500/30"
+                                    ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30"
                                     : "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 text-theme-text-secondary border-transparent hover:border-theme-border"
                                 )}
                               >
@@ -1960,7 +1960,7 @@ export default function HrbpPage() {
                         <button
                           onClick={recommendJd}
                           disabled={isRecommendingJd}
-                          className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-[10px] font-black uppercase text-theme-text shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2"
+                          className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-[10px] font-black uppercase text-white shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2"
                         >
                           {isRecommendingJd ? (
                             <>
@@ -1978,7 +1978,7 @@ export default function HrbpPage() {
                         <button
                           onClick={handleSaveJd}
                           disabled={isSavingJd}
-                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-[10px] font-black uppercase text-theme-text shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-[10px] font-black uppercase text-white shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
                         >
                           {isSavingJd ? (
                             <Loader2 size={12} className="animate-spin" />
@@ -2010,7 +2010,7 @@ export default function HrbpPage() {
                             <span>Status:</span>
                             <span className={cn(
                               "font-bold uppercase tracking-wider",
-                              jdSource === 'ai_recommended' ? "text-indigo-400" : "text-theme-text-secondary"
+                              jdSource === 'ai_recommended' ? "text-indigo-600 dark:text-indigo-400" : "text-theme-text-secondary"
                             )}>
                               {jdSource === 'ai_recommended' ? '✨ AI Recommended' : '✏️ Manual Entry'}
                             </span>
@@ -2045,8 +2045,8 @@ export default function HrbpPage() {
                             <div className={cn(
                               "px-3.5 py-1.5 rounded-xl text-[10px] font-extrabold tracking-wider font-mono flex items-center gap-2",
                               total === 100 
-                                ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" 
-                                : "bg-amber-500/10 border border-amber-500/20 text-amber-400"
+                                ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400" 
+                                : "bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400"
                             )}>
                               {total === 100 ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
                               <span>รวมสัดส่วน: {total}% / 100%</span>
@@ -2076,7 +2076,7 @@ export default function HrbpPage() {
                                       onChange={(e) => handleWeightChange(index, parseInt(e.target.value))}
                                       className="flex-1 h-1.5 rounded-lg bg-slate-200 dark:bg-theme-surface-tertiary accent-indigo-500 cursor-pointer"
                                     />
-                                    <span className="text-[10px] font-mono font-extrabold text-indigo-400 w-8 text-right">{w.weight}%</span>
+                                    <span className="text-[10px] font-mono font-extrabold text-indigo-600 dark:text-indigo-400 w-8 text-right">{w.weight}%</span>
                                   </div>
                                 </div>
                                 <button
@@ -2125,7 +2125,7 @@ export default function HrbpPage() {
                               <button
                                 type="button"
                                 onClick={handleAddWeight}
-                                className="w-full py-2.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/25 hover:text-indigo-300 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all"
+                                className="w-full py-2.5 rounded-xl bg-indigo-650 hover:bg-indigo-700 text-white dark:bg-indigo-600/20 dark:hover:bg-indigo-600/30 dark:text-indigo-400 dark:hover:text-indigo-300 border border-indigo-500/25 hover:text-indigo-300 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all"
                               >
                                 <PlusCircle size={12} />
                                 <span>เพิ่ม</span>
@@ -2157,7 +2157,7 @@ export default function HrbpPage() {
                         <button
                           onClick={() => handleRunAiAnalysis(true)}
                           disabled={!jdText.trim() || keyResponsibilities.reduce((sum, r) => sum + r.weight, 0) !== 100}
-                          className="px-5 py-3 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 disabled:opacity-50 disabled:pointer-events-none text-[10px] font-black uppercase tracking-wider text-theme-text shadow-xl shadow-indigo-500/20 active:scale-95 transition-all flex items-center gap-2"
+                          className="px-5 py-3 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 disabled:opacity-50 disabled:pointer-events-none text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-indigo-500/20 active:scale-95 transition-all flex items-center gap-2"
                         >
                           <Sparkles size={14} className="animate-pulse" />
                           <span>เริ่มวิเคราะห์ AI Performance Audit</span>
@@ -2304,7 +2304,7 @@ export default function HrbpPage() {
                   <button
                     onClick={() => setStep(3)}
                     disabled={isAiAnalyzing || !aiAnalysis}
-                    className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:pointer-events-none text-[10px] font-black uppercase tracking-wider text-theme-text shadow-xl shadow-indigo-500/20 transition-all flex items-center gap-1.5"
+                    className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:pointer-events-none text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-indigo-500/20 transition-all flex items-center gap-1.5"
                   >
                     <span>ดูสรุปผลลัพธ์ (Step 3)</span>
                     <ChevronRight size={14} />
@@ -4106,7 +4106,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                       <div>ไม่มีประวัติการประเมินมาก่อนสำหรับพนักงานรายนี้ / No history logs found for this employee</div>
                       <button
                         onClick={() => setStep(1)}
-                        className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[10px] font-black uppercase tracking-wider text-theme-text shadow-xl shadow-indigo-600/20 transition-all inline-block not-italic"
+                        className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-indigo-600/20 transition-all inline-block not-italic"
                       >
                         กำหนดตัวแปรและเริ่มวิเคราะห์ (Setup Page)
                       </button>
@@ -4259,7 +4259,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                 type="button"
                 onClick={handleAcknowledgeAnalysis}
                 disabled={isSubmittingAck}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-[10px] font-black uppercase text-theme-text shadow-xl shadow-indigo-600/20 transition-all flex items-center gap-1.5"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-[10px] font-black uppercase text-white shadow-xl shadow-indigo-600/20 transition-all flex items-center gap-1.5"
               >
                 {isSubmittingAck ? (
                   <Loader2 size={12} className="animate-spin" />
@@ -4298,7 +4298,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                 type="button"
                 onClick={handleDeleteRecord}
                 disabled={isDeletingRecord}
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-[10px] font-black uppercase text-theme-text shadow-xl shadow-rose-600/20 transition-all flex items-center gap-1.5"
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-[10px] font-black uppercase text-white shadow-xl shadow-rose-600/20 transition-all flex items-center gap-1.5"
               >
                 {isDeletingRecord ? (
                   <Loader2 size={12} className="animate-spin" />
