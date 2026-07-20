@@ -1596,7 +1596,7 @@ export default function CalendarPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto lg:justify-end">
-            {sessionUser?.role === 'admin' && (
+            {usersList.length > 1 && (
               <div className="relative w-48">
                 <select
                   value={selectedUserId}
@@ -1612,6 +1612,7 @@ export default function CalendarPage() {
                 </div>
               </div>
             )}
+
 
             {/* Google Calendar Connection / Sync Actions — only shown for own calendar */}
             {selectedUserId === sessionUser?.id && (
