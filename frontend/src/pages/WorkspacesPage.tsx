@@ -44,7 +44,7 @@ export default function WorkspacesPage() {
   const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
   const [grantForm, setGrantForm] = useState({
     user_id: '',
-    workspace_id: '',
+    workspace_ids: [] as string[],
     grant_role: 'analyst' as 'viewer' | 'analyst' | 'manager',
     expires_at: '',
     notes: '',
@@ -222,26 +222,29 @@ export default function WorkspacesPage() {
   // ── Grant Management ──────────────────────────────────────────────────────────────
   const handleSaveGrant = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!grantForm.user_id || !grantForm.workspace_id) {
-      showToast('กรุณาเลือกพนักงานและ Workspace', 'error');
+    if (!grantForm.user_id || grantForm.workspace_ids.length === 0) {
+      showToast('กรุณาเลือกพนักงานและอย่างน้อย 1 Workspace', 'error');
       return;
     }
     setIsSavingGrant(true);
     try {
       const sessionStr = localStorage.getItem('worklog_session');
       const sess = sessionStr ? JSON.parse(sessionStr) : null;
-      const { error } = await supabase.from('user_workspace_grants').upsert({
+      const rows = grantForm.workspace_ids.map(wsId => ({
         user_id: grantForm.user_id,
-        workspace_id: grantForm.workspace_id,
+        workspace_id: wsId,
         grant_role: grantForm.grant_role,
         granted_by: sess?.id || null,
         expires_at: grantForm.expires_at ? new Date(grantForm.expires_at).toISOString() : null,
         notes: grantForm.notes || null,
-      }, { onConflict: 'user_id,workspace_id' });
+      }));
+      const { error } = await supabase
+        .from('user_workspace_grants')
+        .upsert(rows, { onConflict: 'user_id,workspace_id' });
       if (error) throw error;
-      showToast('บันทึก Access Grant สำเร็จ!', 'success');
+      showToast(`บันทึก Access Grant สำเร็จ! (${rows.length} Workspace)`, 'success');
       setIsGrantModalOpen(false);
-      setGrantForm({ user_id: '', workspace_id: '', grant_role: 'analyst', expires_at: '', notes: '' });
+      setGrantForm({ user_id: '', workspace_ids: [], grant_role: 'analyst', expires_at: '', notes: '' });
       loadGrants();
     } catch (err: any) {
       showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
@@ -309,7 +312,7 @@ export default function WorkspacesPage() {
             )}
             {activeTab === 'grants' && (
               <button
-                onClick={() => { setIsGrantModalOpen(true); setUserSearch(''); setWsSearch(''); setIsUserDropOpen(false); setIsWsDropOpen(false); setGrantForm({ user_id: '', workspace_id: '', grant_role: 'analyst', expires_at: '', notes: '' }); }}
+                onClick={() => { setIsGrantModalOpen(true); setUserSearch(''); setWsSearch(''); setIsUserDropOpen(false); setIsWsDropOpen(false); setGrantForm({ user_id: '', workspace_ids: [], grant_role: 'analyst', expires_at: '', notes: '' }); }}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500/30 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-lg shadow-indigo-500/10"
               >
                 <Key size={14} />
@@ -762,11 +765,17 @@ export default function WorkspacesPage() {
                   })()}
                 </div>
 
-                {/* ── Searchable Workspace Picker ───────────── */}
+                {/* ── Multi-select Workspace Picker ─────────── */}
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">Workspace ที่ให้เข้าถึง</label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">Workspace ที่ให้เข้าถึง</label>
+                    {grantForm.workspace_ids.length > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                        เลือกแล้ว {grantForm.workspace_ids.length} รายการ
+                      </span>
+                    )}
+                  </div>
                   {(() => {
-                    const selectedWs = workspaces.find(w => w.id === grantForm.workspace_id);
                     const filteredWs = workspaces.filter(w => {
                       const q = wsSearch.toLowerCase();
                       if (!q) return true;
@@ -775,52 +784,89 @@ export default function WorkspacesPage() {
                         (w.invite_code || '').toLowerCase().includes(q)
                       );
                     });
+                    const toggleWs = (wsId: string) => {
+                      setGrantForm(f => ({
+                        ...f,
+                        workspace_ids: f.workspace_ids.includes(wsId)
+                          ? f.workspace_ids.filter(id => id !== wsId)
+                          : [...f.workspace_ids, wsId],
+                      }));
+                    };
                     return (
-                      <div ref={wsSearchRef} className="relative">
-                        {selectedWs && !isWsDropOpen ? (
-                          <div className="flex items-center justify-between w-full bg-emerald-500/10 border border-emerald-500/30 rounded-xl py-2.5 px-4">
-                            <div>
-                              <p className="text-sm font-bold text-emerald-300">{selectedWs.workspace_name}</p>
-                              <p className="text-[10px] text-theme-text-muted font-mono">{selectedWs.invite_code}</p>
-                            </div>
-                            <button type="button" onClick={() => { setGrantForm(f => ({ ...f, workspace_id: '' })); setWsSearch(''); setIsWsDropOpen(true); }}
-                              className="ml-2 p-1 rounded-lg hover:bg-red-500/20 text-theme-text-muted hover:text-red-400 transition-all">
-                              <X size={14} />
+                      <div ref={wsSearchRef} className="relative space-y-2">
+                        {/* Selected chips */}
+                        {grantForm.workspace_ids.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 p-2.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
+                            {grantForm.workspace_ids.map(wsId => {
+                              const ws = workspaces.find(w => w.id === wsId);
+                              if (!ws) return null;
+                              return (
+                                <span key={wsId} className="flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-lg">
+                                  {ws.workspace_name}
+                                  <button type="button" onClick={() => toggleWs(wsId)}
+                                    className="hover:text-red-400 transition-colors ml-0.5">
+                                    <X size={10} />
+                                  </button>
+                                </span>
+                              );
+                            })}
+                            <button type="button" onClick={() => setGrantForm(f => ({ ...f, workspace_ids: [] }))}
+                              className="text-[10px] text-theme-text-muted hover:text-red-400 transition-colors ml-auto self-center px-1">
+                              ล้างทั้งหมด
                             </button>
                           </div>
-                        ) : (
-                          <div className="relative">
-                            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
-                            <input
-                              type="text"
-                              autoFocus={isWsDropOpen}
-                              value={wsSearch}
-                              onChange={e => { setWsSearch(e.target.value); setIsWsDropOpen(true); }}
-                              onFocus={() => setIsWsDropOpen(true)}
-                              placeholder="ค้นหา Workspace หรือรหัส..."
-                              className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 pl-9 pr-4 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                            />
-                          </div>
                         )}
+                        {/* Search input */}
+                        <div className="relative">
+                          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
+                          <input
+                            type="text"
+                            value={wsSearch}
+                            onChange={e => { setWsSearch(e.target.value); setIsWsDropOpen(true); }}
+                            onFocus={() => setIsWsDropOpen(true)}
+                            placeholder={grantForm.workspace_ids.length > 0 ? "เพิ่ม Workspace อื่น..." : "ค้นหา Workspace หรือรหัส..."}
+                            className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 pl-9 pr-4 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+                        {/* Checkbox-style dropdown — stays open while selecting */}
                         {isWsDropOpen && (
                           <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-theme-surface border border-theme-border rounded-xl shadow-2xl overflow-hidden">
-                            <div className="max-h-44 overflow-y-auto divide-y divide-theme-border/30">
+                            <div className="max-h-48 overflow-y-auto divide-y divide-theme-border/30">
                               {filteredWs.length === 0 ? (
                                 <div className="px-4 py-3 text-xs text-theme-text-muted text-center">ไม่พบ Workspace</div>
-                              ) : filteredWs.map(w => (
-                                <button key={w.id} type="button"
-                                  onClick={() => { setGrantForm(f => ({ ...f, workspace_id: w.id })); setWsSearch(''); setIsWsDropOpen(false); }}
-                                  className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-emerald-500/10 transition-colors text-left group">
-                                  <div>
-                                    <p className="text-sm font-semibold text-theme-text group-hover:text-emerald-300 transition-colors">{w.workspace_name}</p>
-                                    <p className="text-[10px] text-theme-text-muted font-mono">{w.invite_code}</p>
-                                  </div>
-                                  {grantForm.workspace_id === w.id && <Check size={14} className="text-emerald-400 flex-shrink-0" />}
-                                </button>
-                              ))}
+                              ) : filteredWs.map(w => {
+                                const isChecked = grantForm.workspace_ids.includes(w.id);
+                                return (
+                                  <button key={w.id} type="button"
+                                    onClick={() => toggleWs(w.id)}
+                                    className={cn(
+                                      'w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left group',
+                                      isChecked ? 'bg-emerald-500/10' : 'hover:bg-emerald-500/5'
+                                    )}>
+                                    {/* Checkbox indicator */}
+                                    <div className={cn(
+                                      'w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-all',
+                                      isChecked
+                                        ? 'bg-emerald-500 border-emerald-500'
+                                        : 'border-theme-border group-hover:border-emerald-500/50'
+                                    )}>
+                                      {isChecked && <Check size={10} className="text-white" strokeWidth={3} />}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className={cn('text-sm font-semibold truncate transition-colors', isChecked ? 'text-emerald-300' : 'text-theme-text group-hover:text-emerald-300')}>{w.workspace_name}</p>
+                                      <p className="text-[10px] text-theme-text-muted font-mono">{w.invite_code}</p>
+                                    </div>
+                                  </button>
+                                );
+                              })}
                             </div>
                             <div className="px-3 py-1.5 bg-theme-surface-secondary border-t border-theme-border flex items-center justify-between">
-                              <span className="text-[10px] text-theme-text-muted">{filteredWs.length} รายการ</span>
+                              <span className="text-[10px] text-theme-text-muted">
+                                {filteredWs.length} รายการ
+                                {grantForm.workspace_ids.length > 0 && (
+                                  <span className="text-emerald-400 ml-1.5">· เลือกแล้ว {grantForm.workspace_ids.length}</span>
+                                )}
+                              </span>
                               <button type="button" onClick={() => setIsWsDropOpen(false)} className="text-[10px] text-theme-text-muted hover:text-theme-text transition-colors">ปิด ✕</button>
                             </div>
                           </div>
@@ -829,6 +875,7 @@ export default function WorkspacesPage() {
                     );
                   })()}
                 </div>
+
 
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">ระดับสิทธิ์ (Grant Role)</label>
@@ -861,9 +908,9 @@ export default function WorkspacesPage() {
 
                 <div className="flex gap-2 pt-1">
                   <button type="button" onClick={() => setIsGrantModalOpen(false)} className="flex-1 py-2.5 rounded-xl border border-theme-border text-xs font-bold text-theme-text-secondary hover:bg-theme-surface-secondary transition-all">ยกเลิก</button>
-                  <button type="submit" disabled={isSavingGrant || !grantForm.user_id || !grantForm.workspace_id} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                  <button type="submit" disabled={isSavingGrant || !grantForm.user_id || grantForm.workspace_ids.length === 0} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                     {isSavingGrant ? <RefreshCw size={12} className="animate-spin" /> : <Key size={12} />}
-                    {isSavingGrant ? 'กำลังบันทึก...' : 'บันทึก Grant'}
+                    {isSavingGrant ? 'กำลังบันทึก...' : grantForm.workspace_ids.length > 1 ? `บันทึก ${grantForm.workspace_ids.length} Grants` : 'บันทึก Grant'}
                   </button>
                 </div>
               </form>
