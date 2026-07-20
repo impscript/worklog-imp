@@ -10,6 +10,7 @@ import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
+import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -70,6 +71,9 @@ export default function ReportsPage() {
 
   // State
   const [activeTab, setActiveTab] = useState<'personal' | 'overview' | 'individual' | 'manpower'>('personal');
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
+  const [workspacesList, setWorkspacesList] = useState<{ id: string; workspace_name: string; invite_code: string }[]>([]);
+  const { grants } = useWorkspaceGrants();
   const [manpowerDimension, setManpowerDimension] = useState<'projectTypes' | 'actions' | 'bus'>('projectTypes');
   const [manpowerDeptFilter, setManpowerDeptFilter] = useState<'ALL' | 'IMP' | 'IT'>('ALL');
   const [sessionUser, setSessionUser] = useState<any>(null);
@@ -156,13 +160,19 @@ export default function ReportsPage() {
     const session = JSON.parse(sessionStr);
     setSessionUser(session);
 
+    let targetWorkspaceId = selectedWorkspaceId;
+    if (!targetWorkspaceId && session.activeWorkspaceId) {
+      targetWorkspaceId = session.activeWorkspaceId;
+      setSelectedWorkspaceId(targetWorkspaceId);
+    }
+
     try {
       setIsLoading(true);
       
       // 1. Fetch Users List filtered by active workspace
       let userQuery = supabase.from('users').select('*');
-      if (session.activeWorkspaceId) {
-        userQuery = userQuery.eq('active_workspace_id', session.activeWorkspaceId);
+      if (targetWorkspaceId) {
+        userQuery = userQuery.eq('active_workspace_id', targetWorkspaceId);
       }
       const { data: usersData, error: usersErr } = await userQuery.order('full_name', { ascending: true });
 
@@ -170,11 +180,11 @@ export default function ReportsPage() {
       setUsersList(usersData || []);
 
       // 1b. Fetch workspace project types for Activity Type filter
-      if (session.activeWorkspaceId) {
+      if (targetWorkspaceId) {
         const { data: typesData } = await supabase
           .from('tb_master_project_type')
           .select('type_name')
-          .eq('workspace_id', session.activeWorkspaceId)
+          .eq('workspace_id', targetWorkspaceId)
           .order('type_name');
         if (typesData && typesData.length > 0) {
           setWorkspaceProjectTypes(typesData.map((t: any) => t.type_name));
@@ -186,7 +196,7 @@ export default function ReportsPage() {
       if (usersData && usersData.length > 0) {
         // Pre-select current logged in user for Individual Analytics
         setSelectedUser(prev => {
-          if (prev) return prev;
+          if (prev && usersData.some((u: any) => u.id === prev)) return prev;
           const matchingUser = usersData.find((u: any) => u.id === session.id);
           return matchingUser ? matchingUser.id : usersData[0].id;
         });
@@ -205,8 +215,8 @@ export default function ReportsPage() {
           .order('work_date', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
 
-        if (session.activeWorkspaceId) {
-          query = query.eq('workspace_id', session.activeWorkspaceId);
+        if (targetWorkspaceId) {
+          query = query.eq('workspace_id', targetWorkspaceId);
         }
 
         if (dateFilter === 'this-week') {
@@ -248,15 +258,48 @@ export default function ReportsPage() {
 
       setAllEntries(mappedLogs);
 
-      // 3. Filter personal entries (now done via useMemo)
-
     } catch (err: any) {
       console.error('Error fetching dashboard reports data:', err);
       showToast('Error loading reports data: ' + err.message, 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [navigate, showToast, dateFilter, customStart, customEnd, dateBoundaries]);
+  }, [navigate, showToast, dateFilter, customStart, customEnd, dateBoundaries, selectedWorkspaceId]);
+
+  // Load list of viewable workspaces (own + granted)
+  useEffect(() => {
+    if (!sessionUser) return;
+    if (sessionUser.role === 'admin') {
+      supabase.from('workspaces').select('id, workspace_name, invite_code').order('workspace_name').then(({ data }) => {
+        if (data) setWorkspacesList(data);
+      });
+    } else {
+      const ownWs = sessionUser.activeWorkspaceId ? {
+        id: sessionUser.activeWorkspaceId,
+        workspace_name: sessionUser.workspaceName || 'My Workspace',
+        invite_code: sessionUser.workspaceInviteCode || ''
+      } : null;
+
+      const grantedWs = (grants || [])
+        .filter(g => g.grant_role === 'analyst' || g.grant_role === 'manager')
+        .map(g => ({
+          id: g.workspace_id,
+          workspace_name: g.workspace_name || 'Granted Workspace',
+          invite_code: g.invite_code || ''
+        }));
+
+      const list = [];
+      if (ownWs) list.push(ownWs);
+      list.push(...grantedWs);
+      
+      // Deduplicate by ID
+      const uniqueList = list.filter((item, index, self) =>
+        index === self.findIndex((t) => t.id === item.id)
+      );
+
+      setWorkspacesList(uniqueList);
+    }
+  }, [sessionUser, grants]);
 
   // Fetch all required data on component load
   useEffect(() => {
@@ -1134,11 +1177,28 @@ export default function ReportsPage() {
           </div>
           
           <div className="flex items-center gap-3">
+            {workspacesList.length > 1 && (
+              <div className="flex items-center gap-2 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-3 py-2 shadow-sm">
+                <span className="text-xs font-bold text-theme-text-secondary">Workspace:</span>
+                <select
+                  value={selectedWorkspaceId}
+                  onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-theme-text focus:outline-none cursor-pointer"
+                >
+                  {workspacesList.map((w) => (
+                    <option key={w.id} value={w.id} className="bg-theme-surface dark:bg-theme-surface-tertiary">
+                      {w.workspace_name} ({w.invite_code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {activeTab === 'personal' && (
               <button 
                 onClick={handleExport}
                 disabled={isExporting}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-800 disabled:to-slate-900 disabled:text-slate-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md active:scale-95 text-xs uppercase tracking-wider"
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-800 disabled:to-slate-900 disabled:text-slate-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md active:scale-95 text-xs uppercase tracking-wider h-[38px]"
               >
                 <FileSpreadsheet size={15} />
                 <span>{isExporting ? 'Exporting...' : 'Export Spreadsheet'}</span>

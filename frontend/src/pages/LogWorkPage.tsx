@@ -1258,8 +1258,7 @@ export default function LogWorkPage() {
     setDepartment('');
   }, [selectedUser]);
 
-  // Auto-select if only 1 option available (Commented out to prevent confusing auto-selections for wildcard mapped users)
-  /*
+  // Auto-select if only 1 option available
   useEffect(() => {
     if (availableHoldings.length === 1 && !selectedHolding) {
       setSelectedHolding(availableHoldings[0]);
@@ -1271,7 +1270,6 @@ export default function LogWorkPage() {
       setSelectedRoleOperator(availableRoleOperators[0]);
     }
   }, [availableRoleOperators, selectedRoleOperator]);
-  */
 
   useEffect(() => {
     if (availableProjectTypes.length === 1 && !projectType) {
@@ -1290,6 +1288,13 @@ export default function LogWorkPage() {
       setModule(availableModules[0]);
     }
   }, [availableModules, module]);
+
+  // Auto-select Action if only 1 option is available
+  useEffect(() => {
+    if (availableActions.length === 1 && !actionName) {
+      setActionName(availableActions[0]);
+    }
+  }, [availableActions, actionName]);
 
   // Auto-select Business Unit (BU) if only 1 option is available
   useEffect(() => {
