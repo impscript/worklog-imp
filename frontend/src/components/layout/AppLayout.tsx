@@ -424,13 +424,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   };
 
   const getFormattedDate = () => {
-    const options: Intl.DateTimeFormatOptions = { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    };
-    return new Date().toLocaleDateString('en-US', options);
+    const now = new Date();
+    const day = now.toLocaleDateString('en-US', { weekday: 'short' });    // Mon
+    const date = now.getDate();                                            // 20
+    const month = now.toLocaleDateString('en-US', { month: 'short' });    // Jul
+    const year = now.getFullYear();                                        // 2026
+    return `${day}, ${date} ${month} ${year}`; // "Mon, 20 Jul 2026"
   };
 
   const queryParams = new URLSearchParams(window.location.search);
@@ -622,26 +621,28 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           )}
 
           {/* Right aligned user metadata and controls */}
-          <div className="flex items-center space-x-3 ml-auto">
+          <div className="flex items-center gap-2 ml-auto min-w-0">
             {user?.role === 'admin' && (
-              <div className="flex items-center gap-1.5 bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl shadow-sm max-w-[200px] sm:max-w-none">
-                <Shield size={13} className="text-rose-400 shrink-0" />
-                <span className="hidden lg:inline text-[9px] font-black uppercase text-rose-400 tracking-wider">
-                  Admin Context:
+              <button
+                type="button"
+                onClick={() => { setWorkspaceSearch(''); setIsWorkspacePickerOpen(true); }}
+                className="flex items-center gap-1.5 bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-xl shadow-sm hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                title={user.workspaceName || 'เลือก Workspace'}
+              >
+                <Shield size={12} className="text-rose-400 shrink-0" />
+                <span className="hidden sm:inline text-[9px] font-black uppercase text-rose-400 tracking-wider whitespace-nowrap">
+                  ADMIN:
                 </span>
-                <button
-                  type="button"
-                  onClick={() => { setWorkspaceSearch(''); setIsWorkspacePickerOpen(true); }}
-                  className="flex items-center gap-2 bg-transparent text-[11px] font-bold text-rose-400 dark:text-rose-300 focus:outline-none cursor-pointer hover:text-rose-300 transition-colors py-0 pr-1 max-w-[190px]"
-                  title="เลือก Workspace"
-                >
-                  <span className="truncate">{user.workspaceName || (user.activeWorkspaceId ? 'Workspace' : 'Global')}</span>
-                  <ChevronsUpDown size={13} className="shrink-0" />
-                </button>
-              </div>
+                <span className="text-[10px] font-bold text-rose-300 max-w-[90px] sm:max-w-[130px] truncate">
+                  {user.workspaceName
+                    ? user.workspaceName.replace('Improvement & Digital Innovation', 'IMP&IT').replace('Management Operating System', 'MOS')
+                    : (user.activeWorkspaceId ? user.workspaceInviteCode || 'WS' : 'Global')}
+                </span>
+                <ChevronsUpDown size={11} className="shrink-0 text-rose-400" />
+              </button>
             )}
 
-            <span className="hidden sm:inline-block text-xs font-semibold text-theme-text-secondary bg-theme-surface-secondary border border-theme-border/80 px-3 py-1.5 rounded-lg font-mono tracking-wide">
+            <span className="hidden md:inline-block text-[11px] font-semibold text-theme-text-secondary bg-theme-surface-secondary border border-theme-border/80 px-2.5 py-1.5 rounded-lg font-mono tracking-wide whitespace-nowrap shrink-0">
               {getFormattedDate()}
             </span>
             
