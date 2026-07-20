@@ -294,7 +294,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const isWorkspaceAdmin = user.workspaceRole === 'admin';
     const isWorkspaceManager = user.workspaceRole === 'manager';
 
-    if (path === '/admin' && !(isSuperAdmin || isWorkspaceAdmin)) {
+    if (path === '/admin' && !(isSuperAdmin || isWorkspaceAdmin || isWorkspaceManager)) {
       showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
       navigate('/');
     }
@@ -530,6 +530,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             )}
             {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
               <NavItem to="/projects" icon={<FolderTree size={18} />} label={t('nav.projects')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            )}
+            {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
+              <NavItem to="/admin" icon={<Database size={18} />} label={t('nav.admin')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
             <NavItem to="/leaderboard" icon={<Trophy size={18} />} label={t('nav.leaderboard')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
 

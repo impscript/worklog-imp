@@ -1796,13 +1796,15 @@ export default function LogWorkPage() {
             <a href="/workspaces" className="underline text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-200">เลือก Workspace</a>
           </div>
         ) : (
-          <div className="mb-6 bg-indigo-500/10 border border-indigo-500/20 text-indigo-800 dark:text-indigo-200 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
-            <span className="flex items-center gap-2">
-              <Shield size={16} className="text-indigo-600 dark:text-indigo-400" />
-              <span>{t('logWork.recordingIn')} <strong>{session.workspaceName || session.activeWorkspaceId}</strong></span>
-            </span>
-            <a href="/workspaces" className="underline text-indigo-700 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-100">{t('logWork.changeWorkspace')}</a>
-          </div>
+          session?.role === 'admin' && (
+            <div className="mb-6 bg-indigo-500/10 border border-indigo-500/20 text-indigo-800 dark:text-indigo-200 px-4 py-3 rounded-xl flex items-center justify-between text-xs font-semibold">
+              <span className="flex items-center gap-2">
+                <Shield size={16} className="text-indigo-600 dark:text-indigo-400" />
+                <span>{t('logWork.recordingIn')} <strong>{session.workspaceName || session.activeWorkspaceId}</strong></span>
+              </span>
+              <a href="/workspaces" className="underline text-indigo-700 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-100">{t('logWork.changeWorkspace')}</a>
+            </div>
+          )
         )}
 
         {/* Collapsible Google Calendar .ics Import Banner */}

@@ -34,7 +34,7 @@ export default function AdminPage() {
       const tabParam = params.get('tab') as TableTab | null;
       if (tabParam) {
         setActiveTab(tabParam);
-      } else if (user.role !== 'admin' && user.workspaceRole === 'admin') {
+      } else if (user.role !== 'admin' && (user.workspaceRole === 'admin' || user.workspaceRole === 'manager')) {
         setActiveTab('templates');
       }
     }
@@ -1228,8 +1228,11 @@ export default function AdminPage() {
   ];
 
   const allowedTabs = useMemo(() => {
-    return tabs;
-  }, [tabs]);
+    const isSuperAdmin = session?.role === 'admin' && (!session?.activeWorkspaceId || session?.activeWorkspaceId === 'N/A');
+    if (isSuperAdmin) return tabs;
+    // Hide global system administration tabs from workspace level admins/managers
+    return tabs.filter(t => t.key !== 'users' && t.key !== 'holiday');
+  }, [tabs, session]);
 
   const renderScopeBadge = (row: any) => {
     const isGlobal = !row.workspace_id;
