@@ -230,7 +230,7 @@ export default function AiChatPage() {
 
   // Image Generation settings
   const [drawEngine, setDrawEngine] = useState<'flux_cf' | 'openrouter'>(() => (localStorage.getItem('openrouter_draw_engine') as 'flux_cf' | 'openrouter') || 'flux_cf');
-  const [openrouterImageModel, setOpenrouterImageModel] = useState<string>(() => localStorage.getItem('openrouter_image_model') || 'black-forest-labs/flux-1-schnell');
+  const [openrouterImageModel, setOpenrouterImageModel] = useState<string>(() => localStorage.getItem('openrouter_image_model') || 'black-forest-labs/flux.2-klein-4b');
 
   const handleCopyText = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -1446,9 +1446,10 @@ export default function AiChatPage() {
                           }}
                           className="w-full text-xs font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer text-[11px]"
                         >
-                          <option value="black-forest-labs/flux-1-schnell">Flux 1 Schnell (ฟรี 1,000 req/วัน • แนะนำ)</option>
-                          <option value="black-forest-labs/flux-1.1-pro">Flux 1.1 Pro (พรีเมียม คมชัดสูง · Paid)</option>
-                          <option value="openai/dall-e-3">DALL-E 3 (Paid)</option>
+                          <option value="black-forest-labs/flux.2-klein-4b">FLUX.2 Klein (ฟรี 1,000 req/วัน • แนะนำ)</option>
+                          <option value="black-forest-labs/flux.2-flex">FLUX.2 Flex (คุณภาพปานกลาง)</option>
+                          <option value="black-forest-labs/flux.2-pro">FLUX.2 Pro (คุณภาพสูง)</option>
+                          <option value="black-forest-labs/flux.2-max">FLUX.2 Max (คมชัดสูงสุด)</option>
                         </select>
                       </div>
                     ) : (
