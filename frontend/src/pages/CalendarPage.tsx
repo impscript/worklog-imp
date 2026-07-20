@@ -1083,7 +1083,7 @@ export default function CalendarPage() {
         setSelectedUserId(session.id);
       }
       
-      // If admin/workspace-admin, fetch users list — scoped to current workspace
+      // Allow all workspace members (admin, manager, user) to see teammates in the calendar picker
       const wsId = session?.activeWorkspaceId;
       const isSystemAdmin = session.role === 'admin' && (!wsId || wsId === 'N/A');
       if (session.role === 'admin' || session.workspaceRole === 'admin') {
@@ -1093,7 +1093,7 @@ export default function CalendarPage() {
             if (data) setUsersList(data);
           });
         } else if (wsId) {
-          // Workspace admin: only see members of their workspace
+          // Workspace admin: see all members of their workspace
           supabase
             .from('workspace_users')
             .select('users(id, full_name, emp_id)')
@@ -1105,8 +1105,21 @@ export default function CalendarPage() {
               }
             });
         }
+      } else if (wsId) {
+        // Manager or regular user: fetch workspace peers (RLS now allows this via users_share_workspace)
+        supabase
+          .from('workspace_users')
+          .select('users(id, full_name, emp_id)')
+          .eq('workspace_id', wsId)
+          .then(({ data }) => {
+            if (data) {
+              const users = data.map((row: any) => row.users).filter(Boolean);
+              setUsersList(users);
+            }
+          });
       }
     }
+
 
     const currentTargetId = selectedUserId || session.id;
 

@@ -625,6 +625,34 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </button>
             )}
 
+            {/* Role Badge */}
+            {!isSharedView && user && (() => {
+              const isGlobalAdmin = user.role === 'admin';
+              const wsRole = user.workspaceRole;
+              let label = '';
+              let colorClass = '';
+              if (isGlobalAdmin) {
+                label = 'Super Admin';
+                colorClass = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+              } else if (wsRole === 'admin') {
+                label = 'WS Admin';
+                colorClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+              } else if (wsRole === 'manager') {
+                label = 'Manager';
+                colorClass = 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20';
+              } else if (wsRole === 'user' || user.activeWorkspaceId) {
+                label = 'Member';
+                colorClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+              }
+              if (!label) return null;
+              return (
+                <span className={`hidden sm:inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest font-mono px-2 py-1 rounded-md border shrink-0 ${colorClass}`}>
+                  <Shield size={9} />
+                  {label}
+                </span>
+              );
+            })()}
+
             <span className="hidden md:inline-block text-[11px] font-semibold text-theme-text-secondary bg-theme-surface-secondary border border-theme-border/80 px-2.5 py-1.5 rounded-lg font-mono tracking-wide whitespace-nowrap shrink-0">
               {getFormattedDate()}
             </span>
