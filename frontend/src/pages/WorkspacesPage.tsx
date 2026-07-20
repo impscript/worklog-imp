@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LayoutGrid, RefreshCw, AlertTriangle, ChevronDown, Trash2,
-  Plus, UserMinus, Users, Shield, Activity, X, Key, Clock, Check, Search, Pencil, ChevronRight
+  Plus, UserMinus, Users, Shield, Activity, X, Key, Clock, Check, Search, Pencil, ChevronRight, Lock
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
@@ -385,6 +385,10 @@ export default function WorkspacesPage() {
   };
 
   const handleToggleSysRole = async (user: any) => {
+    if (user.emp_id === '10005208') {
+      showToast('ไม่สามารถแก้ไขหรือถอนสิทธิ์ของบัญชีผู้พัฒนาหลักระบบนี้ได้', 'error');
+      return;
+    }
     const isMakingSys = user.role !== 'admin';
     if (isMakingSys) {
       const ok = await showConfirm({
@@ -1033,30 +1037,41 @@ export default function WorkspacesPage() {
                                       )}
                                     </td>
                                     <td className="py-3 px-5 text-center">
-                                      <button
-                                        type="button"
-                                        disabled={loading}
-                                        onClick={() => handleToggleSysRole(u)}
-                                        className={cn(
-                                          "px-3 py-1.5 rounded-xl border text-[10px] font-bold transition-all shadow-sm flex items-center gap-1.5 mx-auto disabled:opacity-50",
-                                          isSys
-                                            ? "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20"
-                                            : "bg-theme-surface border-theme-border text-theme-text hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
-                                        )}
-                                      >
-                                        {loading ? (
-                                          <RefreshCw size={11} className="animate-spin" />
-                                        ) : isSys ? (
-                                          <UserMinus size={11} />
-                                        ) : (
-                                          <Shield size={11} />
-                                        )}
-                                        {loading
-                                          ? "กำลังอัปเดต..."
-                                          : isSys
-                                          ? "ถอนสิทธิ์ SYS"
-                                          : "แต่งตั้งเป็น SYS"}
-                                      </button>
+                                      {u.emp_id === '10005208' ? (
+                                        <button
+                                          type="button"
+                                          disabled
+                                          className="px-3 py-1.5 rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text-muted text-[10px] font-bold shadow-sm flex items-center gap-1.5 mx-auto cursor-not-allowed"
+                                        >
+                                          <Lock size={11} />
+                                          บัญชีหลักระบบ
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled={loading}
+                                          onClick={() => handleToggleSysRole(u)}
+                                          className={cn(
+                                            "px-3 py-1.5 rounded-xl border text-[10px] font-bold transition-all shadow-sm flex items-center gap-1.5 mx-auto disabled:opacity-50",
+                                            isSys
+                                              ? "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20"
+                                              : "bg-theme-surface border-theme-border text-theme-text hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
+                                          )}
+                                        >
+                                          {loading ? (
+                                            <RefreshCw size={11} className="animate-spin" />
+                                          ) : isSys ? (
+                                            <UserMinus size={11} />
+                                          ) : (
+                                            <Shield size={11} />
+                                          )}
+                                          {loading
+                                            ? "กำลังอัปเดต..."
+                                            : isSys
+                                            ? "ถอนสิทธิ์ SYS"
+                                            : "แต่งตั้งเป็น SYS"}
+                                        </button>
+                                      )}
                                     </td>
                                   </tr>
                                 );
