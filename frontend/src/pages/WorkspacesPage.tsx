@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LayoutGrid, RefreshCw, AlertTriangle, ChevronDown, Trash2,
-  Plus, UserMinus, Users, Shield, Activity, X, Key, Clock, Check, Search
+  Plus, UserMinus, Users, Shield, Activity, X, Key, Clock, Check, Search, Pencil, ChevronRight
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
@@ -50,6 +50,10 @@ export default function WorkspacesPage() {
     notes: '',
   });
   const [isSavingGrant, setIsSavingGrant] = useState(false);
+  // null = create mode, string = editing grant id
+  const [editingGrantId, setEditingGrantId] = useState<string | null>(null);
+  // For edit mode: single workspace_id stored here
+  const [editWsId, setEditWsId] = useState('');
 
   // Searchable combobox state for grant modal
   const [userSearch, setUserSearch] = useState('');
@@ -267,6 +271,32 @@ export default function WorkspacesPage() {
       loadGrants();
     } catch (err: any) {
       showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+    }
+  };
+
+  const handleUpdateGrant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGrantId) return;
+    setIsSavingGrant(true);
+    try {
+      const { error } = await supabase
+        .from('user_workspace_grants')
+        .update({
+          grant_role: grantForm.grant_role,
+          expires_at: grantForm.expires_at ? new Date(grantForm.expires_at).toISOString() : null,
+          notes: grantForm.notes || null,
+        })
+        .eq('id', editingGrantId);
+      if (error) throw error;
+      showToast('\u0e2d\u0e31\u0e1b\u0e40\u0e14\u0e15 Access Grant \u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08!', 'success');
+      setIsGrantModalOpen(false);
+      setEditingGrantId(null);
+      setEditWsId('');
+      loadGrants();
+    } catch (err: any) {
+      showToast('\u0e40\u0e01\u0e34\u0e14\u0e02\u0e49\u0e2d\u0e1c\u0e34\u0e14\u0e1e\u0e25\u0e32\u0e14: ' + err.message, 'error');
+    } finally {
+      setIsSavingGrant(false);
     }
   };
 
@@ -550,14 +580,20 @@ export default function WorkspacesPage() {
               </div>
             </div>
 
-            {/* Grants Table */}
+            {/* Grants — Grouped by Employee */}
             <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border/40">
                 <h2 className="text-sm font-black text-theme-text flex items-center gap-2">
                   <Key size={15} className="text-indigo-400" />
                   Access Grants ทั้งหมด
                 </h2>
-                <span className="text-[11px] text-theme-text-muted font-mono">{grants.length} grants</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] text-theme-text-muted font-mono">{grants.length} grants</span>
+                  <span className="text-[11px] text-theme-text-muted font-mono">·</span>
+                  <span className="text-[11px] text-theme-text-muted font-mono">
+                    {Object.keys(grants.reduce((acc: Record<string, boolean>, g) => { acc[g.user_id] = true; return acc; }, {})).length} คน
+                  </span>
+                </div>
               </div>
 
               {isGrantsLoading ? (
@@ -568,80 +604,133 @@ export default function WorkspacesPage() {
                   <p className="text-sm text-theme-text-muted">ยังไม่มี Access Grant ในระบบ</p>
                   <p className="text-xs text-theme-text-muted/70">กด "เพิ่ม Access Grant" เพื่อให้สิทธิ์ข้าม Workspace</p>
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left text-xs">
-                    <thead>
-                      <tr className="bg-theme-surface-secondary/80 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border text-[10px]">
-                        <th className="py-3 px-4">พนักงาน</th>
-                        <th className="py-3 px-4">Workspace ที่เข้าถึงได้</th>
-                        <th className="py-3 px-4">สิทธิ์</th>
-                        <th className="py-3 px-4">วันหมดอายุ</th>
-                        <th className="py-3 px-4">หมายเหตุ</th>
-                        <th className="py-3 px-4 text-center">ถอนสิทธิ์</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-theme-border/40">
-                      {grants.map(g => {
-                        const expired = isExpired(g.expires_at);
-                        const wsData = workspaces.find(w => w.id === g.workspace_id);
-                        const userData = allUsers.find(u => u.id === g.user_id);
-                        return (
-                          <tr key={g.id} className={cn('hover:bg-slate-700/5 transition-colors', expired && 'opacity-50')}>
-                            <td className="py-3 px-4">
-                              <div className="font-semibold text-theme-text">
-                                {g.users?.full_name || userData?.full_name || g.user_id.substring(0, 8) + '…'}
+              ) : (() => {
+                // Group grants by user_id
+                const grouped: Record<string, typeof grants> = {};
+                grants.forEach(g => {
+                  const uid = g.user_id;
+                  if (!grouped[uid]) grouped[uid] = [];
+                  grouped[uid].push(g);
+                });
+                // Sort groups by employee name
+                const sortedGroups = Object.entries(grouped).sort(([, a], [, b]) => {
+                  const nameA = a[0].users?.full_name || '';
+                  const nameB = b[0].users?.full_name || '';
+                  return nameA.localeCompare(nameB, 'th');
+                });
+
+                return (
+                  <div className="divide-y divide-theme-border/40">
+                    {sortedGroups.map(([userId, userGrants]) => {
+                      const firstGrant = userGrants[0];
+                      const userName = firstGrant.users?.full_name || allUsers.find(u => u.id === userId)?.full_name || userId.substring(0, 8) + '…';
+                      const empId = firstGrant.users?.emp_id || allUsers.find(u => u.id === userId)?.emp_id || '—';
+                      const dept = firstGrant.users?.department || allUsers.find(u => u.id === userId)?.department || '';
+                      return (
+                        <div key={userId}>
+                          {/* Employee group header */}
+                          <div className="flex items-center gap-3 px-5 py-3 bg-theme-surface-secondary/60">
+                            <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                              <Users size={14} className="text-indigo-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-black text-theme-text">{userName}</span>
+                                <span className="font-mono text-[10px] text-theme-text-muted bg-theme-surface px-1.5 py-0.5 rounded">{empId}</span>
+                                {dept && <span className="text-[10px] text-theme-text-secondary">{dept}</span>}
                               </div>
-                              <div className="text-theme-text-muted font-mono text-[10px]">
-                                {g.users?.emp_id || userData?.emp_id}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="font-semibold text-theme-text">
-                                {g.workspaces?.workspace_name || wsData?.workspace_name || g.workspace_id.substring(0, 8) + '…'}
-                              </div>
-                              <div className="font-mono text-indigo-400 text-[10px]">
-                                {g.workspaces?.invite_code || wsData?.invite_code}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              {ROLE_LABELS[g.grant_role] && (
-                                <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-black', ROLE_LABELS[g.grant_role].color)}>
-                                  {ROLE_LABELS[g.grant_role].label}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4">
-                              {g.expires_at ? (
-                                <span className={cn('inline-flex items-center gap-1 text-[10px] font-mono', expired ? 'text-rose-400' : 'text-amber-400')}>
-                                  <Clock size={10} />
-                                  {expired ? '⚠️ หมดอายุ: ' : ''}
-                                  {new Date(g.expires_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
-                                  <Check size={10} />ถาวร
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-theme-text-secondary max-w-[160px] truncate">{g.notes || '—'}</td>
-                            <td className="py-3 px-4 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleRevokeGrant(g.id, g.users?.full_name || userData?.full_name || 'พนักงานนี้', g.workspaces?.workspace_name || wsData?.workspace_name || 'Workspace นี้')}
-                                className="p-1.5 border border-transparent hover:border-rose-500/20 hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-400 rounded-xl transition-all"
-                                title="ถอนสิทธิ์"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                            </div>
+                            <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full flex-shrink-0">
+                              {userGrants.length} workspace{userGrants.length > 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          {/* Workspace grant rows */}
+                          <div className="divide-y divide-theme-border/20">
+                            {userGrants.map(g => {
+                              const expired = isExpired(g.expires_at);
+                              const wsData = workspaces.find(w => w.id === g.workspace_id);
+                              const wsName = g.workspaces?.workspace_name || wsData?.workspace_name || g.workspace_id.substring(0, 8) + '…';
+                              const wsCode = g.workspaces?.invite_code || wsData?.invite_code;
+                              return (
+                                <div key={g.id} className={cn('flex items-center gap-3 px-5 py-2.5 pl-16 hover:bg-indigo-500/5 transition-colors group', expired && 'opacity-50')}>
+                                  <ChevronRight size={12} className="text-theme-text-muted/40 flex-shrink-0 -ml-5 mr-1" />
+                                  {/* Workspace info */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-sm font-semibold text-theme-text">{wsName}</span>
+                                      {wsCode && <span className="font-mono text-[10px] text-indigo-400">{wsCode}</span>}
+                                    </div>
+                                  </div>
+                                  {/* Role badge */}
+                                  <div className="flex-shrink-0">
+                                    {ROLE_LABELS[g.grant_role] && (
+                                      <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-black', ROLE_LABELS[g.grant_role].color)}>
+                                        {ROLE_LABELS[g.grant_role].label}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {/* Expiry */}
+                                  <div className="flex-shrink-0 w-24 text-right">
+                                    {g.expires_at ? (
+                                      <span className={cn('inline-flex items-center gap-1 text-[10px] font-mono', expired ? 'text-rose-400' : 'text-amber-400')}>
+                                        <Clock size={10} />
+                                        {expired ? '⚠️ ' : ''}
+                                        {new Date(g.expires_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
+                                        <Check size={10} />ถาวร
+                                      </span>
+                                    )}
+                                  </div>
+                                  {/* Notes */}
+                                  <div className="text-[10px] text-theme-text-secondary w-24 truncate text-right" title={g.notes || ''}>
+                                    {g.notes || <span className="opacity-40">—</span>}
+                                  </div>
+                                  {/* Actions */}
+                                  <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingGrantId(g.id);
+                                        setEditWsId(g.workspace_id);
+                                        setGrantForm({
+                                          user_id: g.user_id,
+                                          workspace_ids: [g.workspace_id],
+                                          grant_role: g.grant_role,
+                                          expires_at: g.expires_at ? g.expires_at.substring(0, 10) : '',
+                                          notes: g.notes || '',
+                                        });
+                                        setUserSearch('');
+                                        setWsSearch('');
+                                        setIsUserDropOpen(false);
+                                        setIsWsDropOpen(false);
+                                        setIsGrantModalOpen(true);
+                                      }}
+                                      className="p-1.5 border border-transparent hover:border-indigo-500/20 hover:bg-indigo-500/10 text-theme-text-muted hover:text-indigo-400 rounded-xl transition-all"
+                                      title="แก้ไข Grant"
+                                    >
+                                      <Pencil size={12} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevokeGrant(g.id, userName, wsName)}
+                                      className="p-1.5 border border-transparent hover:border-rose-500/20 hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-400 rounded-xl transition-all"
+                                      title="ถอนสิทธิ์"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -681,13 +770,20 @@ export default function WorkspacesPage() {
             <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-base font-black text-theme-text flex items-center gap-2"><Key size={16} className="text-indigo-400" />เพิ่ม Access Grant</h2>
-                  <p className="text-xs text-theme-text-muted mt-0.5">ให้สิทธิ์พนักงานเข้าถึงข้อมูลข้าม Workspace</p>
+                  <h2 className="text-base font-black text-theme-text flex items-center gap-2">
+                    {editingGrantId ? <Pencil size={16} className="text-indigo-400" /> : <Key size={16} className="text-indigo-400" />}
+                    {editingGrantId ? 'แก้ไข Access Grant' : 'เพิ่ม Access Grant'}
+                  </h2>
+                  <p className="text-xs text-theme-text-muted mt-0.5">
+                    {editingGrantId
+                      ? 'แก้ไขระดับสิทธิ์ วันหมดอายุ หรือหมายเหตุ'
+                      : 'ให้สิทธิ์พนักงานเข้าถึงข้อมูลข้าม Workspace'}
+                  </p>
                 </div>
-                <button onClick={() => setIsGrantModalOpen(false)} className="p-2 rounded-xl hover:bg-theme-surface-secondary text-theme-text-muted hover:text-theme-text transition-all"><X size={16} /></button>
+                <button onClick={() => { setIsGrantModalOpen(false); setEditingGrantId(null); setEditWsId(''); }} className="p-2 rounded-xl hover:bg-theme-surface-secondary text-theme-text-muted hover:text-theme-text transition-all"><X size={16} /></button>
               </div>
 
-              <form onSubmit={handleSaveGrant} className="space-y-4">
+              <form onSubmit={editingGrantId ? handleUpdateGrant : handleSaveGrant} className="space-y-4">
 
                 {/* ── Searchable User Picker ─────────────────── */}
                 <div className="space-y-1.5">
@@ -708,16 +804,25 @@ export default function WorkspacesPage() {
                     return (
                       <div ref={userSearchRef} className="relative">
                         {/* Selected chip or search input */}
-                        {selectedUser && !isUserDropOpen ? (
-                          <div className="flex items-center justify-between w-full bg-indigo-500/10 border border-indigo-500/30 rounded-xl py-2.5 px-4">
+                        {selectedUser && (!isUserDropOpen || editingGrantId) ? (
+                          <div className={cn(
+                            "flex items-center justify-between w-full border rounded-xl py-2.5 px-4",
+                            editingGrantId
+                              ? 'bg-theme-surface-secondary border-theme-border cursor-not-allowed'
+                              : 'bg-indigo-500/10 border-indigo-500/30'
+                          )}>
                             <div>
-                              <p className="text-sm font-bold text-indigo-300">{selectedUser.full_name}</p>
+                              <p className={cn('text-sm font-bold', editingGrantId ? 'text-theme-text-secondary' : 'text-indigo-300')}>{selectedUser.full_name}</p>
                               <p className="text-[10px] text-theme-text-muted">{selectedUser.emp_id} · {selectedUser.department || 'N/A'}</p>
                             </div>
-                            <button type="button" onClick={() => { setGrantForm(f => ({ ...f, user_id: '' })); setUserSearch(''); setIsUserDropOpen(true); }}
-                              className="ml-2 p-1 rounded-lg hover:bg-red-500/20 text-theme-text-muted hover:text-red-400 transition-all">
-                              <X size={14} />
-                            </button>
+                            {editingGrantId ? (
+                              <span className="ml-2 text-[9px] text-theme-text-muted bg-theme-surface px-1.5 py-0.5 rounded border border-theme-border">ล็อก</span>
+                            ) : (
+                              <button type="button" onClick={() => { setGrantForm(f => ({ ...f, user_id: '' })); setUserSearch(''); setIsUserDropOpen(true); }}
+                                className="ml-2 p-1 rounded-lg hover:bg-red-500/20 text-theme-text-muted hover:text-red-400 transition-all">
+                                <X size={14} />
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <div className="relative">
@@ -765,17 +870,31 @@ export default function WorkspacesPage() {
                   })()}
                 </div>
 
-                {/* ── Multi-select Workspace Picker ─────────── */}
+                {/* ── Workspace Picker (Multi in create, locked in edit) ── */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">Workspace ที่ให้เข้าถึง</label>
-                    {grantForm.workspace_ids.length > 0 && (
+                    {!editingGrantId && grantForm.workspace_ids.length > 0 && (
                       <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
                         เลือกแล้ว {grantForm.workspace_ids.length} รายการ
                       </span>
                     )}
                   </div>
-                  {(() => {
+                  {editingGrantId ? (
+                    // Edit mode: locked single workspace chip
+                    (() => {
+                      const ws = workspaces.find(w => w.id === editWsId);
+                      return (
+                        <div className="flex items-center justify-between w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 cursor-not-allowed">
+                          <div>
+                            <p className="text-sm font-bold text-theme-text-secondary">{ws?.workspace_name || editWsId}</p>
+                            <p className="text-[10px] text-theme-text-muted font-mono">{ws?.invite_code}</p>
+                          </div>
+                          <span className="ml-2 text-[9px] text-theme-text-muted bg-theme-surface px-1.5 py-0.5 rounded border border-theme-border">ล็อก</span>
+                        </div>
+                      );
+                    })()
+                  ) : (() => {
                     const filteredWs = workspaces.filter(w => {
                       const q = wsSearch.toLowerCase();
                       if (!q) return true;
@@ -907,10 +1026,12 @@ export default function WorkspacesPage() {
                 </div>
 
                 <div className="flex gap-2 pt-1">
-                  <button type="button" onClick={() => setIsGrantModalOpen(false)} className="flex-1 py-2.5 rounded-xl border border-theme-border text-xs font-bold text-theme-text-secondary hover:bg-theme-surface-secondary transition-all">ยกเลิก</button>
-                  <button type="submit" disabled={isSavingGrant || !grantForm.user_id || grantForm.workspace_ids.length === 0} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                    {isSavingGrant ? <RefreshCw size={12} className="animate-spin" /> : <Key size={12} />}
-                    {isSavingGrant ? 'กำลังบันทึก...' : grantForm.workspace_ids.length > 1 ? `บันทึก ${grantForm.workspace_ids.length} Grants` : 'บันทึก Grant'}
+                  <button type="button" onClick={() => { setIsGrantModalOpen(false); setEditingGrantId(null); setEditWsId(''); }} className="flex-1 py-2.5 rounded-xl border border-theme-border text-xs font-bold text-theme-text-secondary hover:bg-theme-surface-secondary transition-all">ยกเลิก</button>
+                  <button type="submit"
+                    disabled={isSavingGrant || !grantForm.user_id || (!editingGrantId && grantForm.workspace_ids.length === 0)}
+                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                    {isSavingGrant ? <RefreshCw size={12} className="animate-spin" /> : editingGrantId ? <Pencil size={12} /> : <Key size={12} />}
+                    {isSavingGrant ? 'กำลังบันทึก...' : editingGrantId ? 'บันทึกการแก้ไข' : grantForm.workspace_ids.length > 1 ? `บันทึก ${grantForm.workspace_ids.length} Grants` : 'บันทึก Grant'}
                   </button>
                 </div>
               </form>
