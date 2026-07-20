@@ -228,6 +228,10 @@ export default function AiChatPage() {
   const [fluxRatio, setFluxRatio] = useState<string>('1:1');
   const [fluxSteps, setFluxSteps] = useState<number>(4);
 
+  // Image Generation settings
+  const [drawEngine, setDrawEngine] = useState<'flux_cf' | 'openrouter'>(() => (localStorage.getItem('openrouter_draw_engine') as 'flux_cf' | 'openrouter') || 'flux_cf');
+  const [openrouterImageModel, setOpenrouterImageModel] = useState<string>(() => localStorage.getItem('openrouter_image_model') || 'black-forest-labs/flux-1-schnell');
+
   const handleCopyText = (text: string) => {
     navigator.clipboard.writeText(text);
     showToast('คัดลอกข้อความสำเร็จ!', 'success');
@@ -396,7 +400,7 @@ export default function AiChatPage() {
     // List of models to try in order of preference
     const modelsToTry = [
       activeModel,
-      "google/gemini-2.0-flash-exp:free",
+      "google/gemini-2.0-flash:free",
       "meta-llama/llama-3-8b-instruct:free",
       "qwen/qwen-2-7b-instruct:free",
       "openrouter/free"
@@ -493,7 +497,7 @@ export default function AiChatPage() {
     
     const isDrawing = forceDraw || drawMode;
 
-    if (!isDrawing && !apiKey.trim()) {
+    if ((!isDrawing || (isDrawing && drawEngine === 'openrouter')) && !apiKey.trim()) {
       showToast('กรุณากรอก OpenRouter API Key ในแถบด้านซ้ายก่อนเริ่มใช้งาน', 'warning');
       setIsEditingKey(true);
       return;
@@ -557,16 +561,19 @@ export default function AiChatPage() {
       finalPrompt = await translatePromptToEnglish(textToSend, apiKey, selectedModel);
       
       // Verify that it translated successfully and does not contain Thai characters
+      const engineLabel = drawEngine === 'openrouter' ? 'OpenRouter Image API' : 'Flux Cloudflare';
+
+      // Verify that it translated successfully and does not contain Thai characters
       const hasThai = /[\u0e00-\u0e7f]/.test(finalPrompt);
       if (!hasThai) {
         const isEnhanced = finalPrompt !== textToSend;
         if (isEnhanced) {
-          translationStatus = `✓ แปลและปรับแต่งคำสั่งสำเร็จ (Step 1/2):\n"${finalPrompt}"\n\n⏳ กำลังส่งคำสั่งไปวาดรูปด้วย Flux (Step 2/2)...`;
+          translationStatus = `✓ แปลและปรับแต่งคำสั่งสำเร็จ (Step 1/2):\n"${finalPrompt}"\n\n⏳ กำลังส่งคำสั่งไปวาดรูปด้วย ${engineLabel} (Step 2/2)...`;
         } else {
-          translationStatus = `✓ แปลคำสั่งสำเร็จ (Step 1/2):\n"${finalPrompt}"\n\n⏳ กำลังส่งคำสั่งไปวาดรูปด้วย Flux (Step 2/2)...`;
+          translationStatus = `✓ แปลคำสั่งสำเร็จ (Step 1/2):\n"${finalPrompt}"\n\n⏳ กำลังส่งคำสั่งไปวาดรูปด้วย ${engineLabel} (Step 2/2)...`;
         }
       } else {
-        translationStatus = `⚠️ การแปลคำสั่งขัดข้อง (Step 1/2):\nใช้ภาษาไทยเดิม: "${textToSend}"\n\n⏳ กำลังส่งคำสั่งไปวาดรูปด้วย Flux (Step 2/2)...`;
+        translationStatus = `⚠️ การแปลคำสั่งขัดข้อง (Step 1/2):\nใช้ภาษาไทยเดิม: "${textToSend}"\n\n⏳ กำลังส่งคำสั่งไปวาดรูปด้วย ${engineLabel} (Step 2/2)...`;
       }
 
       // Update session UI text with Step 1 translation status
@@ -603,30 +610,32 @@ export default function AiChatPage() {
       }
 
       try {
-        const response = await fetch("https://flux-image-generator.play2earn.workers.dev/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            prompt: promptWithStyle,
-            steps: fluxSteps,
-            aspectRatio: fluxRatio
-          })
-        });
+        if (drawEngine === 'openrouter') {
+          // OpenRouter Image API Flow
+          const response = await fetch("https://openrouter.ai/api/v1/images", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${apiKey}`,
+              "HTTP-Referer": window.location.origin,
+              "X-Title": "Worklog AI Chat Image Generator",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: openrouterImageModel,
+              prompt: promptWithStyle
+            })
+          });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData?.error || `HTTP error (${response.status})`);
-        }
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData?.error?.message || errorData?.error || `HTTP error (${response.status})`);
+          }
 
-        const blob = await response.blob();
-        
-        // Convert blob to Base64
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = () => {
-          const base64data = reader.result as string;
+          const json = await response.json();
+          const imageUrl = json.data?.[0]?.url;
+          if (!imageUrl) {
+            throw new Error("OpenRouter API ไม่ได้คืนค่า URL รูปภาพกลับมา");
+          }
 
           setSessions(prevSessions => {
             const updated = prevSessions.map(s => {
@@ -634,7 +643,7 @@ export default function AiChatPage() {
                 const messagesCopy = [...s.messages];
                 messagesCopy[messagesCopy.length - 1] = {
                   role: 'assistant',
-                  content: `![${promptWithStyle}](${base64data})`,
+                  content: `![${promptWithStyle}](${imageUrl})`,
                   timestamp: new Date().toISOString()
                 };
                 return { ...s, messages: messagesCopy };
@@ -645,9 +654,55 @@ export default function AiChatPage() {
             return updated;
           });
           setIsGenerating(false);
-        };
+
+        } else {
+          // Cloudflare Worker Flow
+          const response = await fetch("https://flux-image-generator.play2earn.workers.dev/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              prompt: promptWithStyle,
+              steps: fluxSteps,
+              aspectRatio: fluxRatio
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData?.error || `HTTP error (${response.status})`);
+          }
+
+          const blob = await response.blob();
+          
+          // Convert blob to Base64
+          const reader = new FileReader();
+          reader.readAsDataURL(blob);
+          reader.onloadend = () => {
+            const base64data = reader.result as string;
+
+            setSessions(prevSessions => {
+              const updated = prevSessions.map(s => {
+                if (s.id === currentSessionId) {
+                  const messagesCopy = [...s.messages];
+                  messagesCopy[messagesCopy.length - 1] = {
+                    role: 'assistant',
+                    content: `![${promptWithStyle}](${base64data})`,
+                    timestamp: new Date().toISOString()
+                  };
+                  return { ...s, messages: messagesCopy };
+                }
+                return s;
+              });
+              setTimeout(() => safeSaveSessions(updated), 0);
+              return updated;
+            });
+            setIsGenerating(false);
+          };
+        }
       } catch (err: any) {
-        console.error("Flux image generation failed:", err);
+        console.error("Image generation failed:", err);
         showToast(`สร้างรูปภาพล้มเหลว: ${err.message}`, 'error');
         
         setSessions(prevSessions => {
@@ -656,7 +711,7 @@ export default function AiChatPage() {
               const messagesCopy = [...s.messages];
               messagesCopy[messagesCopy.length - 1] = {
                 role: 'assistant',
-                content: `${translationStatus}\n\n❌ เกิดข้อผิดพลาดในการสร้างภาพ (Step 2/2): ${err.message}\n\nกรุณาตรวจสอบการเชื่อมต่อกับระบบ Flux Image Generator`,
+                content: `${translationStatus}\n\n❌ เกิดข้อผิดพลาดในการสร้างภาพ (Step 2/2): ${err.message}\n\nกรุณาตรวจสอบคีย์หรือการเชื่อมต่อกับผู้ให้บริการ`,
                 timestamp: new Date().toISOString()
               };
               return { ...s, messages: messagesCopy };
@@ -1299,12 +1354,49 @@ export default function AiChatPage() {
               {/* Flux Parameter Settings Drawer - Only visible when Draw Mode is ON */}
               {drawMode && (
                 <div className="mb-3 p-3 rounded-2xl border border-violet-500/20 bg-violet-500/5 dark:bg-violet-950/10 backdrop-blur-md space-y-3 animate-fade-in text-xs">
-                  <div className="flex items-center justify-between border-b border-violet-500/10 pb-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-violet-500/10 pb-2 gap-2">
                     <span className="font-extrabold text-violet-600 dark:text-violet-400 flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
                       <Palette size={12} className="animate-pulse" />
-                      ตั้งค่าการสร้างรูปภาพ (Flux Settings)
+                      ตั้งค่าการสร้างรูปภาพ (Image Settings)
                     </span>
-                    <span className="text-[9px] text-theme-text-muted">ปรับแต่งสไตล์และสัดส่วนภาพถ่าย</span>
+                    <span className="text-[9px] text-theme-text-muted">เลือกบริการและปรับแต่งสไตล์ภาพถ่าย</span>
+                  </div>
+
+                  {/* Engine Toggle Selection */}
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">บริการเครื่องยนต์รูปภาพ (Image Generation Engine)</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDrawEngine('flux_cf');
+                          localStorage.setItem('openrouter_draw_engine', 'flux_cf');
+                        }}
+                        className={cn(
+                          "flex-1 py-1 px-2.5 rounded-lg text-[10px] font-bold border transition-all text-center select-none cursor-pointer",
+                          drawEngine === 'flux_cf'
+                            ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400 font-extrabold shadow-sm"
+                            : "bg-theme-surface border-theme-border/60 text-theme-text-muted hover:text-theme-text"
+                        )}
+                      >
+                        ☁️ Cloudflare (ฟรีตลอดชีพ)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDrawEngine('openrouter');
+                          localStorage.setItem('openrouter_draw_engine', 'openrouter');
+                        }}
+                        className={cn(
+                          "flex-1 py-1 px-2.5 rounded-lg text-[10px] font-bold border transition-all text-center select-none cursor-pointer",
+                          drawEngine === 'openrouter'
+                            ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400 font-extrabold shadow-sm"
+                            : "bg-theme-surface border-theme-border/60 text-theme-text-muted hover:text-theme-text"
+                        )}
+                      >
+                        🌐 OpenRouter API (ฟรี/ราคาประหยัด)
+                      </button>
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1342,20 +1434,44 @@ export default function AiChatPage() {
                       </select>
                     </div>
 
-                    {/* Quality / Steps */}
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-theme-text-secondary uppercase">ระดับความละเอียด (Quality)</label>
-                      <select
-                        value={fluxSteps}
-                        onChange={(e) => setFluxSteps(Number(e.target.value))}
-                        className="w-full text-xs font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer"
-                      >
-                        <option value="4">ด่วน (4 Steps - มาตรฐาน)</option>
-                        <option value="8">สูง (8 Steps - คมชัด)</option>
-                        <option value="12">สูงสุด (12 Steps - รายละเอียดครบ)</option>
-                      </select>
-                    </div>
+                    {/* Dynamic Third Column */}
+                    {drawEngine === 'openrouter' ? (
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-theme-text-secondary uppercase">โมเดลรูปภาพ (Image Model)</label>
+                        <select
+                          value={openrouterImageModel}
+                          onChange={(e) => {
+                            setOpenrouterImageModel(e.target.value);
+                            localStorage.setItem('openrouter_image_model', e.target.value);
+                          }}
+                          className="w-full text-xs font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer text-[11px]"
+                        >
+                          <option value="black-forest-labs/flux-1-schnell">Flux 1 Schnell (ฟรี 1,000 req/วัน • แนะนำ)</option>
+                          <option value="stabilityai/stable-diffusion-xl">Stable Diffusion XL (ฟรี 1,000 req/วัน)</option>
+                          <option value="black-forest-labs/flux-1.1-pro">Flux 1.1 Pro (พรีเมียม คมชัดสูง · Paid)</option>
+                          <option value="openai/dall-e-3">DALL-E 3 (Paid)</option>
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-theme-text-secondary uppercase">ระดับความละเอียด (Quality)</label>
+                        <select
+                          value={fluxSteps}
+                          onChange={(e) => setFluxSteps(Number(e.target.value))}
+                          className="w-full text-xs font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer"
+                        >
+                          <option value="4">ด่วน (4 Steps - มาตรฐาน)</option>
+                          <option value="8">สูง (8 Steps - คมชัด)</option>
+                          <option value="12">สูงสุด (12 Steps - รายละเอียดครบ)</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
+                  {drawEngine === 'openrouter' && (
+                    <div className="text-[9.5px] text-violet-500 font-extrabold tracking-wide bg-violet-500/5 px-2 py-1 rounded-lg border border-violet-500/10 mt-1">
+                      💡 บัญชี OpenRouter ที่มียอดเติมเงินสะสมขั้นต่ำ $10 จะได้รับสิทธิ์สร้างฟรี 1,000 ครั้ง/วัน บนโมเดล Schnell และ Stable Diffusion XL (จะดึง API Key จากช่องทางด้านซ้าย)
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1500,7 +1616,7 @@ export default function AiChatPage() {
               <div className="mt-1.5 text-center text-[9px] text-theme-text-muted font-semibold tracking-wide flex items-center justify-center gap-1">
                 <span>ผู้ให้บริการระบบ OpenRouter API | ข้อมูลจะถูกคุ้มครองตามข้อกำหนดนโยบายความเป็นส่วนตัวของ API Provider</span>
                 {webSearch && <span className="text-indigo-500">• กำลังใช้งานการค้นหาเว็บเรียลไทม์</span>}
-                {drawMode && <span className="text-violet-500">• กำลังใช้งานโหมดสร้างรูปภาพด้วย Flux</span>}
+                {drawMode && <span className="text-violet-500">• กำลังใช้งานโหมดสร้างรูปภาพด้วย {drawEngine === 'openrouter' ? 'OpenRouter' : 'Flux Cloudflare'}</span>}
               </div>
             </div>
           </footer>
