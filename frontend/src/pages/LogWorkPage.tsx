@@ -610,7 +610,7 @@ export default function LogWorkPage() {
                 if (cleanNick) {
                   cleanNick = cleanNick.charAt(0).toUpperCase() + cleanNick.slice(1);
                 }
-                labelMap[name] = cleanNick || matchedUser.full_name || name;
+                labelMap[name] = matchedUser.full_name || cleanNick || name;
               } else {
                 labelMap[name] = name;
               }
