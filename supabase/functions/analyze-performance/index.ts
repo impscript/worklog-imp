@@ -183,13 +183,11 @@ async function callLlmWithFallback(
 
   if (provider === 'openrouter') {
     const fallbacks = [
-      'openrouter/free',
-      'google/gemma-4-31b-it:free',
-      'openai/gpt-oss-20b:free',
-      'z-ai/glm-4.5-air:free',
-      'deepseek/deepseek-v4-flash:free',
+      'google/gemini-2.0-flash-exp:free',
       'meta-llama/llama-3.3-70b-instruct:free',
-      'meta-llama/llama-3.2-3b-instruct:free',
+      'openai/gpt-4o-mini',
+      'deepseek/deepseek-chat',
+      'meta-llama/llama-3.3-70b-instruct',
     ];
     for (const fb of fallbacks) { if (fb !== configuredModel) modelsToTry.push(fb); }
   } else if (provider === 'opencode') {

@@ -2930,14 +2930,12 @@ const PROVIDER_PRESET_MODELS: Record<string, { id: string; label: string }[]> = 
     { id: 'nemotron-3-super-free', label: 'Nemotron 3 Super Free' }
   ],
   openrouter: [
-    { id: 'openrouter/free', label: 'OpenRouter Auto Free Router' },
-    { id: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5 (New)' },
-    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
-    { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-    { id: 'google/gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
-    { id: 'openai/gpt-4o', label: 'GPT-4o' },
-    { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini' },
-    { id: 'deepseek/deepseek-v4-flash:free', label: 'DeepSeek V4 Flash (Free)' }
+    { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini (แนะนำ · คุ้มค่าที่สุด)' },
+    { id: 'deepseek/deepseek-chat', label: 'DeepSeek Chat (ฉลาด · ราคาประหยัด)' },
+    { id: 'google/gemini-2.0-flash', label: 'Gemini 2.0 Flash (เร็วที่สุด)' },
+    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (ฉลาดที่สุด)' },
+    { id: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (Free)' },
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' }
   ],
   cloudflare: [
     { id: '@cf/meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B (Free · เร็ว)' },
