@@ -1658,7 +1658,24 @@ export default function HrbpPage() {
           </div>
 
           {!isSharedView && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              {workspacesList.length > 1 && (
+                <div className="flex items-center gap-2 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-3 py-2 shadow-sm">
+                  <span className="text-xs font-bold text-theme-text-secondary">Workspace:</span>
+                  <select
+                    value={selectedWorkspaceId}
+                    onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-theme-text focus:outline-none cursor-pointer"
+                  >
+                    {workspacesList.map((w) => (
+                      <option key={w.id} value={w.id} className="bg-theme-surface dark:bg-theme-surface-tertiary">
+                        {w.workspace_name} ({w.invite_code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Step Navigation Wizard Bar */}
               <div className="flex items-center gap-1 bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 p-1 rounded-xl border border-theme-border/80">
                 <button

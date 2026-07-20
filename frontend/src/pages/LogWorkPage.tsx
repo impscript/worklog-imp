@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles, Share2, Copy, Upload, X, Cpu, RefreshCw, Shield } from 'lucide-react';
+import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles, Share2, Copy, Upload, X, Cpu, Shield } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn, isChatchawanUser } from '../lib/utils';
 import { supabase } from '../lib/supabase';

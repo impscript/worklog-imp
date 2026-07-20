@@ -9,6 +9,7 @@ import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import { googleCalendar, syncWorklogToGCal } from '../lib/google-calendar';
 import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from 'react-i18next';
+import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
 
 interface WorklogEntry {
   id: string;
@@ -60,6 +61,9 @@ export default function CalendarPage() {
   const [editingLog, setEditingLog] = useState<any | null>(null);
   const [viewingLog, setViewingLog] = useState<WorklogEntry | null>(null);
   const [sessionUser, setSessionUser] = useState<any>(null);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
+  const [workspacesList, setWorkspacesList] = useState<{ id: string; workspace_name: string; invite_code: string }[]>([]);
+  const { grants } = useWorkspaceGrants();
   const [usersList, setUsersList] = useState<{id: string; full_name: string; emp_id: string}[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [refreshTrigger, setRefreshTrigger] = 
@@ -1068,6 +1072,7 @@ export default function CalendarPage() {
   const unsyncedEntries = useMemo(() => currentMonthEntries.filter((e) => !e.gcal_event_id), [currentMonthEntries]);
   // ─────────────────────────────────────────────────────────────────────────────
 
+  // Load Session on Mount
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
     if (!sessionStr) {
@@ -1075,25 +1080,67 @@ export default function CalendarPage() {
       return;
     }
     const session = JSON.parse(sessionStr);
-    
-    // Only set session user and default selected user on mount
-    if (!sessionUser) {
-      setSessionUser(session);
-      if (!selectedUserId) {
-        setSelectedUserId(session.id);
-      }
+    setSessionUser(session);
+    if (!selectedUserId) {
+      setSelectedUserId(session.id);
+    }
+  }, [navigate]);
+
+  // Load viewable workspaces (own + granted)
+  useEffect(() => {
+    if (!sessionUser) return;
+    if (sessionUser.role === 'admin') {
+      supabase.from('workspaces').select('id, workspace_name, invite_code').order('workspace_name').then(({ data }) => {
+        if (data) setWorkspacesList(data);
+      });
+    } else {
+      const ownWs = sessionUser.activeWorkspaceId ? {
+        id: sessionUser.activeWorkspaceId,
+        workspace_name: sessionUser.workspaceName || 'My Workspace',
+        invite_code: sessionUser.workspaceInviteCode || ''
+      } : null;
+
+      const grantedWs = (grants || [])
+        .map(g => ({
+          id: g.workspace_id,
+          workspace_name: g.workspace_name || 'Granted Workspace',
+          invite_code: g.invite_code || ''
+        }));
+
+      const list = [];
+      if (ownWs) list.push(ownWs);
+      list.push(...grantedWs);
       
-      // Allow all workspace members (admin, manager, user) to see teammates in the calendar picker
-      const wsId = session?.activeWorkspaceId;
+      const uniqueList = list.filter((item, index, self) =>
+        index === self.findIndex((t) => t.id === item.id)
+      );
+
+      setWorkspacesList(uniqueList);
+    }
+  }, [sessionUser, grants]);
+
+  // Load users for the selected workspace
+  useEffect(() => {
+    const sessionStr = localStorage.getItem('worklog_session');
+    if (!sessionStr) return;
+    const session = JSON.parse(sessionStr);
+
+    let targetWorkspaceId = selectedWorkspaceId;
+    if (!targetWorkspaceId && session.activeWorkspaceId) {
+      targetWorkspaceId = session.activeWorkspaceId;
+      setSelectedWorkspaceId(targetWorkspaceId);
+    }
+
+    if (targetWorkspaceId) {
+      const wsId = targetWorkspaceId;
       const isSystemAdmin = session.role === 'admin' && (!wsId || wsId === 'N/A');
+      
       if (session.role === 'admin' || session.workspaceRole === 'admin') {
         if (isSystemAdmin) {
-          // True system admin: see all users
           supabase.from('users').select('id, full_name, emp_id').order('full_name').then(({ data }) => {
             if (data) setUsersList(data);
           });
-        } else if (wsId) {
-          // Workspace admin: see all members of their workspace
+        } else {
           supabase
             .from('workspace_users')
             .select('users(id, full_name, emp_id)')
@@ -1105,8 +1152,7 @@ export default function CalendarPage() {
               }
             });
         }
-      } else if (wsId) {
-        // Manager or regular user: fetch workspace peers (RLS now allows this via users_share_workspace)
+      } else {
         supabase
           .from('workspace_users')
           .select('users(id, full_name, emp_id)')
@@ -1119,19 +1165,25 @@ export default function CalendarPage() {
           });
       }
     }
+  }, [sessionUser, selectedWorkspaceId]);
 
+  // Main worklog fetching effect
+  useEffect(() => {
+    const sessionStr = localStorage.getItem('worklog_session');
+    if (!sessionStr) return;
+    const session = JSON.parse(sessionStr);
 
+    const targetWorkspaceId = selectedWorkspaceId || session.activeWorkspaceId;
     const currentTargetId = selectedUserId || session.id;
 
     async function fetchMonthEntries() {
       try {
         setIsLoading(true);
-        // Fetch all user entries (including gcal_event_id for sync status)
         const { data, error } = await supabase
           .from('col_worklog')
           .select('*')
           .eq('user_id', currentTargetId)
-          .eq('workspace_id', session.activeWorkspaceId);
+          .eq('workspace_id', targetWorkspaceId);
 
         if (error) {
           console.error('Error fetching calendar entries:', error);
@@ -1142,7 +1194,6 @@ export default function CalendarPage() {
           }));
           setEntries(mapped);
 
-          // Update side panel if a date was selected
           if (selectedDateStr) {
             setSelectedDateEntries(mapped.filter((e) => e.work_date === selectedDateStr));
           }
@@ -1169,9 +1220,11 @@ export default function CalendarPage() {
       }
     }
 
-    fetchMonthEntries();
-    fetchHolidays();
-  }, [navigate, selectedDateStr, refreshTrigger, selectedUserId, sessionUser]);
+    if (currentTargetId && targetWorkspaceId) {
+      fetchMonthEntries();
+      fetchHolidays();
+    }
+  }, [selectedUserId, selectedWorkspaceId, refreshTrigger, selectedDateStr, sessionUser]);
 
   // ── Check GCal connection whenever session user is loaded ─────────────────────
   useEffect(() => {
@@ -1596,6 +1649,23 @@ export default function CalendarPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto lg:justify-end">
+            {workspacesList.length > 1 && (
+              <div className="relative w-48">
+                <select
+                  value={selectedWorkspaceId}
+                  onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                  className="w-full bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-4 py-2.5 text-sm font-semibold text-theme-text-secondary appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors"
+                >
+                  {workspacesList.map((w) => (
+                    <option key={w.id} value={w.id}>{w.workspace_name} ({w.invite_code})</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-theme-text-secondary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+            )}
+
             {usersList.length > 1 && (
               <div className="relative w-48">
                 <select

@@ -14,6 +14,7 @@ import AppLayout from '../components/layout/AppLayout';
 import { useNotification } from '../context/NotificationContext';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
+import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
 
 interface TeamMember {
   rank: number;
@@ -40,6 +41,10 @@ export default function LeaderboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sentCoffee, setSentCoffee] = useState<Record<string, boolean>>({});
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
+  const [workspacesList, setWorkspacesList] = useState<{ id: string; workspace_name: string; invite_code: string }[]>([]);
+  const { grants } = useWorkspaceGrants();
+  const [sessionUser, setSessionUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [overallStats, setOverallStats] = useState({
     complianceRate: 0,
@@ -75,6 +80,47 @@ export default function LeaderboardPage() {
     return options;
   };
 
+  // Load Session on Mount
+  useEffect(() => {
+    const sessionStr = localStorage.getItem('worklog_session');
+    if (sessionStr) {
+      setSessionUser(JSON.parse(sessionStr));
+    }
+  }, []);
+
+  // Load viewable workspaces (own + granted)
+  useEffect(() => {
+    if (!sessionUser) return;
+    if (sessionUser.role === 'admin') {
+      supabase.from('workspaces').select('id, workspace_name, invite_code').order('workspace_name').then(({ data }) => {
+        if (data) setWorkspacesList(data);
+      });
+    } else {
+      const ownWs = sessionUser.activeWorkspaceId ? {
+        id: sessionUser.activeWorkspaceId,
+        workspace_name: sessionUser.workspaceName || 'My Workspace',
+        invite_code: sessionUser.workspaceInviteCode || ''
+      } : null;
+
+      const grantedWs = (grants || [])
+        .map(g => ({
+          id: g.workspace_id,
+          workspace_name: g.workspace_name || 'Granted Workspace',
+          invite_code: g.invite_code || ''
+        }));
+
+      const list = [];
+      if (ownWs) list.push(ownWs);
+      list.push(...grantedWs);
+      
+      const uniqueList = list.filter((item, index, self) =>
+        index === self.findIndex((t) => t.id === item.id)
+      );
+
+      setWorkspacesList(uniqueList);
+    }
+  }, [sessionUser, grants]);
+
   useEffect(() => {
     async function fetchLeaderboard() {
       try {
@@ -82,7 +128,12 @@ export default function LeaderboardPage() {
 
         const sessionStr = localStorage.getItem('worklog_session');
         const session = sessionStr ? JSON.parse(sessionStr) : null;
-        const activeWorkspaceId = session?.activeWorkspaceId;
+        
+        let targetWorkspaceId = selectedWorkspaceId;
+        if (session && !targetWorkspaceId && session.activeWorkspaceId) {
+          targetWorkspaceId = session.activeWorkspaceId;
+          setSelectedWorkspaceId(targetWorkspaceId);
+        }
 
         // 1. Fetch real users filtered by active workspace
         let userQuery = supabase
@@ -90,8 +141,8 @@ export default function LeaderboardPage() {
           .select('id, full_name, department, nickname, emp_id')
           .eq('status', 'Active');
 
-        if (activeWorkspaceId) {
-          userQuery = userQuery.eq('active_workspace_id', activeWorkspaceId);
+        if (targetWorkspaceId) {
+          userQuery = userQuery.eq('active_workspace_id', targetWorkspaceId);
         }
 
         const { data: users, error: userErr } = await userQuery;
@@ -111,8 +162,8 @@ export default function LeaderboardPage() {
           .gte('work_date', startOfMonth)
           .lte('work_date', endOfMonth);
 
-        if (activeWorkspaceId) {
-          logQuery = logQuery.eq('workspace_id', activeWorkspaceId);
+        if (targetWorkspaceId) {
+          logQuery = logQuery.eq('workspace_id', targetWorkspaceId);
         }
 
         const { data: logs, error: logErr } = await logQuery;
@@ -266,7 +317,7 @@ export default function LeaderboardPage() {
     }
 
     fetchLeaderboard();
-  }, [showToast, selectedMonth, selectedYear]);
+  }, [showToast, selectedMonth, selectedYear, selectedWorkspaceId]);
 
   const handleSendCoffee = async (member: TeamMember) => {
     setSentCoffee(prev => ({ ...prev, [member.id]: true }));
@@ -338,6 +389,23 @@ export default function LeaderboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {workspacesList.length > 1 && (
+              <div className="flex items-center gap-2 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-3 py-1.5 shadow-sm">
+                <span className="text-xs font-bold text-theme-text-secondary">Workspace:</span>
+                <select
+                  value={selectedWorkspaceId}
+                  onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-theme-text focus:outline-none cursor-pointer"
+                >
+                  {workspacesList.map((w) => (
+                    <option key={w.id} value={w.id} className="bg-theme-surface dark:bg-theme-surface-tertiary">
+                      {w.workspace_name} ({w.invite_code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Month Selector Dropdown */}
             <select
               value={`${selectedYear}-${selectedMonth}`}
