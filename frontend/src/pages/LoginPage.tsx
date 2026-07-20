@@ -182,13 +182,13 @@ export default function LoginPage() {
           </button>
 
           {showSimPanel && (
-            <div className="p-6 bg-slate-950/40 border-t border-indigo-500/15 space-y-4">
-              <p className="text-xs text-slate-400 leading-relaxed">
+            <div className="p-6 bg-theme-surface-secondary/40 border-t border-theme-border/60 space-y-4">
+              <p className="text-xs text-theme-text-secondary leading-relaxed">
                 {t('login.simDescription', { defaultValue: 'Select a mock user profile to test the JIT user provisioning and automatic workspace assignment rules.' })}
               </p>
 
               {/* Group Selector Tabs */}
-              <div className="flex flex-wrap gap-1.5 border-b border-slate-800 pb-2">
+              <div className="flex flex-wrap gap-1.5 border-b border-theme-border/40 pb-2">
                 {Object.keys(groups).map((groupName) => (
                   <button
                     key={groupName}
@@ -196,7 +196,7 @@ export default function LoginPage() {
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                       selectedGroup === groupName
                         ? 'bg-indigo-500 text-white shadow-md'
-                        : 'bg-slate-900/60 text-slate-400 hover:text-slate-200'
+                        : 'bg-theme-surface border border-theme-border/60 text-theme-text-secondary hover:text-theme-text'
                     }`}
                   >
                     {groupName} ({groups[groupName].length})
@@ -211,25 +211,25 @@ export default function LoginPage() {
                     key={u.emp_id}
                     onClick={() => handleMockLogin(u)}
                     disabled={isLoading}
-                    className="w-full text-left bg-slate-900/40 hover:bg-indigo-500/10 border border-slate-800 hover:border-indigo-500/35 rounded-xl p-3 flex justify-between items-center transition-all hover:scale-[1.01] group"
+                    className="w-full text-left bg-theme-surface/70 dark:bg-slate-900/30 hover:bg-indigo-500/10 border border-theme-border hover:border-indigo-500/40 rounded-xl p-3 flex justify-between items-center transition-all hover:scale-[1.01] group"
                   >
                     <div className="min-w-0 pr-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-xs text-slate-200 group-hover:text-indigo-300 transition-colors">
+                        <span className="font-extrabold text-xs text-theme-text group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                           {u.full_name} ({u.nickname})
                         </span>
-                        <span className="text-[9px] font-bold font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                        <span className="text-[9px] font-bold font-mono px-1.5 py-0.5 rounded bg-theme-surface-secondary border border-theme-border text-theme-text-secondary">
                           ID: {u.emp_id}
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1 truncate">
+                      <p className="text-[10px] text-theme-text-secondary mt-1 truncate">
                         {u.position} • {u.department}
                       </p>
-                      <p className="text-[9px] text-slate-500 mt-0.5 font-mono truncate">
+                      <p className="text-[9px] text-theme-text-muted mt-0.5 font-mono truncate">
                         BU: {u.bu_working} | Line: {u.line_of_work}
                       </p>
                     </div>
-                    <div className="shrink-0 flex items-center justify-center h-7 w-7 rounded-lg bg-indigo-500/5 group-hover:bg-indigo-500/20 text-indigo-400 transition-all font-bold text-xs">
+                    <div className="shrink-0 flex items-center justify-center h-7 w-7 rounded-lg bg-indigo-500/5 group-hover:bg-indigo-500/20 text-indigo-500 transition-all font-bold text-xs">
                       →
                     </div>
                   </button>
