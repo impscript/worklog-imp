@@ -4069,10 +4069,10 @@ INSTRUCTION:
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
               <span className="inline-flex items-center gap-1.5 text-xs bg-violet-500/15 text-violet-300 border border-violet-500/25 rounded-full px-3 py-1">
-                🎯 Analyst Templates — จาก tb_ai_prompt_templates
+                🎯 Analyst Templates — ใช้สำหรับวิเคราะห์ประเมินผลพนักงาน
               </span>
               <span className="inline-flex items-center gap-1.5 text-xs bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 rounded-full px-3 py-1">
-                ✍️ Enhancement — จาก tb_system_config
+                ✍️ Enhancement Prompt — ใช้สำหรับปรับปรุงคุณภาพการเขียนใบงาน
               </span>
             </div>
           </div>

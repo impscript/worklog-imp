@@ -3268,10 +3268,74 @@ export default function HrbpPage() {
 
                       {/* ── ADMIN VIEW: tabbed layout ── */}
                       {!isSharedView && activeResultsSubTab === 'summary' && (
-                        <div className="space-y-4 animate-in fade-in duration-300">
+                        <div className="space-y-6 animate-in fade-in duration-300">
+
+                          {/* ── Dimension Scores Cards (perf_evaluation only) ── */}
+                          {Array.isArray(aiAnalysis.dimension_scores) && aiAnalysis.dimension_scores.length > 0 && (
+                            <div className="space-y-3">
+                              <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                <span>📊</span> ผลประเมิน 5 มิติ (5 Dimensions Scorecard)
+                              </h3>
+                              <div className="grid grid-cols-1 gap-3">
+                                {aiAnalysis.dimension_scores.map((dim: any, i: number) => {
+                                  const score = typeof dim.raw_score === 'number' ? dim.raw_score : parseFloat(dim.raw_score) || 0;
+                                  const scoreColor = score >= 8 ? 'text-emerald-600 dark:text-emerald-400' : score >= 6 ? 'text-indigo-600 dark:text-indigo-400' : score >= 4 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
+                                  const barColor = score >= 8 ? 'bg-emerald-500' : score >= 6 ? 'bg-indigo-500' : score >= 4 ? 'bg-amber-500' : 'bg-rose-500';
+                                  const bgColor = score >= 8 ? 'bg-emerald-500/5 border-emerald-500/15' : score >= 6 ? 'bg-indigo-500/5 border-indigo-500/15' : score >= 4 ? 'bg-amber-500/5 border-amber-500/15' : 'bg-rose-500/5 border-rose-500/15';
+                                  return (
+                                    <div key={i} className={`rounded-2xl border p-4 space-y-3 ${bgColor}`}>
+                                      {/* Header Row */}
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-xs font-black text-theme-text">{i + 1}. {dim.dimension_th || dim.dimension}</span>
+                                            <span className="text-[9px] font-mono text-theme-text-secondary bg-theme-surface-secondary px-1.5 py-0.5 rounded border border-theme-border/50">น้ำหนัก {dim.weight_pct}%</span>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <span className={`text-lg font-black font-mono ${scoreColor}`}>{score.toFixed(1)}</span>
+                                          <span className="text-xs text-theme-text-secondary font-mono">/10</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Score Bar */}
+                                      <div className="w-full h-1.5 bg-theme-surface-secondary rounded-full overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(score * 10, 100)}%` }} />
+                                      </div>
+
+                                      {/* Rationale */}
+                                      {dim.rationale && (
+                                        <div className="space-y-1">
+                                          <p className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider">● เหตุผลประกอบ</p>
+                                          <p className="text-xs text-theme-text leading-relaxed">{dim.rationale}</p>
+                                        </div>
+                                      )}
+
+                                      {/* Improvement Suggestions */}
+                                      {dim.improvement_suggestions && (
+                                        <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3 space-y-1">
+                                          <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                                            💡 แนวทางปรับปรุง
+                                          </p>
+                                          <p className="text-xs text-theme-text leading-relaxed">{dim.improvement_suggestions}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ── Markdown Summary ── */}
                           {aiAnalysis.markdown_executive_summary ? (
-                            renderMarkdown(aiAnalysis.markdown_executive_summary)
-                          ) : (
+                            <div className="border-t border-theme-border/40 pt-4">
+                              <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                                <span>📄</span> รายงานประเมินฉบับเต็ม
+                              </h3>
+                              {renderMarkdown(aiAnalysis.markdown_executive_summary)}
+                            </div>
+                          ) : !Array.isArray(aiAnalysis.dimension_scores) && (
                             <div className="text-theme-text-secondary text-xs sm:text-sm leading-relaxed italic">
                               ไม่มีบทวิเคราะห์เนื้อหาประเมินความสอดคล้องหลัก
                             </div>
