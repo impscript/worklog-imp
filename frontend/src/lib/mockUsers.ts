@@ -27,6 +27,19 @@ export const MOCK_USERS: MockHRMSUser[] = [
     phone: "0858350001",
     level_name: "Department Manager"
   },
+  {
+    emp_id: "648087",
+    full_name: "รณชัย วิจิตโต",
+    nickname: "ronnachai_w",
+    position: "Process Development Officer",
+    bu_working: "Others_President Office",
+    line_of_work: "Improvement",
+    department: "Improvement",
+    company_name: "บริษัท เอ็ม ไอ บี โฮลดิ้ง จำกัด",
+    email: "ronnachai_w@mibholding.com",
+    phone: "0858350029",
+    level_name: "Officer"
+  },
   // 2. Real Estate - Marketing & Sales
   {
     emp_id: "11602338",

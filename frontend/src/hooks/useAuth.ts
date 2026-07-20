@@ -174,6 +174,37 @@ export function useAuth() {
             console.warn('[MOCK] Failed to fetch real HRMS profile fallback, using mock template', err);
           }
           console.log(`${modeLabel} Prepared mock/fetched profile:`, employeeData);
+
+          // Get or create database user for simulation session
+          const { data: matchedUsers, error: queryErr } = await supabase
+            .from('users')
+            .select('*')
+            .eq('emp_id', empId)
+            .maybeSingle();
+
+          if (queryErr) throw queryErr;
+
+          if (!matchedUsers) {
+            const { data: newUser, error: createError } = await supabase
+              .from('users')
+              .insert({
+                emp_id: empId,
+                email: mockUser.email,
+                full_name: mockUser.full_name,
+                nickname: mockUser.nickname,
+                role: 'user',
+                department: mockUser.department,
+                position: mockUser.position
+              })
+              .select('*')
+              .single();
+            if (createError) throw createError;
+            userRecord = newUser;
+          } else {
+            userRecord = matchedUsers;
+          }
+
+          isBridgeLogin = true;
         } else {
           // Authentication and HRMS provisioning happen server-side. Credentials and
           // IDMS agent secrets must never be exposed in the browser bundle.
