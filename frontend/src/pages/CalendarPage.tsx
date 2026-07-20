@@ -10,6 +10,7 @@ import { googleCalendar, syncWorklogToGCal } from '../lib/google-calendar';
 import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
+import WorkspaceSwitcher from '../components/common/WorkspaceSwitcher';
 
 interface WorklogEntry {
   id: string;
@@ -1650,20 +1651,11 @@ export default function CalendarPage() {
           </div>
           <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto lg:justify-end">
             {workspacesList.length > 1 && (
-              <div className="relative w-48">
-                <select
-                  value={selectedWorkspaceId}
-                  onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                  className="w-full bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-4 py-2.5 text-sm font-semibold text-theme-text-secondary appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors"
-                >
-                  {workspacesList.map((w) => (
-                    <option key={w.id} value={w.id}>{w.workspace_name} ({w.invite_code})</option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-theme-text-secondary">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                </div>
-              </div>
+              <WorkspaceSwitcher
+                workspacesList={workspacesList}
+                selectedWorkspaceId={selectedWorkspaceId}
+                onSelect={setSelectedWorkspaceId}
+              />
             )}
 
             {usersList.length > 1 && (

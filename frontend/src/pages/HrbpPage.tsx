@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
+import WorkspaceSwitcher from '../components/common/WorkspaceSwitcher';
 import {
   ResponsiveContainer,
   BarChart,
@@ -1660,20 +1661,11 @@ export default function HrbpPage() {
           {!isSharedView && (
             <div className="flex flex-wrap items-center gap-3">
               {workspacesList.length > 1 && (
-                <div className="flex items-center gap-2 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-3 py-2 shadow-sm">
-                  <span className="text-xs font-bold text-theme-text-secondary">Workspace:</span>
-                  <select
-                    value={selectedWorkspaceId}
-                    onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                    className="bg-transparent text-xs font-bold text-theme-text focus:outline-none cursor-pointer"
-                  >
-                    {workspacesList.map((w) => (
-                      <option key={w.id} value={w.id} className="bg-theme-surface dark:bg-theme-surface-tertiary">
-                        {w.workspace_name} ({w.invite_code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <WorkspaceSwitcher
+                  workspacesList={workspacesList}
+                  selectedWorkspaceId={selectedWorkspaceId}
+                  onSelect={setSelectedWorkspaceId}
+                />
               )}
 
               {/* Step Navigation Wizard Bar */}
