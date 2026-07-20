@@ -463,10 +463,10 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       }
 
       // Build workspace-scoped queries for dropdown data
-      let userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', targetUserId);
-      let projQuery = supabase.from('tb_map_project_structure').select('*');
-      let actQuery = supabase.from('tb_master_action').select('*');
-      let tplQuery = supabase.from('tb_master_worklog_templates').select('*');
+      let userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', targetUserId).eq('is_active', true);
+      let projQuery = supabase.from('tb_map_project_structure').select('*').eq('is_active', true);
+      let actQuery = supabase.from('tb_master_action').select('*').eq('is_active', true);
+      let tplQuery = supabase.from('tb_master_worklog_templates').select('*').eq('is_active', true);
 
       if (workspaceId) {
         userQuery = (userQuery as any).eq('workspace_id', workspaceId);
@@ -486,7 +486,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         setMapUserRole(resUser.data);
       } else {
         // Fallback 1: Query by cleanName/nickname
-        let nameQuery = supabase.from('tb_map_user_role').select('*').ilike('name', cleanName.trim());
+        let nameQuery = supabase.from('tb_map_user_role').select('*').ilike('name', cleanName.trim()).eq('is_active', true);
         if (workspaceId) nameQuery = nameQuery.eq('workspace_id', workspaceId);
         const { data: nameData } = await nameQuery;
 
@@ -496,7 +496,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
           // Fallback 2: Query by empId if available
           let empData = null;
           if (dbEmpId) {
-            let empQuery = supabase.from('tb_map_user_role').select('*').eq('name', dbEmpId);
+            let empQuery = supabase.from('tb_map_user_role').select('*').eq('name', dbEmpId).eq('is_active', true);
             if (workspaceId) empQuery = empQuery.eq('workspace_id', workspaceId);
             const { data } = await empQuery;
             empData = data;
@@ -506,7 +506,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             setMapUserRole(empData);
           } else {
             // Fallback 3: Chatchawan
-            let fallbackQuery = supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan');
+            let fallbackQuery = supabase.from('tb_map_user_role').select('*').ilike('name', 'Chatchawan').eq('is_active', true);
             if (workspaceId) fallbackQuery = (fallbackQuery as any).eq('workspace_id', workspaceId);
             const fallback = await fallbackQuery;
             if (fallback.data) setMapUserRole(fallback.data);

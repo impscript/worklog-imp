@@ -737,26 +737,26 @@ export default function LogWorkPage() {
           }
 
           if (simUserId) {
-            userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', simUserId);
+            userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', simUserId).eq('is_active', true);
           } else {
             // CRMC-style special name — query by exact name
-            userQuery = supabase.from('tb_map_user_role').select('*').eq('name', selectedUser.trim());
+            userQuery = supabase.from('tb_map_user_role').select('*').eq('name', selectedUser.trim()).eq('is_active', true);
           }
         } else if (session.id) {
           // Normal user — query by user_id FK (primary)
           // Fallback handled after query if empty (see below)
-          userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', session.id);
+          userQuery = supabase.from('tb_map_user_role').select('*').eq('user_id', session.id).eq('is_active', true);
         } else {
           // No session id — fallback by emp_id or nickname
           const empId = dbUserRecord?.emp_id || '';
           userQuery = empId
-            ? supabase.from('tb_map_user_role').select('*').eq('name', empId)
-            : supabase.from('tb_map_user_role').select('*').eq('name', 'CRMC');
+            ? supabase.from('tb_map_user_role').select('*').eq('name', empId).eq('is_active', true)
+            : supabase.from('tb_map_user_role').select('*').eq('name', 'CRMC').eq('is_active', true);
         }
 
-        let projQuery = supabase.from('tb_map_project_structure').select('*');
-        let actQuery = supabase.from('tb_master_action').select('*');
-        let tplQuery = supabase.from('tb_master_worklog_templates').select('*');
+        let projQuery = supabase.from('tb_map_project_structure').select('*').eq('is_active', true);
+        let actQuery = supabase.from('tb_master_action').select('*').eq('is_active', true);
+        let tplQuery = supabase.from('tb_master_worklog_templates').select('*').eq('is_active', true);
 
         if (workspaceId && workspaceId !== 'N/A') {
           if (useGlobal) {
@@ -785,7 +785,7 @@ export default function LogWorkPage() {
           // user_id query returned no rows — try name = emp_id fallback (old data before backfill)
           const empIdKey = dbUserRecord.emp_id;
           console.warn('user_id query returned 0 rows, trying emp_id fallback:', empIdKey);
-          let empFallbackQuery = supabase.from('tb_map_user_role').select('*').eq('name', empIdKey);
+          let empFallbackQuery = supabase.from('tb_map_user_role').select('*').eq('name', empIdKey).eq('is_active', true);
           if (workspaceId && workspaceId !== 'N/A') {
             empFallbackQuery = empFallbackQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`) as any;
           }
@@ -795,7 +795,7 @@ export default function LogWorkPage() {
             setMapUserRole(empFallbackData);
           }
         } else if (!resUser.data || resUser.data.length === 0) {
-          const fallback = await supabase.from('tb_map_user_role').select('*').eq('name', '10005208');
+          const fallback = await supabase.from('tb_map_user_role').select('*').eq('name', '10005208').eq('is_active', true);
           if (fallback.data) setMapUserRole(fallback.data);
         }
 
@@ -812,7 +812,7 @@ export default function LogWorkPage() {
         if (projData.length === 0) {
           console.warn('tb_project_registry returned 0 rows — trying scoped registry fallback');
           // Fallback: try project registry with workspace scope
-          let registryFallbackQuery = supabase.from('tb_project_registry').select('*');
+          let registryFallbackQuery = supabase.from('tb_project_registry').select('*').not('status', 'in', '("inactive","retired")');
           if (workspaceId && workspaceId !== 'N/A') {
             registryFallbackQuery = registryFallbackQuery.eq('workspace_id', workspaceId) as any;
           }
@@ -823,7 +823,7 @@ export default function LogWorkPage() {
           } else {
             // Last resort: legacy table (scoped)
             console.warn('tb_project_registry empty — falling back to tb_map_project_structure');
-            let legacyQuery = supabase.from('tb_map_project_structure').select('*');
+            let legacyQuery = supabase.from('tb_map_project_structure').select('*').eq('is_active', true);
             if (workspaceId && workspaceId !== 'N/A') {
               legacyQuery = legacyQuery.eq('workspace_id', workspaceId) as any;
             }

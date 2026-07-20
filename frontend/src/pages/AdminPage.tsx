@@ -21,8 +21,8 @@ export default function AdminPage() {
   const location = useLocation();
 
   useEffect(() => {
-    supabase.from('workspaces').select('id, workspace_name').then(({ data }) => {
-      if (data) setWorkspaceNames(Object.fromEntries(data.map((ws: any) => [ws.id, ws.workspace_name])));
+    supabase.from('workspaces').select('id, workspace_name, invite_code').then(({ data }) => {
+      if (data) setWorkspaceNames(Object.fromEntries(data.map((ws: any) => [ws.id, ws.invite_code || ws.workspace_name])));
     });
     const sessionStr = localStorage.getItem('worklog_session');
     if (sessionStr) {
@@ -1140,6 +1140,43 @@ export default function AdminPage() {
     }
   };
 
+  const toggleActiveStatus = async (row: any, tab: TableTab) => {
+    try {
+      setIsLoading(true);
+      const tableName = (
+        tab === 'holding' ? 'tb_master_holding' :
+        tab === 'role' ? 'tb_master_role' :
+        tab === 'project_type' ? 'tb_master_project_type' :
+        tab === 'action' ? 'tb_master_action' :
+        tab === 'map_user' ? 'tb_map_user_role' :
+        tab === 'map_project' ? 'tb_map_project_structure' :
+        tab === 'templates' ? 'tb_master_worklog_templates' : ''
+      );
+      if (!tableName) return;
+
+      const wsFilter = session?.activeWorkspaceId || row.workspace_id;
+      const nextStatus = row.is_active === false ? true : false;
+
+      let updateOp: any = supabase.from(tableName).update({ is_active: nextStatus });
+
+      if (tab === 'holding') updateOp = updateOp.eq('holding_name', row.holding_name).eq('workspace_id', wsFilter);
+      else if (tab === 'role') updateOp = updateOp.eq('role_name', row.role_name).eq('workspace_id', wsFilter);
+      else if (tab === 'project_type') updateOp = updateOp.eq('type_name', row.type_name).eq('workspace_id', wsFilter);
+      else updateOp = updateOp.eq('id', row.id).eq('workspace_id', wsFilter);
+
+      const { error } = await updateOp;
+      if (error) throw error;
+
+      showToast(`สถานะถูกเปลี่ยนเป็น ${nextStatus ? 'Active' : 'Inactive'} เรียบร้อย!`, 'success');
+      loadAllData();
+    } catch (err: any) {
+      console.error('Error toggling active status:', err);
+      showToast('เกิดข้อผิดพลาดในการเปลี่ยนสถานะ: ' + err.message, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const tabs: { key: TableTab; label: string; icon: any }[] = [
     { key: 'holding', label: 'Holdings', icon: Database },
     { key: 'role', label: 'Roles', icon: Shield },
@@ -1171,8 +1208,28 @@ export default function AdminPage() {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-400/25 shadow-sm">
         <span className="h-1.5 w-1.5 rounded-full bg-indigo-400"></span>
-        <span>Workspace ({workspaceNames[row.workspace_id] || (session?.activeWorkspaceId === row.workspace_id ? session?.workspaceName : row.workspace_id) || 'ไม่ระบุ'})</span>
+        <span>Workspace ({workspaceNames[row.workspace_id] || (session?.activeWorkspaceId === row.workspace_id ? (session?.workspaceInviteCode || session?.workspaceName) : row.workspace_id) || 'ไม่ระบุ'})</span>
       </span>
+    );
+  };
+
+  const renderStatusToggle = (row: any, canModify: boolean) => {
+    const isActive = row.is_active !== false;
+    return (
+      <td className="px-6 py-4">
+        <button
+          disabled={!canModify}
+          onClick={() => toggleActiveStatus(row, activeTab)}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
+            isActive
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/15 hover:bg-emerald-500/20'
+              : 'bg-rose-500/10 text-rose-400 border-rose-500/15 hover:bg-rose-500/20'
+          } disabled:opacity-75 disabled:cursor-not-allowed`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+          <span>{isActive ? 'Active' : 'Inactive'}</span>
+        </button>
+      </td>
     );
   };
 
@@ -1464,6 +1521,7 @@ export default function AdminPage() {
                         {activeTab === 'holding' && (
                           <tr>
                             <th className="px-6 py-4 font-semibold">Holding Name</th>
+                            <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
@@ -1471,6 +1529,7 @@ export default function AdminPage() {
                         {activeTab === 'role' && (
                           <tr>
                             <th className="px-6 py-4 font-semibold">Role Operator Name</th>
+                            <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
@@ -1478,6 +1537,7 @@ export default function AdminPage() {
                         {activeTab === 'project_type' && (
                           <tr>
                             <th className="px-6 py-4 font-semibold">Project Type Name</th>
+                            <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
@@ -1486,6 +1546,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">Category</th>
                             <th className="px-6 py-4 font-semibold">Action Name</th>
+                            <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
@@ -1495,6 +1556,7 @@ export default function AdminPage() {
                             <th className="px-6 py-4 font-semibold">Name</th>
                             <th className="px-6 py-4 font-semibold">Holding</th>
                             <th className="px-6 py-4 font-semibold">Department Operator (Role)</th>
+                            <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
@@ -1503,6 +1565,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">Project & Module</th>
                             <th className="px-6 py-4 font-semibold">Allocation & Context</th>
+                            <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
@@ -1528,6 +1591,7 @@ export default function AdminPage() {
                             <th className="px-6 py-4 font-semibold">Icon</th>
                             <th className="px-6 py-4 font-semibold">Template Name</th>
                             <th className="px-6 py-4 font-semibold">Content Preview</th>
+                            <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
@@ -1546,6 +1610,7 @@ export default function AdminPage() {
                               {activeTab === 'holding' && (
                                 <>
                                   <td className="px-6 py-4 font-bold text-theme-text">{row.holding_name}</td>
+                                  {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
                                   <td className="px-6 py-4 text-right space-x-2">
                                     {canModify && (
@@ -1559,6 +1624,7 @@ export default function AdminPage() {
                               {activeTab === 'role' && (
                                 <>
                                   <td className="px-6 py-4 font-bold text-theme-text">{row.role_name}</td>
+                                  {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
                                   <td className="px-6 py-4 text-right space-x-2">
                                     {canModify && (
@@ -1572,6 +1638,7 @@ export default function AdminPage() {
                               {activeTab === 'project_type' && (
                                 <>
                                   <td className="px-6 py-4 font-bold text-theme-text">{row.type_name}</td>
+                                  {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
                                   <td className="px-6 py-4 text-right space-x-2">
                                     {canModify && (
@@ -1586,6 +1653,7 @@ export default function AdminPage() {
                                 <>
                                   <td className="px-6 py-4 text-theme-text-secondary font-semibold">{row.action_category}</td>
                                   <td className="px-6 py-4 font-bold text-theme-text">{row.action_name}</td>
+                                  {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
                                   <td className="px-6 py-4 text-right space-x-2">
                                     {canModify && (
@@ -1619,6 +1687,7 @@ export default function AdminPage() {
                                   </td>
                                   <td className="px-6 py-4 text-theme-text-secondary">{row.holding}</td>
                                   <td className="px-6 py-4 text-indigo-400 font-semibold">{row.department_operator}</td>
+                                  {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
                                   <td className="px-6 py-4 text-right space-x-2">
                                     {canModify && (
@@ -1647,6 +1716,7 @@ export default function AdminPage() {
                                     <div><span className="text-theme-text-muted font-medium">Type:</span> <span className="text-theme-text">{row.project_type}</span></div>
                                     <div><span className="text-theme-text-muted font-medium">BU/Dept:</span> <span className="text-theme-text font-medium">{row.bu} / {row.department}</span></div>
                                   </td>
+                                  {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
                                   <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
                                     {canModify && (
@@ -1722,6 +1792,7 @@ export default function AdminPage() {
                                   <td className="px-6 py-4 text-2xl">{row.icon || '📝'}</td>
                                   <td className="px-6 py-4 font-bold text-theme-text">{row.template_name}</td>
                                   <td className="px-6 py-4 text-theme-text-secondary text-xs max-w-xs truncate">{row.template_content}</td>
+                                  {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
                                   <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
                                     {canModify && (
