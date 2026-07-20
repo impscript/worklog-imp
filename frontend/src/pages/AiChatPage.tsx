@@ -1447,7 +1447,6 @@ export default function AiChatPage() {
                           className="w-full text-xs font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer text-[11px]"
                         >
                           <option value="black-forest-labs/flux-1-schnell">Flux 1 Schnell (ฟรี 1,000 req/วัน • แนะนำ)</option>
-                          <option value="stabilityai/stable-diffusion-xl">Stable Diffusion XL (ฟรี 1,000 req/วัน)</option>
                           <option value="black-forest-labs/flux-1.1-pro">Flux 1.1 Pro (พรีเมียม คมชัดสูง · Paid)</option>
                           <option value="openai/dall-e-3">DALL-E 3 (Paid)</option>
                         </select>
@@ -1469,7 +1468,7 @@ export default function AiChatPage() {
                   </div>
                   {drawEngine === 'openrouter' && (
                     <div className="text-[9.5px] text-violet-500 font-extrabold tracking-wide bg-violet-500/5 px-2 py-1 rounded-lg border border-violet-500/10 mt-1">
-                      💡 บัญชี OpenRouter ที่มียอดเติมเงินสะสมขั้นต่ำ $10 จะได้รับสิทธิ์สร้างฟรี 1,000 ครั้ง/วัน บนโมเดล Schnell และ Stable Diffusion XL (จะดึง API Key จากช่องทางด้านซ้าย)
+                      💡 บัญชี OpenRouter ที่มียอดเติมเงินสะสมขั้นต่ำ $10 จะได้รับสิทธิ์สร้างฟรี 1,000 ครั้ง/วัน บนโมเดล Flux 1 Schnell (จะดึง API Key จากช่องทางด้านซ้าย)
                     </div>
                   )}
                 </div>
