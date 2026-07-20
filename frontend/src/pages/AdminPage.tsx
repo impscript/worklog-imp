@@ -14,6 +14,7 @@ export default function AdminPage() {
   const [workspaceNames, setWorkspaceNames] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<TableTab>('holding');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editRow, setEditRow] = useState<any | null>(null);
@@ -764,26 +765,32 @@ export default function AdminPage() {
   // Filter query helper
   const getFilteredData = () => {
     const q = searchQuery.toLowerCase().trim();
+    let data = [];
     switch (activeTab) {
       case 'holding':
-        return holdings.filter(h => h.holding_name.toLowerCase().includes(q));
+        data = holdings.filter(h => h.holding_name.toLowerCase().includes(q));
+        break;
       case 'role':
-        return roles.filter(r => r.role_name.toLowerCase().includes(q));
+        data = roles.filter(r => r.role_name.toLowerCase().includes(q));
+        break;
       case 'project_type':
-        return projectTypes.filter(t => t.type_name.toLowerCase().includes(q));
+        data = projectTypes.filter(t => t.type_name.toLowerCase().includes(q));
+        break;
       case 'action':
-        return actions.filter(a => 
+        data = actions.filter(a => 
           a.action_name.toLowerCase().includes(q) || 
           a.action_category.toLowerCase().includes(q)
         );
+        break;
       case 'map_user':
-        return userMappings.filter(m => 
+        data = userMappings.filter(m => 
           m.name.toLowerCase().includes(q) || 
           m.holding.toLowerCase().includes(q) || 
           m.department_operator.toLowerCase().includes(q)
         );
+        break;
       case 'map_project':
-        return projectStructures.filter(p => {
+        data = projectStructures.filter(p => {
           const matchesSearch = !q || (
             p.project_name.toLowerCase().includes(q) || 
             p.holding.toLowerCase().includes(q) || 
@@ -802,26 +809,41 @@ export default function AdminPage() {
 
           return matchesSearch && matchesHolding && matchesRole && matchesType && matchesProject && matchesBU;
         });
+        break;
       case 'users':
-        return usersList.filter(u => 
+        data = usersList.filter(u => 
           u.full_name.toLowerCase().includes(q) || 
           u.nickname.toLowerCase().includes(q) || 
           u.emp_id.toLowerCase().includes(q) ||
           (u.email && u.email.toLowerCase().includes(q))
         );
+        break;
       case 'holiday':
-        return holidaysList.filter(h => 
+        data = holidaysList.filter(h => 
           h.date.includes(q) || 
           h.name.toLowerCase().includes(q)
         );
+        break;
       case 'templates':
-        return templatesList.filter(t => 
+        data = templatesList.filter(t => 
           t.template_name.toLowerCase().includes(q) || 
           t.template_content.toLowerCase().includes(q)
         );
+        break;
       default:
-        return [];
+        data = [];
     }
+
+    const isSoftDeleteTab = activeTab !== 'holiday' && activeTab !== 'users' && activeTab !== 'ai_settings' && activeTab !== 'ai_prompt';
+    if (isSoftDeleteTab && filterStatus !== 'all') {
+      const wantActive = filterStatus === 'active';
+      data = data.filter(item => {
+        const isActive = item.is_active !== false;
+        return isActive === wantActive;
+      });
+    }
+
+    return data;
   };
 
   // Open modal for Create/Edit
@@ -1317,7 +1339,7 @@ export default function AdminPage() {
                 return (
                   <button
                     key={tab.key}
-                    onClick={() => { setActiveTab(tab.key); setSearchQuery(''); resetFilters(); }}
+                    onClick={() => { setActiveTab(tab.key); setSearchQuery(''); setFilterStatus('all'); resetFilters(); }}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all border text-left",
                       activeTab === tab.key 
@@ -1367,6 +1389,7 @@ export default function AdminPage() {
                           onClick={() => {
                             setActiveTab(tab.key);
                             setSearchQuery('');
+                            setFilterStatus('all');
                             resetFilters();
                             setIsMobileTabMenuOpen(false);
                           }}
@@ -1404,18 +1427,34 @@ export default function AdminPage() {
                     />
                     <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-secondary" />
                   </div>
-                  
-                  {activeTab === 'map_project' && (
-                    (filterProject || filterHolding || filterRole || filterType || filterBU || searchQuery) && (
-                      <button
-                        onClick={() => { setSearchQuery(''); resetFilters(); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition-all self-start md:self-auto"
-                      >
-                        <RotateCcw size={12} />
-                        Clear All Filters
-                      </button>
-                    )
-                  )}
+                  <div className="flex items-center gap-4 self-stretch md:self-auto justify-end">
+                    {(activeTab !== 'holiday' && activeTab !== 'users') && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-theme-text-secondary whitespace-nowrap">Status (สถานะ):</span>
+                        <select
+                          value={filterStatus}
+                          onChange={(e) => setFilterStatus(e.target.value as any)}
+                          className="bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-medium transition-all"
+                        >
+                          <option value="all">ทั้งหมด (All)</option>
+                          <option value="active">Active (เปิดใช้งาน)</option>
+                          <option value="inactive">Inactive (ปิดใช้งาน)</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {activeTab === 'map_project' && (
+                      (filterProject || filterHolding || filterRole || filterType || filterBU || searchQuery) && (
+                        <button
+                          onClick={() => { setSearchQuery(''); resetFilters(); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition-all"
+                        >
+                          <RotateCcw size={12} />
+                          Clear All Filters
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
 
                 {activeTab === 'map_project' && (

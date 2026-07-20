@@ -569,15 +569,23 @@ export default function LogWorkPage() {
         const isChatchawan = isChatchawanUser(session);
         setIsCurrentUserChatchawan(isChatchawan);
         
+        const labelMap: Record<string, string> = {};
         if (isChatchawan) {
-          let nameQuery = supabase.from('tb_map_user_role').select('name');
+          let nameQuery = supabase.from('tb_map_user_role').select('name, user_id');
           const wsId = session?.activeWorkspaceId;
           if (wsId && wsId !== 'N/A') {
             nameQuery = nameQuery.eq('workspace_id', wsId) as any;
           }
           const { data } = await nameQuery;
+          
+          const nameToUserId: Record<string, string> = {};
           if (data) {
             uniqueNames = Array.from(new Set(data.map(d => d.name).filter(Boolean))) as string[];
+            data.forEach(d => {
+              if (d.name && d.user_id) {
+                nameToUserId[d.name] = d.user_id;
+              }
+            });
           }
 
           // Fetch all user records from DB to translate uniqueNames to readable display labels
@@ -586,20 +594,27 @@ export default function LogWorkPage() {
             .select('id, emp_id, full_name, nickname');
             
           if (dbUsers) {
-            const labelMap: Record<string, string> = {};
             uniqueNames.forEach(name => {
+              const matchedUserId = nameToUserId[name];
               const matchedUser = dbUsers.find(u => 
+                (matchedUserId && u.id === matchedUserId) ||
                 u.emp_id === name || 
                 u.full_name?.toLowerCase() === name.toLowerCase() || 
                 u.nickname?.toLowerCase() === name.toLowerCase()
               );
               if (matchedUser) {
-                labelMap[name] = `${matchedUser.full_name} (${matchedUser.emp_id})`;
+                let cleanNick = matchedUser.nickname || '';
+                if (cleanNick.includes('_')) {
+                  cleanNick = cleanNick.split('_')[0];
+                }
+                if (cleanNick) {
+                  cleanNick = cleanNick.charAt(0).toUpperCase() + cleanNick.slice(1);
+                }
+                labelMap[name] = cleanNick || matchedUser.full_name || name;
               } else {
                 labelMap[name] = name;
               }
             });
-            setUserDisplayLabels(labelMap);
           }
         } else {
           uniqueNames = [currentCleanName];
@@ -609,8 +624,19 @@ export default function LogWorkPage() {
         if (currentCleanName && !uniqueNames.some(name => name.toLowerCase() === currentCleanName.toLowerCase())) {
           uniqueNames.push(currentCleanName);
         }
+
+        if (currentCleanName && !labelMap[currentCleanName]) {
+          labelMap[currentCleanName] = currentCleanName;
+        }
+
+        setUserDisplayLabels(labelMap);
         
-        uniqueNames.sort();
+        uniqueNames.sort((a, b) => {
+          const labelA = (labelMap[a] || a).toLowerCase();
+          const labelB = (labelMap[b] || b).toLowerCase();
+          return labelA.localeCompare(labelB, 'th');
+        });
+
         setAllUsers(uniqueNames);
         
         if (!selectedUser) {
