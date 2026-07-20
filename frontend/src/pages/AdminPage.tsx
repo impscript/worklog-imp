@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download, Power, PowerOff } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download, Power, PowerOff, Copy } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -4205,38 +4205,116 @@ INSTRUCTION:
         )}
       </div>
 
-      {/* ── SECTION 2: Legacy Worklog Enhancement ────────────────────── */}
+      {/* ── SECTION 2: Worklog Enhancement Prompt ────────────────────── */}
       <div className="bg-gradient-to-br from-indigo-500/10 to-indigo-500/5 border border-indigo-500/25 rounded-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-indigo-500/20 flex items-center justify-between">
           <div>
             <h3 className="font-bold text-theme-text flex items-center gap-2">
               <span>✍️</span> Worklog Enhancement Prompt
             </h3>
-            <p className="text-xs text-theme-text-secondary mt-0.5">ปรับปรุงการเขียนใบงานให้เป็นมืออาชีพ — เก็บใน tb_system_config</p>
+            <p className="text-xs text-theme-text-secondary mt-0.5">
+              AI ที่ใช้ปรับปรุงการเขียนใบงานให้เป็นมืออาชีพ — ใช้ร่วมกันทุก workspace
+            </p>
           </div>
-        </div>
-        <div className="px-6 py-5 space-y-5">
-          {[
-            { key: 'prompt_enhance_system', label: 'System Prompt', hint: 'กำหนดบทบาทของ AI', rows: 3 },
-            { key: 'prompt_enhance_user', label: 'User Prompt Template', hint: 'Variables: {project_name}, {action_name}, {duration}, {description}', rows: 10 },
-          ].map(field => (
-            <div key={field.key}>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="text-sm font-semibold text-theme-text">{field.label}</label>
-                <span className="text-xs text-theme-text-secondary font-mono">{(legacyPrompts[field.key] || '').length} chars</span>
-              </div>
-              <p className="text-xs text-theme-text-secondary mb-2">{field.hint}</p>
-              <textarea
-                 className={cn(
-                  "w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-sm font-mono leading-relaxed placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y transition-all",
-                  !isSuperAdmin && "opacity-75 cursor-default"
-                )}
-                spellCheck={false}
-              />
-            </div>
-          ))}
           {isSuperAdmin && (
-            <div className="flex justify-end">
+            <button
+              onClick={() => setLegacyPrompts({ ...LEGACY_DEFAULTS })}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-theme-text-secondary border border-theme-border/60 rounded-xl hover:bg-theme-surface-secondary hover:text-theme-text transition-all"
+              title="รีเซ็ตกลับเป็น Default"
+            >
+              <RotateCcw size={12} />
+              Reset Default
+            </button>
+          )}
+        </div>
+        <div className="px-6 py-5 space-y-6">
+          {[
+            {
+              key: 'prompt_enhance_system',
+              label: 'System Prompt',
+              hint: 'กำหนดบทบาทของ AI — บอกว่า AI เป็นใคร มีหน้าที่อะไร และควรตอบในรูปแบบใด',
+              rows: 4,
+              maxChars: 1000,
+              vars: [] as string[],
+            },
+            {
+              key: 'prompt_enhance_user',
+              label: 'User Prompt Template',
+              hint: 'Template ที่ส่งให้ AI พร้อมข้อมูลจริง — คลิก variable เพื่อแทรกลงใน prompt',
+              rows: 12,
+              maxChars: 6000,
+              vars: ['{project_name}', '{action_name}', '{duration}', '{description}'],
+            },
+          ].map(field => {
+            const val = legacyPrompts[field.key] || '';
+            const pct = Math.min((val.length / field.maxChars) * 100, 100);
+            const barColor = pct > 90 ? 'bg-rose-500' : pct > 70 ? 'bg-amber-500' : 'bg-indigo-500';
+            return (
+              <div key={field.key} className="space-y-2">
+                {/* Label row */}
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-sm font-bold text-theme-text">{field.label}</label>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-[11px] font-mono ${
+                      pct > 90 ? 'text-rose-400' : pct > 70 ? 'text-amber-400' : 'text-theme-text-secondary'
+                    }`}>{val.length.toLocaleString()} / {field.maxChars.toLocaleString()}</span>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(val); showToast(`คัดลอก ${field.label} สำเร็จ`, 'success'); }}
+                      className="p-1.5 rounded-lg text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-secondary border border-theme-border/50 transition-all"
+                      title="Copy to clipboard"
+                    >
+                      <Copy size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full h-1 bg-theme-surface-secondary rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+                </div>
+
+                {/* Hint + variable chips */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-theme-text-secondary">{field.hint.split('—')[0].trim()}</span>
+                  {field.vars.length > 0 && (
+                    <>
+                      <span className="text-[10px] text-theme-text-secondary">—</span>
+                      {field.vars.map(v => (
+                        <button
+                          key={v}
+                          onClick={() => {
+                            if (!isSuperAdmin) return;
+                            setLegacyPrompts(prev => ({ ...prev, [field.key]: (prev[field.key] || '') + v }));
+                          }}
+                          className="text-[10px] font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 px-1.5 py-0.5 rounded hover:bg-indigo-500/20 transition-all cursor-pointer"
+                          title={`แทรก ${v}`}
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+
+                {/* Textarea */}
+                <textarea
+                  value={val}
+                  onChange={e => isSuperAdmin && setLegacyPrompts(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  readOnly={!isSuperAdmin}
+                  rows={field.rows}
+                  spellCheck={false}
+                  className={cn(
+                    "w-full bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-3 text-theme-text text-xs font-mono leading-relaxed resize-y transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent",
+                    !isSuperAdmin && "opacity-70 cursor-default select-all"
+                  )}
+                />
+              </div>
+            );
+          })}
+
+          {isSuperAdmin && (
+            <div className="flex items-center justify-between pt-2 border-t border-indigo-500/20">
+              <p className="text-xs text-theme-text-secondary italic">การเปลี่ยนแปลง prompt จะมีผลกับการ enhance ใบงานใหม่ทันที</p>
               <button
                 onClick={handleSaveLegacy}
                 disabled={savingLegacy}
