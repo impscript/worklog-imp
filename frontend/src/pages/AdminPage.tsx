@@ -455,6 +455,12 @@ export default function AdminPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Get active workspace ID
+    const sessionStr = localStorage.getItem('worklog_session');
+    const userSession = sessionStr ? JSON.parse(sessionStr) : null;
+    const activeWorkspaceId = userSession?.activeWorkspaceId;
+    const hasWorkspace = activeWorkspaceId && activeWorkspaceId !== 'N/A';
+
     const reader = new FileReader();
     reader.onload = async (evt) => {
       const text = evt.target?.result as string;
@@ -534,7 +540,7 @@ export default function AdminPage() {
           }
 
           if (normHolding && normRole && normType) {
-            parsedRows.push({
+            const newRow: any = {
               holding: normHolding,
               department_operator: normRole,
               project_type: normType,
@@ -543,7 +549,11 @@ export default function AdminPage() {
               bu: rowObj.bu.trim(),
               department: rowObj.department.trim(),
               project_description: rowObj.project_description ? rowObj.project_description.trim() : null
-            });
+            };
+            if (hasWorkspace) {
+              newRow.workspace_id = activeWorkspaceId;
+            }
+            parsedRows.push(newRow);
           }
         }
 
@@ -3808,7 +3818,7 @@ function AISettingsManager({ workspaceId, isSuperAdmin }: { workspaceId?: string
 // ];
 
 function AIPromptsManager({ isSuperAdmin }: { isSuperAdmin?: boolean }) {
-  const { showToast } = useNotification();
+  const { showToast, showConfirm } = useNotification();
 
   // ── Legacy Worklog Enhancement prompts (tb_system_config) ──────────
   const LEGACY_DEFAULTS = {
@@ -4000,6 +4010,18 @@ INSTRUCTION:
       const sessionStr = localStorage.getItem('worklog_session');
       const currentSession = sessionStr ? JSON.parse(sessionStr) : null;
       const becomingCore = !tmpl.is_core;
+
+      // Require confirmation when REMOVING core status — this creates a workspace-scoped row
+      if (!becomingCore) {
+        const confirmed = await showConfirm({
+          title: 'ยกเลิก Core / Public?',
+          message: `Template "${tmpl.name}" จะถูกผูกกับ Workspace ปัจจุบันของคุณเท่านั้น\nWorkspace อื่นจะมองไม่เห็น template นี้อีกต่อไป\n\nแน่ใจหรือไม่?`,
+          confirmText: 'ยืนยัน — ยกเลิก Core',
+          type: 'danger'
+        });
+        if (!confirmed) return;
+      }
+
       // Marking as core detaches it from any single workspace (workspace_id = NULL)
       // so every workspace sees it as a shared default. Unmarking restores it to
       // the current admin's active workspace.
@@ -4014,9 +4036,9 @@ INSTRUCTION:
       if (error) throw error;
       showToast(
         becomingCore
-          ? `ตั้ง "${tmpl.name}" เป็น Core Public เรียบร้อย (ใช้เป็นมาตรฐานกลางทุก workspace)`
-          : `ยกเลิก Core Public ของ "${tmpl.name}" แล้ว`,
-        'success'
+          ? `✅ ตั้ง "${tmpl.name}" เป็น Core / Public เรียบร้อย — ใช้ร่วมกันทุก workspace`
+          : `⚠️ ยกเลิก Core Public ของ "${tmpl.name}" แล้ว — ผูกกับ workspace ปัจจุบัน`,
+        becomingCore ? 'success' : 'warning'
       );
       fetchTemplates();
     } catch (err: any) {

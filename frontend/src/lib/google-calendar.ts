@@ -482,11 +482,51 @@ class GoogleCalendarService {
   }
 
   /**
+   * Helper to convert Google Calendar HTML description to plain text
+   */
+  convertHtmlToPlainText(html: string): string {
+    if (!html) return '';
+
+    let text = html;
+
+    // 1. Replace <br>, <br/>, <br /> with newline
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+
+    // 2. Replace block level tags with newlines
+    text = text.replace(/<\/p>|<p\s*[^>]*>/gi, '\n');
+    text = text.replace(/<\/div>|<div\s*[^>]*>/gi, '\n');
+    text = text.replace(/<\/tr>|<tr\s*[^>]*>/gi, '\n');
+    text = text.replace(/<\/li>|<li\s*[^>]*>/gi, '\n');
+
+    // 3. Strip all remaining HTML tags
+    text = text.replace(/<[^>]+>/g, '');
+
+    // 4. Decode common HTML entities
+    const entities: { [key: string]: string } = {
+      '&amp;': '&',
+      '&lt;': '<',
+      '&gt;': '>',
+      '&quot;': '"',
+      '&#39;': "'",
+      '&nbsp;': ' ',
+    };
+    text = text.replace(/&amp;|&lt;|&gt;|&quot;|&#39;|&nbsp;/g, (match) => entities[match] || match);
+
+    return text;
+  }
+
+  /**
    * Parses the structured description string of a synced Google Calendar event
    * back into a valid col_worklog object format.
    */
   parseEventDescriptionToWorklog(evt: any, userId: string): any | null {
-    const desc = evt.description || '';
+    let desc = evt.description || '';
+
+    // Normalize GCal HTML description to plain text if it contains HTML/entities
+    if (desc.includes('<br') || desc.includes('<p') || desc.includes('</') || desc.includes('&')) {
+      desc = this.convertHtmlToPlainText(desc);
+    }
+
     if (!desc.includes('Synced from Worklog NewGen Web App') && !desc.includes('📋 Worklog Entry')) {
       return null;
     }
@@ -507,7 +547,7 @@ class GoogleCalendarService {
       const department = buDeptMatch ? buDeptMatch[2].trim() : 'N/A';
 
       // 4. Extract Hours
-      const hoursMatch = desc.match(/⏱ Hours:\s*([0-9.]+)/);
+      const hoursMatch = desc.match(/⏱️?\s*Hours:\s*([0-9.]+)/);
       const totalHours = hoursMatch ? parseFloat(hoursMatch[1]) : 8.0;
 
       // 5. Extract Action Name
@@ -536,7 +576,7 @@ class GoogleCalendarService {
       if (startIndex !== -1) {
         const remaining = descLines.slice(startIndex);
         // Find next divider or ID line
-        const endIndex = remaining.findIndex((line: string, i: number) => i > 0 && (line.startsWith('━━') || line.startsWith('🆔') || line.startsWith('📌')));
+        const endIndex = remaining.findIndex((line: string, i: number) => i > 0 && (line.startsWith('━━') || line.startsWith('🆔') || line.startsWith('📌') || line.startsWith('---') || line.startsWith('──')));
         const descriptionLines = endIndex !== -1 ? remaining.slice(0, endIndex) : remaining;
         description = descriptionLines.join('\n').replace(/^📝\s*/, '').trim();
       }
@@ -856,15 +896,15 @@ export async function syncWorklogToGCal(logId: string, action: 'insert' | 'updat
       const existingEvents = await googleCalendar.listEventsForDay(log.user_id, calendarId, log.work_date);
       
       const match = existingEvents.find((evt: any) => {
+        const cleanDesc = googleCalendar.convertHtmlToPlainText(evt.description || '');
         // High confidence match: event contains the worklog ID in the description
-        const idMatch = evt.description && evt.description.includes(`🆔 ID: ${log.id}`);
+        const idMatch = cleanDesc.includes(`🆔 ID: ${log.id}`);
         
         // Fallback match for legacy events that don't have the ID in description yet
-        const hasAnyId = evt.description && evt.description.includes('🆔 ID:');
+        const hasAnyId = cleanDesc.includes('🆔 ID:');
         const titleMatch = evt.summary === payload.summary;
-        const descMatch = evt.description && 
-          evt.description.includes(`🎯 Project: ${log.project_name}`) && 
-          evt.description.includes(`⚡ Action: ${log.action_name}`);
+        const descMatch = cleanDesc.includes(`🎯 Project: ${log.project_name}`) && 
+          cleanDesc.includes(`⚡ Action: ${log.action_name}`);
         
         const fallbackMatch = !hasAnyId && (titleMatch || descMatch);
         
