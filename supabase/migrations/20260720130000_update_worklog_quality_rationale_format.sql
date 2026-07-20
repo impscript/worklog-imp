@@ -1,17 +1,9 @@
--- ========================================================
--- Worklog NewGen: Insert Employee Performance Evaluation Template
--- ========================================================
+-- Migration: Update Work Logging Quality rationale format to explicitly show 4 sub-criteria scores
+BEGIN;
 
-INSERT INTO public.tb_ai_prompt_templates (
-  template_key, name, description, icon, system_prompt, user_prompt_template,
-  cadence_aware, requires_level, is_active, sort_order
-)
-VALUES (
-  'perf_evaluation',
-  'Employee Performance Evaluation (5 Dimensions)',
-  'การประเมินผลการทำงานรายบุคคล (5 มิติ): Planning 20%, Execution 25%, Accountability 20%, Reflection & Improvement 25%, Work Logging Quality 10% พร้อมตารางคะแนนรวมและเหตุผลประกอบแยกตามมิติในรูปแบบ Markdown',
-  '📈',
-  $prompt$คุณคือผู้เชี่ยวชาญด้านทรัพยากรบุคคล (HR Evaluation Specialist) และการประเมินผลการทำงานระดับสากล มีหน้าที่ประเมินผลงานของพนักงานโดยเปรียบเทียบข้อมูลการทำงานจริง (Worklog) กับรายละเอียดข้อมูลของพนักงาน ได้แก่ หน้าที่ความรับผิดชอบตาม Job Description (JD), ชื่อตำแหน่ง (Job Title), ระดับตำแหน่งงาน (Hay Level), ตัวชี้วัดผลงาน (KPI), และเปรียบเทียบเป้าหมายกับผลงานจริง (Target เทียบ Actual)
+UPDATE public.tb_ai_prompt_templates
+SET
+  system_prompt = $prompt$คุณคือผู้เชี่ยวชาญด้านทรัพยากรบุคคล (HR Evaluation Specialist) และการประเมินผลการทำงานระดับสากล มีหน้าที่ประเมินผลงานของพนักงานโดยเปรียบเทียบข้อมูลการทำงานจริง (Worklog) กับรายละเอียดข้อมูลของพนักงาน ได้แก่ หน้าที่ความรับผิดชอบตาม Job Description (JD), ชื่อตำแหน่ง (Job Title), ระดับตำแหน่งงาน (Hay Level), ตัวชี้วัดผลงาน (KPI), และเปรียบเทียบเป้าหมายกับผลงานจริง (Target เทียบ Actual)
 
 ภารกิจ: วิเคราะห์ Worklog, JD, ชื่อตำแหน่ง, Hay Level, KPI และข้อมูลเปรียบเทียบ Target vs Actual เพื่อประเมินคะแนนดิบรายมิติเต็ม 10 คะแนน พร้อมวิเคราะห์เชิงลึกและระบุเหตุผลอย่างละเอียดในแต่ละหัวข้อว่าทำไมถึงประเมินได้คะแนนเท่านั้น แยกตามมิติ พร้อมให้แนวทางการปรับปรุงหรือคำแนะนำสำหรับมิตินั้นๆ ในภาษาไทย และคำนวณคะแนนรวมถ่วงน้ำหนักภาพรวม (Weighted Overall Score) เต็ม 10 คะแนน โดยใช้เกณฑ์และสัดส่วนดังนี้:
 
@@ -64,7 +56,7 @@ overall_score = (Planning_score * 0.20) + (Execution_score * 0.25) + (Accountabi
       "weight_pct": 20,
       "raw_score": "number 0-10",
       "weighted_score": "number = raw_score * 0.20",
-      "rationale": "เหตุผลประกอบการประเมินเชิงวิเคราะห์ in ภาษาไทยโดยละเอียดว่าทำไมถึงให้คะแนนเท่านี้ อ้างอิงบทบาทตามระดับตำแหน่ง Hay Level และการแก้ปัญหาเฉพาะหน้า",
+      "rationale": "เหตุผลประกอบการประเมินเชิงวิเคราะห์ในภาษาไทยโดยละเอียดว่าทำไมถึงให้คะแนนเท่านี้ อ้างอิงบทบาทตามระดับตำแหน่ง Hay Level และการแก้ปัญหาเฉพาะหน้า",
       "improvement_suggestions": "แนวทางการปรับปรุงหรือคำแนะนำในการรับผิดชอบงานและการจัดการบทบาทหน้าที่ในภาษาไทย"
     },
     {
@@ -82,7 +74,7 @@ overall_score = (Planning_score * 0.20) + (Execution_score * 0.25) + (Accountabi
       "weight_pct": 10,
       "raw_score": "number 0-10",
       "weighted_score": "number = raw_score * 0.10",
-      "rationale": "เหตุผลประกอบการประเมินเชิงวิเคราะห์ในภาษาไทยโดยละเอียดว่าทำไมถึงให้คะแนนเท่านี้ โดยประเมินตามเกณฑ์ Consistency (ความสม่ำเสมอในการบันทึก), Completeness (ความครบถ้วนตาม GROW), Clarity (ความชัดเจนเข้าใจง่าย), Traceability (การตรวจสอบย้อนกลับ)",
+      "rationale": "ประเมินตาม 4 มิติย่อย โดยต้องระบุคะแนนและสถานะของแต่ละมิติอย่างชัดเจนในรูปแบบนี้:\n• Consistency (สม่ำเสมอ): [✅ดี / ⚠️พอใช้ / ❌ต้องปรับปรุง] — [อธิบายพร้อมหลักฐานจาก Worklog]\n• Completeness (ครบถ้วนตาม GROW): [✅ดี / ⚠️พอใช้ / ❌ต้องปรับปรุง] — [อธิบายว่าบันทึก Goal/Reality/Obstacles/Way forward ครบหรือไม่]\n• Clarity (อ่านแล้วเข้าใจ): [✅ดี / ⚠️พอใช้ / ❌ต้องปรับปรุง] — [อธิบายความชัดเจนและความเข้าใจง่ายของบันทึก]\n• Traceability (ย้อนกลับได้): [✅ดี / ⚠️พอใช้ / ❌ต้องปรับปรุง] — [อธิบายว่าสามารถย้อนกลับมาเข้าใจบริบทและผลลัพธ์ได้หรือไม่]\nสรุปรวมและเหตุผลที่ให้คะแนนรวมเท่านี้",
       "improvement_suggestions": "แนวทางการปรับปรุงหรือคำแนะนำในการบันทึก Calendar ให้ครบถ้วนและครอบคลุมตามเกณฑ์ทั้ง 4 มิติย่อยในภาษาไทย"
     }
   ],
@@ -114,65 +106,8 @@ overall_score = (Planning_score * 0.20) + (Execution_score * 0.25) + (Accountabi
 ### 🏆 ตารางสรุปคะแนนตามมิติการประเมิน (5 Dimensions) — ตาราง Markdown พร้อมคอลัมน์: มิติ | น้ำหนัก | คะแนนดิบ/10 | คะแนนถ่วงน้ำหนัก | เหตุผลและหลักฐาน
 ### 📋 แผนพัฒนารายบุคคล (Individual Development Plan)
 ### 💡 ข้อเสนอแนะเชิงกลยุทธ์ (Strategic Recommendations) — 3 ข้อหลัก เว้นบรรทัดคั่น$prompt$,
-  '═══════════════════════════════════════════════════════════
-AUTO-DETECTED CONTEXT
-═══════════════════════════════════════════════════════════
-[ANALYSIS_DATE]: {{TODAY}}
-[CADENCE]: {{CADENCE_TYPE}}
-[PERIOD_START]: {{PERIOD_START_DATE}}
-[PERIOD_END]: {{PERIOD_END_DATE}}
-[PERIOD_LABEL]: {{PERIOD_LABEL}}
+  updated_at = now()
+WHERE template_key = 'perf_evaluation'
+  AND workspace_id IS NULL;
 
-[EMPLOYEE_NAME]: {{EMPLOYEE_NAME}}
-[EMPLOYEE_NICKNAME]: {{EMPLOYEE_NICKNAME}}
-[EMPLOYEE_ROLE]: {{EMPLOYEE_ROLE}}
-[EMPLOYEE_LEVEL]: {{EMPLOYEE_LEVEL}}
-[YEARS_IN_ROLE]: {{YEARS_IN_ROLE}}
-[REPORTING_TO]: {{MANAGER_NAME}}
-[DEPARTMENT]: {{EMPLOYEE_DEPARTMENT}}
-
-═══════════════════════════════════════════════════════════
-INPUT DATA
-═══════════════════════════════════════════════════════════
-[WORKLOG DATA (เฉพาะบุคคลนี้ / ช่วงเวลา {{PERIOD_LABEL}})]
-Total effort hours: {{TOTAL_HOURS}} ชั่วโมง
-Average per day: {{AVG_HOURS_PER_DAY}} ชั่วโมง
-OT Rate: {{OT_RATE}}%
-Duration: {{DURATION_DAYS}} วัน
-บันทึกงานทั้งหมด {{LOGS_COUNT}} รายการ
-
-รายละเอียดงาน (จัดกลุ่มตาม Project + Action):
-{{INDIVIDUAL_WORKLOG_JSON_OR_CSV}}
-
-[JD & KEY RESPONSIBILITIES (ของบุคคลนี้)]
-{{INDIVIDUAL_JD_DATA}}
-
-Target Responsibility Weights:
-{{KEY_RESPONSIBILITIES_JSON}}
-
-[HISTORICAL BASELINE]
-{{PREVIOUS_PERIOD_SUMMARY}}
-
-═══════════════════════════════════════════════════════════
-CADENCE-SPECIFIC FOCUS
-═══════════════════════════════════════════════════════════
-{{CADENCE_INSTRUCTION}}
-
-═══════════════════════════════════════════════════════════
-ROLE-LEVEL SPECIAL HANDLING
-═══════════════════════════════════════════════════════════
-{{ROLE_LEVEL_INSTRUCTION}}
-
-วิเคราะห์ข้อมูลทั้งหมดและตอบกลับเป็น raw JSON ตาม schema ที่กำหนดใน system prompt เท่านั้น',
-  true, true, true, 3
-)
-ON CONFLICT (template_key, workspace_id) DO UPDATE SET
-  system_prompt = EXCLUDED.system_prompt,
-  user_prompt_template = EXCLUDED.user_prompt_template,
-  description = EXCLUDED.description,
-  icon = EXCLUDED.icon,
-  output_schema = EXCLUDED.output_schema,
-  cadence_aware = EXCLUDED.cadence_aware,
-  requires_level = EXCLUDED.requires_level,
-  is_active = EXCLUDED.is_active,
-  sort_order = EXCLUDED.sort_order;
+COMMIT;

@@ -515,6 +515,7 @@ export default function HrbpPage() {
           improvements: cached.improvements,
           development_plan: cached.development_plan,
           markdown_executive_summary: cached.raw_ai_report,
+          dimension_scores: cached.dimension_scores || [],
           created_at: cached.created_at,
           isCached: true,
           model: cached.engine_model || 'Historical Cache',
@@ -659,8 +660,9 @@ export default function HrbpPage() {
         improvements: report.improvements,
         development_plan: report.development_plan,
         markdown_executive_summary: report.raw_ai_report,
+        dimension_scores: report.dimension_scores || [],
         created_at: report.created_at,
-        isCached: true,
+        isCached: false,
         model: report.engine_model || 'Historical Shared Record',
         start_date: report.start_date,
         end_date: report.end_date,
@@ -1129,6 +1131,7 @@ export default function HrbpPage() {
         improvements: data.improvements,
         development_plan: data.development_plan,
         markdown_executive_summary: data.markdown_executive_summary || data.raw_ai_report,
+        dimension_scores: data.dimension_scores || [],
         created_at: data.created_at || new Date().toISOString(),
         isCached: false,
         model: resolvedModel,
@@ -2773,6 +2776,11 @@ export default function HrbpPage() {
                             <span className="text-amber-600 dark:text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded">CACHED</span>
                           )}
                         </div>
+                        {aiAnalysis.created_at && (
+                          <div className="flex items-center gap-1 text-[9px] text-theme-text-secondary font-mono mt-0.5">
+                            <span>🗓 วันที่ประเมิน: <strong>{new Date(aiAnalysis.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })} เวลา {new Date(aiAnalysis.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</strong></span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Action buttons */}
@@ -3204,63 +3212,91 @@ export default function HrbpPage() {
                             </>
                           ) : (
                             <>
-                              {/* Standard Stacked */}
-                              <div>
-                                <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
-                                  <Sparkles size={14} /> Executive Summary
-                                </h3>
-                                {aiAnalysis.markdown_executive_summary ? (
-                                  renderMarkdown(aiAnalysis.markdown_executive_summary)
-                                ) : (
-                                  <div className="text-theme-text-secondary text-xs italic">ไม่มีบทวิเคราะห์หลัก</div>
-                                )}
-                              </div>
+                              {/* Standard Stacked — Dimension Scorecard (if available) */}
+                              {Array.isArray(aiAnalysis.dimension_scores) && aiAnalysis.dimension_scores.length > 0 ? (
+                                <div className="space-y-3">
+                                  <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                    <span>📊</span> ผลประเมิน 5 มิติ (5 Dimensions Scorecard)
+                                  </h3>
+                                  <div className="grid grid-cols-1 gap-3">
+                                    {aiAnalysis.dimension_scores.map((dim: any, i: number) => {
+                                      const score = typeof dim.raw_score === 'number' ? dim.raw_score : parseFloat(dim.raw_score) || 0;
+                                      const scoreColor = score >= 8 ? 'text-emerald-600 dark:text-emerald-400' : score >= 6 ? 'text-indigo-600 dark:text-indigo-400' : score >= 4 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
+                                      const barColor = score >= 8 ? 'bg-emerald-500' : score >= 6 ? 'bg-indigo-500' : score >= 4 ? 'bg-amber-500' : 'bg-rose-500';
+                                      const bgColor = score >= 8 ? 'bg-emerald-500/5 border-emerald-500/15' : score >= 6 ? 'bg-indigo-500/5 border-indigo-500/15' : score >= 4 ? 'bg-amber-500/5 border-amber-500/15' : 'bg-rose-500/5 border-rose-500/15';
+                                      return (
+                                        <div key={i} className={`rounded-2xl border p-4 space-y-3 ${bgColor}`}>
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className="text-xs font-black text-theme-text">{i + 1}. {dim.dimension_th || dim.dimension}</span>
+                                              <span className="text-[9px] font-mono text-theme-text-secondary bg-theme-surface-secondary px-1.5 py-0.5 rounded border border-theme-border/50">น้ำหนัก {dim.weight_pct}%</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                              <span className={`text-lg font-black font-mono ${scoreColor}`}>{score.toFixed(1)}</span>
+                                              <span className="text-xs text-theme-text-secondary font-mono">/10</span>
+                                            </div>
+                                          </div>
+                                          <div className="w-full h-1.5 bg-theme-surface-secondary rounded-full overflow-hidden">
+                                            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(score * 10, 100)}%` }} />
+                                          </div>
+                                          {dim.rationale && (
+                                            <div className="space-y-1">
+                                              <p className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider">● เหตุผลประกอบ</p>
+                                              <p className="text-xs text-theme-text leading-relaxed whitespace-pre-wrap">{dim.rationale}</p>
+                                            </div>
+                                          )}
+                                          {dim.improvement_suggestions && (
+                                            <div className="bg-amber-500/5 border border-amber-500/15 rounded-xl p-3 space-y-1">
+                                              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">💡 แนวทางปรับปรุง</p>
+                                              <p className="text-xs text-theme-text leading-relaxed">{dim.improvement_suggestions}</p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
 
-                              <div className="border-t border-theme-border/60 pt-6">
-                                <h3 className="text-xs font-black text-theme-text uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                                  <AlertTriangle size={14} className="text-amber-500" /> Strengths &amp; Execution Gaps
-                                </h3>
-                                <div className="space-y-6">
-                                  <div>
-                                    <h4 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                      <CheckCircle2 size={14} /> Key Strengths Identified
-                                    </h4>
-                                    <div className="grid grid-cols-1 gap-2">
-                                      {(aiAnalysis.strengths || []).length === 0 ? (
-                                        <div className="text-xs sm:text-sm text-theme-text-secondary italic">ไม่มีบันทึกข้อมูลสมรรถนะเด่น</div>
-                                      ) : aiAnalysis.strengths.map((str: any, i: number) => {
-                                        const parsedStr = parseJsonIfNeeded(str);
-                                        const displayStr = typeof parsedStr === 'string' ? parsedStr : parsedStr.title || parsedStr.observation || JSON.stringify(parsedStr);
-                                        return (
-                                          <div key={i} className="flex items-start gap-2.5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3.5 text-xs sm:text-sm text-theme-text leading-relaxed">
-                                            <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
-                                            <span>{displayStr}</span>
+                                  {/* Overall Score Total Row */}
+                                  {(() => {
+                                    const dims = aiAnalysis.dimension_scores || [];
+                                    const overall = dims.reduce((sum: number, d: any) => {
+                                      const ws = typeof d.weighted_score === 'number' ? d.weighted_score : parseFloat(d.weighted_score) || 0;
+                                      return sum + ws;
+                                    }, 0);
+                                    const pct = Math.round(overall * 10);
+                                    const level = pct >= 85 ? { label: 'ดีมาก', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' }
+                                      : pct >= 70 ? { label: 'ดี', color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/30' }
+                                      : pct >= 55 ? { label: 'พอใช้', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30' }
+                                      : { label: 'ควรปรับปรุง', color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30' };
+                                    return (
+                                      <div className={`rounded-2xl border p-4 flex items-center justify-between gap-4 ${level.bg}`}>
+                                        <div>
+                                          <p className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider">🏆 คะแนนรวมถ่วงน้ำหนัก (Overall Score)</p>
+                                          <p className="text-xs text-theme-text-secondary mt-0.5">= Planning×20% + Execution×25% + Accountability×20% + Reflection×25% + WorkLog×10%</p>
+                                        </div>
+                                        <div className="flex items-center gap-3 shrink-0">
+                                          <div className="text-right">
+                                            <span className={`text-3xl font-black font-mono ${level.color}`}>{overall.toFixed(2)}</span>
+                                            <span className="text-sm text-theme-text-secondary font-mono">/10</span>
                                           </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <h4 className="text-xs sm:text-sm font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                      <AlertTriangle size={14} /> Key Execution Gaps &amp; Redundancies
-                                    </h4>
-                                    <div className="grid grid-cols-1 gap-2">
-                                      {(aiAnalysis.improvements || []).length === 0 ? (
-                                        <div className="text-xs sm:text-sm text-theme-text-secondary italic font-mono">ไม่มีประเด็นข้อบกพร่อง/ช่องว่างภาระงาน</div>
-                                      ) : aiAnalysis.improvements.map((imp: any, i: number) => {
-                                        const parsedImp = parseJsonIfNeeded(imp);
-                                        const displayImp = typeof parsedImp === 'string' ? parsedImp : parsedImp.observation || parsedImp.title || JSON.stringify(parsedImp);
-                                        return (
-                                          <div key={i} className="flex items-start gap-2.5 bg-amber-500/5 border border-amber-500/10 rounded-2xl p-3.5 text-xs sm:text-sm text-theme-text leading-relaxed">
-                                            <span className="text-amber-600 dark:text-amber-400 font-extrabold font-mono mt-0.5">{i + 1}.</span>
-                                            <span>{displayImp}</span>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
+                                          <span className={`px-3 py-1.5 rounded-xl text-sm font-black border ${level.bg} ${level.color}`}>{level.label}</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
-                              </div>
+                              ) : (
+                                <div>
+                                  <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5 border-b border-theme-border/40 pb-2">
+                                    <Sparkles size={14} /> Executive Summary
+                                  </h3>
+                                  {aiAnalysis.markdown_executive_summary ? (
+                                    renderMarkdown(aiAnalysis.markdown_executive_summary)
+                                  ) : (
+                                    <div className="text-theme-text-secondary text-xs italic">ไม่มีบทวิเคราะห์หลัก</div>
+                                  )}
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
@@ -3307,7 +3343,7 @@ export default function HrbpPage() {
                                       {dim.rationale && (
                                         <div className="space-y-1">
                                           <p className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider">● เหตุผลประกอบ</p>
-                                          <p className="text-xs text-theme-text leading-relaxed">{dim.rationale}</p>
+                                          <p className="text-xs text-theme-text leading-relaxed whitespace-pre-wrap">{dim.rationale}</p>
                                         </div>
                                       )}
 
@@ -3324,22 +3360,54 @@ export default function HrbpPage() {
                                   );
                                 })}
                               </div>
+
+                              {/* Overall Score Total Row */}
+                              {(() => {
+                                const dims = aiAnalysis.dimension_scores || [];
+                                if (dims.length === 0) return null;
+                                const overall = dims.reduce((sum: number, d: any) => {
+                                  const ws = typeof d.weighted_score === 'number' ? d.weighted_score : parseFloat(d.weighted_score) || 0;
+                                  return sum + ws;
+                                }, 0);
+                                const pct = Math.round(overall * 10);
+                                const level = pct >= 85 ? { label: 'ดีมาก', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' }
+                                  : pct >= 70 ? { label: 'ดี', color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/30' }
+                                  : pct >= 55 ? { label: 'พอใช้', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30' }
+                                  : { label: 'ควรปรับปรุง', color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-500/10 border-rose-500/30' };
+                                return (
+                                  <div className={`rounded-2xl border p-4 flex items-center justify-between gap-4 ${level.bg}`}>
+                                    <div>
+                                      <p className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider">🏆 คะแนนรวมถ่วงน้ำหนัก (Overall Score)</p>
+                                      <p className="text-xs text-theme-text-secondary mt-0.5">= Planning×20% + Execution×25% + Accountability×20% + Reflection×25% + WorkLog×10%</p>
+                                    </div>
+                                    <div className="flex items-center gap-3 shrink-0">
+                                      <div className="text-right">
+                                        <span className={`text-3xl font-black font-mono ${level.color}`}>{overall.toFixed(2)}</span>
+                                        <span className="text-sm text-theme-text-secondary font-mono">/10</span>
+                                      </div>
+                                      <span className={`px-3 py-1.5 rounded-xl text-sm font-black border ${level.bg} ${level.color}`}>{level.label}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           )}
 
-                          {/* ── Markdown Summary ── */}
-                          {aiAnalysis.markdown_executive_summary ? (
-                            <div className="border-t border-theme-border/40 pt-4">
-                              <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                                <span>📄</span> รายงานประเมินฉบับเต็ม
-                              </h3>
-                              {renderMarkdown(aiAnalysis.markdown_executive_summary)}
-                            </div>
-                          ) : !Array.isArray(aiAnalysis.dimension_scores) && (
-                            <div className="text-theme-text-secondary text-xs sm:text-sm leading-relaxed italic">
-                              ไม่มีบทวิเคราะห์เนื้อหาประเมินความสอดคล้องหลัก
-                            </div>
-                          )}
+                          {/* ── Markdown Summary — only shown when dimension_scores unavailable ── */}
+                          {!Array.isArray(aiAnalysis.dimension_scores) || aiAnalysis.dimension_scores.length === 0 ? (
+                            aiAnalysis.markdown_executive_summary ? (
+                              <div className="border-t border-theme-border/40 pt-4">
+                                <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+                                  <span>📄</span> รายงานประเมินฉบับเต็ม
+                                </h3>
+                                {renderMarkdown(aiAnalysis.markdown_executive_summary)}
+                              </div>
+                            ) : (
+                              <div className="text-theme-text-secondary text-xs sm:text-sm leading-relaxed italic">
+                                ไม่มีบทวิเคราะห์เนื้อหาประเมินความสอดคล้องหลัก
+                              </div>
+                            )
+                          ) : null}
                         </div>
                       )}
 

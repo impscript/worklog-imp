@@ -1091,6 +1091,9 @@ Task instructions:
       // querying col_worklog (anon readers are blocked by workspace RLS).
       total_hours: totalHours,
       logs_count: logs.length,
+
+      // Per-dimension structured scores (perf_evaluation template)
+      dimension_scores: parsedReport.dimension_scores || null,
     };
 
     console.log('[AI] Inserting report into tb_ai_individual_analysis...');
