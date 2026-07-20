@@ -1212,7 +1212,7 @@ export default function AdminPage() {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-400/25 shadow-sm">
         <span className="h-1.5 w-1.5 rounded-full bg-indigo-400"></span>
-        <span>Workspace ({workspaceNames[row.workspace_id] || (session?.activeWorkspaceId === row.workspace_id ? (session?.workspaceInviteCode || session?.workspaceName) : row.workspace_id) || 'ไม่ระบุ'})</span>
+        <span>{workspaceNames[row.workspace_id] || (session?.activeWorkspaceId === row.workspace_id ? (session?.workspaceInviteCode || session?.workspaceName) : row.workspace_id) || 'ไม่ระบุ'}</span>
       </span>
     );
   };
