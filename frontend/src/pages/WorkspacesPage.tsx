@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
 
-type PageTab = 'workspaces' | 'grants';
+type PageTab = 'workspaces' | 'grants' | 'system_users';
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
   viewer:   { label: 'Viewer',   color: 'text-sky-400 bg-sky-500/10 border-sky-500/20' },
@@ -54,6 +54,10 @@ export default function WorkspacesPage() {
   const [editingGrantId, setEditingGrantId] = useState<string | null>(null);
   // For edit mode: single workspace_id stored here
   const [editWsId, setEditWsId] = useState('');
+
+  // System Users tab state
+  const [sysSearch, setSysSearch] = useState('');
+  const [isTogglingRole, setIsTogglingRole] = useState<string | null>(null);
 
   // Searchable combobox state for grant modal
   const [userSearch, setUserSearch] = useState('');
@@ -300,6 +304,45 @@ export default function WorkspacesPage() {
     }
   };
 
+  const handleToggleSysRole = async (user: any) => {
+    const isMakingSys = user.role !== 'admin';
+    if (isMakingSys) {
+      const ok = await showConfirm({
+        title: '\u26a0\ufe0f \u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e01\u0e32\u0e23\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c SYS',
+        message: `\u0e01\u0e33\u0e25\u0e31\u0e07\u0e08\u0e30\u0e43\u0e2b\u0e49\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c Super Admin (\u0e23\u0e30\u0e14\u0e31\u0e1a System) \u0e41\u0e01\u0e48 ${user.full_name}\n\nSYS Admin \u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e40\u0e02\u0e49\u0e32\u0e16\u0e36\u0e07\u0e17\u0e38\u0e01 Workspace \u0e41\u0e25\u0e30\u0e1a\u0e22\u0e1b\u0e32\u0e2a RLS \u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14\n\u0e04\u0e38\u0e13\u0e41\u0e19\u0e48\u0e43\u0e08\u0e2b\u0e23\u0e37\u0e2d\u0e44\u0e21\u0e48?`,
+        confirmText: '\u0e43\u0e2b\u0e49\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c SYS',
+        type: 'danger',
+      });
+      if (!ok) return;
+    }
+    setIsTogglingRole(user.id);
+    try {
+      const newRole = isMakingSys ? 'admin' : 'user';
+      const { error } = await supabase
+        .from('users')
+        .update({ role: newRole })
+        .eq('id', user.id);
+      if (error) throw error;
+      showToast(
+        isMakingSys ? `\u0e43\u0e2b\u0e49\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c SYS \u0e41\u0e01\u0e48 ${user.full_name} \u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08!` : `\u0e16\u0e2d\u0e14\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c SYS \u0e02\u0e2d\u0e07 ${user.full_name} \u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08!`,
+        'success'
+      );
+      // Reload allUsers
+      const { data } = await supabase
+        .from('users')
+        .select('id, emp_id, full_name, nickname, department, role, active_workspace_id')
+        .order('full_name');
+      if (data) {
+        // Update local state via re-load
+        setAllUsers(data);
+      }
+    } catch (err: any) {
+      showToast('\u0e40\u0e01\u0e34\u0e14\u0e02\u0e49\u0e2d\u0e1c\u0e34\u0e14\u0e1e\u0e25\u0e32\u0e14: ' + err.message, 'error');
+    } finally {
+      setIsTogglingRole(null);
+    }
+  };
+
   const isExpired = (expiresAt: string | null) => expiresAt && new Date(expiresAt) < new Date();
 
   return (
@@ -354,10 +397,14 @@ export default function WorkspacesPage() {
 
         {/* Tab Switcher */}
         <div className="flex gap-1 bg-theme-surface-secondary/60 border border-theme-border/50 rounded-2xl p-1 w-fit">
-          {([['workspaces', LayoutGrid, 'Workspaces'], ['grants', Key, 'Access Grants']] as const).map(([tab, Icon, label]) => (
+          {([
+            ['workspaces', LayoutGrid, 'Workspaces'] as const,
+            ['grants', Key, 'Access Grants'] as const,
+            ['system_users', Shield, 'System Users'] as const,
+          ]).map(([tab, Icon, label]) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => setActiveTab(tab as PageTab)}
               className={cn(
                 'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all',
                 activeTab === tab
@@ -369,6 +416,11 @@ export default function WorkspacesPage() {
               {label}
               {tab === 'grants' && grants.length > 0 && (
                 <span className="ml-1 text-[9px] font-black bg-indigo-500/20 text-indigo-400 rounded-full px-1.5 py-0.5">{grants.length}</span>
+              )}
+              {tab === 'system_users' && (
+                <span className="ml-1 text-[9px] font-black bg-rose-500/20 text-rose-400 rounded-full px-1.5 py-0.5">
+                  {allUsers.filter(u => u.role === 'admin').length}
+                </span>
               )}
             </button>
           ))}
@@ -734,6 +786,160 @@ export default function WorkspacesPage() {
             </div>
           </div>
         )}
+        {/* ══ TAB: SYSTEM USERS ════════════════════════════════════════════════════════ */}
+        {activeTab === 'system_users' && (
+          <div className="space-y-6">
+            {/* Search and Stats Row */}
+            <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between">
+              {/* Search bar */}
+              <div className="relative flex-1 max-w-md">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
+                <input
+                  type="text"
+                  value={sysSearch}
+                  onChange={(e) => setSysSearch(e.target.value)}
+                  placeholder="ค้นหาชื่อ, รหัสพนักงาน, แผนก..."
+                  className="w-full bg-theme-surface-secondary/80 border border-theme-border rounded-2xl py-2 pl-10 pr-4 text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all shadow-sm"
+                />
+              </div>
+
+              {/* Stats badges */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-theme-surface-tertiary/60 border border-theme-border/50 rounded-xl">
+                  <span className="text-[10px] font-bold text-theme-text-secondary uppercase">พนักงานทั้งหมด:</span>
+                  <span className="text-xs font-black text-theme-text font-mono">{allUsers.length} คน</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+                  <Shield size={12} className="text-rose-500 animate-pulse" />
+                  <span className="text-[10px] font-bold text-rose-400 uppercase">SYS Admin:</span>
+                  <span className="text-xs font-black text-rose-400 font-mono">
+                    {allUsers.filter(u => u.role === 'admin').length} คน
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Users list */}
+            <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border/40">
+                <h2 className="text-sm font-black text-theme-text flex items-center gap-2">
+                  <Shield size={15} className="text-rose-500" />
+                  รายชื่อผู้ใช้และสิทธิ์ระบบกลาง (System Roles)
+                </h2>
+                {sysSearch && (
+                  <span className="text-[10px] text-theme-text-muted">
+                    พบคะแนนการค้นหา {allUsers.filter(u => {
+                      const q = sysSearch.toLowerCase();
+                      return (
+                        (u.full_name || '').toLowerCase().includes(q) ||
+                        (u.emp_id || '').toLowerCase().includes(q) ||
+                        (u.department || '').toLowerCase().includes(q) ||
+                        (u.nickname || '').toLowerCase().includes(q)
+                      );
+                    }).length} คน
+                  </span>
+                )}
+              </div>
+
+              {(() => {
+                const filtered = allUsers.filter(u => {
+                  const q = sysSearch.toLowerCase();
+                  if (!q) return true;
+                  return (
+                    (u.full_name || '').toLowerCase().includes(q) ||
+                    (u.emp_id || '').toLowerCase().includes(q) ||
+                    (u.department || '').toLowerCase().includes(q) ||
+                    (u.nickname || '').toLowerCase().includes(q)
+                  );
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="text-center py-16 space-y-3">
+                      <Users size={32} className="text-theme-text-muted/30 mx-auto" />
+                      <p className="text-sm text-theme-text-muted">ไม่พบข้อมูลตามคำค้นหา</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-left text-xs">
+                      <thead>
+                        <tr className="bg-theme-surface-secondary/80 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border text-[10px]">
+                          <th className="py-3 px-5">พนักงาน</th>
+                          <th className="py-3 px-5">รหัสพนักงาน</th>
+                          <th className="py-3 px-5">แผนก/ฝ่ายงาน</th>
+                          <th className="py-3 px-5">สิทธิ์ระดับระบบกลาง (System Role)</th>
+                          <th className="py-3 px-5 text-center">จัดการสิทธิ์ SYS</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-theme-border/40">
+                        {filtered.map(u => {
+                          const isSys = u.role === 'admin';
+                          const loading = isTogglingRole === u.id;
+                          return (
+                            <tr key={u.id} className="hover:bg-slate-700/5 transition-colors">
+                              <td className="py-3 px-5">
+                                <div className="font-semibold text-theme-text flex items-center gap-1.5">
+                                  {u.full_name}
+                                  {u.nickname && (
+                                    <span className="text-[10px] font-normal text-theme-text-muted">({u.nickname})</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-5 font-mono text-[11px] text-theme-text-secondary">{u.emp_id || '—'}</td>
+                              <td className="py-3 px-5 text-theme-text-secondary">{u.department || '—'}</td>
+                              <td className="py-3 px-5">
+                                {isSys ? (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded-lg px-2.5 py-1">
+                                    <Shield size={10} /> SYS Admin (Super)
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-theme-text-secondary bg-theme-surface-secondary border border-theme-border rounded-lg px-2.5 py-1">
+                                    User / Staff
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-5 text-center">
+                                <button
+                                  type="button"
+                                  disabled={loading}
+                                  onClick={() => handleToggleSysRole(u)}
+                                  className={cn(
+                                    "px-3 py-1.5 rounded-xl border text-[10px] font-bold transition-all shadow-sm flex items-center gap-1.5 mx-auto disabled:opacity-50",
+                                    isSys
+                                      ? "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20"
+                                      : "bg-theme-surface border-theme-border text-theme-text hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
+                                  )}
+                                >
+                                  {loading ? (
+                                    <RefreshCw size={11} className="animate-spin" />
+                                  ) : isSys ? (
+                                    <UserMinus size={11} />
+                                  ) : (
+                                    <Shield size={11} />
+                                  )}
+                                  {loading
+                                    ? "กำลังอัปเดต..."
+                                    : isSys
+                                    ? "ถอนสิทธิ์ SYS"
+                                    : "แต่งตั้งเป็น SYS"}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+        
+
 
         {/* ── Create Workspace Modal ──────────────────────────────────────────────────── */}
         {isCreateOpen && (
