@@ -531,7 +531,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
               <NavItem to="/projects" icon={<FolderTree size={18} />} label={t('nav.projects')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
-            {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
+            {(user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && user?.role !== 'admin' && (
               <NavItem to="/admin" icon={<Database size={18} />} label={t('nav.admin')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
             <NavItem to="/leaderboard" icon={<Trophy size={18} />} label={t('nav.leaderboard')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
