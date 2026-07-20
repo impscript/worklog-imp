@@ -2,12 +2,20 @@ import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LayoutGrid, RefreshCw, AlertTriangle, ChevronDown, Trash2,
-  Plus, UserMinus, Users, Shield, Activity, X
+  Plus, UserMinus, Users, Shield, Activity, X, Key, Clock, Check
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
+
+type PageTab = 'workspaces' | 'grants';
+
+const ROLE_LABELS: Record<string, { label: string; color: string }> = {
+  viewer:   { label: 'Viewer',   color: 'text-sky-400 bg-sky-500/10 border-sky-500/20' },
+  analyst:  { label: 'Analyst',  color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
+  manager:  { label: 'Manager',  color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+};
 
 export default function WorkspacesPage() {
   const navigate = useNavigate();
@@ -15,7 +23,9 @@ export default function WorkspacesPage() {
 
   const [session, setSession] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<PageTab>('workspaces');
 
+  // Workspaces tab state
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [workspaceUsers, setWorkspaceUsers] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -27,6 +37,19 @@ export default function WorkspacesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newWsName, setNewWsName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  // Grants tab state
+  const [grants, setGrants] = useState<any[]>([]);
+  const [isGrantsLoading, setIsGrantsLoading] = useState(false);
+  const [isGrantModalOpen, setIsGrantModalOpen] = useState(false);
+  const [grantForm, setGrantForm] = useState({
+    user_id: '',
+    workspace_id: '',
+    grant_role: 'analyst' as 'viewer' | 'analyst' | 'manager',
+    expires_at: '',
+    notes: '',
+  });
+  const [isSavingGrant, setIsSavingGrant] = useState(false);
 
   // Auth guard
   useEffect(() => {
@@ -56,8 +79,34 @@ export default function WorkspacesPage() {
     }
   };
 
+  const loadGrants = async () => {
+    setIsGrantsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_workspace_grants')
+        .select('*, users!user_id(id, full_name, emp_id, department), workspaces!workspace_id(workspace_name, invite_code), granted_by_user:users!granted_by(full_name)')
+        .order('granted_at', { ascending: false });
+      if (error) throw error;
+      setGrants(data || []);
+    } catch (err: any) {
+      // Fallback simpler query if join alias fails
+      try {
+        const { data } = await supabase
+          .from('user_workspace_grants')
+          .select('*')
+          .order('granted_at', { ascending: false });
+        setGrants(data || []);
+      } catch { /* ignore */ }
+    } finally {
+      setIsGrantsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (session) loadData();
+    if (session) {
+      loadData();
+      loadGrants();
+    }
   }, [session]);
 
   const orphanedUsers = useMemo(() => {
@@ -72,9 +121,7 @@ export default function WorkspacesPage() {
     setIsSubmitting(wsId);
     try {
       const { error: insErr } = await supabase.from('workspace_users').insert({
-        workspace_id: wsId,
-        user_id: selectedOrphan,
-        role: 'user',
+        workspace_id: wsId, user_id: selectedOrphan, role: 'user',
       });
       if (insErr) throw insErr;
       const { error: updErr } = await supabase
@@ -93,11 +140,8 @@ export default function WorkspacesPage() {
   const handleRemoveUser = async (wuId: string, uId: string, userName: string, wsName?: string) => {
     const ok = await showConfirm({
       title: 'ยืนยันการลบสมาชิก',
-      message:
-        `ต้องการลบ ${userName} ออกจากฝ่ายงานนี้หรือไม่?\n\n` +
-        `• Workspace: ${wsName || 'นี้'}`,
-      confirmText: 'ลบสมาชิก',
-      type: 'danger',
+      message: `ต้องการลบ ${userName} ออกจากฝ่ายงานนี้หรือไม่?\n\n• Workspace: ${wsName || 'นี้'}`,
+      confirmText: 'ลบสมาชิก', type: 'danger',
     });
     if (!ok) return;
     setIsSubmitting(wuId);
@@ -133,25 +177,16 @@ export default function WorkspacesPage() {
     if (!newWsName.trim()) return;
     setIsCreating(true);
     try {
-      // Generate invite code from name
       const code = newWsName
-        .replace(/[^a-zA-Z0-9\u0E00-\u0E7F\s]/g, '')
-        .trim()
-        .split(/\s+/)
-        .map(w => w[0]?.toUpperCase() || '')
-        .join('')
-        .substring(0, 6) + '-' + Math.floor(100 + Math.random() * 900);
-
+        .replace(/[^a-zA-Z0-9\u0E00-\u0E7F\s]/g, '').trim()
+        .split(/\s+/).map(w => w[0]?.toUpperCase() || '').join('').substring(0, 6)
+        + '-' + Math.floor(100 + Math.random() * 900);
       const { data, error } = await supabase
-        .from('workspaces')
-        .insert({ workspace_name: newWsName.trim(), invite_code: code })
-        .select()
-        .single();
+        .from('workspaces').insert({ workspace_name: newWsName.trim(), invite_code: code })
+        .select().single();
       if (error) throw error;
       showToast(`สร้าง Workspace "${data.workspace_name}" สำเร็จ! Invite Code: ${data.invite_code}`, 'success');
-      setNewWsName('');
-      setIsCreateOpen(false);
-      loadData();
+      setNewWsName(''); setIsCreateOpen(false); loadData();
     } catch (err: any) {
       showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
     } finally {
@@ -162,16 +197,8 @@ export default function WorkspacesPage() {
   const handleDeleteWorkspace = async (wsId: string, wsName: string) => {
     const ok = await showConfirm({
       title: '⚠️ ยืนยันการลบ Workspace',
-      message:
-        `คุณกำลังจะลบ Workspace: "${wsName}"\n` +
-        `• ID: ${wsId}\n\n` +
-        `การลบนี้จะลบข้อมูลต่อไปนี้ใน Workspace นี้เท่านั้น:\n` +
-        `  - ความสัมพันธ์พนักงาน (workspace_users)\n` +
-        `  - Master data และ Mapping ทั้งหมดของ Workspace นี้\n` +
-        `  - ใบงานบันทึก (worklog) ทั้งหมดของ Workspace นี้\n\n` +
-        `การกระทำไม่สามารถย้อนกลับได้ กรุณาตรวจสอบชื่อ Workspace ให้ถูกต้อง`,
-      confirmText: 'ลบ Workspace ถาวร',
-      type: 'danger',
+      message: `คุณกำลังจะลบ Workspace: "${wsName}"\n• ID: ${wsId}\n\nการลบจะลบ workspace_users, master data, worklog ทั้งหมด\nการกระทำไม่สามารถย้อนกลับได้`,
+      confirmText: 'ลบ Workspace ถาวร', type: 'danger',
     });
     if (!ok) return;
     try {
@@ -183,6 +210,56 @@ export default function WorkspacesPage() {
       showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
     }
   };
+
+  // ── Grant Management ──────────────────────────────────────────────────────────────
+  const handleSaveGrant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!grantForm.user_id || !grantForm.workspace_id) {
+      showToast('กรุณาเลือกพนักงานและ Workspace', 'error');
+      return;
+    }
+    setIsSavingGrant(true);
+    try {
+      const sessionStr = localStorage.getItem('worklog_session');
+      const sess = sessionStr ? JSON.parse(sessionStr) : null;
+      const { error } = await supabase.from('user_workspace_grants').upsert({
+        user_id: grantForm.user_id,
+        workspace_id: grantForm.workspace_id,
+        grant_role: grantForm.grant_role,
+        granted_by: sess?.id || null,
+        expires_at: grantForm.expires_at ? new Date(grantForm.expires_at).toISOString() : null,
+        notes: grantForm.notes || null,
+      }, { onConflict: 'user_id,workspace_id' });
+      if (error) throw error;
+      showToast('บันทึก Access Grant สำเร็จ!', 'success');
+      setIsGrantModalOpen(false);
+      setGrantForm({ user_id: '', workspace_id: '', grant_role: 'analyst', expires_at: '', notes: '' });
+      loadGrants();
+    } catch (err: any) {
+      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+    } finally {
+      setIsSavingGrant(false);
+    }
+  };
+
+  const handleRevokeGrant = async (grantId: string, userName: string, wsName: string) => {
+    const ok = await showConfirm({
+      title: 'ยืนยันการถอนสิทธิ์',
+      message: `ถอนสิทธิ์การเข้าถึง Workspace "${wsName}" ของ ${userName} ใช่หรือไม่?`,
+      confirmText: 'ถอนสิทธิ์', type: 'danger',
+    });
+    if (!ok) return;
+    try {
+      const { error } = await supabase.from('user_workspace_grants').delete().eq('id', grantId);
+      if (error) throw error;
+      showToast('ถอนสิทธิ์สำเร็จ!', 'success');
+      loadGrants();
+    } catch (err: any) {
+      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+    }
+  };
+
+  const isExpired = (expiresAt: string | null) => expiresAt && new Date(expiresAt) < new Date();
 
   return (
     <AppLayout>
@@ -196,9 +273,7 @@ export default function WorkspacesPage() {
                 <LayoutGrid size={20} className="text-rose-400" />
               </div>
               <div>
-                <h1 className="text-2xl font-black text-theme-text tracking-tight">
-                  Workspaces Monitor
-                </h1>
+                <h1 className="text-2xl font-black text-theme-text tracking-tight">Workspaces Monitor</h1>
                 <p className="text-xs text-theme-text-muted mt-0.5 flex items-center gap-1">
                   <Shield size={10} className="text-rose-400" />
                   ภาพรวมฝ่ายงานทั้งหมดในระบบ — เฉพาะ Super Admin
@@ -208,85 +283,359 @@ export default function WorkspacesPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={loadData}
+              onClick={() => { loadData(); loadGrants(); }}
               disabled={isLoading}
               className="flex items-center gap-2 bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-2 text-xs font-semibold text-theme-text-secondary hover:text-theme-text hover:border-indigo-500/40 transition-all disabled:opacity-50"
             >
               <RefreshCw size={14} className={cn(isLoading && 'animate-spin')} />
               รีเฟรช
             </button>
-            <button
-              onClick={() => setIsCreateOpen(true)}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500/30 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-lg shadow-indigo-500/10"
-            >
-              <Plus size={14} />
-              สร้าง Workspace ใหม่
-            </button>
+            {activeTab === 'workspaces' && (
+              <button
+                onClick={() => setIsCreateOpen(true)}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500/30 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-lg shadow-indigo-500/10"
+              >
+                <Plus size={14} />
+                สร้าง Workspace ใหม่
+              </button>
+            )}
+            {activeTab === 'grants' && (
+              <button
+                onClick={() => setIsGrantModalOpen(true)}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500/30 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-lg shadow-indigo-500/10"
+              >
+                <Key size={14} />
+                เพิ่ม Access Grant
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Overview Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            {
-              label: 'Total Workspaces',
-              value: `${workspaces.length} กลุ่ม`,
-              icon: <LayoutGrid size={18} />,
-              color: 'text-indigo-600 dark:text-indigo-400',
-              bg: 'bg-indigo-500/10',
-            },
-            {
-              label: 'Assigned Members',
-              value: `${workspaceUsers.length} คน`,
-              icon: <Users size={18} />,
-              color: 'text-emerald-700 dark:text-emerald-400',
-              bg: 'bg-emerald-500/10',
-            },
-            {
-              label: 'Orphaned Users',
-              value: `${orphanedUsers.length} คน`,
-              icon: <AlertTriangle size={18} />,
-              color: orphanedUsers.length > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-theme-text-muted',
-              bg: orphanedUsers.length > 0 ? 'bg-amber-500/10' : 'bg-theme-surface-secondary',
-            },
-          ].map(stat => (
-            <div
-              key={stat.label}
-              className="bg-theme-surface-secondary/60 border border-theme-border/60 rounded-2xl p-5 flex items-center gap-4"
+        {/* Tab Switcher */}
+        <div className="flex gap-1 bg-theme-surface-secondary/60 border border-theme-border/50 rounded-2xl p-1 w-fit">
+          {([['workspaces', LayoutGrid, 'Workspaces'], ['grants', Key, 'Access Grants']] as const).map(([tab, Icon, label]) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all',
+                activeTab === tab
+                  ? 'bg-theme-surface border border-theme-border/60 text-theme-text shadow-sm'
+                  : 'text-theme-text-secondary hover:text-theme-text'
+              )}
             >
-              <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', stat.bg, stat.color)}>
-                {stat.icon}
-              </div>
-              <div>
-                <p className="text-[10px] text-theme-text-secondary uppercase tracking-wider font-semibold">{stat.label}</p>
-                <p className={cn('text-2xl font-black mt-0.5', stat.color)}>{stat.value}</p>
-              </div>
-            </div>
+              <Icon size={13} />
+              {label}
+              {tab === 'grants' && grants.length > 0 && (
+                <span className="ml-1 text-[9px] font-black bg-indigo-500/20 text-indigo-400 rounded-full px-1.5 py-0.5">{grants.length}</span>
+              )}
+            </button>
           ))}
         </div>
 
-        {/* Orphaned Users Quick List */}
-        {orphanedUsers.length > 0 && (
-          <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-5">
-            <h3 className="text-xs font-black uppercase tracking-wider text-amber-750 dark:text-amber-400 flex items-center gap-2 mb-3">
-              <AlertTriangle size={14} />
-              พนักงานที่รอเข้าสังกัด ({orphanedUsers.length} คน) — กดขยาย Workspace เพื่อ Assign
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {orphanedUsers.map(u => (
-                <span
-                  key={u.id}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 rounded-lg px-2.5 py-1"
-                >
-                  {u.full_name}
-                  <span className="font-mono text-amber-700/80 dark:text-amber-400/70">({u.emp_id})</span>
-                </span>
+        {/* ══ TAB: WORKSPACES ══════════════════════════════════════════════════════════ */}
+        {activeTab === 'workspaces' && (
+          <>
+            {/* Overview Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { label: 'Total Workspaces', value: `${workspaces.length} กลุ่ม`, icon: <LayoutGrid size={18} />, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-500/10' },
+                { label: 'Assigned Members', value: `${workspaceUsers.length} คน`, icon: <Users size={18} />, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
+                { label: 'Orphaned Users', value: `${orphanedUsers.length} คน`, icon: <AlertTriangle size={18} />, color: orphanedUsers.length > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-theme-text-muted', bg: orphanedUsers.length > 0 ? 'bg-amber-500/10' : 'bg-theme-surface-secondary' },
+              ].map(stat => (
+                <div key={stat.label} className="bg-theme-surface-secondary/60 border border-theme-border/60 rounded-2xl p-5 flex items-center gap-4">
+                  <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', stat.bg, stat.color)}>{stat.icon}</div>
+                  <div>
+                    <p className="text-[10px] text-theme-text-secondary uppercase tracking-wider font-semibold">{stat.label}</p>
+                    <p className={cn('text-2xl font-black mt-0.5', stat.color)}>{stat.value}</p>
+                  </div>
+                </div>
               ))}
+            </div>
+
+            {/* Orphaned Users Quick List */}
+            {orphanedUsers.length > 0 && (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-5">
+                <h3 className="text-xs font-black uppercase tracking-wider text-amber-750 dark:text-amber-400 flex items-center gap-2 mb-3">
+                  <AlertTriangle size={14} />
+                  พนักงานที่รอเข้าสังกัด ({orphanedUsers.length} คน) — กดขยาย Workspace เพื่อ Assign
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {orphanedUsers.map(u => (
+                    <span key={u.id} className="inline-flex items-center gap-1 text-[11px] font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 rounded-lg px-2.5 py-1">
+                      {u.full_name}
+                      <span className="font-mono text-amber-700/80 dark:text-amber-400/70">({u.emp_id})</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Workspace Directory Table */}
+            <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border/40">
+                <h2 className="text-sm font-black text-theme-text flex items-center gap-2">
+                  <Activity size={15} className="text-indigo-400" />
+                  รายการฝ่ายงานทั้งหมด
+                </h2>
+                <span className="text-[11px] text-theme-text-muted font-mono">{workspaces.length} workspaces</span>
+              </div>
+
+              {isLoading ? (
+                <div className="flex items-center justify-center py-20 text-theme-text-muted">
+                  <RefreshCw size={24} className="animate-spin" />
+                </div>
+              ) : workspaces.length === 0 ? (
+                <div className="text-center py-16 text-theme-text-muted text-sm">ยังไม่มีฝ่ายงานในระบบ</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left text-xs">
+                    <thead>
+                      <tr className="bg-theme-surface-secondary/80 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border text-[11px]">
+                        <th className="py-3.5 px-4 w-8"></th>
+                        <th className="py-3.5 px-4">ฝ่ายงาน / Workspace</th>
+                        <th className="py-3.5 px-4">Invite Code</th>
+                        <th className="py-3.5 px-4 text-center">สมาชิก</th>
+                        <th className="py-3.5 px-4">วันที่สร้าง</th>
+                        <th className="py-3.5 px-4 text-right">จัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-theme-border/40">
+                      {workspaces.map(ws => {
+                        const isExpanded = expandedId === ws.id;
+                        const members = workspaceUsers.filter(wu => wu.workspace_id === ws.id);
+                        return (
+                          <Fragment key={ws.id}>
+                            <tr className="hover:bg-slate-700/10 transition-colors group">
+                              <td className="py-3.5 px-4">
+                                <button type="button" onClick={() => setExpandedId(isExpanded ? null : ws.id)} className="p-1 rounded-lg hover:bg-indigo-500/10 text-theme-text-muted hover:text-indigo-600 dark:hover:text-indigo-400 transition-all">
+                                  <ChevronDown size={14} className={cn('transition-transform duration-200', isExpanded && 'rotate-180')} />
+                                </button>
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-extrabold text-theme-text text-[13px]">{ws.workspace_name}</span>
+                                  <span className="text-[9px] text-theme-text-muted font-mono opacity-60">{ws.id}</span>
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span className="font-mono text-indigo-700 dark:text-indigo-400 font-bold text-[12px] bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2 py-0.5">{ws.invite_code}</span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span className="inline-flex items-center gap-1 font-bold text-theme-text"><Users size={12} className="text-theme-text-muted" />{members.length} คน</span>
+                              </td>
+                              <td className="py-3.5 px-4 text-theme-text-secondary font-mono text-[11px]">
+                                {new Date(ws.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
+                              </td>
+                              <td className="py-3.5 px-4 text-right">
+                                <button type="button" onClick={() => handleDeleteWorkspace(ws.id, ws.workspace_name)} className="p-2 border border-transparent hover:border-rose-500/20 hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-400 rounded-xl transition-all" title="ลบ Workspace">
+                                  <Trash2 size={13} />
+                                </button>
+                              </td>
+                            </tr>
+
+                            {isExpanded && (
+                              <tr>
+                                <td colSpan={6} className="bg-theme-surface-secondary/30 px-6 py-5 border-b border-theme-border">
+                                  <div className="space-y-4">
+                                    <div className="flex flex-wrap justify-between items-center gap-3">
+                                      <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider">สมาชิกในฝ่าย: {ws.workspace_name}</h4>
+                                      {orphanedUsers.length > 0 && (
+                                        <div className="flex items-center gap-2">
+                                          <select value={selectedOrphan} onChange={e => setSelectedOrphan(e.target.value)} className="bg-theme-surface border border-theme-border rounded-xl px-3 py-1.5 text-xs text-theme-text focus:outline-none focus:border-indigo-500">
+                                            <option value="">-- เลือกพนักงานไร้สังกัด --</option>
+                                            {orphanedUsers.map(u => (<option key={u.id} value={u.id}>{u.full_name} ({u.emp_id})</option>))}
+                                          </select>
+                                          <button type="button" disabled={!selectedOrphan || isSubmitting === ws.id} onClick={() => handleAddUser(ws.id)} className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition-all disabled:opacity-50">
+                                            <Plus size={12} />ยัดเข้าแผนก
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {members.length === 0 ? (
+                                      <p className="text-xs text-theme-text-muted text-center py-6">ยังไม่มีสมาชิกสังกัดอยู่</p>
+                                    ) : (
+                                      <div className="border border-theme-border/60 rounded-xl overflow-hidden bg-theme-surface">
+                                        <table className="w-full text-left text-[11px]">
+                                          <thead>
+                                            <tr className="bg-theme-surface-secondary/60 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border text-[10px]">
+                                              <th className="py-2.5 px-4">สมาชิก</th>
+                                              <th className="py-2.5 px-4">รหัสพนักงาน</th>
+                                              <th className="py-2.5 px-4">ระดับสิทธิ์</th>
+                                              <th className="py-2.5 px-4 text-center">ถอดสมาชิก</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-theme-border/40">
+                                            {members.map(mem => (
+                                              <tr key={mem.id} className="hover:bg-slate-700/5">
+                                                <td className="py-2 px-4 font-semibold text-theme-text">
+                                                  {mem.users?.full_name || '—'}
+                                                  {mem.users?.nickname && <span className="text-theme-text-muted font-normal ml-1">({mem.users.nickname})</span>}
+                                                </td>
+                                                <td className="py-2 px-4 font-mono text-theme-text-secondary">{mem.users?.emp_id}</td>
+                                                <td className="py-2 px-4">
+                                                  <div className="flex items-center gap-1.5">
+                                                    <select value={mem.role} onChange={e => handleChangeRole(mem.id, e.target.value as any)} className="bg-theme-surface-secondary border border-theme-border rounded px-2 py-0.5 text-[10px] font-bold text-theme-text focus:outline-none">
+                                                      <option value="user">User</option>
+                                                      <option value="manager">Manager</option>
+                                                      <option value="admin">Admin (Owner)</option>
+                                                    </select>
+                                                    {mem.users?.role === 'admin' && (
+                                                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded px-1.5 py-0.5 shrink-0" title="Global Super Admin">
+                                                        <Shield size={8} />SYS
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                </td>
+                                                <td className="py-2 px-4 text-center">
+                                                  <button type="button" disabled={isSubmitting === mem.id} onClick={() => handleRemoveUser(mem.id, mem.user_id, mem.users?.full_name, ws.workspace_name)} className="p-1 text-theme-text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded transition-all" title="ถอดออกจากฝ่าย">
+                                                    <UserMinus size={13} />
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ══ TAB: ACCESS GRANTS ═══════════════════════════════════════════════════════ */}
+        {activeTab === 'grants' && (
+          <div className="space-y-4">
+            {/* Info Banner */}
+            <div className="flex items-start gap-3 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl px-5 py-4 text-xs text-indigo-300">
+              <Key size={16} className="text-indigo-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold text-indigo-200">Cross-Workspace Access Grants</p>
+                <p className="text-indigo-300/80">อนุญาตให้พนักงาน (เช่น HR, ผู้บริหาร) ดูข้อมูลจาก Workspace อื่นโดยไม่ต้องเปลี่ยน active workspace</p>
+                <div className="flex flex-wrap gap-3 mt-2">
+                  {[
+                    ['viewer', 'ดู Calendar เท่านั้น'],
+                    ['analyst', 'ดู Reports + AI Enhance (Read-only)'],
+                    ['manager', 'ดูและจัดการข้อมูลบางส่วน'],
+                  ].map(([role, desc]) => {
+                    const info = ROLE_LABELS[role];
+                    return (
+                      <span key={role} className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold', info.color)}>
+                        <span className="font-black">{info.label}:</span> {desc}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Grants Table */}
+            <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border/40">
+                <h2 className="text-sm font-black text-theme-text flex items-center gap-2">
+                  <Key size={15} className="text-indigo-400" />
+                  Access Grants ทั้งหมด
+                </h2>
+                <span className="text-[11px] text-theme-text-muted font-mono">{grants.length} grants</span>
+              </div>
+
+              {isGrantsLoading ? (
+                <div className="flex items-center justify-center py-20"><RefreshCw size={24} className="animate-spin text-theme-text-muted" /></div>
+              ) : grants.length === 0 ? (
+                <div className="text-center py-16 space-y-3">
+                  <Key size={32} className="text-theme-text-muted/30 mx-auto" />
+                  <p className="text-sm text-theme-text-muted">ยังไม่มี Access Grant ในระบบ</p>
+                  <p className="text-xs text-theme-text-muted/70">กด "เพิ่ม Access Grant" เพื่อให้สิทธิ์ข้าม Workspace</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left text-xs">
+                    <thead>
+                      <tr className="bg-theme-surface-secondary/80 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border text-[10px]">
+                        <th className="py-3 px-4">พนักงาน</th>
+                        <th className="py-3 px-4">Workspace ที่เข้าถึงได้</th>
+                        <th className="py-3 px-4">สิทธิ์</th>
+                        <th className="py-3 px-4">วันหมดอายุ</th>
+                        <th className="py-3 px-4">หมายเหตุ</th>
+                        <th className="py-3 px-4 text-center">ถอนสิทธิ์</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-theme-border/40">
+                      {grants.map(g => {
+                        const expired = isExpired(g.expires_at);
+                        const wsData = workspaces.find(w => w.id === g.workspace_id);
+                        const userData = allUsers.find(u => u.id === g.user_id);
+                        return (
+                          <tr key={g.id} className={cn('hover:bg-slate-700/5 transition-colors', expired && 'opacity-50')}>
+                            <td className="py-3 px-4">
+                              <div className="font-semibold text-theme-text">
+                                {g.users?.full_name || userData?.full_name || g.user_id.substring(0, 8) + '…'}
+                              </div>
+                              <div className="text-theme-text-muted font-mono text-[10px]">
+                                {g.users?.emp_id || userData?.emp_id}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-semibold text-theme-text">
+                                {g.workspaces?.workspace_name || wsData?.workspace_name || g.workspace_id.substring(0, 8) + '…'}
+                              </div>
+                              <div className="font-mono text-indigo-400 text-[10px]">
+                                {g.workspaces?.invite_code || wsData?.invite_code}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              {ROLE_LABELS[g.grant_role] && (
+                                <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-black', ROLE_LABELS[g.grant_role].color)}>
+                                  {ROLE_LABELS[g.grant_role].label}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              {g.expires_at ? (
+                                <span className={cn('inline-flex items-center gap-1 text-[10px] font-mono', expired ? 'text-rose-400' : 'text-amber-400')}>
+                                  <Clock size={10} />
+                                  {expired ? '⚠️ หมดอายุ: ' : ''}
+                                  {new Date(g.expires_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
+                                  <Check size={10} />ถาวร
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-theme-text-secondary max-w-[160px] truncate">{g.notes || '—'}</td>
+                            <td className="py-3 px-4 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRevokeGrant(g.id, g.users?.full_name || userData?.full_name || 'พนักงานนี้', g.workspaces?.workspace_name || wsData?.workspace_name || 'Workspace นี้')}
+                                className="p-1.5 border border-transparent hover:border-rose-500/20 hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-400 rounded-xl transition-all"
+                                title="ถอนสิทธิ์"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Create Workspace Modal */}
+        {/* ── Create Workspace Modal ──────────────────────────────────────────────────── */}
         {isCreateOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
             <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
@@ -295,36 +644,16 @@ export default function WorkspacesPage() {
                   <h2 className="text-base font-black text-theme-text">สร้างฝ่ายงานใหม่</h2>
                   <p className="text-xs text-theme-text-muted mt-0.5">ระบบจะสร้าง Invite Code ให้อัตโนมัติ</p>
                 </div>
-                <button onClick={() => { setIsCreateOpen(false); setNewWsName(''); }} className="p-2 rounded-xl hover:bg-theme-surface-secondary text-theme-text-muted hover:text-theme-text transition-all">
-                  <X size={16} />
-                </button>
+                <button onClick={() => { setIsCreateOpen(false); setNewWsName(''); }} className="p-2 rounded-xl hover:bg-theme-surface-secondary text-theme-text-muted hover:text-theme-text transition-all"><X size={16} /></button>
               </div>
               <form onSubmit={handleCreateWorkspace} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">ชื่อฝ่ายงาน / Workspace Name</label>
-                  <input
-                    type="text"
-                    value={newWsName}
-                    onChange={e => setNewWsName(e.target.value)}
-                    placeholder="ตัวอย่าง: Human Resource Department"
-                    className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
-                    required
-                    autoFocus
-                  />
+                  <input type="text" value={newWsName} onChange={e => setNewWsName(e.target.value)} placeholder="ตัวอย่าง: Human Resource Department" className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all" required autoFocus />
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => { setIsCreateOpen(false); setNewWsName(''); }}
-                    className="flex-1 py-2.5 rounded-xl border border-theme-border text-xs font-bold text-theme-text-secondary hover:bg-theme-surface-secondary transition-all"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isCreating || !newWsName.trim()}
-                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
+                  <button type="button" onClick={() => { setIsCreateOpen(false); setNewWsName(''); }} className="flex-1 py-2.5 rounded-xl border border-theme-border text-xs font-bold text-theme-text-secondary hover:bg-theme-surface-secondary transition-all">ยกเลิก</button>
+                  <button type="submit" disabled={isCreating || !newWsName.trim()} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                     {isCreating ? <RefreshCw size={12} className="animate-spin" /> : <Plus size={12} />}
                     {isCreating ? 'กำลังสร้าง...' : 'สร้าง Workspace'}
                   </button>
@@ -334,209 +663,80 @@ export default function WorkspacesPage() {
           </div>
         )}
 
-        {/* Workspace Directory Table */}
-        <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border/40">
-            <h2 className="text-sm font-black text-theme-text flex items-center gap-2">
-              <Activity size={15} className="text-indigo-400" />
-              รายการฝ่ายงานทั้งหมด
-            </h2>
-            <span className="text-[11px] text-theme-text-muted font-mono">{workspaces.length} workspaces</span>
+        {/* ── Add Grant Modal ────────────────────────────────────────────────────────── */}
+        {isGrantModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-black text-theme-text flex items-center gap-2"><Key size={16} className="text-indigo-400" />เพิ่ม Access Grant</h2>
+                  <p className="text-xs text-theme-text-muted mt-0.5">ให้สิทธิ์พนักงานเข้าถึงข้อมูลข้าม Workspace</p>
+                </div>
+                <button onClick={() => setIsGrantModalOpen(false)} className="p-2 rounded-xl hover:bg-theme-surface-secondary text-theme-text-muted hover:text-theme-text transition-all"><X size={16} /></button>
+              </div>
+
+              <form onSubmit={handleSaveGrant} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">พนักงาน (ผู้รับสิทธิ์)</label>
+                  <select value={grantForm.user_id} onChange={e => setGrantForm(f => ({ ...f, user_id: e.target.value }))} className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text focus:outline-none focus:ring-1 focus:ring-indigo-500" required>
+                    <option value="">-- เลือกพนักงาน --</option>
+                    {allUsers.filter(u => u.role !== 'admin').map(u => (
+                      <option key={u.id} value={u.id}>{u.full_name} ({u.emp_id}) — {u.department || 'N/A'}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">Workspace ที่ให้เข้าถึง</label>
+                  <select value={grantForm.workspace_id} onChange={e => setGrantForm(f => ({ ...f, workspace_id: e.target.value }))} className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text focus:outline-none focus:ring-1 focus:ring-indigo-500" required>
+                    <option value="">-- เลือก Workspace --</option>
+                    {workspaces.map(ws => (
+                      <option key={ws.id} value={ws.id}>{ws.workspace_name} ({ws.invite_code})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">ระดับสิทธิ์ (Grant Role)</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['viewer', 'analyst', 'manager'] as const).map(role => {
+                      const info = ROLE_LABELS[role];
+                      return (
+                        <button key={role} type="button" onClick={() => setGrantForm(f => ({ ...f, grant_role: role }))}
+                          className={cn('flex flex-col items-center gap-1 p-3 rounded-xl border text-[10px] font-bold transition-all', grantForm.grant_role === role ? info.color + ' ring-1 ring-current' : 'border-theme-border text-theme-text-secondary hover:border-indigo-500/40')}>
+                          <span className="font-black text-[11px]">{info.label}</span>
+                          <span className="text-[9px] font-normal opacity-70">
+                            {role === 'viewer' ? 'Calendar only' : role === 'analyst' ? 'Reports + AI' : 'All read access'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">วันหมดอายุ (ว่างไว้ = ถาวร)</label>
+                    <input type="date" value={grantForm.expires_at} onChange={e => setGrantForm(f => ({ ...f, expires_at: e.target.value }))} min={new Date().toISOString().split('T')[0]} className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">หมายเหตุ (ไม่บังคับ)</label>
+                    <input type="text" value={grantForm.notes} onChange={e => setGrantForm(f => ({ ...f, notes: e.target.value }))} placeholder="เช่น: HR ตรวจสอบ Q3" className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={() => setIsGrantModalOpen(false)} className="flex-1 py-2.5 rounded-xl border border-theme-border text-xs font-bold text-theme-text-secondary hover:bg-theme-surface-secondary transition-all">ยกเลิก</button>
+                  <button type="submit" disabled={isSavingGrant || !grantForm.user_id || !grantForm.workspace_id} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                    {isSavingGrant ? <RefreshCw size={12} className="animate-spin" /> : <Key size={12} />}
+                    {isSavingGrant ? 'กำลังบันทึก...' : 'บันทึก Grant'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
+        )}
 
-          {isLoading ? (
-            <div className="flex items-center justify-center py-20 text-theme-text-muted">
-              <RefreshCw size={24} className="animate-spin" />
-            </div>
-          ) : workspaces.length === 0 ? (
-            <div className="text-center py-16 text-theme-text-muted text-sm">ยังไม่มีฝ่ายงานในระบบ</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-theme-surface-secondary/80 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border text-[11px]">
-                    <th className="py-3.5 px-4 w-8"></th>
-                    <th className="py-3.5 px-4">ฝ่ายงาน / Workspace</th>
-                    <th className="py-3.5 px-4">Invite Code</th>
-                    <th className="py-3.5 px-4 text-center">สมาชิก</th>
-                    <th className="py-3.5 px-4">วันที่สร้าง</th>
-                    <th className="py-3.5 px-4 text-right">จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-theme-border/40">
-                  {workspaces.map(ws => {
-                    const isExpanded = expandedId === ws.id;
-                    const members = workspaceUsers.filter(wu => wu.workspace_id === ws.id);
-
-                    return (
-                      <Fragment key={ws.id}>
-                        {/* Workspace Row */}
-                        <tr className="hover:bg-slate-700/10 transition-colors group">
-                          <td className="py-3.5 px-4">
-                            <button
-                              type="button"
-                              onClick={() => setExpandedId(isExpanded ? null : ws.id)}
-                              className="p-1 rounded-lg hover:bg-indigo-500/10 text-theme-text-muted hover:text-indigo-600 dark:hover:text-indigo-400 transition-all"
-                            >
-                              <ChevronDown
-                                size={14}
-                                className={cn('transition-transform duration-200', isExpanded && 'rotate-180')}
-                              />
-                            </button>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-extrabold text-theme-text text-[13px]">{ws.workspace_name}</span>
-                              <span className="text-[9px] text-theme-text-muted font-mono opacity-60">{ws.id}</span>
-                            </div>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span className="font-mono text-indigo-700 dark:text-indigo-400 font-bold text-[12px] bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2 py-0.5">
-                              {ws.invite_code}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-center">
-                            <span className="inline-flex items-center gap-1 font-bold text-theme-text">
-                              <Users size={12} className="text-theme-text-muted" />
-                              {members.length} คน
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-theme-text-secondary font-mono text-[11px]">
-                            {new Date(ws.created_at).toLocaleDateString('th-TH', {
-                              day: '2-digit', month: 'short', year: '2-digit',
-                            })}
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteWorkspace(ws.id, ws.workspace_name)}
-                              className="p-2 border border-transparent hover:border-rose-500/20 hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-400 rounded-xl transition-all"
-                              title="ลบ Workspace"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </td>
-                        </tr>
-
-                        {/* Drill-Down Members Row */}
-                        {isExpanded && (
-                          <tr>
-                            <td colSpan={6} className="bg-theme-surface-secondary/30 px-6 py-5 border-b border-theme-border">
-                              <div className="space-y-4">
-
-                                {/* Header + Assign orphan */}
-                                <div className="flex flex-wrap justify-between items-center gap-3">
-                                  <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider">
-                                    สมาชิกในฝ่าย: {ws.workspace_name}
-                                  </h4>
-
-                                  {orphanedUsers.length > 0 && (
-                                    <div className="flex items-center gap-2">
-                                      <select
-                                        value={selectedOrphan}
-                                        onChange={e => setSelectedOrphan(e.target.value)}
-                                        className="bg-theme-surface border border-theme-border rounded-xl px-3 py-1.5 text-xs text-theme-text focus:outline-none focus:border-indigo-500"
-                                      >
-                                        <option value="">-- เลือกพนักงานไร้สังกัด --</option>
-                                        {orphanedUsers.map(u => (
-                                          <option key={u.id} value={u.id}>
-                                            {u.full_name} ({u.emp_id})
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <button
-                                        type="button"
-                                        disabled={!selectedOrphan || isSubmitting === ws.id}
-                                        onClick={() => handleAddUser(ws.id)}
-                                        className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition-all disabled:opacity-50"
-                                      >
-                                        <Plus size={12} />
-                                        ยัดเข้าแผนก
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Members Table */}
-                                {members.length === 0 ? (
-                                  <p className="text-xs text-theme-text-muted text-center py-6">
-                                    ยังไม่มีสมาชิกสังกัดอยู่
-                                  </p>
-                                ) : (
-                                  <div className="border border-theme-border/60 rounded-xl overflow-hidden bg-theme-surface">
-                                    <table className="w-full text-left text-[11px]">
-                                      <thead>
-                                        <tr className="bg-theme-surface-secondary/60 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border text-[10px]">
-                                          <th className="py-2.5 px-4">สมาชิก</th>
-                                          <th className="py-2.5 px-4">รหัสพนักงาน</th>
-                                          <th className="py-2.5 px-4">ระดับสิทธิ์</th>
-                                          <th className="py-2.5 px-4 text-center">ถอดสมาชิก</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-theme-border/40">
-                                        {members.map(mem => (
-                                          <tr key={mem.id} className="hover:bg-slate-700/5">
-                                            <td className="py-2 px-4 font-semibold text-theme-text">
-                                              {mem.users?.full_name || '—'}
-                                              {mem.users?.nickname && (
-                                                <span className="text-theme-text-muted font-normal ml-1">
-                                                  ({mem.users.nickname})
-                                                </span>
-                                              )}
-                                            </td>
-                                            <td className="py-2 px-4 font-mono text-theme-text-secondary">
-                                              {mem.users?.emp_id}
-                                            </td>
-                                            <td className="py-2 px-4">
-                                              <div className="flex items-center gap-1.5">
-                                                <select
-                                                  value={mem.role}
-                                                  onChange={e => handleChangeRole(mem.id, e.target.value as any)}
-                                                  className="bg-theme-surface-secondary border border-theme-border rounded px-2 py-0.5 text-[10px] font-bold text-theme-text focus:outline-none"
-                                                >
-                                                  <option value="user">User</option>
-                                                  <option value="manager">Manager</option>
-                                                  <option value="admin">Admin (Owner)</option>
-                                                </select>
-                                                {mem.users?.role === 'admin' && (
-                                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded px-1.5 py-0.5 shrink-0" title="Global Super Admin">
-                                                    <Shield size={8} />
-                                                    SYS
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </td>
-                                            <td className="py-2 px-4 text-center">
-                                              <button
-                                                type="button"
-                                                disabled={isSubmitting === mem.id}
-                                                onClick={() =>
-                                                  handleRemoveUser(mem.id, mem.user_id, mem.users?.full_name, ws.workspace_name)
-                                                }
-                                                className="p-1 text-theme-text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded transition-all"
-                                                title="ถอดออกจากฝ่าย"
-                                              >
-                                                <UserMinus size={13} />
-                                              </button>
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
     </AppLayout>
   );

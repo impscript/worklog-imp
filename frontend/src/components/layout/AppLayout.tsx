@@ -513,7 +513,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <NavItem to="/profile" icon={<User size={18} />} label={t('nav.profile')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
 
             {/* Section 2: Collaboration */}
-            {((user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') || !isCollapsed) && (
+            {(user?.activeWorkspaceId || user?.role === 'admin' || !isCollapsed) && (
               <div className="border-t border-theme-border/30 my-2 pt-2">
                 {!isCollapsed && (
                   <h3 className="px-4 pb-1 text-[9.5px] font-black uppercase text-indigo-400/80 tracking-widest font-mono">
@@ -522,7 +522,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 )}
               </div>
             )}
-            {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
+            {(user?.role === 'admin' || user?.workspaceRole || user?.activeWorkspaceId) && (
               <NavItem to="/reports" icon={<FileText size={18} />} label={t('nav.reports')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
             {(user?.role === 'admin' || user?.workspaceRole === 'admin') && (
