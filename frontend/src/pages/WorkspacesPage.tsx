@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LayoutGrid, RefreshCw, AlertTriangle, ChevronDown, Trash2,
-  Plus, UserMinus, Users, Shield, Activity
+  Plus, UserMinus, Users, Shield, Activity, X
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
@@ -22,6 +22,11 @@ export default function WorkspacesPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedOrphan, setSelectedOrphan] = useState('');
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
+
+  // Create workspace state
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newWsName, setNewWsName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
 
   // Auth guard
   useEffect(() => {
@@ -123,6 +128,37 @@ export default function WorkspacesPage() {
     }
   };
 
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWsName.trim()) return;
+    setIsCreating(true);
+    try {
+      // Generate invite code from name
+      const code = newWsName
+        .replace(/[^a-zA-Z0-9\u0E00-\u0E7F\s]/g, '')
+        .trim()
+        .split(/\s+/)
+        .map(w => w[0]?.toUpperCase() || '')
+        .join('')
+        .substring(0, 6) + '-' + Math.floor(100 + Math.random() * 900);
+
+      const { data, error } = await supabase
+        .from('workspaces')
+        .insert({ workspace_name: newWsName.trim(), invite_code: code })
+        .select()
+        .single();
+      if (error) throw error;
+      showToast(`สร้าง Workspace "${data.workspace_name}" สำเร็จ! Invite Code: ${data.invite_code}`, 'success');
+      setNewWsName('');
+      setIsCreateOpen(false);
+      loadData();
+    } catch (err: any) {
+      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const handleDeleteWorkspace = async (wsId: string, wsName: string) => {
     const ok = await showConfirm({
       title: '⚠️ ยืนยันการลบ Workspace',
@@ -170,14 +206,23 @@ export default function WorkspacesPage() {
               </div>
             </div>
           </div>
-          <button
-            onClick={loadData}
-            disabled={isLoading}
-            className="flex items-center gap-2 bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-2 text-xs font-semibold text-theme-text-secondary hover:text-theme-text hover:border-indigo-500/40 transition-all disabled:opacity-50"
-          >
-            <RefreshCw size={14} className={cn(isLoading && 'animate-spin')} />
-            รีเฟรช
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadData}
+              disabled={isLoading}
+              className="flex items-center gap-2 bg-theme-surface-secondary border border-theme-border rounded-xl px-4 py-2 text-xs font-semibold text-theme-text-secondary hover:text-theme-text hover:border-indigo-500/40 transition-all disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={cn(isLoading && 'animate-spin')} />
+              รีเฟรช
+            </button>
+            <button
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500/30 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-lg shadow-indigo-500/10"
+            >
+              <Plus size={14} />
+              สร้าง Workspace ใหม่
+            </button>
+          </div>
         </div>
 
         {/* Overview Stats */}
@@ -237,6 +282,54 @@ export default function WorkspacesPage() {
                   <span className="font-mono text-amber-700/80 dark:text-amber-400/70">({u.emp_id})</span>
                 </span>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Create Workspace Modal */}
+        {isCreateOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-black text-theme-text">สร้างฝ่ายงานใหม่</h2>
+                  <p className="text-xs text-theme-text-muted mt-0.5">ระบบจะสร้าง Invite Code ให้อัตโนมัติ</p>
+                </div>
+                <button onClick={() => { setIsCreateOpen(false); setNewWsName(''); }} className="p-2 rounded-xl hover:bg-theme-surface-secondary text-theme-text-muted hover:text-theme-text transition-all">
+                  <X size={16} />
+                </button>
+              </div>
+              <form onSubmit={handleCreateWorkspace} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">ชื่อฝ่ายงาน / Workspace Name</label>
+                  <input
+                    type="text"
+                    value={newWsName}
+                    onChange={e => setNewWsName(e.target.value)}
+                    placeholder="ตัวอย่าง: Human Resource Department"
+                    className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setIsCreateOpen(false); setNewWsName(''); }}
+                    className="flex-1 py-2.5 rounded-xl border border-theme-border text-xs font-bold text-theme-text-secondary hover:bg-theme-surface-secondary transition-all"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreating || !newWsName.trim()}
+                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isCreating ? <RefreshCw size={12} className="animate-spin" /> : <Plus size={12} />}
+                    {isCreating ? 'กำลังสร้าง...' : 'สร้าง Workspace'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
@@ -395,15 +488,23 @@ export default function WorkspacesPage() {
                                               {mem.users?.emp_id}
                                             </td>
                                             <td className="py-2 px-4">
-                                              <select
-                                                value={mem.role}
-                                                onChange={e => handleChangeRole(mem.id, e.target.value as any)}
-                                                className="bg-theme-surface-secondary border border-theme-border rounded px-2 py-0.5 text-[10px] font-bold text-theme-text focus:outline-none"
-                                              >
-                                                <option value="user">User</option>
-                                                <option value="manager">Manager</option>
-                                                <option value="admin">Admin (Owner)</option>
-                                              </select>
+                                              <div className="flex items-center gap-1.5">
+                                                <select
+                                                  value={mem.role}
+                                                  onChange={e => handleChangeRole(mem.id, e.target.value as any)}
+                                                  className="bg-theme-surface-secondary border border-theme-border rounded px-2 py-0.5 text-[10px] font-bold text-theme-text focus:outline-none"
+                                                >
+                                                  <option value="user">User</option>
+                                                  <option value="manager">Manager</option>
+                                                  <option value="admin">Admin (Owner)</option>
+                                                </select>
+                                                {mem.users?.role === 'admin' && (
+                                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded px-1.5 py-0.5 shrink-0" title="Global Super Admin">
+                                                    <Shield size={8} />
+                                                    SYS
+                                                  </span>
+                                                )}
+                                              </div>
                                             </td>
                                             <td className="py-2 px-4 text-center">
                                               <button
