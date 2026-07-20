@@ -58,6 +58,9 @@ export default function WorkspacesPage() {
   // System Users tab state
   const [sysSearch, setSysSearch] = useState('');
   const [isTogglingRole, setIsTogglingRole] = useState<string | null>(null);
+  const [sysRoleFilter, setSysRoleFilter] = useState<'all' | 'admin' | 'user'>('all');
+  const [sysCurrentPage, setSysCurrentPage] = useState(1);
+  const [sysPageSize, setSysPageSize] = useState(25);
 
   // Searchable combobox state for grant modal
   const [userSearch, setUserSearch] = useState('');
@@ -250,6 +253,32 @@ export default function WorkspacesPage() {
         .from('user_workspace_grants')
         .upsert(rows, { onConflict: 'user_id,workspace_id' });
       if (error) throw error;
+
+      // ── Audit Log ──
+      try {
+        const targetUser = allUsers.find(u => u.id === grantForm.user_id);
+        const auditRows = grantForm.workspace_ids.map(wsId => {
+          const ws = workspaces.find(w => w.id === wsId);
+          return {
+            workspace_id: wsId,
+            actor_id: sess?.id || null,
+            actor_name: sess?.full_name || 'System Admin',
+            action: 'GRANT_ADDED',
+            target_id: grantForm.user_id,
+            target_name: targetUser?.full_name || 'Unknown User',
+            metadata: {
+              grant_role: grantForm.grant_role,
+              workspace_name: ws?.workspace_name,
+              expires_at: grantForm.expires_at,
+              notes: grantForm.notes,
+            },
+          };
+        });
+        await supabase.from('tb_audit_log').insert(auditRows);
+      } catch (err) {
+        console.error('Audit logging failed:', err);
+      }
+
       showToast(`บันทึก Access Grant สำเร็จ! (${rows.length} Workspace)`, 'success');
       setIsGrantModalOpen(false);
       setGrantForm({ user_id: '', workspace_ids: [], grant_role: 'analyst', expires_at: '', notes: '' });
@@ -269,8 +298,30 @@ export default function WorkspacesPage() {
     });
     if (!ok) return;
     try {
+      const revoked = grants.find(g => g.id === grantId);
       const { error } = await supabase.from('user_workspace_grants').delete().eq('id', grantId);
       if (error) throw error;
+
+      // ── Audit Log ──
+      try {
+        const sessionStr = localStorage.getItem('worklog_session');
+        const sess = sessionStr ? JSON.parse(sessionStr) : null;
+        await supabase.from('tb_audit_log').insert({
+          workspace_id: revoked?.workspace_id || null,
+          actor_id: sess?.id || null,
+          actor_name: sess?.full_name || 'System Admin',
+          action: 'GRANT_REVOKED',
+          target_id: revoked?.user_id || null,
+          target_name: userName,
+          metadata: {
+            workspace_name: wsName,
+            notes: 'Revoked access grant',
+          },
+        });
+      } catch (err) {
+        console.error('Audit logging failed:', err);
+      }
+
       showToast('ถอนสิทธิ์สำเร็จ!', 'success');
       loadGrants();
     } catch (err: any) {
@@ -283,6 +334,10 @@ export default function WorkspacesPage() {
     if (!editingGrantId) return;
     setIsSavingGrant(true);
     try {
+      const updated = grants.find(g => g.id === editingGrantId);
+      const wsData = workspaces.find(w => w.id === updated?.workspace_id);
+      const wsName = updated?.workspaces?.workspace_name || wsData?.workspace_name;
+
       const { error } = await supabase
         .from('user_workspace_grants')
         .update({
@@ -292,13 +347,38 @@ export default function WorkspacesPage() {
         })
         .eq('id', editingGrantId);
       if (error) throw error;
-      showToast('\u0e2d\u0e31\u0e1b\u0e40\u0e14\u0e15 Access Grant \u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08!', 'success');
+
+      // ── Audit Log ──
+      try {
+        const sessionStr = localStorage.getItem('worklog_session');
+        const sess = sessionStr ? JSON.parse(sessionStr) : null;
+        const targetUser = allUsers.find(u => u.id === updated?.user_id);
+        await supabase.from('tb_audit_log').insert({
+          workspace_id: updated?.workspace_id || null,
+          actor_id: sess?.id || null,
+          actor_name: sess?.full_name || 'System Admin',
+          action: 'GRANT_UPDATED',
+          target_id: updated?.user_id || null,
+          target_name: targetUser?.full_name || 'Unknown User',
+          metadata: {
+            workspace_name: wsName,
+            old_grant_role: updated?.grant_role,
+            new_grant_role: grantForm.grant_role,
+            expires_at: grantForm.expires_at,
+            notes: grantForm.notes,
+          },
+        });
+      } catch (err) {
+        console.error('Audit logging failed:', err);
+      }
+
+      showToast('อัปเดต Access Grant สำเร็จ!', 'success');
       setIsGrantModalOpen(false);
       setEditingGrantId(null);
       setEditWsId('');
       loadGrants();
     } catch (err: any) {
-      showToast('\u0e40\u0e01\u0e34\u0e14\u0e02\u0e49\u0e2d\u0e1c\u0e34\u0e14\u0e1e\u0e25\u0e32\u0e14: ' + err.message, 'error');
+      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
     } finally {
       setIsSavingGrant(false);
     }
@@ -308,9 +388,9 @@ export default function WorkspacesPage() {
     const isMakingSys = user.role !== 'admin';
     if (isMakingSys) {
       const ok = await showConfirm({
-        title: '\u26a0\ufe0f \u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e01\u0e32\u0e23\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c SYS',
-        message: `\u0e01\u0e33\u0e25\u0e31\u0e07\u0e08\u0e30\u0e43\u0e2b\u0e49\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c Super Admin (\u0e23\u0e30\u0e14\u0e31\u0e1a System) \u0e41\u0e01\u0e48 ${user.full_name}\n\nSYS Admin \u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e40\u0e02\u0e49\u0e32\u0e16\u0e36\u0e07\u0e17\u0e38\u0e01 Workspace \u0e41\u0e25\u0e30\u0e1a\u0e22\u0e1b\u0e32\u0e2a RLS \u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14\n\u0e04\u0e38\u0e13\u0e41\u0e19\u0e48\u0e43\u0e08\u0e2b\u0e23\u0e37\u0e2d\u0e44\u0e21\u0e48?`,
-        confirmText: '\u0e43\u0e2b\u0e49\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c SYS',
+        title: '⚠️ ยืนยันการเพิ่มสิทธิ์ SYS',
+        message: `กำลังจะให้สิทธิ์ Super Admin (ระดับ System) แก่ ${user.full_name}\n\nSYS Admin สามารถเข้าถึงทุก Workspace และบายบาส RLS ทั้งหมด\nคุณแน่ใจหรือไม่?`,
+        confirmText: 'ให้สิทธิ์ SYS',
         type: 'danger',
       });
       if (!ok) return;
@@ -323,8 +403,30 @@ export default function WorkspacesPage() {
         .update({ role: newRole })
         .eq('id', user.id);
       if (error) throw error;
+
+      // ── Audit Log ──
+      try {
+        const sessionStr = localStorage.getItem('worklog_session');
+        const sess = sessionStr ? JSON.parse(sessionStr) : null;
+        await supabase.from('tb_audit_log').insert({
+          workspace_id: null, // Global level system action
+          actor_id: sess?.id || null,
+          actor_name: sess?.full_name || 'System Admin',
+          action: 'SYS_ROLE_CHANGED',
+          target_id: user.id,
+          target_name: user.full_name,
+          metadata: {
+            old_role: user.role,
+            new_role: newRole,
+            reason: isMakingSys ? 'Promoted to SYS Admin' : 'Demoted to User/Staff',
+          },
+        });
+      } catch (err) {
+        console.error('Audit logging failed:', err);
+      }
+
       showToast(
-        isMakingSys ? `\u0e43\u0e2b\u0e49\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c SYS \u0e41\u0e01\u0e48 ${user.full_name} \u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08!` : `\u0e16\u0e2d\u0e14\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c SYS \u0e02\u0e2d\u0e07 ${user.full_name} \u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08!`,
+        isMakingSys ? `ให้สิทธิ์ SYS แก่ ${user.full_name} สำเร็จ!` : `ถอนสิทธิ์ SYS ของ ${user.full_name} สำเร็จ!`,
         'success'
       );
       // Reload allUsers
@@ -337,7 +439,7 @@ export default function WorkspacesPage() {
         setAllUsers(data);
       }
     } catch (err: any) {
-      showToast('\u0e40\u0e01\u0e34\u0e14\u0e02\u0e49\u0e2d\u0e1c\u0e34\u0e14\u0e1e\u0e25\u0e32\u0e14: ' + err.message, 'error');
+      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
     } finally {
       setIsTogglingRole(null);
     }
@@ -790,21 +892,44 @@ export default function WorkspacesPage() {
         {activeTab === 'system_users' && (
           <div className="space-y-6">
             {/* Search and Stats Row */}
-            <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between">
-              {/* Search bar */}
-              <div className="relative flex-1 max-w-md">
-                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
-                <input
-                  type="text"
-                  value={sysSearch}
-                  onChange={(e) => setSysSearch(e.target.value)}
-                  placeholder="ค้นหาชื่อ, รหัสพนักงาน, แผนก..."
-                  className="w-full bg-theme-surface-secondary/80 border border-theme-border rounded-2xl py-2 pl-10 pr-4 text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all shadow-sm"
-                />
+            <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
+              {/* Search and Role Filter Group */}
+              <div className="flex flex-wrap items-center gap-3 flex-1 max-w-2xl">
+                {/* Search bar */}
+                <div className="relative flex-1 min-w-[240px]">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
+                  <input
+                    type="text"
+                    value={sysSearch}
+                    onChange={(e) => {
+                      setSysSearch(e.target.value);
+                      setSysCurrentPage(1);
+                    }}
+                    placeholder="ค้นหาชื่อ, รหัสพนักงาน, แผนก..."
+                    className="w-full bg-theme-surface-secondary/80 border border-theme-border rounded-2xl py-2.5 pl-10 pr-4 text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-rose-500 transition-all shadow-sm"
+                  />
+                </div>
+
+                {/* Role filter select dropdown */}
+                <div className="flex items-center gap-2 bg-theme-surface-secondary/80 border border-theme-border rounded-2xl px-3 py-1.5 shadow-sm">
+                  <span className="text-[10px] font-bold text-theme-text-secondary uppercase">ประเภทสิทธิ์:</span>
+                  <select
+                    value={sysRoleFilter}
+                    onChange={(e) => {
+                      setSysRoleFilter(e.target.value as any);
+                      setSysCurrentPage(1);
+                    }}
+                    className="bg-transparent text-xs font-bold text-theme-text focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">ทั้งหมด ({allUsers.length})</option>
+                    <option value="admin">เฉพาะ SYS Admin ({allUsers.filter(u => u.role === 'admin').length})</option>
+                    <option value="user">เฉพาะ User / Staff ({allUsers.filter(u => u.role !== 'admin').length})</option>
+                  </select>
+                </div>
               </div>
 
               {/* Stats badges */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 self-end md:self-auto">
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-theme-surface-tertiary/60 border border-theme-border/50 rounded-xl">
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase">พนักงานทั้งหมด:</span>
                   <span className="text-xs font-black text-theme-text font-mono">{allUsers.length} คน</span>
@@ -819,31 +944,17 @@ export default function WorkspacesPage() {
               </div>
             </div>
 
-            {/* Users list */}
+            {/* Users list with Client-side Pagination */}
             <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl shadow-xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border/40">
-                <h2 className="text-sm font-black text-theme-text flex items-center gap-2">
-                  <Shield size={15} className="text-rose-500" />
-                  รายชื่อผู้ใช้และสิทธิ์ระบบกลาง (System Roles)
-                </h2>
-                {sysSearch && (
-                  <span className="text-[10px] text-theme-text-muted">
-                    พบคะแนนการค้นหา {allUsers.filter(u => {
-                      const q = sysSearch.toLowerCase();
-                      return (
-                        (u.full_name || '').toLowerCase().includes(q) ||
-                        (u.emp_id || '').toLowerCase().includes(q) ||
-                        (u.department || '').toLowerCase().includes(q) ||
-                        (u.nickname || '').toLowerCase().includes(q)
-                      );
-                    }).length} คน
-                  </span>
-                )}
-              </div>
-
               {(() => {
+                // 1. Filter
                 const filtered = allUsers.filter(u => {
-                  const q = sysSearch.toLowerCase();
+                  // Role filter check
+                  if (sysRoleFilter === 'admin' && u.role !== 'admin') return false;
+                  if (sysRoleFilter === 'user' && u.role === 'admin') return false;
+
+                  // Search filter check
+                  const q = sysSearch.toLowerCase().trim();
                   if (!q) return true;
                   return (
                     (u.full_name || '').toLowerCase().includes(q) ||
@@ -853,86 +964,176 @@ export default function WorkspacesPage() {
                   );
                 });
 
-                if (filtered.length === 0) {
-                  return (
-                    <div className="text-center py-16 space-y-3">
-                      <Users size={32} className="text-theme-text-muted/30 mx-auto" />
-                      <p className="text-sm text-theme-text-muted">ไม่พบข้อมูลตามคำค้นหา</p>
-                    </div>
-                  );
-                }
+                // 2. Pagination calculation
+                const totalItems = filtered.length;
+                const totalPages = Math.ceil(totalItems / sysPageSize) || 1;
+                
+                // Adjust current page if out of bounds
+                const activePage = Math.min(Math.max(1, sysCurrentPage), totalPages);
+                
+                const startIndex = (activePage - 1) * sysPageSize;
+                const endIndex = Math.min(startIndex + sysPageSize, totalItems);
+                const paginatedUsers = filtered.slice(startIndex, endIndex);
 
                 return (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-left text-xs">
-                      <thead>
-                        <tr className="bg-theme-surface-secondary/80 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border text-[10px]">
-                          <th className="py-3 px-5">พนักงาน</th>
-                          <th className="py-3 px-5">รหัสพนักงาน</th>
-                          <th className="py-3 px-5">แผนก/ฝ่ายงาน</th>
-                          <th className="py-3 px-5">สิทธิ์ระดับระบบกลาง (System Role)</th>
-                          <th className="py-3 px-5 text-center">จัดการสิทธิ์ SYS</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-theme-border/40">
-                        {filtered.map(u => {
-                          const isSys = u.role === 'admin';
-                          const loading = isTogglingRole === u.id;
-                          return (
-                            <tr key={u.id} className="hover:bg-slate-700/5 transition-colors">
-                              <td className="py-3 px-5">
-                                <div className="font-semibold text-theme-text flex items-center gap-1.5">
-                                  {u.full_name}
-                                  {u.nickname && (
-                                    <span className="text-[10px] font-normal text-theme-text-muted">({u.nickname})</span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-3 px-5 font-mono text-[11px] text-theme-text-secondary">{u.emp_id || '—'}</td>
-                              <td className="py-3 px-5 text-theme-text-secondary">{u.department || '—'}</td>
-                              <td className="py-3 px-5">
-                                {isSys ? (
-                                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded-lg px-2.5 py-1">
-                                    <Shield size={10} /> SYS Admin (Super)
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-theme-text-secondary bg-theme-surface-secondary border border-theme-border rounded-lg px-2.5 py-1">
-                                    User / Staff
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-5 text-center">
-                                <button
-                                  type="button"
-                                  disabled={loading}
-                                  onClick={() => handleToggleSysRole(u)}
-                                  className={cn(
-                                    "px-3 py-1.5 rounded-xl border text-[10px] font-bold transition-all shadow-sm flex items-center gap-1.5 mx-auto disabled:opacity-50",
-                                    isSys
-                                      ? "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20"
-                                      : "bg-theme-surface border-theme-border text-theme-text hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
-                                  )}
-                                >
-                                  {loading ? (
-                                    <RefreshCw size={11} className="animate-spin" />
-                                  ) : isSys ? (
-                                    <UserMinus size={11} />
-                                  ) : (
-                                    <Shield size={11} />
-                                  )}
-                                  {loading
-                                    ? "กำลังอัปเดต..."
-                                    : isSys
-                                    ? "ถอนสิทธิ์ SYS"
-                                    : "แต่งตั้งเป็น SYS"}
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <>
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-theme-border/40">
+                      <h2 className="text-sm font-black text-theme-text flex items-center gap-2">
+                        <Shield size={15} className="text-rose-500" />
+                        รายชื่อผู้ใช้และสิทธิ์ระบบกลาง (System Roles)
+                      </h2>
+                      <span className="text-[10px] text-theme-text-muted">
+                        {sysSearch || sysRoleFilter !== 'all' ? `พบผลการค้นหา ${totalItems} คน` : `ทั้งหมด ${totalItems} คน`}
+                      </span>
+                    </div>
+
+                    {totalItems === 0 ? (
+                      <div className="text-center py-16 space-y-3">
+                        <Users size={32} className="text-theme-text-muted/30 mx-auto" />
+                        <p className="text-sm text-theme-text-muted">ไม่พบข้อมูลตามแผนกหรือชื่อคำค้นหา</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-collapse text-left text-xs">
+                            <thead>
+                              <tr className="bg-theme-surface-secondary/80 text-theme-text-secondary uppercase tracking-wider font-bold border-b border-theme-border text-[10px]">
+                                <th className="py-3 px-5">พนักงาน</th>
+                                <th className="py-3 px-5">รหัสพนักงาน</th>
+                                <th className="py-3 px-5">แผนก/ฝ่ายงาน</th>
+                                <th className="py-3 px-5">สิทธิ์ระดับระบบกลาง (System Role)</th>
+                                <th className="py-3 px-5 text-center">จัดการสิทธิ์ SYS</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-theme-border/40">
+                              {paginatedUsers.map(u => {
+                                const isSys = u.role === 'admin';
+                                const loading = isTogglingRole === u.id;
+                                return (
+                                  <tr key={u.id} className="hover:bg-slate-700/5 transition-colors">
+                                    <td className="py-3 px-5">
+                                      <div className="font-semibold text-theme-text flex items-center gap-1.5">
+                                        {u.full_name}
+                                        {u.nickname && (
+                                          <span className="text-[10px] font-normal text-theme-text-muted">({u.nickname})</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-5 font-mono text-[11px] text-theme-text-secondary">{u.emp_id || '—'}</td>
+                                    <td className="py-3 px-5 text-theme-text-secondary">{u.department || '—'}</td>
+                                    <td className="py-3 px-5">
+                                      {isSys ? (
+                                        <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded-lg px-2.5 py-1">
+                                          <Shield size={10} /> SYS Admin (Super)
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-theme-text-secondary bg-theme-surface-secondary border border-theme-border rounded-lg px-2.5 py-1">
+                                          User / Staff
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-5 text-center">
+                                      <button
+                                        type="button"
+                                        disabled={loading}
+                                        onClick={() => handleToggleSysRole(u)}
+                                        className={cn(
+                                          "px-3 py-1.5 rounded-xl border text-[10px] font-bold transition-all shadow-sm flex items-center gap-1.5 mx-auto disabled:opacity-50",
+                                          isSys
+                                            ? "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20"
+                                            : "bg-theme-surface border-theme-border text-theme-text hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
+                                        )}
+                                      >
+                                        {loading ? (
+                                          <RefreshCw size={11} className="animate-spin" />
+                                        ) : isSys ? (
+                                          <UserMinus size={11} />
+                                        ) : (
+                                          <Shield size={11} />
+                                        )}
+                                        {loading
+                                          ? "กำลังอัปเดต..."
+                                          : isSys
+                                          ? "ถอนสิทธิ์ SYS"
+                                          : "แต่งตั้งเป็น SYS"}
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Pagination footer bar */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-4 border-t border-theme-border/40 gap-4 bg-theme-surface-secondary/20">
+                          {/* Left: Row range info & page size switcher */}
+                          <div className="flex items-center gap-3 text-[11px] text-theme-text-secondary">
+                            <span>
+                              แสดง <span className="font-bold text-theme-text">{startIndex + 1} - {endIndex}</span> จากทั้งหมด <span className="font-bold text-theme-text">{totalItems}</span> คน
+                            </span>
+                            <span className="text-theme-border">|</span>
+                            <div className="flex items-center gap-1.5">
+                              <span>แสดงหน้าละ:</span>
+                              <select
+                                value={sysPageSize}
+                                onChange={(e) => {
+                                  setSysPageSize(Number(e.target.value));
+                                  setSysCurrentPage(1);
+                                }}
+                                className="bg-theme-surface border border-theme-border rounded-lg px-2 py-0.5 font-bold text-theme-text cursor-pointer focus:outline-none"
+                              >
+                                {[10, 25, 50, 100].map(sz => (
+                                  <option key={sz} value={sz}>{sz} คน</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Right: Paging Buttons */}
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={activePage === 1}
+                              onClick={() => setSysCurrentPage(1)}
+                              className="px-2.5 py-1.5 text-[10px] font-bold text-theme-text bg-theme-surface border border-theme-border rounded-lg hover:bg-theme-surface-secondary transition-all disabled:opacity-40"
+                            >
+                              หน้าแรก
+                            </button>
+                            <button
+                              type="button"
+                              disabled={activePage === 1}
+                              onClick={() => setSysCurrentPage(activePage - 1)}
+                              className="px-2.5 py-1.5 text-[10px] font-bold text-theme-text bg-theme-surface border border-theme-border rounded-lg hover:bg-theme-surface-secondary transition-all disabled:opacity-40"
+                            >
+                              ก่อนหน้า
+                            </button>
+
+                            <span className="text-xs text-theme-text-secondary font-semibold px-2">
+                              หน้า <span className="font-black text-theme-text">{activePage}</span> / {totalPages}
+                            </span>
+
+                            <button
+                              type="button"
+                              disabled={activePage === totalPages}
+                              onClick={() => setSysCurrentPage(activePage + 1)}
+                              className="px-2.5 py-1.5 text-[10px] font-bold text-theme-text bg-theme-surface border border-theme-border rounded-lg hover:bg-theme-surface-secondary transition-all disabled:opacity-40"
+                            >
+                              ถัดไป
+                            </button>
+                            <button
+                              type="button"
+                              disabled={activePage === totalPages}
+                              onClick={() => setSysCurrentPage(totalPages)}
+                              className="px-2.5 py-1.5 text-[10px] font-bold text-theme-text bg-theme-surface border border-theme-border rounded-lg hover:bg-theme-surface-secondary transition-all disabled:opacity-40"
+                            >
+                              หน้าสุดท้าย
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
                 );
               })()}
             </div>
