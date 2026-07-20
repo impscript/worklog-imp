@@ -408,7 +408,7 @@ export default function TeamPage() {
                           type="button"
                           onClick={handleResetInviteCode}
                           title="Reset Invite Code"
-                          className="p-2 border border-theme-border hover:bg-slate-700 text-theme-text-secondary hover:text-theme-text rounded-xl transition-all active:scale-95 shrink-0"
+                          className="p-2 border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text rounded-xl transition-all active:scale-95 shrink-0"
                         >
                           <RefreshCw size={14} />
                         </button>
@@ -450,7 +450,7 @@ export default function TeamPage() {
                     <button
                       type="submit"
                       disabled={isAdding}
-                      className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl border border-theme-border transition-all flex items-center justify-center gap-2"
+                      className="w-full bg-theme-text hover:opacity-85 text-theme-bg-page font-bold text-xs py-2.5 px-4 rounded-xl border border-theme-border transition-all flex items-center justify-center gap-2"
                     >
                       {isAdding ? (
                         <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -518,7 +518,7 @@ export default function TeamPage() {
                             <tr key={mem.id} className="hover:bg-slate-700/10 transition-colors">
                               <td className="py-3.5 px-5">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden border border-slate-600 shrink-0">
+                                  <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden border border-indigo-500/30 shrink-0">
                                     <img 
                                       src={`https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID=${mem.users.emp_id}`}
                                       alt="User Avatar"
@@ -589,7 +589,7 @@ export default function TeamPage() {
                     <button
                       type="button"
                       onClick={() => session?.activeWorkspaceId && fetchAuditLog(session.activeWorkspaceId)}
-                      className="p-1.5 rounded-lg hover:bg-slate-700 text-theme-text-muted hover:text-theme-text transition-all"
+                      className="p-1.5 rounded-lg hover:bg-theme-surface-secondary text-theme-text-muted hover:text-theme-text transition-all"
                       title="Refresh"
                     >
                       <RefreshCw size={12} className={isAuditLoading ? 'animate-spin' : ''} />
@@ -613,7 +613,7 @@ export default function TeamPage() {
                         const dateStr = ts.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
                         const timeStr = ts.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
                         return (
-                          <div key={entry.id} className="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-700/10 transition-colors">
+                          <div key={entry.id} className="flex items-start gap-3 px-5 py-3.5 hover:bg-theme-surface-secondary/50 transition-colors">
                             <span className={`mt-0.5 shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border font-mono uppercase ${info.color}`}>
                               {info.label}
                             </span>
