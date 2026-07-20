@@ -1088,14 +1088,20 @@ export default function AdminPage() {
       : activeTab === 'users' ? (row.full_name || row.email || row.emp_id || row.id)
       : (row.name || row.id);
 
+    const isSoftDeleteTab = activeTab !== 'holiday' && activeTab !== 'users';
+
     const confirmed = await showConfirm({
-      title: 'ยืนยันการลบข้อมูล',
-      message:
-        `คุณกำลังจะลบ${labelMap[activeTab] || 'รายการ'}:\n` +
-        `• ชื่อ: "${recordLabel}"\n` +
-        `• Workspace: ${rowWsName}\n\n` +
-        `การกระทำนี้ไม่สามารถย้อนกลับได้ และจะลบเฉพาะข้อมูลใน Workspace นี้เท่านั้น`,
-      confirmText: 'ลบถาวร (Delete)',
+      title: isSoftDeleteTab ? 'ยืนยันการปิดใช้งานข้อมูล' : 'ยืนยันการลบข้อมูล',
+      message: isSoftDeleteTab
+        ? `คุณกำลังจะปิดใช้งาน${labelMap[activeTab] || 'รายการ'}:\n` +
+          `• ชื่อ: "${recordLabel}"\n` +
+          `• Workspace: ${rowWsName}\n\n` +
+          `ข้อมูลนี้จะถูกเปลี่ยนสถานะเป็น Inactive และจะไม่แสดงในการบันทึกเวลาทำงาน`
+        : `คุณกำลังจะลบ${labelMap[activeTab] || 'รายการ'}:\n` +
+          `• ชื่อ: "${recordLabel}"\n` +
+          `• Workspace: ${rowWsName}\n\n` +
+          `การกระทำนี้ไม่สามารถย้อนกลับได้ และจะลบเฉพาะข้อมูลใน Workspace นี้เท่านั้น`,
+      confirmText: isSoftDeleteTab ? 'ปิดใช้งาน (Inactivate)' : 'ลบถาวร (Delete)',
       type: 'danger'
     });
     if (!confirmed) return;
@@ -1113,28 +1119,26 @@ export default function AdminPage() {
         activeTab === 'templates' ? 'tb_master_worklog_templates' : 'users'
       );
 
-      // CRITICAL: delete by primary key + workspace_id to prevent cross-workspace
-      // deletion when master names are duplicated across workspaces.
-      // Note: tb_master_holding/role/project_type/holiday use composite PK (name, workspace_id)
-      // and have NO single 'id' column; the rest use a real 'id' column.
-      // wsFilter always resolves to a concrete workspace_id (prefer the admin's active
-      // workspace, fall back to the row's own workspace_id) so the delete never broadens.
       const wsFilter = delWorkspaceId || row.workspace_id;
-      let deleteOp: any;
-      if (activeTab === 'holding') deleteOp = query.delete().eq('holding_name', row.holding_name).eq('workspace_id', wsFilter);
-      else if (activeTab === 'role') deleteOp = query.delete().eq('role_name', row.role_name).eq('workspace_id', wsFilter);
-      else if (activeTab === 'project_type') deleteOp = query.delete().eq('type_name', row.type_name).eq('workspace_id', wsFilter);
-      else if (activeTab === 'holiday') deleteOp = query.delete().eq('date', row.date).is('workspace_id', null);
-      else deleteOp = query.delete().eq('id', row.id).eq('workspace_id', wsFilter);
+      let op: any;
+      if (isSoftDeleteTab) {
+        if (activeTab === 'holding') op = query.update({ is_active: false }).eq('holding_name', row.holding_name).eq('workspace_id', wsFilter);
+        else if (activeTab === 'role') op = query.update({ is_active: false }).eq('role_name', row.role_name).eq('workspace_id', wsFilter);
+        else if (activeTab === 'project_type') op = query.update({ is_active: false }).eq('type_name', row.type_name).eq('workspace_id', wsFilter);
+        else op = query.update({ is_active: false }).eq('id', row.id).eq('workspace_id', wsFilter);
+      } else {
+        if (activeTab === 'holiday') op = query.delete().eq('date', row.date).is('workspace_id', null);
+        else op = query.delete().eq('id', row.id).eq('workspace_id', wsFilter);
+      }
 
-      const { error } = await deleteOp;
+      const { error } = await op;
       if (error) throw error;
 
       loadAllData();
-      showToast('Record deleted successfully!', 'success');
+      showToast(isSoftDeleteTab ? 'ข้อมูลถูกปิดใช้งานเรียบร้อยแล้ว!' : 'Record deleted successfully!', 'success');
     } catch (err: any) {
-      console.error('Error deleting record:', err);
-      showToast('Error deleting record: ' + err.message, 'error');
+      console.error('Error handling record:', err);
+      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -1522,7 +1526,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">Holding Name</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
-                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
+                            <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1530,7 +1534,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">Role Operator Name</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
-                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
+                            <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1538,7 +1542,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">Project Type Name</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
-                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
+                            <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1547,7 +1551,7 @@ export default function AdminPage() {
                             <th className="px-6 py-4 font-semibold">Category</th>
                             <th className="px-6 py-4 font-semibold">Action Name</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
-                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
+                            <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1557,7 +1561,7 @@ export default function AdminPage() {
                             <th className="px-6 py-4 font-semibold">Holding</th>
                             <th className="px-6 py-4 font-semibold">Department Operator (Role)</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
-                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
+                            <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1566,7 +1570,7 @@ export default function AdminPage() {
                             <th className="px-6 py-4 font-semibold">Project & Module</th>
                             <th className="px-6 py-4 font-semibold">Allocation & Context</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
-                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
+                            <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1574,7 +1578,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">User Profile</th>
                             <th className="px-6 py-4 font-semibold">Affiliation & Role</th>
-                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
+                            <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1582,7 +1586,7 @@ export default function AdminPage() {
                           <tr>
                             <th className="px-6 py-4 font-semibold">Holiday Date</th>
                             <th className="px-6 py-4 font-semibold">Holiday Name</th>
-                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
+                            <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1592,7 +1596,7 @@ export default function AdminPage() {
                             <th className="px-6 py-4 font-semibold">Template Name</th>
                             <th className="px-6 py-4 font-semibold">Content Preview</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
-                            <th className="px-6 py-4 font-semibold">Scope (ขอบเขตข้อมูล)</th>
+                            <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
