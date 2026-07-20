@@ -187,21 +187,21 @@ export default function WorkspacesPage() {
               label: 'Total Workspaces',
               value: `${workspaces.length} กลุ่ม`,
               icon: <LayoutGrid size={18} />,
-              color: 'text-indigo-400',
+              color: 'text-indigo-600 dark:text-indigo-400',
               bg: 'bg-indigo-500/10',
             },
             {
               label: 'Assigned Members',
               value: `${workspaceUsers.length} คน`,
               icon: <Users size={18} />,
-              color: 'text-emerald-400',
+              color: 'text-emerald-700 dark:text-emerald-400',
               bg: 'bg-emerald-500/10',
             },
             {
               label: 'Orphaned Users',
               value: `${orphanedUsers.length} คน`,
               icon: <AlertTriangle size={18} />,
-              color: orphanedUsers.length > 0 ? 'text-amber-400' : 'text-theme-text-muted',
+              color: orphanedUsers.length > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-theme-text-muted',
               bg: orphanedUsers.length > 0 ? 'bg-amber-500/10' : 'bg-theme-surface-secondary',
             },
           ].map(stat => (
@@ -213,7 +213,7 @@ export default function WorkspacesPage() {
                 {stat.icon}
               </div>
               <div>
-                <p className="text-[10px] text-theme-text-muted uppercase tracking-wider font-semibold">{stat.label}</p>
+                <p className="text-[10px] text-theme-text-secondary uppercase tracking-wider font-semibold">{stat.label}</p>
                 <p className={cn('text-2xl font-black mt-0.5', stat.color)}>{stat.value}</p>
               </div>
             </div>
@@ -223,7 +223,7 @@ export default function WorkspacesPage() {
         {/* Orphaned Users Quick List */}
         {orphanedUsers.length > 0 && (
           <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-5">
-            <h3 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-2 mb-3">
+            <h3 className="text-xs font-black uppercase tracking-wider text-amber-750 dark:text-amber-400 flex items-center gap-2 mb-3">
               <AlertTriangle size={14} />
               พนักงานที่รอเข้าสังกัด ({orphanedUsers.length} คน) — กดขยาย Workspace เพื่อ Assign
             </h3>
@@ -231,10 +231,10 @@ export default function WorkspacesPage() {
               {orphanedUsers.map(u => (
                 <span
                   key={u.id}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-lg px-2.5 py-1"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 rounded-lg px-2.5 py-1"
                 >
                   {u.full_name}
-                  <span className="font-mono text-amber-400/70">({u.emp_id})</span>
+                  <span className="font-mono text-amber-700/80 dark:text-amber-400/70">({u.emp_id})</span>
                 </span>
               ))}
             </div>
@@ -283,7 +283,7 @@ export default function WorkspacesPage() {
                             <button
                               type="button"
                               onClick={() => setExpandedId(isExpanded ? null : ws.id)}
-                              className="p-1 rounded-lg hover:bg-indigo-500/10 text-theme-text-muted hover:text-indigo-400 transition-all"
+                              className="p-1 rounded-lg hover:bg-indigo-500/10 text-theme-text-muted hover:text-indigo-600 dark:hover:text-indigo-400 transition-all"
                             >
                               <ChevronDown
                                 size={14}
@@ -298,7 +298,7 @@ export default function WorkspacesPage() {
                             </div>
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="font-mono text-indigo-400 font-bold text-[12px] bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2 py-0.5">
+                            <span className="font-mono text-indigo-700 dark:text-indigo-400 font-bold text-[12px] bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2 py-0.5">
                               {ws.invite_code}
                             </span>
                           </td>
