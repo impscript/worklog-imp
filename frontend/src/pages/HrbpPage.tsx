@@ -11,6 +11,7 @@ import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
+import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
 import {
   ResponsiveContainer,
   BarChart,
@@ -94,6 +95,9 @@ export default function HrbpPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // States
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
+  const [workspacesList, setWorkspacesList] = useState<{ id: string; workspace_name: string; invite_code: string }[]>([]);
+  const { grants } = useWorkspaceGrants();
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -299,7 +303,7 @@ export default function HrbpPage() {
     return { start, end };
   };
 
-  // Load Session and Initial Users
+  // Load Session on Mount
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
     const token = queryParams.get('share');
@@ -314,6 +318,54 @@ export default function HrbpPage() {
     if (session) {
       setSessionUser(session);
     }
+  }, [navigate]);
+
+  // Load viewable workspaces (own + granted)
+  useEffect(() => {
+    if (!sessionUser) return;
+    if (sessionUser.role === 'admin') {
+      supabase.from('workspaces').select('id, workspace_name, invite_code').order('workspace_name').then(({ data }) => {
+        if (data) setWorkspacesList(data);
+      });
+    } else {
+      const ownWs = sessionUser.activeWorkspaceId ? {
+        id: sessionUser.activeWorkspaceId,
+        workspace_name: sessionUser.workspaceName || 'My Workspace',
+        invite_code: sessionUser.workspaceInviteCode || ''
+      } : null;
+
+      const grantedWs = (grants || [])
+        .filter(g => g.grant_role === 'analyst' || g.grant_role === 'manager')
+        .map(g => ({
+          id: g.workspace_id,
+          workspace_name: g.workspace_name || 'Granted Workspace',
+          invite_code: g.invite_code || ''
+        }));
+
+      const list = [];
+      if (ownWs) list.push(ownWs);
+      list.push(...grantedWs);
+      
+      const uniqueList = list.filter((item, index, self) =>
+        index === self.findIndex((t) => t.id === item.id)
+      );
+
+      setWorkspacesList(uniqueList);
+    }
+  }, [sessionUser, grants]);
+
+  // Load Data for Selected Workspace
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const token = queryParams.get('share');
+    const sessionStr = localStorage.getItem('worklog_session');
+    const session = sessionStr ? JSON.parse(sessionStr) : null;
+
+    let targetWorkspaceId = selectedWorkspaceId;
+    if (session && !targetWorkspaceId && session.activeWorkspaceId) {
+      targetWorkspaceId = session.activeWorkspaceId;
+      setSelectedWorkspaceId(targetWorkspaceId);
+    }
 
     const loadData = async () => {
       try {
@@ -324,7 +376,6 @@ export default function HrbpPage() {
           setStep(3);
           await loadSharedReport(token);
           
-          // Optionally load users for display, but swallow error if RLS blocks it (e.g. unauthenticated share viewer)
           try {
             const { data: usersData } = await supabase
               .from('users')
@@ -336,14 +387,14 @@ export default function HrbpPage() {
           } catch (e) {
             console.log('Swallowed user list loading error in public shared view:', e);
           }
-        } else {
+        } else if (session) {
           let userQuery = supabase
             .from('users')
             .select('*')
             .order('full_name', { ascending: true });
 
-          if (session?.activeWorkspaceId) {
-            userQuery = userQuery.eq('active_workspace_id', session.activeWorkspaceId);
+          if (targetWorkspaceId) {
+            userQuery = userQuery.eq('active_workspace_id', targetWorkspaceId);
           }
 
           const { data: usersData, error: usersErr } = await userQuery;
@@ -351,10 +402,12 @@ export default function HrbpPage() {
           if (usersErr) throw usersErr;
           setUsersList(usersData || []);
 
-          if (usersData && usersData.length > 0 && session) {
+          if (usersData && usersData.length > 0) {
             // Pre-select current user or first user
             const matchingUser = usersData.find((u: any) => u.id === session.id);
             setSelectedUser(matchingUser ? matchingUser.id : usersData[0].id);
+          } else {
+            setSelectedUser('');
           }
         }
 
@@ -364,10 +417,9 @@ export default function HrbpPage() {
           .select('*')
           .eq('is_active', true);
 
-        if (session?.activeWorkspaceId) {
-          // Include this workspace's templates PLUS company-wide core prompts (workspace_id IS NULL),
-          // so every workspace can use the shared standard default.
-          templatesQuery = templatesQuery.or(`workspace_id.eq.${session.activeWorkspaceId},workspace_id.is.null`);
+        const activeWs = targetWorkspaceId || session?.activeWorkspaceId;
+        if (activeWs) {
+          templatesQuery = templatesQuery.or(`workspace_id.eq.${activeWs},workspace_id.is.null`);
         } else {
           templatesQuery = templatesQuery.or(`workspace_id.eq.a59b2075-8ce6-4b95-a4df-1e8ea36a0001,workspace_id.is.null`);
         }
@@ -387,8 +439,10 @@ export default function HrbpPage() {
       }
     };
 
-    loadData();
-  }, [navigate]);
+    if (session || token) {
+      loadData();
+    }
+  }, [navigate, selectedWorkspaceId]);
 
   // Clean up and Purge logic upon step changes or selectedUser updates
   // Prevents state leakage
@@ -983,7 +1037,7 @@ export default function HrbpPage() {
         .from('col_worklog')
         .select('project_name, action_name, description, total_hours')
         .eq('user_id', selectedUser)
-        .eq('workspace_id', sessionUser?.activeWorkspaceId)
+        .eq('workspace_id', selectedWorkspaceId || sessionUser?.activeWorkspaceId)
         .gte('work_date', startDate)
         .lte('work_date', endDate);
         
@@ -1007,7 +1061,7 @@ export default function HrbpPage() {
       // Look up system config scoped to the active workspace
       const sessionStr = localStorage.getItem('worklog_session');
       const sessionData = sessionStr ? JSON.parse(sessionStr) : null;
-      const activeWsId = sessionData?.activeWorkspaceId || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
+      const activeWsId = selectedWorkspaceId || sessionData?.activeWorkspaceId || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
 
       const { data: configsData } = await supabase
         .from('tb_system_config')

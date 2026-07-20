@@ -306,10 +306,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
       navigate('/');
     }
-    if (path === '/reports' && !(isSuperAdmin || isWorkspaceAdmin || isWorkspaceManager)) {
-      showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
-      navigate('/');
-    }
     if (path === '/team' && !(isSuperAdmin || isWorkspaceAdmin)) {
       showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
       navigate('/');
