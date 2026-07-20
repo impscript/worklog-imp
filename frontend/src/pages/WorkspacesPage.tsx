@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LayoutGrid, RefreshCw, AlertTriangle, ChevronDown, Trash2,
-  Plus, UserMinus, Users, Shield, Activity, X, Key, Clock, Check
+  Plus, UserMinus, Users, Shield, Activity, X, Key, Clock, Check, Search
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
@@ -50,6 +50,14 @@ export default function WorkspacesPage() {
     notes: '',
   });
   const [isSavingGrant, setIsSavingGrant] = useState(false);
+
+  // Searchable combobox state for grant modal
+  const [userSearch, setUserSearch] = useState('');
+  const [wsSearch, setWsSearch] = useState('');
+  const [isUserDropOpen, setIsUserDropOpen] = useState(false);
+  const [isWsDropOpen, setIsWsDropOpen] = useState(false);
+  const userSearchRef = useRef<HTMLDivElement>(null);
+  const wsSearchRef = useRef<HTMLDivElement>(null);
 
   // Auth guard
   useEffect(() => {
@@ -301,7 +309,7 @@ export default function WorkspacesPage() {
             )}
             {activeTab === 'grants' && (
               <button
-                onClick={() => setIsGrantModalOpen(true)}
+                onClick={() => { setIsGrantModalOpen(true); setUserSearch(''); setWsSearch(''); setIsUserDropOpen(false); setIsWsDropOpen(false); setGrantForm({ user_id: '', workspace_id: '', grant_role: 'analyst', expires_at: '', notes: '' }); }}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-500/30 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-lg shadow-indigo-500/10"
               >
                 <Key size={14} />
@@ -665,7 +673,8 @@ export default function WorkspacesPage() {
 
         {/* ── Add Grant Modal ────────────────────────────────────────────────────────── */}
         {isGrantModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+               onClick={(e) => { if (e.target === e.currentTarget) setIsGrantModalOpen(false); }}>
             <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between">
                 <div>
@@ -676,24 +685,149 @@ export default function WorkspacesPage() {
               </div>
 
               <form onSubmit={handleSaveGrant} className="space-y-4">
+
+                {/* ── Searchable User Picker ─────────────────── */}
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">พนักงาน (ผู้รับสิทธิ์)</label>
-                  <select value={grantForm.user_id} onChange={e => setGrantForm(f => ({ ...f, user_id: e.target.value }))} className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text focus:outline-none focus:ring-1 focus:ring-indigo-500" required>
-                    <option value="">-- เลือกพนักงาน --</option>
-                    {allUsers.filter(u => u.role !== 'admin').map(u => (
-                      <option key={u.id} value={u.id}>{u.full_name} ({u.emp_id}) — {u.department || 'N/A'}</option>
-                    ))}
-                  </select>
+                  {(() => {
+                    const selectedUser = allUsers.find(u => u.id === grantForm.user_id);
+                    const filteredUsers = allUsers.filter(u => {
+                      if (u.role === 'admin') return false;
+                      const q = userSearch.toLowerCase();
+                      if (!q) return true;
+                      return (
+                        (u.full_name || '').toLowerCase().includes(q) ||
+                        (u.emp_id || '').toLowerCase().includes(q) ||
+                        (u.department || '').toLowerCase().includes(q) ||
+                        (u.nickname || '').toLowerCase().includes(q)
+                      );
+                    });
+                    return (
+                      <div ref={userSearchRef} className="relative">
+                        {/* Selected chip or search input */}
+                        {selectedUser && !isUserDropOpen ? (
+                          <div className="flex items-center justify-between w-full bg-indigo-500/10 border border-indigo-500/30 rounded-xl py-2.5 px-4">
+                            <div>
+                              <p className="text-sm font-bold text-indigo-300">{selectedUser.full_name}</p>
+                              <p className="text-[10px] text-theme-text-muted">{selectedUser.emp_id} · {selectedUser.department || 'N/A'}</p>
+                            </div>
+                            <button type="button" onClick={() => { setGrantForm(f => ({ ...f, user_id: '' })); setUserSearch(''); setIsUserDropOpen(true); }}
+                              className="ml-2 p-1 rounded-lg hover:bg-red-500/20 text-theme-text-muted hover:text-red-400 transition-all">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
+                            <input
+                              type="text"
+                              autoFocus={isUserDropOpen}
+                              value={userSearch}
+                              onChange={e => { setUserSearch(e.target.value); setIsUserDropOpen(true); }}
+                              onFocus={() => setIsUserDropOpen(true)}
+                              placeholder="ค้นหาชื่อ, รหัสพนักงาน, หน่วยงาน..."
+                              className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 pl-9 pr-4 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </div>
+                        )}
+                        {/* Dropdown results */}
+                        {isUserDropOpen && (
+                          <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-theme-surface border border-theme-border rounded-xl shadow-2xl overflow-hidden">
+                            <div className="max-h-52 overflow-y-auto divide-y divide-theme-border/30">
+                              {filteredUsers.length === 0 ? (
+                                <div className="px-4 py-3 text-xs text-theme-text-muted text-center">ไม่พบพนักงาน</div>
+                              ) : filteredUsers.map(u => (
+                                <button key={u.id} type="button"
+                                  onClick={() => { setGrantForm(f => ({ ...f, user_id: u.id })); setUserSearch(''); setIsUserDropOpen(false); }}
+                                  className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-indigo-500/10 transition-colors text-left group">
+                                  <div>
+                                    <p className="text-sm font-semibold text-theme-text group-hover:text-indigo-300 transition-colors">{u.full_name}</p>
+                                    <p className="text-[10px] text-theme-text-muted">
+                                      <span className="font-mono bg-theme-surface-secondary px-1.5 py-0.5 rounded mr-1.5">{u.emp_id}</span>
+                                      {u.department || 'N/A'}
+                                    </p>
+                                  </div>
+                                  {grantForm.user_id === u.id && <Check size={14} className="text-indigo-400 flex-shrink-0" />}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="px-3 py-1.5 bg-theme-surface-secondary border-t border-theme-border flex items-center justify-between">
+                              <span className="text-[10px] text-theme-text-muted">{filteredUsers.length} รายการ</span>
+                              <button type="button" onClick={() => setIsUserDropOpen(false)} className="text-[10px] text-theme-text-muted hover:text-theme-text transition-colors">ปิด ✕</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
+                {/* ── Searchable Workspace Picker ───────────── */}
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">Workspace ที่ให้เข้าถึง</label>
-                  <select value={grantForm.workspace_id} onChange={e => setGrantForm(f => ({ ...f, workspace_id: e.target.value }))} className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text focus:outline-none focus:ring-1 focus:ring-indigo-500" required>
-                    <option value="">-- เลือก Workspace --</option>
-                    {workspaces.map(ws => (
-                      <option key={ws.id} value={ws.id}>{ws.workspace_name} ({ws.invite_code})</option>
-                    ))}
-                  </select>
+                  {(() => {
+                    const selectedWs = workspaces.find(w => w.id === grantForm.workspace_id);
+                    const filteredWs = workspaces.filter(w => {
+                      const q = wsSearch.toLowerCase();
+                      if (!q) return true;
+                      return (
+                        (w.workspace_name || '').toLowerCase().includes(q) ||
+                        (w.invite_code || '').toLowerCase().includes(q)
+                      );
+                    });
+                    return (
+                      <div ref={wsSearchRef} className="relative">
+                        {selectedWs && !isWsDropOpen ? (
+                          <div className="flex items-center justify-between w-full bg-emerald-500/10 border border-emerald-500/30 rounded-xl py-2.5 px-4">
+                            <div>
+                              <p className="text-sm font-bold text-emerald-300">{selectedWs.workspace_name}</p>
+                              <p className="text-[10px] text-theme-text-muted font-mono">{selectedWs.invite_code}</p>
+                            </div>
+                            <button type="button" onClick={() => { setGrantForm(f => ({ ...f, workspace_id: '' })); setWsSearch(''); setIsWsDropOpen(true); }}
+                              className="ml-2 p-1 rounded-lg hover:bg-red-500/20 text-theme-text-muted hover:text-red-400 transition-all">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
+                            <input
+                              type="text"
+                              autoFocus={isWsDropOpen}
+                              value={wsSearch}
+                              onChange={e => { setWsSearch(e.target.value); setIsWsDropOpen(true); }}
+                              onFocus={() => setIsWsDropOpen(true)}
+                              placeholder="ค้นหา Workspace หรือรหัส..."
+                              className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 pl-9 pr-4 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </div>
+                        )}
+                        {isWsDropOpen && (
+                          <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-theme-surface border border-theme-border rounded-xl shadow-2xl overflow-hidden">
+                            <div className="max-h-44 overflow-y-auto divide-y divide-theme-border/30">
+                              {filteredWs.length === 0 ? (
+                                <div className="px-4 py-3 text-xs text-theme-text-muted text-center">ไม่พบ Workspace</div>
+                              ) : filteredWs.map(w => (
+                                <button key={w.id} type="button"
+                                  onClick={() => { setGrantForm(f => ({ ...f, workspace_id: w.id })); setWsSearch(''); setIsWsDropOpen(false); }}
+                                  className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-emerald-500/10 transition-colors text-left group">
+                                  <div>
+                                    <p className="text-sm font-semibold text-theme-text group-hover:text-emerald-300 transition-colors">{w.workspace_name}</p>
+                                    <p className="text-[10px] text-theme-text-muted font-mono">{w.invite_code}</p>
+                                  </div>
+                                  {grantForm.workspace_id === w.id && <Check size={14} className="text-emerald-400 flex-shrink-0" />}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="px-3 py-1.5 bg-theme-surface-secondary border-t border-theme-border flex items-center justify-between">
+                              <span className="text-[10px] text-theme-text-muted">{filteredWs.length} รายการ</span>
+                              <button type="button" onClick={() => setIsWsDropOpen(false)} className="text-[10px] text-theme-text-muted hover:text-theme-text transition-colors">ปิด ✕</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="space-y-1.5">
