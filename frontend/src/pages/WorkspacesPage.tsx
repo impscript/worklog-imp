@@ -38,6 +38,13 @@ export default function WorkspacesPage() {
   const [newWsName, setNewWsName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
+  // Edit workspace state
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingWorkspace, setEditingWorkspace] = useState<any>(null);
+  const [editWorkspaceName, setEditWorkspaceName] = useState('');
+  const [editWorkspaceInviteCode, setEditWorkspaceInviteCode] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
   // Grants tab state
   const [grants, setGrants] = useState<any[]>([]);
   const [isGrantsLoading, setIsGrantsLoading] = useState(false);
@@ -210,6 +217,35 @@ export default function WorkspacesPage() {
       showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleUpdateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWorkspace || !editWorkspaceName.trim() || !editWorkspaceInviteCode.trim()) return;
+    setIsUpdating(true);
+    try {
+      const { data, error } = await supabase
+        .from('workspaces')
+        .update({
+          workspace_name: editWorkspaceName.trim(),
+          invite_code: editWorkspaceInviteCode.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingWorkspace.id)
+        .select()
+        .single();
+      if (error) throw error;
+      showToast(`อัปเดต Workspace "${data.workspace_name}" สำเร็จ!`, 'success');
+      setIsEditOpen(false);
+      setEditingWorkspace(null);
+      setEditWorkspaceName('');
+      setEditWorkspaceInviteCode('');
+      loadData();
+    } catch (err: any) {
+      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -627,9 +663,29 @@ export default function WorkspacesPage() {
                                 {new Date(ws.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
                               </td>
                               <td className="py-3.5 px-4 text-right">
-                                <button type="button" onClick={() => handleDeleteWorkspace(ws.id, ws.workspace_name)} className="p-2 border border-transparent hover:border-rose-500/20 hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-400 rounded-xl transition-all" title="ลบ Workspace">
-                                  <Trash2 size={13} />
-                                </button>
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingWorkspace(ws);
+                                      setEditWorkspaceName(ws.workspace_name);
+                                      setEditWorkspaceInviteCode(ws.invite_code);
+                                      setIsEditOpen(true);
+                                    }}
+                                    className="p-2 border border-transparent hover:border-indigo-500/20 hover:bg-indigo-500/10 text-theme-text-muted hover:text-indigo-400 rounded-xl transition-all"
+                                    title="แก้ไข Workspace"
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteWorkspace(ws.id, ws.workspace_name)}
+                                    className="p-2 border border-transparent hover:border-rose-500/20 hover:bg-rose-500/10 text-theme-text-muted hover:text-rose-400 rounded-xl transition-all"
+                                    title="ลบ Workspace"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
 
@@ -1178,6 +1234,78 @@ export default function WorkspacesPage() {
                   <button type="submit" disabled={isCreating || !newWsName.trim()} className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                     {isCreating ? <RefreshCw size={12} className="animate-spin" /> : <Plus size={12} />}
                     {isCreating ? 'กำลังสร้าง...' : 'สร้าง Workspace'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ── Edit Workspace Modal ────────────────────────────────────────────────────── */}
+        {isEditOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="bg-theme-surface border border-theme-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-black text-theme-text">แก้ไขรายละเอียดฝ่ายงาน</h2>
+                  <p className="text-xs text-theme-text-muted mt-0.5">แก้ไขชื่อฝ่ายงานและรหัสเข้าร่วมกลุ่ม</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsEditOpen(false);
+                    setEditingWorkspace(null);
+                    setEditWorkspaceName('');
+                    setEditWorkspaceInviteCode('');
+                  }}
+                  className="p-2 rounded-xl hover:bg-theme-surface-secondary text-theme-text-muted hover:text-theme-text transition-all"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <form onSubmit={handleUpdateWorkspace} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">ชื่อฝ่ายงาน / Workspace Name</label>
+                  <input
+                    type="text"
+                    value={editWorkspaceName}
+                    onChange={e => setEditWorkspaceName(e.target.value)}
+                    placeholder="ตัวอย่าง: Human Resource Department"
+                    className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-theme-text-secondary uppercase tracking-widest">Invite Code / รหัสเข้าร่วมกลุ่ม</label>
+                  <input
+                    type="text"
+                    value={editWorkspaceInviteCode}
+                    onChange={e => setEditWorkspaceInviteCode(e.target.value)}
+                    placeholder="ตัวอย่าง: RELO-HR-888"
+                    className="w-full bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-sm text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditOpen(false);
+                      setEditingWorkspace(null);
+                      setEditWorkspaceName('');
+                      setEditWorkspaceInviteCode('');
+                    }}
+                    className="flex-1 py-2.5 rounded-xl border border-theme-border text-xs font-bold text-theme-text-secondary hover:bg-theme-surface-secondary transition-all"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdating || !editWorkspaceName.trim() || !editWorkspaceInviteCode.trim()}
+                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isUpdating ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                    {isUpdating ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
                   </button>
                 </div>
               </form>
