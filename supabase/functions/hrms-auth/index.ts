@@ -133,6 +133,57 @@ Deno.serve(async (req) => {
         });
       if (upsertErr) throw upsertErr;
       employee = upsertedUser;
+    } else if (!employee && idms.empId) {
+      console.log(`[JIT PROVISION] Employee ${idms.empId} authenticated via IDMS but not found in DB. Auto-provisioning...`);
+      let empProfile: any = null;
+      try {
+        const hrmsController = new AbortController();
+        const hrmsTimeout = setTimeout(() => hrmsController.abort(), 6_000);
+        const hrmsRes = await fetch(`https://api-idms.advanceagro.net/hrms/employee/${idms.empId}/`, {
+          signal: hrmsController.signal,
+        });
+        clearTimeout(hrmsTimeout);
+        if (hrmsRes.ok) {
+          const hrmsData = await hrmsRes.json();
+          empProfile = hrmsData?.data?.employee || null;
+        }
+      } catch (err) {
+        console.warn(`[JIT PROVISION] Failed to fetch HRMS profile for ${idms.empId}:`, err instanceof Error ? err.message : err);
+      }
+
+      const fullName = empProfile?.EmpName || empProfile?.FNameT || account;
+      const rawNickname = empProfile?.FNameT || empProfile?.FNameE || account.split('_')[0] || account;
+      const nickname = rawNickname.trim();
+      const email = empProfile?.EMail || `${account}@doublea1991.com`;
+      const department = empProfile?.Department || "IMP";
+      const position = empProfile?.Position || "Specialist";
+      const phone = empProfile?.Sim_Number || null;
+      const employeeLevel = empProfile?.LevelName || null;
+      const startDate = empProfile?.StartDate ? empProfile.StartDate.split('T')[0] : null;
+      const companyCode = empProfile?.Company_Code || null;
+      const companyName = empProfile?.CompanyName || null;
+
+      const { data: upsertedUser, error: upsertErr } = await admin
+        .rpc('provision_hrms_user', {
+          p_emp_id: idms.empId,
+          p_email: email,
+          p_full_name: fullName,
+          p_nickname: nickname,
+          p_department: department,
+          p_position: position,
+          p_phone: phone,
+          p_employee_level: employeeLevel,
+          p_role_start_date: startDate,
+          p_company_code: companyCode,
+          p_company_name: companyName
+        });
+
+      if (upsertErr) {
+        console.error(`[JIT PROVISION] Failed to provision user ${idms.empId}:`, upsertErr);
+      } else {
+        employee = upsertedUser;
+        console.log(`[JIT PROVISION] Successfully provisioned employee ${idms.empId} (${fullName})`);
+      }
     }
 
     if (!employee) return json({ error: "Employee is not provisioned" }, 403, origin);
