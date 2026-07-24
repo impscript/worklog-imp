@@ -153,13 +153,16 @@ Deno.serve(async (req) => {
 
       const fullName = empProfile?.EmpName || empProfile?.FNameT || account;
       const rawNickname = empProfile?.FNameT || empProfile?.FNameE || account.split('_')[0] || account;
-      const nickname = rawNickname.trim();
+      const nickname = (rawNickname || account).trim();
       const email = empProfile?.EMail || `${account}@doublea1991.com`;
       const department = empProfile?.Department || "IMP";
       const position = empProfile?.Position || "Specialist";
       const phone = empProfile?.Sim_Number || null;
       const employeeLevel = empProfile?.LevelName || null;
-      const startDate = empProfile?.StartDate ? empProfile.StartDate.split('T')[0] : null;
+      const rawStartDate = empProfile?.StartDate;
+      const startDate = (typeof rawStartDate === "string" && /^\d{4}-\d{2}-\d{2}/.test(rawStartDate))
+        ? rawStartDate.slice(0, 10)
+        : null;
       const companyCode = empProfile?.Company_Code || null;
       const companyName = empProfile?.CompanyName || null;
 
@@ -180,10 +183,10 @@ Deno.serve(async (req) => {
 
       if (upsertErr) {
         console.error(`[JIT PROVISION] Failed to provision user ${idms.empId}:`, upsertErr);
-      } else {
-        employee = upsertedUser;
-        console.log(`[JIT PROVISION] Successfully provisioned employee ${idms.empId} (${fullName})`);
+        throw upsertErr;
       }
+      employee = upsertedUser;
+      console.log(`[JIT PROVISION] Successfully provisioned employee ${idms.empId} (${fullName})`);
     }
 
     if (!employee) return json({ error: "Employee is not provisioned" }, 403, origin);
