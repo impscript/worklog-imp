@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [showSimPanel, setShowSimPanel] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<string>('Improvement');
+  const [customEmpId, setCustomEmpId] = useState('');
   const navigate = useNavigate();
   const { login } = useAuth();
 
@@ -49,6 +50,31 @@ export default function LoginPage() {
     try {
       const inviteCode = new URLSearchParams(window.location.search).get('invite') || undefined;
       await login(user.emp_id, 'mock_bypass', inviteCode);
+      navigate('/');
+    } catch (err: any) {
+      setError(err.message || t('common.error'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCustomMockLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmedId = customEmpId.trim();
+    if (!trimmedId) return;
+
+    setIsLoading(true);
+    setError('');
+    try {
+      const inviteCode = new URLSearchParams(window.location.search).get('invite') || undefined;
+      const matchedUser = MOCK_USERS.find(
+        (u) => u.emp_id === trimmedId || u.nickname.toLowerCase() === trimmedId.toLowerCase()
+      );
+      if (matchedUser) {
+        await login(matchedUser.emp_id, 'mock_bypass', inviteCode);
+      } else {
+        await login(trimmedId, 'mock_bypass', inviteCode);
+      }
       navigate('/');
     } catch (err: any) {
       setError(err.message || t('common.error'));
@@ -184,8 +210,49 @@ export default function LoginPage() {
           {showSimPanel && (
             <div className="p-6 bg-theme-surface-secondary/40 border-t border-theme-border/60 space-y-4">
               <p className="text-xs text-theme-text-secondary leading-relaxed">
-                {t('login.simDescription', { defaultValue: 'Select a mock user profile to test the JIT user provisioning and automatic workspace assignment rules.' })}
+                {t('login.simDescription', { defaultValue: 'Select a mock user profile or enter a custom employee ID to test JIT user provisioning and automatic workspace assignment.' })}
               </p>
+
+              {/* Custom Employee ID Simulation Form */}
+              <div className="bg-theme-surface/70 dark:bg-slate-900/40 p-3 rounded-xl border border-indigo-500/30 space-y-2">
+                <label className="block text-[11px] font-bold text-indigo-400 uppercase tracking-wider">
+                  {t('login.customEmpIdLabel', { defaultValue: 'จำลองด้วยรหัสพนักงาน (Custom Employee ID)' })}
+                </label>
+                <form onSubmit={handleCustomMockLogin} className="flex gap-2 items-center">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={customEmpId}
+                      onChange={(e) => setCustomEmpId(e.target.value)}
+                      placeholder={t('login.customEmpIdPlaceholder', { defaultValue: 'ระบุรหัสพนักงาน เช่น 638089, 648087...' })}
+                      className="w-full bg-theme-surface border border-theme-border rounded-lg py-2 px-3 text-xs font-semibold text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isLoading || !customEmpId.trim()}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg transition-all shrink-0 flex items-center gap-1.5 shadow-md shadow-indigo-500/20"
+                  >
+                    {isLoading ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <UserCheck size={14} />
+                        <span>{t('login.simulateBtn', { defaultValue: 'จำลองสิทธิ์' })}</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Section Divider */}
+              <div className="flex items-center gap-2 py-1">
+                <div className="h-px bg-theme-border/60 flex-1" />
+                <span className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">
+                  {t('login.orPresetProfiles', { defaultValue: 'หรือเลือกโปรไฟล์ทดสอบที่เตรียมไว้' })}
+                </span>
+                <div className="h-px bg-theme-border/60 flex-1" />
+              </div>
 
               {/* Group Selector Tabs */}
               <div className="flex flex-wrap gap-1.5 border-b border-theme-border/40 pb-2">

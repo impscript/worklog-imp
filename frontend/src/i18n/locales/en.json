@@ -91,7 +91,11 @@
     "hrmsProxyError": "Cannot connect to HRMS (Proxy Error)",
     "simPasscodePrompt": "Enter passcode to access simulation:",
     "simPasscodeWrong": "Incorrect passcode ❌",
-    "simDescription": "Select a mock user profile to test JIT user provisioning and automatic workspace assignment."
+    "simDescription": "Select a mock user profile or enter a custom employee ID to test JIT user provisioning and automatic workspace assignment.",
+    "customEmpIdLabel": "Simulate by Employee ID (Custom)",
+    "customEmpIdPlaceholder": "Enter Employee ID (e.g. 638089, 648087...)",
+    "simulateBtn": "Simulate Access",
+    "orPresetProfiles": "Or select from preset mock profiles"
   },
   "logWork": {
     "title": "Log Work",

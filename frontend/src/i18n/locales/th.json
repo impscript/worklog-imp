@@ -91,7 +91,11 @@
     "hrmsProxyError": "ไม่สามารถเชื่อมต่อระบบ HRMS ได้ (Proxy Error)",
     "simPasscodePrompt": "กรุณากรอกรหัสผ่านเพื่อเข้าใช้งานจำลองสิทธิ์:",
     "simPasscodeWrong": "รหัสผ่านไม่ถูกต้อง ❌",
-    "simDescription": "เลือกโปรไฟล์จำลองเพื่อทดสอบการสร้างผู้ใช้และการกำหนด Workspace อัตโนมัติ"
+    "simDescription": "เลือกโปรไฟล์จำลองหรือกรอกรหัสพนักงานเพื่อทดสอบการจำลองสิทธิ์ผู้ใช้และการกำหนด Workspace อัตโนมัติ",
+    "customEmpIdLabel": "จำลองด้วยรหัสพนักงาน (Custom Employee ID)",
+    "customEmpIdPlaceholder": "ระบุรหัสพนักงาน เช่น 638089, 648087...",
+    "simulateBtn": "จำลองสิทธิ์",
+    "orPresetProfiles": "หรือเลือกโปรไฟล์ทดสอบที่เตรียมไว้"
   },
   "logWork": {
     "title": "บันทึกงาน",

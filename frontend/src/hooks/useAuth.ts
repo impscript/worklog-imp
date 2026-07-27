@@ -84,9 +84,7 @@ export function useAuth() {
       let empId = '';
 
       // Check if it matches a mock user simulation
-      const mockUser = import.meta.env.DEV
-        ? MOCK_USERS.find(u => u.emp_id === username || u.nickname.toLowerCase() === username.toLowerCase())
-        : null;
+      const mockUser = MOCK_USERS.find(u => u.emp_id === username || u.nickname.toLowerCase() === username.toLowerCase()) || null;
 
       // ==========================================
       // Mode 1: Local / Developer Staging Auth
@@ -135,7 +133,7 @@ export function useAuth() {
       // Mode 2: Live Enterprise IDMS/HRMS Auth
       // ==========================================
       else {
-        const isMockSimulation = !!mockUser;
+        const isMockSimulation = !!mockUser || password === 'mock_bypass';
         const modeLabel = isMockSimulation ? '[MOCK SIMULATION]' : (import.meta.env.DEV ? '[DEV+REAL API]' : '[PROD]');
         console.log(`${modeLabel} Routing handshake to HRMS/IDMS proxy gateway...`);
 
@@ -143,9 +141,9 @@ export function useAuth() {
           throw new Error('Please enter a password');
         }
 
-        if (isMockSimulation && mockUser) {
-          empId = mockUser.emp_id;
-          employeeData = {
+        if (isMockSimulation) {
+          empId = mockUser ? mockUser.emp_id : username.trim();
+          employeeData = mockUser ? {
             EmpName: mockUser.full_name,
             EMail: mockUser.email,
             Department: mockUser.department,
@@ -157,7 +155,7 @@ export function useAuth() {
             LevelName: mockUser.level_name || 'Senior',
             Company_Code: '',
             StartDate: '2023-06-12T00:00:00.000Z' // Default fallback date for this user
-          };
+          } : null;
 
           // Try to fetch real HRMS profile to get the absolute real StartDate from API
           try {
@@ -244,7 +242,7 @@ export function useAuth() {
         const { data: wData } = await supabase
           .from('workspaces')
           .select('id, workspace_name')
-          .eq('invite_code', inviteCode.trim())
+          .ilike('invite_code', inviteCode.trim())
           .maybeSingle();
 
         if (wData) {

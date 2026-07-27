@@ -56,6 +56,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [workspaceError, setWorkspaceError] = useState('');
   const [onboardingTab, setOnboardingTab] = useState<'join' | 'create'>('join');
 
+  // Auto-populate invite code from URL parameter if present
+  useEffect(() => {
+    const urlInvite = new URLSearchParams(window.location.search).get('invite');
+    if (urlInvite) {
+      setInviteCodeInput(urlInvite.trim());
+    }
+  }, []);
+
   const handleJoinWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCodeInput.trim() || !user) return;
@@ -65,7 +73,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       const { data: ws, error: wsErr } = await supabase
         .from('workspaces')
         .select('id, workspace_name')
-        .eq('invite_code', inviteCodeInput.trim().toUpperCase())
+        .ilike('invite_code', inviteCodeInput.trim())
         .maybeSingle();
 
       if (wsErr) throw wsErr;
