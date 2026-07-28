@@ -227,7 +227,7 @@ async function callLlmWithFallback(
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        max_tokens: 3000
+        max_tokens: 6000
       };
       // Cloudflare Workers AI uses OpenAI-compat endpoint but does NOT support response_format natively
       // JSON compliance is enforced via prompt engineering instead
