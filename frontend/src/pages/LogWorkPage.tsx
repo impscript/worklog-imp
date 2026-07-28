@@ -881,7 +881,16 @@ export default function LogWorkPage() {
 
         if (resAct.data) setMasterActions(resAct.data);
         if (resTpl.data && resTpl.data.length > 0) {
-          setDbTemplates(resTpl.data);
+          const uniqueTpls = resTpl.data.reduce((acc: any[], current: any) => {
+            const existingIndex = acc.findIndex(t => t.template_name === current.template_name);
+            if (existingIndex === -1) {
+              acc.push(current);
+            } else if (current.workspace_id && !acc[existingIndex].workspace_id) {
+              acc[existingIndex] = current;
+            }
+            return acc;
+          }, []);
+          setDbTemplates(uniqueTpls);
         }
       } catch (err) {
         console.error('loadData error:', err);

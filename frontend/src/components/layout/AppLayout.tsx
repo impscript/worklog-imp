@@ -458,7 +458,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {!isSharedView && (
         <aside 
           className={cn(
-            "fixed inset-y-0 left-0 z-50 w-64 bg-theme-surface-secondary/80 dark:bg-theme-bg-page/80 backdrop-blur-xl border-r border-theme-border/80 flex flex-col transform transition-all duration-300 ease-in-out md:relative md:translate-x-0",
+            "fixed inset-y-0 left-0 z-50 w-64 bg-theme-surface-secondary/80 dark:bg-theme-bg-page/80 backdrop-blur-xl border-r border-theme-border/80 flex flex-col transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 pt-[env(safe-area-inset-top,0px)] md:pt-0",
             isSidebarOpen ? "translate-x-0" : "-translate-x-full",
             isCollapsed ? "md:w-20" : "md:w-64"
           )}
@@ -582,7 +582,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gradient-to-b from-theme-surface-secondary via-theme-surface to-theme-surface-secondary dark:from-theme-bg-page dark:via-theme-bg-page/70 dark:to-theme-bg-page relative z-10">
         
         {/* Header */}
-        <header className="h-16 flex-shrink-0 flex items-center justify-between px-4 md:px-8 border-b border-theme-border/50 bg-theme-surface/80 dark:bg-theme-surface/25 backdrop-blur-md relative z-20">
+        <header className="pt-[env(safe-area-inset-top,0px)] min-h-[calc(4rem+env(safe-area-inset-top,0px))] flex-shrink-0 flex items-center justify-between px-4 md:px-8 border-b border-theme-border/50 bg-theme-surface/80 dark:bg-theme-surface/25 backdrop-blur-md relative z-20">
           {/* Mobile menu button & breadcrumbs */}
           {!isSharedView ? (
             <div className="flex items-center gap-3">

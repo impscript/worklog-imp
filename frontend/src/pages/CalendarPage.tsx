@@ -1645,16 +1645,18 @@ export default function CalendarPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-theme-text tracking-tight theme-heading-gradient">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-theme-text tracking-tight theme-heading-gradient">
               Work Calendar
             </h1>
-            <p className="text-sm text-theme-text-secondary mt-1">
+            <p className="text-xs sm:text-sm text-theme-text-secondary mt-0.5">
               Visualize logged work hours and activities in a calendar dashboard.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto lg:justify-end">
+
+          {/* Context Dropdowns (Workspace & User) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full lg:w-auto">
             {workspacesList.length > 1 && (
               <WorkspaceSwitcher
                 workspacesList={workspacesList}
@@ -1664,130 +1666,61 @@ export default function CalendarPage() {
             )}
 
             {usersList.length > 1 && (
-              <div className="relative w-48">
+              <div className="relative w-full sm:w-48">
                 <select
                   value={selectedUserId}
                   onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="w-full bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-4 py-2.5 text-sm font-semibold text-theme-text-secondary appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors"
+                  className="w-full bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-theme-text-secondary appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors"
                 >
                   {usersList.map((u) => (
                     <option key={u.id} value={u.id}>{u.full_name}</option>
                   ))}
                 </select>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-theme-text-secondary">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                 </div>
               </div>
             )}
+          </div>
+        </div>
 
+        {/* Primary Controls Row: Date Navigator & View Switchers */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-theme-surface-tertiary/60 dark:bg-theme-surface-tertiary/40 border border-theme-border/50 rounded-2xl p-3 shadow-md">
+          {/* Month / Week Date Navigator */}
+          <div className="flex items-center gap-1.5">
+            <div className="flex bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl overflow-hidden shadow-sm">
+              <button onClick={prevDate} className="p-2 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary transition-colors">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="px-2.5 py-1.5 text-xs sm:text-sm font-bold text-theme-text min-w-[110px] sm:min-w-[140px] text-center font-mono flex items-center justify-center">
+                {viewMode === 'month' && `${monthNames[month]} ${year}`}
+                {viewMode === 'week' && weekRangeStr}
+                {viewMode === 'two-weeks' && twoWeeksRangeStr}
+              </span>
+              <button onClick={nextDate} className="p-2 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary transition-colors">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <button 
+              onClick={today}
+              className="px-3 py-2 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl text-xs font-bold text-theme-text-secondary hover:text-theme-text transition-all hover:bg-theme-surface-tertiary cursor-pointer shrink-0"
+            >
+              {t('calendar.today')}
+            </button>
+          </div>
 
-            {/* Google Calendar Connection / Sync Actions — only shown for own calendar */}
-            {selectedUserId === sessionUser?.id && (
-              <>
-                {!gcalConnected ? (
-                  <button
-                    onClick={handleConnectGCal}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-indigo-500/30 text-xs font-bold bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 active:scale-95 transition-all cursor-pointer shadow-md shadow-indigo-500/5 animate-pulse"
-                  >
-                    <CalendarCheck size={14} className="text-indigo-400 shrink-0" />
-                    <span>{t('calendar.gcalConnect')}</span>
-                  </button>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Sync Status Badge */}
-                    <div className={cn(
-                      "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold font-mono transition-colors",
-                      syncedCount === currentMonthEntries.length && currentMonthEntries.length > 0
-                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                        : unsyncedEntries.length > 0
-                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
-                          : "bg-theme-surface-tertiary border-theme-border/50 text-theme-text-muted"
-                    )}>
-                      <CalendarCheck size={12} />
-                      <span>
-                        {currentMonthEntries.length === 0
-                          ? 'ไม่มีใบงานเดือนนี้'
-                          : `${syncedCount}/${currentMonthEntries.length} synced`
-                        }
-                      </span>
-                    </div>
-
-                    {/* Re-Sync Button */}
-                    {unsyncedEntries.length > 0 && (
-                      <button
-                        onClick={handleMonthResync}
-                        disabled={isSyncing}
-                        title={`Re-sync ${unsyncedEntries.length} ใบงานที่ยังไม่ได้ sync`}
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all active:scale-95 cursor-pointer",
-                          isSyncing
-                            ? "bg-indigo-500/5 border-indigo-500/10 text-indigo-400/50 cursor-not-allowed"
-                            : "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
-                        )}
-                      >
-                        <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-                        <span>
-                          {isSyncing
-                            ? syncProgress ? `${syncProgress.current}/${syncProgress.total}` : '...'
-                            : `Re-sync ${unsyncedEntries.length}`
-                          }
-                        </span>
-                      </button>
-                    )}
-
-                    {/* Clean Sync Button (ล้างและซิงค์ใหม่) */}
-                    {currentMonthEntries.length > 0 && (
-                      <button
-                        onClick={handleMonthCleanSync}
-                        disabled={isSyncing}
-                        title="ล้างใบงานบนปฏิทินที่ซ้ำซ้อนและซิงค์ข้อมูลใหม่ทั้งหมดในเดือนนี้"
-                        className={cn(
-                          "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all active:scale-95 cursor-pointer",
-                          isSyncing
-                            ? "bg-rose-500/5 border-rose-500/10 text-rose-400/50 cursor-not-allowed"
-                            : "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20"
-                        )}
-                      >
-                        <svg className={cn("w-3.5 h-3.5", isSyncing ? 'animate-spin' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        <span>ล้างและซิงค์ใหม่</span>
-                      </button>
-                    )}
-
-                    {/* Recover Logs Button (กู้คืนใบงานจาก GCal) */}
-                    <button
-                      onClick={handleRecoverLogs}
-                      disabled={isSyncing}
-                      title="สแกนปฏิทิน Google Calendar เพื่อกู้คืนใบงานที่หายไปกลับคืนฐานข้อมูล"
-                      className={cn(
-                        "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-bold transition-all active:scale-95 cursor-pointer",
-                        isSyncing
-                          ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-400/50 cursor-not-allowed"
-                          : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
-                      )}
-                    >
-                      <svg className={cn("w-3.5 h-3.5", isSyncing ? 'animate-spin' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      <span>กู้คืนใบงานจาก GCal</span>
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* View Mode Switcher */}
-            <div className="flex bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 border border-theme-border/50 rounded-xl p-1 shadow-md select-none">
+          {/* View Mode Pills & Details Toggle */}
+          <div className="flex items-center gap-2 ml-auto">
+            <div className="flex bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl p-0.5 shadow-sm select-none">
               {(['month', 'week', 'two-weeks'] as const).map((mode) => {
-                const label = mode === 'month' ? 'Month' : mode === 'week' ? 'Week' : '2 Weeks';
+                const label = mode === 'month' ? 'Month' : mode === 'week' ? 'Week' : '2W';
                 const isActive = viewMode === mode;
                 return (
                   <button
                     key={mode}
                     onClick={() => setViewMode(mode)}
                     className={cn(
-                      "px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer",
+                      "px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer",
                       isActive 
                         ? "bg-indigo-500 text-white shadow" 
                         : "text-theme-text-secondary hover:text-theme-text"
@@ -1799,72 +1732,121 @@ export default function CalendarPage() {
               })}
             </div>
 
-            {/* Weekend Toggle (SAT/SUN visibility) */}
+            <button
+              onClick={() => setShowSidePanel(prev => !prev)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0",
+                showSidePanel
+                  ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
+                  : "bg-theme-surface border-theme-border/50 text-theme-text-muted hover:text-theme-text"
+              )}
+            >
+              <ClipboardList size={14} />
+              <span className="hidden sm:inline">{showSidePanel ? "Hide Details" : "Show Details"}</span>
+              <span className="sm:hidden">{showSidePanel ? "Hide" : "Details"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Secondary Action Strip (GCal Sync & View Toggles) */}
+        {(selectedUserId === sessionUser?.id || viewMode === 'week' || viewMode === 'two-weeks') && (
+          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 w-full text-xs">
+            {/* Weekend Toggle */}
             {(viewMode === 'week' || viewMode === 'two-weeks') && (
               <button
                 onClick={() => setShowWeekends(prev => !prev)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer",
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shrink-0 cursor-pointer",
                   showWeekends
-                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
-                    : "bg-theme-surface-tertiary border-theme-border/50 text-theme-text-muted hover:text-theme-text"
+                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
+                    : "bg-theme-surface border-theme-border/50 text-theme-text-muted"
                 )}
               >
                 <span>{showWeekends ? "Hide Sat/Sun" : "Show Sat/Sun"}</span>
               </button>
             )}
 
-            {/* 24 Hours vs Business Hours Toggle */}
+            {/* 24 Hours Toggle */}
             {(viewMode === 'week' || viewMode === 'two-weeks') && (
               <button
                 onClick={() => setShowFullDay(prev => !prev)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer",
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shrink-0 cursor-pointer",
                   showFullDay
-                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
-                    : "bg-theme-surface-tertiary border-theme-border/50 text-theme-text-muted hover:text-theme-text"
+                    ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
+                    : "bg-theme-surface border-theme-border/50 text-theme-text-muted"
                 )}
               >
-                <Clock size={14} />
+                <Clock size={13} />
                 <span>{showFullDay ? "Show 8:00-18:00" : "Show 24 Hours"}</span>
               </button>
             )}
 
-            {/* Side Panel Toggle */}
-            <button
-              onClick={() => setShowSidePanel(prev => !prev)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer",
-                showSidePanel
-                  ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
-                  : "bg-theme-surface-tertiary border-theme-border/50 text-theme-text-muted hover:text-theme-text"
-              )}
-            >
-              <ClipboardList size={14} />
-              <span>{showSidePanel ? "Hide Details" : "Show Details"}</span>
-            </button>
+            {/* Google Calendar Actions */}
+            {selectedUserId === sessionUser?.id && (
+              <>
+                {!gcalConnected ? (
+                  <button
+                    onClick={handleConnectGCal}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-500/30 text-xs font-bold bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 shrink-0 cursor-pointer shadow-sm animate-pulse"
+                  >
+                    <CalendarCheck size={13} className="text-indigo-400 shrink-0" />
+                    <span>{t('calendar.gcalConnect')}</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold font-mono shrink-0",
+                      syncedCount === currentMonthEntries.length && currentMonthEntries.length > 0
+                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                        : unsyncedEntries.length > 0
+                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                          : "bg-theme-surface border-theme-border/50 text-theme-text-muted"
+                    )}>
+                      <CalendarCheck size={12} />
+                      <span>{currentMonthEntries.length === 0 ? 'ไม่มีใบงาน' : `${syncedCount}/${currentMonthEntries.length} synced`}</span>
+                    </div>
 
-            <button 
-              onClick={today}
-              className="px-4 py-2 bg-theme-surface dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl text-sm font-semibold text-theme-text-secondary hover:text-theme-text transition-all hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary"
-            >
-              {t('calendar.today')}
-            </button>
-            <div className="flex bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 border border-theme-border/50 rounded-xl overflow-hidden shadow-md">
-              <button onClick={prevDate} className="p-2.5 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors">
-                <ChevronLeft size={18} />
-              </button>
-              <span className="px-4 py-2.5 text-sm font-semibold text-theme-text min-w-[140px] text-center font-mono">
-                {viewMode === 'month' && `${monthNames[month]} ${year}`}
-                {viewMode === 'week' && weekRangeStr}
-                {viewMode === 'two-weeks' && twoWeeksRangeStr}
-              </span>
-              <button onClick={nextDate} className="p-2.5 text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary transition-colors">
-                <ChevronRight size={18} />
-              </button>
-            </div>
+                    {unsyncedEntries.length > 0 && (
+                      <button
+                        onClick={handleMonthResync}
+                        disabled={isSyncing}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20 shrink-0 cursor-pointer"
+                      >
+                        <RefreshCw size={11} className={isSyncing ? 'animate-spin' : ''} />
+                        <span>Re-sync ({unsyncedEntries.length})</span>
+                      </button>
+                    )}
+
+                    {currentMonthEntries.length > 0 && (
+                      <button
+                        onClick={handleMonthCleanSync}
+                        disabled={isSyncing}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 shrink-0 cursor-pointer"
+                      >
+                        <svg className={cn("w-3 h-3", isSyncing ? 'animate-spin' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span>ล้างและซิงค์ใหม่</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={handleRecoverLogs}
+                      disabled={isSyncing}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 shrink-0 cursor-pointer"
+                    >
+                      <svg className={cn("w-3 h-3", isSyncing ? 'animate-spin' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      <span>กู้คืนจาก GCal</span>
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-        </div>
+        )}
 
         {/* Re-Sync Progress Bar — appears below header during sync */}
         {isSyncing && syncProgress && (
@@ -1895,20 +1877,20 @@ export default function CalendarPage() {
           
           {/* Calendar Grid Container */}
           <div className={cn(
-            "bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl flex flex-col transition-all duration-300",
+            "bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-2.5 sm:p-6 shadow-xl flex flex-col transition-all duration-300",
             showSidePanel ? "lg:col-span-2" : "lg:col-span-3"
           )}>
             
             {/* Weekdays header (Month View Only) */}
             {viewMode === 'month' && (
-              <div className="grid grid-cols-7 gap-2 mb-4 text-center select-none">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-3 sm:mb-4 text-center select-none">
                 {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
                   const isWeekendLabel = day === 'Sat' || day === 'Sun';
                   return (
                     <span 
                       key={day} 
                       className={cn(
-                        "text-xs font-bold tracking-wider uppercase py-2",
+                        "text-[10px] sm:text-xs font-bold tracking-wider uppercase py-1 sm:py-2",
                         isWeekendLabel ? "text-rose-400" : "text-theme-text-secondary"
                       )}
                     >
@@ -1922,7 +1904,7 @@ export default function CalendarPage() {
             {/* Calendar Body (Month View, Week View, or 2-Week View) */}
             {isLoading ? (
               viewMode === 'month' ? (
-                <div className="grid grid-cols-7 gap-2 animate-pulse flex-1 min-h-[350px]">
+                <div className="grid grid-cols-7 gap-1 sm:gap-2 animate-pulse flex-1 min-h-[300px] sm:min-h-[350px]">
                   {Array.from({ length: 35 }).map((_, i) => (
                     <div key={i} className="aspect-square bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border/50 rounded-xl"></div>
                   ))}
@@ -1935,7 +1917,7 @@ export default function CalendarPage() {
                 </div>
               )
             ) : viewMode === 'month' ? (
-              <div className="grid grid-cols-7 gap-2 flex-1 min-h-[350px]">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2 flex-1 min-h-[300px] sm:min-h-[350px]">
                 {daysArray.map((cell, index) => {
                   const dStr = formatDateToYMD(cell.date);
                   const dayEntries = entries.filter((e) => e.work_date === dStr);
@@ -1963,7 +1945,7 @@ export default function CalendarPage() {
                       key={index}
                       onClick={() => handleDayClick(cell.date)}
                       className={cn(
-                        "aspect-square rounded-xl p-2 flex flex-col justify-between items-stretch border transition-all text-left relative overflow-hidden group",
+                        "aspect-square rounded-lg sm:rounded-xl p-1 sm:p-2.5 flex flex-col justify-between items-stretch border transition-all text-left relative overflow-hidden group",
                         cell.isCurrentMonth 
                           ? cn(
                               "bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 border-theme-border hover:border-theme-border",
@@ -1980,36 +1962,36 @@ export default function CalendarPage() {
                       {/* Day Number and Type Badge */}
                       <div className="flex justify-between items-start w-full">
                         <span className={cn(
-                          "text-xs font-bold font-mono",
+                          "text-[10px] sm:text-xs font-bold font-mono",
                           isToday ? "text-indigo-400 font-extrabold" : (holiday ? "text-rose-400 font-extrabold" : "text-theme-text-secondary group-hover:text-theme-text transition-colors")
                         )}>
                           {cell.day}
                         </span>
                         {cell.isCurrentMonth && isWeekend && !holiday && (
-                          <span className="text-[8px] px-1 py-0.2 rounded font-bold text-theme-text-secondary bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/40 border border-theme-border/20 font-mono tracking-wide scale-90 origin-top-right">
+                          <span className="hidden sm:inline-block text-[8px] px-1 py-0.2 rounded font-bold text-theme-text-secondary bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/40 border border-theme-border/20 font-mono tracking-wide scale-90 origin-top-right">
                             WE
                           </span>
                         )}
                         {cell.isCurrentMonth && holiday && (
-                          <span className="text-[8px] px-1 py-0.2 rounded font-bold text-rose-400 bg-rose-500/15 border border-rose-500/25 font-mono tracking-wide scale-90 origin-top-right animate-pulse">
-                            🎉 HD
+                          <span className="text-[8px] px-0.5 sm:px-1 py-0.2 rounded font-bold text-rose-400 bg-rose-500/15 border border-rose-500/25 font-mono tracking-wide scale-90 origin-top-right animate-pulse">
+                            🎉 <span className="hidden sm:inline">HD</span>
                           </span>
                         )}
                       </div>
 
                       {/* Display Logged Hours or Holiday Label */}
-                      <div className="mt-auto flex flex-col gap-1 items-stretch">
+                      <div className="mt-auto flex flex-col gap-0.5 sm:gap-1 items-stretch">
                         {cell.isCurrentMonth && holiday && (
-                          <span className="text-[8px] font-semibold text-rose-300 truncate w-full select-none" title={holiday.name}>
+                          <span className="hidden sm:block text-[8px] font-semibold text-rose-300 truncate w-full select-none" title={holiday.name}>
                             {holiday.name}
                           </span>
                         )}
                         {cell.isCurrentMonth && hasHours && (
                           <span className={cn(
-                            "text-[10px] font-extrabold font-mono rounded px-1.5 py-0.5 self-start select-none shadow-sm",
+                            "text-[9px] sm:text-[10px] font-extrabold font-mono rounded px-1 sm:px-1.5 py-0.5 self-start select-none shadow-sm leading-none",
                             progressColor
                           )}>
-                            {hoursSum.toFixed(1)}h
+                            {hoursSum % 1 === 0 ? `${hoursSum}h` : `${hoursSum.toFixed(1)}h`}
                           </span>
                         )}
                       </div>

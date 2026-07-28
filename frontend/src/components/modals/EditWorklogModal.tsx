@@ -517,7 +517,16 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       if (resProj.data) setMapProjectStructure(resProj.data);
       if (resAct.data) setMasterActions(resAct.data);
       if (resTpl.data && resTpl.data.length > 0) {
-        setDbTemplates(resTpl.data);
+        const uniqueTpls = resTpl.data.reduce((acc: any[], current: any) => {
+          const existingIndex = acc.findIndex(t => t.template_name === current.template_name);
+          if (existingIndex === -1) {
+            acc.push(current);
+          } else if (current.workspace_id && !acc[existingIndex].workspace_id) {
+            acc[existingIndex] = current;
+          }
+          return acc;
+        }, []);
+        setDbTemplates(uniqueTpls);
       }
     }
     loadDropdownData();
