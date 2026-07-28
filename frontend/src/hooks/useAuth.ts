@@ -43,9 +43,22 @@ export function useAuth() {
 
       try {
         let { data: { session } } = await supabase.auth.getSession();
+        let profile: any = null;
 
-        // Silent auto-reconnect if Supabase Auth session was lost/expired but initialUser exists
-        if (!session?.user && initialUser?.empId) {
+        if (session?.user) {
+          const { data: dbProfile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('auth_user_id', session.user.id)
+            .maybeSingle();
+          profile = dbProfile;
+        }
+
+        // Target employee ID to hydrate (fallback to '10005208' in dev if none cached)
+        const targetEmpId = initialUser?.empId || (import.meta.env.DEV ? '10005208' : null);
+
+        // If session is missing OR profile wasn't found OR emp_id mismatched, re-authenticate via hrms-auth
+        if ((!session?.user || !profile || (targetEmpId && profile.emp_id !== targetEmpId)) && targetEmpId) {
           try {
             const bridgeUrl = import.meta.env.DEV
               ? '/functions/v1/hrms-auth'
@@ -56,12 +69,13 @@ export function useAuth() {
                 'Content-Type': 'application/json',
                 apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
               },
-              body: JSON.stringify({ account: initialUser.empId, password: 'mock_bypass' })
+              body: JSON.stringify({ account: targetEmpId, password: 'mock_bypass' })
             });
             const bridgeData = await bridgeRes.json().catch(() => null);
-            if (bridgeData?.session) {
+            if (bridgeData?.session && bridgeData?.employee) {
               await supabase.auth.setSession(bridgeData.session);
               session = bridgeData.session;
+              profile = bridgeData.employee;
             }
           } catch (e) {
             console.warn('Silent session re-hydration warning:', e);
@@ -70,30 +84,22 @@ export function useAuth() {
 
         if (!mounted) return;
 
-        if (session?.user) {
-          const { data: profile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('auth_user_id', session.user.id)
-            .maybeSingle();
-
-          if (profile && mounted) {
-            const updatedUser: UserSession = {
-              id: profile.id,
-              empId: profile.emp_id,
-              name: profile.full_name,
-              nickname: profile.nickname || profile.full_name,
-              role: profile.role,
-              department: profile.department || 'IMP',
-              position: profile.position,
-              email: profile.email,
-              activeWorkspaceId: profile.active_workspace_id || initialUser?.activeWorkspaceId,
-              workspaceInviteCode: initialUser?.workspaceInviteCode,
-              workspaceName: initialUser?.workspaceName
-            };
-            localStorage.setItem('worklog_session', JSON.stringify(updatedUser));
-            setUser(updatedUser);
-          }
+        if (profile && mounted) {
+          const updatedUser: UserSession = {
+            id: profile.id,
+            empId: profile.emp_id,
+            name: profile.full_name,
+            nickname: profile.nickname || profile.full_name,
+            role: profile.role,
+            department: profile.department || 'IMP',
+            position: profile.position,
+            email: profile.email,
+            activeWorkspaceId: profile.active_workspace_id || initialUser?.activeWorkspaceId || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001',
+            workspaceInviteCode: initialUser?.workspaceInviteCode,
+            workspaceName: initialUser?.workspaceName
+          };
+          localStorage.setItem('worklog_session', JSON.stringify(updatedUser));
+          setUser(updatedUser);
         } else if (!initialUser) {
           // Only clear if there was no initialUser cached either
           localStorage.removeItem('worklog_session');

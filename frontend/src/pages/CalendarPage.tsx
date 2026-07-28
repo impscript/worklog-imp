@@ -1180,11 +1180,16 @@ export default function CalendarPage() {
     async function fetchMonthEntries() {
       try {
         setIsLoading(true);
-        const { data, error } = await supabase
+        let query = supabase
           .from('col_worklog')
           .select('*')
-          .eq('user_id', currentTargetId)
-          .eq('workspace_id', targetWorkspaceId);
+          .eq('user_id', currentTargetId);
+
+        if (targetWorkspaceId && targetWorkspaceId !== 'N/A') {
+          query = query.eq('workspace_id', targetWorkspaceId);
+        }
+
+        const { data, error } = await query;
 
         if (error) {
           console.error('Error fetching calendar entries:', error);
