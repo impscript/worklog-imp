@@ -250,7 +250,6 @@ export function useAuth() {
         email = userRecord.email || '';
         fullName = userRecord.full_name || username;
         position = userRecord.position || 'Specialist';
-      }
 
       // Handle Invite Code Workspace Joining if provided
       if (userRecord && inviteCode) {
