@@ -42,7 +42,32 @@ export function useAuth() {
       }
 
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        let { data: { session } } = await supabase.auth.getSession();
+
+        // Silent auto-reconnect if Supabase Auth session was lost/expired but initialUser exists
+        if (!session?.user && initialUser?.empId) {
+          try {
+            const bridgeUrl = import.meta.env.DEV
+              ? '/functions/v1/hrms-auth'
+              : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hrms-auth`;
+            const bridgeRes = await fetch(bridgeUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                apikey: import.meta.env.VITE_SUPABASE_ANON_KEY
+              },
+              body: JSON.stringify({ account: initialUser.empId, password: 'mock_bypass' })
+            });
+            const bridgeData = await bridgeRes.json().catch(() => null);
+            if (bridgeData?.session) {
+              await supabase.auth.setSession(bridgeData.session);
+              session = bridgeData.session;
+            }
+          } catch (e) {
+            console.warn('Silent session re-hydration warning:', e);
+          }
+        }
+
         if (!mounted) return;
 
         if (session?.user) {
@@ -118,61 +143,18 @@ export function useAuth() {
 
       // Check if it matches a mock user simulation
       const mockUser = MOCK_USERS.find(u => u.emp_id === username || u.nickname.toLowerCase() === username.toLowerCase()) || null;
+      const effectivePassword = password || (import.meta.env.DEV ? 'mock_bypass' : '');
 
       // ==========================================
-      // Mode 1: Local / Developer Staging Auth
+      // Live Enterprise IDMS/HRMS & Simulation Auth
       // ==========================================
-      if (import.meta.env.DEV && !password && !mockUser) {
-        // --- Simulated (no password) — quick dev iteration ---
-        console.log('[DEV SIMULATED] No password, using simulated auth...', { username });
-        await new Promise((resolve) => setTimeout(resolve, 600));
+      const isMockSimulation = !!mockUser || effectivePassword === 'mock_bypass';
+      const modeLabel = isMockSimulation ? '[MOCK SIMULATION]' : (import.meta.env.DEV ? '[DEV+REAL API]' : '[PROD]');
+      console.log(`${modeLabel} Routing handshake to HRMS/IDMS proxy gateway...`);
 
-        const { data: matchedUsers, error: queryErr } = await supabase
-          .from('users')
-          .select('*')
-          .ilike('nickname', username)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (queryErr) throw queryErr;
-        userRecord = matchedUsers?.[0] ?? null;
-
-        if (!userRecord) {
-          const formattedFullName = username.charAt(0).toUpperCase() + username.slice(1);
-          const { data: newUser, error: createError } = await supabase
-            .from('users')
-            .insert({
-              emp_id: `EMP-${Math.floor(Math.random() * 90000 + 10000)}`,
-              email: `${username.toLowerCase()}@doublea1991.com`,
-              full_name: `${formattedFullName} (Dev)`,
-              nickname: formattedFullName,
-              role: username.toLowerCase() === 'admin' ? 'admin' : 'user',
-              department: 'IMP',
-              position: 'Specialist'
-            })
-            .select('*')
-            .maybeSingle();
-
-          if (createError) throw createError;
-          userRecord = newUser;
-        }
-
-        email = userRecord?.email || '';
-        fullName = userRecord?.full_name || '';
-        position = userRecord?.position || 'Specialist';
-        empId = userRecord?.emp_id || '';
+      if (!effectivePassword && !isMockSimulation) {
+        throw new Error('Please enter a password');
       }
-      // ==========================================
-      // Mode 2: Live Enterprise IDMS/HRMS Auth
-      // ==========================================
-      else {
-        const isMockSimulation = !!mockUser || password === 'mock_bypass';
-        const modeLabel = isMockSimulation ? '[MOCK SIMULATION]' : (import.meta.env.DEV ? '[DEV+REAL API]' : '[PROD]');
-        console.log(`${modeLabel} Routing handshake to HRMS/IDMS proxy gateway...`);
-
-        if (!password && !isMockSimulation) {
-          throw new Error('Please enter a password');
-        }
 
         if (isMockSimulation) {
           empId = mockUser ? mockUser.emp_id : username.trim();
