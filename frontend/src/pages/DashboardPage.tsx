@@ -142,6 +142,7 @@ export default function DashboardPage() {
         .from('tb_ai_individual_analysis')
         .select('*')
         .eq('user_id', userId)
+        .or('is_deleted.eq.false,is_deleted.is.null')
         .order('analysis_date', { ascending: false })
         .limit(1)
         .maybeSingle();

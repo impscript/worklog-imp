@@ -179,6 +179,7 @@ export default function HrbpPage() {
   // Delete history record states
   const [deleteRecordId, setDeleteRecordId] = useState<string | null>(null);
   const [isDeletingRecord, setIsDeletingRecord] = useState<boolean>(false);
+  const [historySubFilter, setHistorySubFilter] = useState<'active' | 'trash'>('active');
 
   // View mode for 5-Lens Dashboard
   const [viewMode, setViewMode] = useState<'manager' | 'employee'>('manager');
@@ -457,6 +458,16 @@ export default function HrbpPage() {
   const loadAnalysisHistory = async () => {
     try {
       setIsLoadingHistory(true);
+      // Auto-purge soft-deleted items older than 7 days in background
+      (async () => {
+        try {
+          const { data } = await supabase.rpc('purge_expired_ai_analysis');
+          if (data && data > 0) {
+            console.log(`[Auto-Purge] Cleaned up ${data} expired analysis reports.`);
+          }
+        } catch (_) {}
+      })();
+
       const { data, error: err } = await supabase
         .from('tb_ai_individual_analysis')
         .select('*')
@@ -824,30 +835,95 @@ export default function HrbpPage() {
     if (!deleteRecordId) return;
     setIsDeletingRecord(true);
     try {
+      const nowIso = new Date().toISOString();
       const { data, error } = await supabase
         .from('tb_ai_individual_analysis')
-        .delete()
+        .update({
+          is_deleted: true,
+          deleted_at: nowIso,
+          is_public: false
+        })
         .eq('id', deleteRecordId)
         .select('id');
 
       if (error) throw error;
 
       if (!data || data.length === 0) {
-        throw new Error('ไม่สามารถลบรายการได้ หรือไม่มีสิทธิ์ในระบบ (RLS Blocked)');
+        throw new Error('ไม่สามารถย้ายลงถังขยะได้ หรือไม่มีสิทธิ์ในระบบ');
       }
 
-      showToast('ลบประวัติการประเมินสำเร็จ', 'success');
-      setAnalysisHistory(prev => prev.filter(r => r.id !== deleteRecordId));
+      showToast('ย้ายประวัติการประเมินลงถังขยะเรียบร้อย (จะถูกลบถาวรใน 7 วัน)', 'success');
+      setAnalysisHistory(prev => prev.map(r => r.id === deleteRecordId ? { ...r, is_deleted: true, deleted_at: nowIso, is_public: false } : r));
       if (aiAnalysis?.id === deleteRecordId) {
         setAiAnalysis(null);
       }
     } catch (err: any) {
-      console.error('Error deleting record:', err);
-      showToast('ไม่สามารถลบประวัติการประเมินได้: ' + err.message, 'error');
+      console.error('Error soft deleting record:', err);
+      showToast('ไม่สามารถย้ายลงถังขยะได้: ' + err.message, 'error');
     } finally {
       setIsDeletingRecord(false);
       setDeleteRecordId(null);
     }
+  };
+
+  const handleRestoreRecord = async (recordId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .update({
+          is_deleted: false,
+          deleted_at: null
+        })
+        .eq('id', recordId)
+        .select('id');
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        throw new Error('ไม่สามารถกู้คืนรายการได้');
+      }
+
+      showToast('กู้คืนประวัติการประเมินเรียบร้อยแล้ว', 'success');
+      setAnalysisHistory(prev => prev.map(r => r.id === recordId ? { ...r, is_deleted: false, deleted_at: null } : r));
+    } catch (err: any) {
+      console.error('Error restoring record:', err);
+      showToast('ไม่สามารถกู้คืนประวัติได้: ' + err.message, 'error');
+    }
+  };
+
+  const handlePermanentPurgeRecord = async (recordId: string) => {
+    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายงานนี้อย่างถาวรทันที? ไม่สามารถกู้คืนได้อีก')) return;
+    try {
+      const { data, error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .delete()
+        .eq('id', recordId)
+        .select('id');
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        throw new Error('ไม่สามารถลบถาวรได้');
+      }
+
+      showToast('ลบรายงานถาวรเรียบร้อยแล้ว', 'success');
+      setAnalysisHistory(prev => prev.filter(r => r.id !== recordId));
+      if (aiAnalysis?.id === recordId) {
+        setAiAnalysis(null);
+      }
+    } catch (err: any) {
+      console.error('Error purging record:', err);
+      showToast('ไม่สามารถลบถาวรได้: ' + err.message, 'error');
+    }
+  };
+
+  const getRemainingDaysInTrash = (deletedAtStr?: string) => {
+    if (!deletedAtStr) return 7;
+    const deletedAt = new Date(deletedAtStr).getTime();
+    const now = new Date().getTime();
+    const diffMs = (deletedAt + 7 * 24 * 60 * 60 * 1000) - now;
+    const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    return Math.max(0, days);
   };
 
 
@@ -4004,111 +4080,208 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
 
                       {activeResultsSubTab === 'history' && !isSharedView && (
                         <div className="space-y-4">
-                          <h4 className="text-xs font-black text-theme-text uppercase tracking-wider flex items-center gap-2">
-                            <Clock size={16} /> ประวัติรายงานย้อนหลัง (Historical Diagnostics Logs)
-                          </h4>
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-theme-border/60 pb-3">
+                            <h4 className="text-xs font-black text-theme-text uppercase tracking-wider flex items-center gap-2">
+                              <Clock size={16} /> ประวัติรายงานย้อนหลัง (Historical Diagnostics Logs)
+                            </h4>
+
+                            {/* Sub-tabs: Active vs Trash */}
+                            <div className="flex items-center gap-1.5 p-1 bg-theme-surface-tertiary dark:bg-theme-surface-secondary rounded-xl border border-theme-border/80 text-[10px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => setHistorySubFilter('active')}
+                                className={cn(
+                                  "px-3 py-1 rounded-lg transition-all flex items-center gap-1.5",
+                                  historySubFilter === 'active'
+                                    ? "bg-indigo-600 text-white shadow-sm"
+                                    : "text-theme-text-secondary hover:text-theme-text"
+                                )}
+                              >
+                                <span>📋 รายการประเมิน</span>
+                                <span className={cn(
+                                  "px-1.5 py-0.2 rounded-full text-[9px] font-mono",
+                                  historySubFilter === 'active' ? "bg-white/20 text-white" : "bg-theme-surface dark:bg-theme-surface-tertiary text-theme-text-secondary"
+                                )}>
+                                  {analysisHistory.filter(r => !r.is_deleted).length}
+                                </span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setHistorySubFilter('trash')}
+                                className={cn(
+                                  "px-3 py-1 rounded-lg transition-all flex items-center gap-1.5",
+                                  historySubFilter === 'trash'
+                                    ? "bg-rose-600 text-white shadow-sm"
+                                    : "text-theme-text-secondary hover:text-theme-text"
+                                )}
+                              >
+                                <Trash2 size={12} />
+                                <span>ถังขยะ (7 วัน)</span>
+                                <span className={cn(
+                                  "px-1.5 py-0.2 rounded-full text-[9px] font-mono",
+                                  historySubFilter === 'trash' ? "bg-white/20 text-white" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                )}>
+                                  {analysisHistory.filter(r => r.is_deleted).length}
+                                </span>
+                              </button>
+                            </div>
+                          </div>
 
                           {isLoadingHistory ? (
                             <div className="flex justify-center p-8">
                               <Loader2 className="animate-spin text-indigo-600 dark:text-indigo-400" size={24} />
                             </div>
-                          ) : analysisHistory.length === 0 ? (
-                            <div className="text-center p-12 rounded-2xl bg-theme-surface-tertiary dark:bg-theme-surface-secondary/30 border border-theme-border/80 text-xs text-theme-text-secondary italic">
-                              ไม่มีประวัติการประเมินมาก่อน / No history logs found
-                            </div>
                           ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-1">
-                              {analysisHistory.map((record) => (
-                                <div 
-                                  key={record.id} 
-                                  className={cn(
-                                    "p-4 rounded-2xl border text-xs flex flex-col gap-3 justify-between transition-all hover:border-indigo-500/40 cursor-pointer",
-                                    aiAnalysis?.id === record.id 
-                                      ? "bg-indigo-500/5 border-indigo-500/30 shadow-indigo-500/5 shadow-md"
-                                      : "bg-theme-surface dark:bg-theme-surface-secondary/50 border-theme-border/80"
-                                  )}
-                                  onClick={() => loadHistoryRecord(record)}
-                                >
-                                  <div className="flex justify-between items-start">
-                                    <div className="space-y-0.5">
-                                      <span className="font-bold text-theme-text font-mono tracking-wide">
-                                        📅 {record.start_date} ~ {record.end_date}
-                                      </span>
-                                      <span className="text-[10px] text-theme-text-secondary block">
-                                        วิเคราะห์เมื่อ: {new Date(record.created_at).toLocaleString('th-TH')}
-                                      </span>
-                                    </div>
-
-                                    {record.acknowledged_at && (
-                                      <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider font-mono">
-                                        SIGNED
-                                      </span>
-                                    )}
+                            (() => {
+                              const filteredRecords = analysisHistory.filter(r => historySubFilter === 'trash' ? r.is_deleted : !r.is_deleted);
+                              
+                              if (filteredRecords.length === 0) {
+                                return (
+                                  <div className="text-center p-12 rounded-2xl bg-theme-surface-tertiary dark:bg-theme-surface-secondary/30 border border-theme-border/80 text-xs text-theme-text-secondary italic">
+                                    {historySubFilter === 'trash' 
+                                      ? 'ไม่มีประวัติที่อยู่ในถังขยะ / Trash is empty' 
+                                      : 'ไม่มีประวัติการประเมินมาก่อน / No history logs found'}
                                   </div>
+                                );
+                              }
 
-                                  <div className="bg-theme-surface-tertiary dark:bg-theme-bg-page/60 p-2 rounded-xl border border-theme-border/60 flex items-center justify-around font-mono text-[10px] font-bold">
-                                    <div className="text-center">
-                                      <span className="text-theme-text-secondary uppercase block text-[8px] tracking-widest mb-0.5">ALIGNMENT</span>
-                                      <span className="text-indigo-600 dark:text-indigo-400">{record.jd_alignment_score || 0}%</span>
-                                    </div>
-                                    <div className="text-center border-l border-theme-border/80 pl-3">
-                                      <span className="text-theme-text-secondary uppercase block text-[8px] tracking-widest mb-0.5">BURNOUT</span>
-                                      <span className={cn(
-                                        (record.burnout_risk_score || 0) > 70 ? "text-rose-600 dark:text-rose-400" :
-                                        (record.burnout_risk_score || 0) > 40 ? "text-amber-600 dark:text-amber-400" :
-                                        "text-emerald-600 dark:text-emerald-400"
-                                      )}>
-                                        {record.burnout_risk_score || 0}%
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center justify-between border-t border-theme-border/60 pt-3" onClick={(e) => e.stopPropagation()}>
-                                    <div className="flex items-center gap-2">
-                                      <button
-                                        onClick={() => toggleHistoryRecordShare(record.id, record.is_public)}
+                              return (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[340px] overflow-y-auto pr-1">
+                                  {filteredRecords.map((record) => {
+                                    const remainingDays = record.is_deleted ? getRemainingDaysInTrash(record.deleted_at) : 7;
+                                    
+                                    return (
+                                      <div 
+                                        key={record.id} 
                                         className={cn(
-                                          "px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
-                                          record.is_public
-                                            ? "bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
-                                            : "bg-theme-surface-tertiary dark:bg-theme-surface-tertiary text-theme-text-secondary border border-theme-border/50 hover:text-theme-text dark:hover:text-theme-text"
+                                          "p-4 rounded-2xl border text-xs flex flex-col gap-3 justify-between transition-all hover:border-indigo-500/40 cursor-pointer relative overflow-hidden",
+                                          record.is_deleted
+                                            ? "bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/30"
+                                            : aiAnalysis?.id === record.id 
+                                              ? "bg-indigo-500/5 border-indigo-500/30 shadow-indigo-500/5 shadow-md"
+                                              : "bg-theme-surface dark:bg-theme-surface-secondary/50 border-theme-border/80"
                                         )}
+                                        onClick={() => !record.is_deleted && loadHistoryRecord(record)}
                                       >
-                                        {record.is_public ? <Globe size={11} /> : <Lock size={11} />}
-                                        <span>{record.is_public ? 'Public' : 'Private'}</span>
-                                      </button>
+                                        <div className="flex justify-between items-start">
+                                          <div className="space-y-0.5">
+                                            <span className="font-bold text-theme-text font-mono tracking-wide flex items-center gap-1.5">
+                                              📅 {record.start_date} ~ {record.end_date}
+                                            </span>
+                                            <span className="text-[10px] text-theme-text-secondary block">
+                                              วิเคราะห์เมื่อ: {new Date(record.created_at).toLocaleString('th-TH')}
+                                            </span>
+                                          </div>
 
-                                      {record.is_public && record.share_token && (
-                                        <button
-                                          onClick={() => copyHistoryShareLink(record.share_token)}
-                                          className="p-1.5 rounded-lg bg-theme-surface-tertiary dark:bg-theme-surface-tertiary text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text transition-colors border border-theme-border/50"
-                                          title="Copy URL Share Link to Clipboard"
-                                        >
-                                          <Copy size={11} />
-                                        </button>
-                                      )}
-                                    </div>
+                                          <div className="flex items-center gap-1.5">
+                                            {record.is_deleted && (
+                                              <span className="bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider font-mono flex items-center gap-1">
+                                                <Clock size={10} /> เหลือ {remainingDays} วัน
+                                              </span>
+                                            )}
 
-                                    <div className="flex items-center gap-2">
-                                      <button 
-                                        className="p-1.5 rounded-lg bg-rose-600/10 hover:bg-rose-600/20 text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors border border-rose-500/20"
-                                        onClick={() => setDeleteRecordId(record.id)}
-                                        title="ลบรายงานนี้ / Delete report"
-                                      >
-                                        <Trash2 size={11} />
-                                      </button>
-                                      <button 
-                                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-theme-text font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
-                                        onClick={() => loadHistoryRecord(record)}
-                                      >
-                                        LOAD
-                                      </button>
-                                    </div>
+                                            {record.acknowledged_at && !record.is_deleted && (
+                                              <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider font-mono">
+                                                SIGNED
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
 
-                                  </div>
+                                        <div className="bg-theme-surface-tertiary dark:bg-theme-bg-page/60 p-2 rounded-xl border border-theme-border/60 flex items-center justify-around font-mono text-[10px] font-bold">
+                                          <div className="text-center">
+                                            <span className="text-theme-text-secondary uppercase block text-[8px] tracking-widest mb-0.5">ALIGNMENT</span>
+                                            <span className="text-indigo-600 dark:text-indigo-400">{record.jd_alignment_score || 0}%</span>
+                                          </div>
+                                          <div className="text-center border-l border-theme-border/80 pl-3">
+                                            <span className="text-theme-text-secondary uppercase block text-[8px] tracking-widest mb-0.5">BURNOUT</span>
+                                            <span className={cn(
+                                              (record.burnout_risk_score || 0) > 70 ? "text-rose-600 dark:text-rose-400" :
+                                              (record.burnout_risk_score || 0) > 40 ? "text-amber-600 dark:text-amber-400" :
+                                              "text-emerald-600 dark:text-emerald-400"
+                                            )}>
+                                              {record.burnout_risk_score || 0}%
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between border-t border-theme-border/60 pt-3" onClick={(e) => e.stopPropagation()}>
+                                          {!record.is_deleted ? (
+                                            <>
+                                              <div className="flex items-center gap-2">
+                                                <button
+                                                  onClick={() => toggleHistoryRecordShare(record.id, record.is_public)}
+                                                  className={cn(
+                                                    "px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
+                                                    record.is_public
+                                                      ? "bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
+                                                      : "bg-theme-surface-tertiary dark:bg-theme-surface-tertiary text-theme-text-secondary border border-theme-border/50 hover:text-theme-text dark:hover:text-theme-text"
+                                                  )}
+                                                >
+                                                  {record.is_public ? <Globe size={11} /> : <Lock size={11} />}
+                                                  <span>{record.is_public ? 'Public' : 'Private'}</span>
+                                                </button>
+
+                                                {record.is_public && record.share_token && (
+                                                  <button
+                                                    onClick={() => copyHistoryShareLink(record.share_token)}
+                                                    className="p-1.5 rounded-lg bg-theme-surface-tertiary dark:bg-theme-surface-tertiary text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text transition-colors border border-theme-border/50"
+                                                    title="Copy URL Share Link to Clipboard"
+                                                  >
+                                                    <Copy size={11} />
+                                                  </button>
+                                                )}
+                                              </div>
+
+                                              <div className="flex items-center gap-2">
+                                                <button 
+                                                  className="p-1.5 rounded-lg bg-rose-600/10 hover:bg-rose-600/20 text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors border border-rose-500/20"
+                                                  onClick={() => setDeleteRecordId(record.id)}
+                                                  title="ย้ายลงถังขยะ / Move to Trash"
+                                                >
+                                                  <Trash2 size={11} />
+                                                </button>
+                                                <button 
+                                                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
+                                                  onClick={() => loadHistoryRecord(record)}
+                                                >
+                                                  LOAD
+                                                </button>
+                                              </div>
+                                            </>
+                                          ) : (
+                                            <div className="flex items-center justify-between w-full">
+                                              <span className="text-[10px] text-rose-500 font-medium">
+                                                จะถูกลบถาวรอัตโนมัติเมื่อครบ 7 วัน
+                                              </span>
+                                              <div className="flex items-center gap-2">
+                                                <button
+                                                  onClick={() => handleRestoreRecord(record.id)}
+                                                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold flex items-center gap-1 transition-all"
+                                                  title="กู้คืนประวัติการประเมินนี้"
+                                                >
+                                                  <RotateCcw size={11} />
+                                                  <span>กู้คืน</span>
+                                                </button>
+                                                <button
+                                                  onClick={() => handlePermanentPurgeRecord(record.id)}
+                                                  className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold flex items-center gap-1 transition-all shadow-sm"
+                                                  title="ลบออกอย่างถาวรทันที"
+                                                >
+                                                  <Trash2 size={11} />
+                                                  <span>ลบถาวร</span>
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
-                              ))}
-                            </div>
+                              );
+                            })()
                           )}
                         </div>
                       )}
@@ -4348,11 +4521,11 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
             <div className="flex items-center gap-2 text-rose-500 pb-3 border-b border-theme-border/60">
               <AlertTriangle size={20} />
               <h3 className="text-sm font-black uppercase tracking-wider">
-                ยืนยันการลบประวัติการวิเคราะห์
+                ยืนยันการย้ายลงถังขยะ
               </h3>
             </div>
             <p className="text-xs text-theme-text-secondary leading-relaxed">
-              คุณต้องการลบประวัติการประเมินนี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้
+              คุณต้องการย้ายประวัติการประเมินนี้ไปที่ถังขยะใช่หรือไม่? รายการนี้จะถูกเก็บไว้ในถังขยะ 7 วัน (สามารถกู้คืนได้ตลอดเวลา) ก่อนจะถูกลบถาวรอัตโนมัติ
             </p>
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
@@ -4373,7 +4546,7 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                 ) : (
                   <Trash2 size={12} />
                 )}
-                <span>ยืนยันลบข้อมูล</span>
+                <span>ย้ายลงถังขยะ</span>
               </button>
             </div>
           </div>

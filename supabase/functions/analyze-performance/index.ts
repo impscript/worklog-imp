@@ -785,6 +785,7 @@ Task instructions:
         .eq('start_date', start_date)
         .eq('end_date', end_date)
         .eq('template_id', template_id)
+        .or('is_deleted.eq.false,is_deleted.is.null')
         .gte('created_at', yesterday.toISOString())
         .order('created_at', { ascending: false })
         .limit(1)
@@ -957,6 +958,7 @@ Task instructions:
       .select('jd_alignment_score, burnout_risk_score, raw_ai_report, headline_insight, cadence_type')
       .eq('user_id', user_id)
       .eq('template_id', template_id)
+      .or('is_deleted.eq.false,is_deleted.is.null')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
