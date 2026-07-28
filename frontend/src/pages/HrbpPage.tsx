@@ -824,12 +824,17 @@ export default function HrbpPage() {
     if (!deleteRecordId) return;
     setIsDeletingRecord(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('tb_ai_individual_analysis')
         .delete()
-        .eq('id', deleteRecordId);
+        .eq('id', deleteRecordId)
+        .select('id');
 
       if (error) throw error;
+
+      if (!data || data.length === 0) {
+        throw new Error('ไม่สามารถลบรายการได้ หรือไม่มีสิทธิ์ในระบบ (RLS Blocked)');
+      }
 
       showToast('ลบประวัติการประเมินสำเร็จ', 'success');
       setAnalysisHistory(prev => prev.filter(r => r.id !== deleteRecordId));
