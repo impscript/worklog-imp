@@ -357,6 +357,22 @@ export default function LogWorkPage() {
   const lastValidEndTime = useRef('17:00');
   const [isBreak, setIsBreak] = useState(true);
   const [description, setDescription] = useState('');
+
+  // Auto-draft saving to LocalStorage to protect field technician worklog descriptions
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('worklog_draft_desc');
+    if (savedDraft) {
+      setDescription(savedDraft);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (description) {
+      localStorage.setItem('worklog_draft_desc', description);
+    } else {
+      localStorage.removeItem('worklog_draft_desc');
+    }
+  }, [description]);
   const [isExplicitOt, setIsExplicitOt] = useState(false);
   const [isTimeCustomized, setIsTimeCustomized] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -795,7 +811,7 @@ export default function LogWorkPage() {
             projQuery = projQuery.eq('workspace_id', workspaceId);
             actQuery = actQuery.eq('workspace_id', workspaceId);
           }
-          tplQuery = tplQuery.eq('workspace_id', workspaceId);
+          tplQuery = tplQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
         }
 
         const [resUser, resProj, resAct, resTpl] = await Promise.all([

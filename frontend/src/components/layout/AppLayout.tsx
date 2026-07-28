@@ -887,9 +887,84 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </div>
             </div>
           ) : (
-            children
+            <div className="pb-20 md:pb-0 min-h-full">
+              {children}
+            </div>
           )}
         </div>
+
+        {/* Mobile Bottom Navigation Bar */}
+        {!isSharedView && user && (
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-theme-surface/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-theme-border/80 px-2 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-around shadow-2xl">
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                cn(
+                  "flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-h-[48px] min-w-[56px]",
+                  isActive ? "text-indigo-500 font-bold" : "text-theme-text-muted hover:text-theme-text"
+                )
+              }
+            >
+              <LayoutDashboard size={20} />
+              <span className="text-[10px] mt-0.5">{t('nav.dashboard', { defaultValue: 'ภาพรวม' })}</span>
+            </NavLink>
+
+            <NavLink
+              to="/log"
+              className={({ isActive }) =>
+                cn(
+                  "flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-h-[48px] min-w-[56px] relative",
+                  isActive ? "text-indigo-500 font-bold" : "text-theme-text-muted hover:text-theme-text"
+                )
+              }
+            >
+              <div className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center -mt-1 shadow-md text-indigo-400">
+                <PlusCircle size={20} />
+              </div>
+              <span className="text-[10px] mt-0.5">{t('nav.logWork', { defaultValue: 'ลงงาน' })}</span>
+            </NavLink>
+
+            <NavLink
+              to="/calendar"
+              className={({ isActive }) =>
+                cn(
+                  "flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-h-[48px] min-w-[56px]",
+                  isActive ? "text-indigo-500 font-bold" : "text-theme-text-muted hover:text-theme-text"
+                )
+              }
+            >
+              <Calendar size={20} />
+              <span className="text-[10px] mt-0.5">{t('nav.calendar', { defaultValue: 'ปฏิทิน' })}</span>
+            </NavLink>
+
+            <NavLink
+              to="/reports"
+              className={({ isActive }) =>
+                cn(
+                  "flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-h-[48px] min-w-[56px]",
+                  isActive ? "text-indigo-500 font-bold" : "text-theme-text-muted hover:text-theme-text"
+                )
+              }
+            >
+              <FileText size={20} />
+              <span className="text-[10px] mt-0.5">{t('nav.reports', { defaultValue: 'รายงาน' })}</span>
+            </NavLink>
+
+            <NavLink
+              to="/profile"
+              className={({ isActive }) =>
+                cn(
+                  "flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-h-[48px] min-w-[56px]",
+                  isActive ? "text-indigo-500 font-bold" : "text-theme-text-muted hover:text-theme-text"
+                )
+              }
+            >
+              <User size={20} />
+              <span className="text-[10px] mt-0.5">{t('nav.profile', { defaultValue: 'โปรไฟล์' })}</span>
+            </NavLink>
+          </nav>
+        )}
       </main>
     </div>
   );

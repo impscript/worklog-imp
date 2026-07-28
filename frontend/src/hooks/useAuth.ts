@@ -24,43 +24,76 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
     const hydrate = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!mounted) return;
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from('users')
-          .select('*')
-          .eq('auth_user_id', session.user.id)
-          .maybeSingle();
-        if (profile) {
-          const cached = localStorage.getItem('worklog_session');
-          setUser(cached ? JSON.parse(cached) : {
-            id: profile.id,
-            empId: profile.emp_id,
-            name: profile.full_name,
-            nickname: profile.nickname || profile.full_name,
-            role: profile.role,
-            department: profile.department || 'IMP',
-            position: profile.position,
-            email: profile.email,
-            activeWorkspaceId: profile.active_workspace_id
-          });
+      // 1. Instantly restore cached session if present (offline-first)
+      let initialUser: UserSession | null = null;
+      try {
+        const cached = localStorage.getItem('worklog_session');
+        if (cached) {
+          initialUser = JSON.parse(cached);
+          setUser(initialUser);
         }
-      } else {
-        localStorage.removeItem('worklog_session');
+      } catch (e) {
+        console.warn('Failed to restore cached worklog_session:', e);
       }
-      setIsLoading(false);
+
+      // Request Persistent Storage API to prevent OS eviction on mobile
+      if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().catch(() => {});
+      }
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('auth_user_id', session.user.id)
+            .maybeSingle();
+
+          if (profile && mounted) {
+            const updatedUser: UserSession = {
+              id: profile.id,
+              empId: profile.emp_id,
+              name: profile.full_name,
+              nickname: profile.nickname || profile.full_name,
+              role: profile.role,
+              department: profile.department || 'IMP',
+              position: profile.position,
+              email: profile.email,
+              activeWorkspaceId: profile.active_workspace_id || initialUser?.activeWorkspaceId,
+              workspaceInviteCode: initialUser?.workspaceInviteCode,
+              workspaceName: initialUser?.workspaceName
+            };
+            localStorage.setItem('worklog_session', JSON.stringify(updatedUser));
+            setUser(updatedUser);
+          }
+        } else if (!initialUser) {
+          // Only clear if there was no initialUser cached either
+          localStorage.removeItem('worklog_session');
+          setUser(null);
+        }
+      } catch (error) {
+        console.warn('Network or Supabase hydration issue (retaining cached user if available):', error);
+        // Keep initialUser logged in on network failure!
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
     };
-    hydrate().catch((error) => {
-      console.error('Failed to hydrate Supabase Auth session:', error);
-      if (mounted) setIsLoading(false);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        localStorage.removeItem('worklog_session');
-        setUser(null);
+
+    hydrate();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || (!session && event !== 'INITIAL_SESSION')) {
+        // Only strip if explicit SIGNED_OUT event
+        if (event === 'SIGNED_OUT') {
+          localStorage.removeItem('worklog_session');
+          setUser(null);
+        }
       }
     });
+
     return () => {
       mounted = false;
       listener.subscription.unsubscribe();

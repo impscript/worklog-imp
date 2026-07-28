@@ -384,7 +384,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Info details */}
-            <div className="flex-1 text-center md:text-left space-y-4">
+            <div className="flex-1 min-w-0 w-full text-center md:text-left space-y-4">
               <div>
                 <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full uppercase tracking-wider">
                   {session?.department || 'IMP'} Department ({session?.role || 'User'})
@@ -393,7 +393,7 @@ export default function ProfilePage() {
                 <p className="text-sm text-theme-text-secondary mt-0.5">{session?.email}</p>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-2xl pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 w-full pt-2">
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Employee ID</span>
                   <span className="text-sm font-semibold text-theme-text font-mono mt-0.5 block">{session?.empId || 'EMP-XXXXX'}</span>
@@ -402,9 +402,9 @@ export default function ProfilePage() {
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Nickname</span>
                   <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.nickname || session?.name?.split(' ')[0] || 'User'}</span>
                 </div>
-                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3 col-span-1 sm:col-span-2 md:col-span-1">
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Position (ตำแหน่ง)</span>
-                  <span className="text-sm font-semibold text-theme-text mt-0.5 block truncate" title={session?.position}>{session?.position || 'N/A'}</span>
+                  <span className="text-sm font-semibold text-theme-text mt-0.5 block" title={session?.position}>{session?.position || 'N/A'}</span>
                 </div>
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3">
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Level</span>
@@ -437,11 +437,11 @@ export default function ProfilePage() {
                     ) : 'N/A'}
                   </span>
                 </div>
-                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3 col-span-2">
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-3 col-span-1 sm:col-span-2">
                   <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block">Manager Name</span>
                   <span className="text-sm font-semibold text-theme-text mt-0.5 block">{session?.manager_name || 'N/A'}</span>
                 </div>
-                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-5 col-span-3 space-y-4">
+                <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border border-theme-border rounded-xl p-4 sm:p-5 col-span-1 sm:col-span-2 md:col-span-3 space-y-4">
                   {session?.role === 'admin' && (!session?.activeWorkspaceId || session?.activeWorkspaceId === 'N/A') ? (
                     /* Super Admin — no workspace */
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4">

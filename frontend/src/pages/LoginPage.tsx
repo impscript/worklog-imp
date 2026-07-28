@@ -135,14 +135,17 @@ export default function LoginPage() {
               <label className="block text-xs font-bold text-theme-text-muted dark:text-theme-text-secondary uppercase tracking-wider mb-2 ml-1">{t('login.username')}</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <UserIcon size={16} className="text-slate-500" />
+                  <UserIcon size={18} className="text-slate-500" />
                 </div>
                 <input
                   type="text"
                   value={account}
                   onChange={(e) => setAccount(e.target.value)}
                   placeholder={t('login.usernamePlaceholder')}
-                  className="w-full bg-theme-surface/80 dark:bg-theme-bg-page/60 border border-theme-border rounded-xl py-3 pl-11 pr-4 text-theme-text placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold text-sm"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  inputMode="text"
+                  className="w-full bg-theme-surface/80 dark:bg-theme-bg-page/60 border border-theme-border rounded-xl py-3.5 pl-11 pr-4 text-theme-text text-base sm:text-sm min-h-[48px] placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold"
                   required
                 />
               </div>
@@ -152,14 +155,14 @@ export default function LoginPage() {
               <label className="block text-xs font-bold text-theme-text-muted dark:text-theme-text-secondary uppercase tracking-wider mb-2 ml-1">{t('login.password')}</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <KeyRound size={16} className="text-slate-500" />
+                  <KeyRound size={18} className="text-slate-500" />
                 </div>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-theme-surface/80 dark:bg-theme-bg-page/60 border border-theme-border rounded-xl py-3 pl-11 pr-4 text-theme-text placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold text-sm"
+                  className="w-full bg-theme-surface/80 dark:bg-theme-bg-page/60 border border-theme-border rounded-xl py-3.5 pl-11 pr-4 text-theme-text text-base sm:text-sm min-h-[48px] placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold"
                   required
                 />
               </div>
@@ -168,18 +171,30 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 disabled:cursor-not-allowed text-theme-text dark:text-theme-text-invert font-extrabold uppercase tracking-wider text-xs rounded-xl py-3.5 shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all active:scale-[0.98] mt-6 flex items-center justify-center gap-2 border border-indigo-400/20"
+              className="w-full min-h-[48px] bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 disabled:cursor-not-allowed text-theme-text dark:text-theme-text-invert font-extrabold uppercase tracking-wider text-xs rounded-xl py-3.5 shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all active:scale-[0.98] mt-6 flex items-center justify-center gap-2 border border-indigo-400/20"
             >
               {isLoading ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>
-                  <LogIn size={15} />
+                  <LogIn size={18} />
                   <span>{t('login.submit')}</span>
                 </>
               )}
             </button>
           </form>
+        </div>
+
+        {/* Mobile PWA Installation Guide Card */}
+        <div className="w-full bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 text-xs space-y-2 text-indigo-300">
+          <div className="font-bold flex items-center gap-2 text-indigo-200">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>แนะนำ: เพิ่มเข้าหน้าจอโฮมมือถือ (Add to Home Screen)</span>
+          </div>
+          <p className="text-[11px] leading-relaxed opacity-90">
+            เปิดบน Safari (iOS) ให้กดไอคอน <strong className="text-white">Share</strong> ➔ เลือก <strong className="text-white">"Add to Home Screen"</strong><br />
+            เปิดบน Chrome (Android) ให้กด <strong className="text-white">⋮</strong> ➔ เลือก <strong className="text-white">"Install App"</strong> เพื่อให้จำ Login ยาวนานและโหลดแอปได้เร็วขึ้น!
+          </p>
         </div>
 
         {/* Development Workspace Mock Profiles Simulator */}

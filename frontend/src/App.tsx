@@ -25,11 +25,32 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) setState(data.session ? 'authenticated' : 'anonymous');
-    }).catch(() => {
-      if (active) setState('anonymous');
-    });
+    const checkSession = async () => {
+      // 1. Check local cached user session first (instant PWA startup)
+      const cached = localStorage.getItem('worklog_session');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.id) {
+            if (active) setState('authenticated');
+            return;
+          }
+        } catch {
+          // invalid JSON, fall through
+        }
+      }
+
+      // 2. Check Supabase Auth session as secondary check
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (active) setState(data?.session ? 'authenticated' : 'anonymous');
+      } catch (err) {
+        console.warn('ProtectedRoute auth check error:', err);
+        if (active) setState(cached ? 'authenticated' : 'anonymous');
+      }
+    };
+
+    checkSession();
     return () => { active = false; };
   }, []);
 

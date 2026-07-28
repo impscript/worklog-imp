@@ -21,6 +21,7 @@ import {
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
@@ -49,6 +50,7 @@ interface WorklogEntry {
 }
 
 export default function DashboardPage() {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState<WorklogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -1156,6 +1158,15 @@ export default function DashboardPage() {
             />
           </>
         )}
+
+        {/* Floating Quick Log Button for Mobile */}
+        <Link
+          to="/log"
+          className="md:hidden fixed bottom-20 right-4 z-40 bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-bold py-3 px-4 rounded-full shadow-2xl flex items-center gap-2 border border-indigo-400/40 active:scale-95 transition-all shadow-indigo-500/30 min-h-[48px]"
+        >
+          <Plus size={20} />
+          <span className="text-xs uppercase tracking-wider">{t('nav.logWork', { defaultValue: '+ บันทึกงาน' })}</span>
+        </Link>
 
       </div>
     </AppLayout>

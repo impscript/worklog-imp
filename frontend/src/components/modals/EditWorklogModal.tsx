@@ -472,7 +472,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         userQuery = (userQuery as any).eq('workspace_id', workspaceId);
         projQuery = (projQuery as any).eq('workspace_id', workspaceId);
         actQuery = (actQuery as any).eq('workspace_id', workspaceId);
-        tplQuery = (tplQuery as any).eq('workspace_id', workspaceId);
+        tplQuery = (tplQuery as any).or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
       }
 
       const [resUser, resProj, resAct, resTpl] = await Promise.all([
