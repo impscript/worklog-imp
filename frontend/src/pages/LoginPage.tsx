@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, KeyRound, User as UserIcon, Sparkles, ChevronDown, ChevronUp, UserCheck } from 'lucide-react';
+import { LogIn, KeyRound, User as UserIcon, ChevronDown, ChevronUp, UserCheck } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { MOCK_USERS } from '../lib/mockUsers';
 import type { MockHRMSUser } from '../lib/mockUsers';
@@ -112,8 +112,8 @@ export default function LoginPage() {
         <div className="w-full ai-glass rounded-3xl p-8 shadow-2xl border border-theme-border/80">
 
           <div className="flex flex-col items-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center mb-4 shadow-lg shadow-indigo-500/25 border border-indigo-400/20">
-              <Sparkles className="w-8 h-8 text-theme-text dark:text-theme-text-invert animate-pulse" />
+            <div className="w-16 h-16 rounded-2xl overflow-hidden mb-4 shadow-xl border border-indigo-400/20 bg-white p-1">
+              <img src="/app-logo.png" alt="WL Logo" className="w-full h-full object-cover rounded-xl" />
             </div>
             <h1 className="text-2xl font-extrabold text-theme-text dark:text-theme-text-invert tracking-wider theme-heading-gradient">
               IMP WORKLOG

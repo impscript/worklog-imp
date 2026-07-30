@@ -468,9 +468,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             isCollapsed ? "px-4 justify-center" : "px-6"
           )}>
             <div className="flex items-center">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-500 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/20 shrink-0">
-                <span className="text-xs font-black tracking-tighter">IMP</span>
-              </div>
+              <img src="/app-logo.png" alt="WL Logo" className="w-8 h-8 rounded-lg shadow-lg border border-indigo-400/20 shrink-0 object-cover" />
               {!isCollapsed && (
                 <div className="ml-3 flex flex-col justify-center animate-fade-in">
                   <span className="text-sm font-black tracking-wider bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-300 bg-clip-text text-transparent leading-none">
