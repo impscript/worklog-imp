@@ -1164,9 +1164,31 @@ export default function LogWorkPage() {
   }, [selectedProjectKey, projectType, module, bu, allowedProjects]);
 
   const availableActions = useMemo(() => {
-    if (!projectType) return [];
-    const category = projectType === 'Management' ? 'Management' : projectType.includes('Support') ? 'Support' : 'Project';
-    return masterActions.filter(a => a.action_category === category).map(a => a.action_name).sort();
+    if (!masterActions || masterActions.length === 0) return [];
+    if (!projectType) return Array.from(new Set(masterActions.map(a => a.action_name).filter(Boolean))).sort();
+
+    const normProjType = projectType.trim().toLowerCase();
+
+    // Tier 1: Exact case-insensitive match with action_category
+    let filtered = masterActions.filter(a => 
+      a.action_category && a.action_category.trim().toLowerCase() === normProjType
+    );
+
+    // Tier 2: Partial/contains match (e.g. "Support Go-Live" matches "Support", or vice versa)
+    if (filtered.length === 0) {
+      filtered = masterActions.filter(a => {
+        if (!a.action_category) return false;
+        const normCat = a.action_category.trim().toLowerCase();
+        return normProjType.includes(normCat) || normCat.includes(normProjType);
+      });
+    }
+
+    // Tier 3: Resilient fallback to all active actions if no category match is found
+    if (filtered.length === 0) {
+      filtered = masterActions;
+    }
+
+    return Array.from(new Set(filtered.map(a => a.action_name).filter(Boolean))).sort();
   }, [projectType, masterActions]);
 
   // Sync derived fields from selected project key and module
