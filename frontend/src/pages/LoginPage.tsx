@@ -321,6 +321,18 @@ export default function LoginPage() {
           )}
         </div>
 
+        {/* Footer Privacy Policy Link */}
+        <div className="mt-2 text-center">
+          <a
+            href="/privacy.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] font-semibold text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors inline-flex items-center gap-1 hover:underline"
+          >
+            <span>🔒 นโยบายความเป็นส่วนตัว (Privacy Policy)</span>
+          </a>
+        </div>
+
       </div>
     </div>
   );
