@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Plus, Search, ExternalLink, FolderTree, Calendar,
   ChevronDown, ChevronRight, Edit2, Trash2, X, Save,
-  Check, Clock, Activity, Users,
+  Check, Clock, Activity, Users, FileText,
   FolderOpen, Layers, Building2,
   RefreshCw, Link, Server, Database, Mail, Key, GitBranch
 } from 'lucide-react';
@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
+import ProjectNotesModal from '../components/modals/ProjectNotesModal';
 
 
 /* ── Types ── */
@@ -44,6 +45,7 @@ interface Project {
   worklog_unique_users?: number;
   recentLogs?: any[];
   children?: Project[];
+  notes_count?: number;
   // Added fields
   hosting_provider?: string | null;
   admin_email?: string | null;
@@ -85,6 +87,11 @@ function getStatusIcon(status: ProjectStatus) {
 }
 function getStatusColor(status: ProjectStatus) {
   return STATUS_CONFIG[status]?.color || '';
+}
+export function sanitizeProjectName(name: string): string {
+  if (!name) return '';
+  const clean = name.split(/<br\s*\/?>|\n/i)[0].replace(/<[^>]+>/g, '').trim();
+  return clean || name;
 }
 
 /* ── Build tree from flat list ── */
@@ -135,6 +142,7 @@ interface ProjectCardProps {
   onEdit: (project: Project) => void;
   onDelete: (project: Project) => void;
   onViewLog: (log: any) => void;
+  onOpenNotes: (project: Project) => void;
 }
 
 /* ── ProjectCard (top-level for stable identity) ── */
@@ -146,6 +154,7 @@ function ProjectCard({
   onEdit,
   onDelete,
   onViewLog,
+  onOpenNotes,
 }: ProjectCardProps) {
   const hasChildren = project.children && project.children.length > 0;
   const isExpanded = expandedProjects.has(project.id);
@@ -158,9 +167,9 @@ function ProjectCard({
     <div className="relative">
       {isChild && (
         <div
-          className="absolute border-theme-border/40"
+          className="absolute border-indigo-400/50 dark:border-indigo-500/40"
           style={{
-            left: -20, top: 22, width: 20, height: 2,
+            left: -26, top: 22, width: 26, height: 2,
             borderTopWidth: 0, borderBottomWidth: 2, borderBottomStyle: 'solid',
             borderLeftWidth: 2, borderLeftStyle: 'solid', borderRadius: '0 0 0 6px',
           }}
@@ -168,11 +177,10 @@ function ProjectCard({
       )}
 
       <div className={cn(
-        'group rounded-xl transition-all duration-200 mb-1.5',
-        'border-l-[3px]',
+        'group transition-all duration-200 mb-2',
         isChild
-          ? 'ai-glass-interactive p-3 md:p-4 bg-theme-surface-secondary/20 dark:bg-theme-surface-secondary/10'
-          : 'ai-glass-interactive p-4 md:p-5',
+          ? 'p-3.5 md:p-4 rounded-xl border border-indigo-200/70 dark:border-indigo-900/50 bg-gradient-to-r from-slate-50/95 via-indigo-50/20 to-purple-50/20 dark:from-slate-900/60 dark:via-indigo-950/30 dark:to-slate-900/60 shadow-sm border-l-[4px]'
+          : 'ai-glass-interactive p-4 md:p-5 rounded-2xl border border-theme-border/90 bg-white/95 dark:bg-theme-surface shadow-md shadow-indigo-500/5 border-l-[5px]',
         project.status === 'active'      && 'border-l-emerald-500',
         project.status === 'development' && 'border-l-amber-500',
         project.status === 'inactive'    && 'border-l-slate-400',
@@ -188,13 +196,17 @@ function ProjectCard({
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); onToggleExpand(project.id); }}
-                  className="p-0.5 rounded hover:bg-theme-surface-tertiary text-theme-text-muted hover:text-theme-text transition-colors shrink-0"
+                  className="p-1 rounded-lg bg-theme-surface-secondary hover:bg-indigo-500/10 text-theme-text-muted hover:text-indigo-600 transition-colors shrink-0 border border-theme-border"
                 >
                   {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
               )}
-              {isChild && <Layers size={12} className="text-theme-text-muted shrink-0 opacity-60" />}
-              <h3 className={cn('font-bold text-theme-text truncate', isChild ? 'text-xs' : 'text-sm')}>
+              {isChild && (
+                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-2 py-0.5 flex items-center gap-1 shrink-0">
+                  <Layers size={10} /> Sub-module
+                </span>
+              )}
+              <h3 className={cn('font-bold text-theme-text truncate', isChild ? 'text-xs text-indigo-950 dark:text-indigo-200' : 'text-sm')}>
                 {project.project_name}
               </h3>
               <StatusBadge status={project.status} />
@@ -204,7 +216,7 @@ function ProjectCard({
                 </span>
               )}
               {project.module && (
-                <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded px-1.5 py-0.5">
+                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded px-1.5 py-0.5">
                   📦 {project.module}
                 </span>
               )}
@@ -231,6 +243,20 @@ function ProjectCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={() => onOpenNotes(project)}
+              className="p-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 transition-all flex items-center gap-1 text-xs font-semibold px-2"
+              title="ดูและเพิ่มบันทึก Internal Logs / WI"
+            >
+              <FileText size={13} />
+              <span className="text-[11px]">Notes</span>
+              {project.notes_count ? (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-purple-600 text-white font-bold">
+                  {project.notes_count}
+                </span>
+              ) : null}
+            </button>
             {project.deploy_url && (
               <a
                 href={project.deploy_url}
@@ -388,10 +414,10 @@ function ProjectCard({
 
       {/* Expanded children with vertical guide line */}
       {hasChildren && isExpanded && (
-        <div className="relative ml-6 mt-0.5">
+        <div className="relative ml-8 md:ml-12 mt-2 space-y-2">
           <div
-            className="absolute top-0 bottom-6 bg-theme-border/40 rounded-full"
-            style={{ left: -20, width: 2 }}
+            className="absolute top-0 bottom-6 border-l-2 border-indigo-400/40 dark:border-indigo-500/40 rounded-full"
+            style={{ left: -26 }}
           />
           {project.children!.map((child, childIdx) => (
             <ProjectCard
@@ -404,6 +430,7 @@ function ProjectCard({
               onEdit={onEdit}
               onDelete={onDelete}
               onViewLog={onViewLog}
+              onOpenNotes={onOpenNotes}
             />
           ))}
         </div>
@@ -426,12 +453,15 @@ export default function ProjectRegistryPage() {
   const [filterTeam, setFilterTeam] = useState<string>('all');
   const [filterHolding, setFilterHolding] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'tree' | 'status'>('status');
+  const [viewMode, setViewMode] = useState<'tree' | 'status'>('tree');
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [selectedWorklog, setSelectedWorklog] = useState<any | null>(null);
+
+  // Notes state
+  const [notesCountMap, setNotesCountMap] = useState<Record<string, number>>({});
+  const [notesProject, setNotesProject] = useState<Project | null>(null);
 
   /* ── Data Loading ── */
   const loadProjects = useCallback(async () => {
@@ -470,11 +500,30 @@ export default function ProjectRegistryPage() {
 
       const mapped: Project[] = (data || []).map((p: any) => ({
         ...p,
-        parent_name: p.parent?.project_name || null,
+        project_name: sanitizeProjectName(p.project_name),
+        parent_name: p.parent?.project_name ? sanitizeProjectName(p.parent.project_name) : null,
         children: [],
       }));
 
       setProjects(mapped);
+
+      // Load project notes count summary
+      let notesQuery = supabase
+        .from('tb_project_notes')
+        .select('project_id');
+      if (workspaceId) {
+        notesQuery = notesQuery.eq('workspace_id', workspaceId);
+      }
+      const { data: nData } = await notesQuery;
+      if (nData) {
+        const counts: Record<string, number> = {};
+        nData.forEach((n: any) => {
+          if (n.project_id) {
+            counts[n.project_id] = (counts[n.project_id] || 0) + 1;
+          }
+        });
+        setNotesCountMap(counts);
+      }
 
       // Load worklog summary (aggregated by project_id / module_id for exact mapping)
       const { data: wData, error: wError } = await supabase
@@ -569,9 +618,10 @@ export default function ProjectRegistryPage() {
         worklog_count: stats.count,
         worklog_recent: stats.recent_30d,
         recentLogs: stats.logs,
+        notes_count: notesCountMap[p.id] || 0,
       };
     });
-  }, [projects, worklogSummary]);
+  }, [projects, worklogSummary, notesCountMap]);
 
   const filteredProjects = useMemo(() => {
     let list = projectsWithStats;
@@ -684,41 +734,6 @@ export default function ProjectRegistryPage() {
     }
   };
 
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-
-    try {
-      // Check for children
-      const { data: children } = await supabase
-        .from('tb_project_registry')
-        .select('id')
-        .eq('parent_project_id', deleteTarget.id);
-
-      if (children && children.length > 0) {
-        const ok = await showConfirm({
-          title: 'ยืนยันการลบ',
-          message: `โปรเจค "${deleteTarget.project_name}" มีโปรเจคย่อย ${children.length} รายการ\n\nยืนยันลบ? (โปรเจคย่อยจะถูกยกให้เป็น top-level)`,
-          type: 'danger'
-        });
-        if (!ok) return;
-      }
-
-      const { error } = await supabase
-        .from('tb_project_registry')
-        .delete()
-        .eq('id', deleteTarget.id)
-        .eq('workspace_id', deleteTarget.workspace_id);
-
-      if (error) throw error;
-
-      showToast(`ลบ "${deleteTarget.project_name}" สำเร็จ`, 'success');
-      setDeleteTarget(null);
-      loadProjects();
-    } catch (err: any) {
-      showToast('ลบไม่สำเร็จ: ' + (err.message || err), 'error');
-    }
-  };
-
   const handleDeleteClick = async (project: Project) => {
     const sessionStr = localStorage.getItem('worklog_session');
     const session = sessionStr ? JSON.parse(sessionStr) : null;
@@ -728,12 +743,45 @@ export default function ProjectRegistryPage() {
         `คุณกำลังจะลบโปรเจค:\n` +
         `• ชื่อ: "${project.project_name}"\n` +
         `• Workspace: ${project.workspace_id === session?.activeWorkspaceId ? (session?.workspaceName || project.workspace_id) : (project.workspace_id || 'ไม่ระบุ')}\n\n` +
-        `การกระทำนี้ไม่สามารถย้อนกลับได้ และจะลบเฉพาะใน Workspace นี้`,
+        `การกระทำนี้ไม่สามารถย้อนกลับได้`,
       type: 'danger'
     });
-    if (confirmed) {
-      setDeleteTarget(project);
-      confirmDelete();
+
+    if (!confirmed) return;
+
+    try {
+      // Check for children
+      const { data: children } = await supabase
+        .from('tb_project_registry')
+        .select('id')
+        .eq('parent_project_id', project.id);
+
+      if (children && children.length > 0) {
+        const ok = await showConfirm({
+          title: 'ยืนยันการลบ',
+          message: `โปรเจค "${project.project_name}" มีโปรเจคย่อย ${children.length} รายการ\n\nยืนยันลบ? (โปรเจคย่อยจะถูกยกให้เป็น top-level)`,
+          type: 'danger'
+        });
+        if (!ok) return;
+      }
+
+      let deleteQuery = supabase
+        .from('tb_project_registry')
+        .delete()
+        .eq('id', project.id);
+
+      if (project.workspace_id) {
+        deleteQuery = deleteQuery.eq('workspace_id', project.workspace_id);
+      }
+
+      const { error } = await deleteQuery;
+
+      if (error) throw error;
+
+      showToast(`ลบ "${project.project_name}" สำเร็จ`, 'success');
+      loadProjects();
+    } catch (err: any) {
+      showToast('ลบไม่สำเร็จ: ' + (err.message || err), 'error');
     }
   };
 
@@ -760,6 +808,7 @@ export default function ProjectRegistryPage() {
   const handleEditProject = useCallback((project: Project) => openEditModal(project), []);
   const handleDeleteProject = useCallback((project: Project) => handleDeleteClick(project), []);
   const handleViewLog = useCallback((log: any) => setSelectedWorklog(log), []);
+  const handleOpenNotes = useCallback((project: Project) => setNotesProject(project), []);
 
   /* ── Render ── */
   return (
@@ -935,6 +984,7 @@ export default function ProjectRegistryPage() {
                 onEdit={handleEditProject}
                 onDelete={handleDeleteProject}
                 onViewLog={handleViewLog}
+                onOpenNotes={handleOpenNotes}
               />
             ))}
           </div>
@@ -963,6 +1013,7 @@ export default function ProjectRegistryPage() {
                       onEdit={handleEditProject}
                       onDelete={handleDeleteProject}
                       onViewLog={handleViewLog}
+                      onOpenNotes={handleOpenNotes}
                     />
                   ))}
                 </div>
@@ -990,6 +1041,14 @@ export default function ProjectRegistryPage() {
         onClose={() => setSelectedWorklog(null)}
         log={selectedWorklog}
         onDeleteSuccess={loadProjects}
+      />
+
+      {/* ── Project Notes Modal ── */}
+      <ProjectNotesModal
+        isOpen={!!notesProject}
+        onClose={() => setNotesProject(null)}
+        project={notesProject}
+        onNotesUpdated={loadProjects}
       />
 
       {/* ── Mobile FAB ── */}
@@ -1055,7 +1114,13 @@ const ProjectFormModal = ({
   const nameInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // ── Searchable parent project combobox state ──
+  const [parentQuery, setParentQuery] = useState('');
+  const [showParentDrop, setShowParentDrop] = useState(false);
+  const parentInputRef = useRef<HTMLInputElement>(null);
+  const parentDropRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (
@@ -1064,12 +1129,18 @@ const ProjectFormModal = ({
       ) {
         setShowNameDrop(false);
       }
+      if (
+        parentDropRef.current && !parentDropRef.current.contains(e.target as Node) &&
+        parentInputRef.current && !parentInputRef.current.contains(e.target as Node)
+      ) {
+        setShowParentDrop(false);
+      }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Fetch unique project_name + module pairs from col_worklog once when modal opens
+  // Fetch unique project_name + module pairs from col_worklog AND tb_map_project_structure once when modal opens
   useEffect(() => {
     if (!isOpen) return;
     const fetch = async () => {
@@ -1077,24 +1148,34 @@ const ProjectFormModal = ({
       const session = sessionStr ? JSON.parse(sessionStr) : null;
       const workspaceId = session?.activeWorkspaceId;
 
-      let query = supabase
+      let wQuery = supabase
         .from('col_worklog')
         .select('project_name, module');
 
+      let sQuery = supabase
+        .from('tb_map_project_structure')
+        .select('project_name, module');
+
       if (workspaceId) {
-        query = query.eq('workspace_id', workspaceId);
+        wQuery = wQuery.eq('workspace_id', workspaceId);
+        sQuery = sQuery.eq('workspace_id', workspaceId);
       }
 
-      const { data } = await query.order('project_name');
-      if (data) {
+      const [wRes, sRes] = await Promise.all([wQuery, sQuery]);
+      const combined = [...(wRes.data || []), ...(sRes.data || [])];
+
+      if (combined.length > 0) {
         // Deduplicate by (project_name + module)
         const seen = new Set<string>();
         const unique: { project_name: string; module: string | null }[] = [];
-        data.forEach((row: any) => {
-          const key = `${row.project_name}||${row.module || ''}`;
+        combined.forEach((row: any) => {
+          if (!row.project_name) return;
+          const nameTrimmed = sanitizeProjectName(row.project_name);
+          const moduleTrimmed = row.module ? row.module.trim() : null;
+          const key = `${nameTrimmed}||${moduleTrimmed || ''}`;
           if (!seen.has(key)) {
             seen.add(key);
-            unique.push({ project_name: row.project_name, module: row.module || null });
+            unique.push({ project_name: nameTrimmed, module: moduleTrimmed });
           }
         });
         // Sort: project_name asc, then module asc
@@ -1111,10 +1192,13 @@ const ProjectFormModal = ({
   useEffect(() => {
     if (isOpen) {
       const name = editingProject?.project_name || '';
+      const parentId = editingProject?.parent_project_id || '';
+      const parentObj = parentOptions.find(p => p.id === parentId);
+
       setFormData({
         project_name: name,
         description: editingProject?.description || '',
-        parent_project_id: editingProject?.parent_project_id || '',
+        parent_project_id: parentId,
         module: editingProject?.module || '',
         status: editingProject?.status || 'planning',
         project_type: editingProject?.project_type || 'web_app',
@@ -1132,16 +1216,27 @@ const ProjectFormModal = ({
         credentials_ref_note: editingProject?.credentials_ref_note || '',
       });
       setNameQuery(name);
+      setParentQuery(parentObj ? parentObj.project_name : '');
     }
-  }, [isOpen, editingProject]);
+  }, [isOpen, editingProject, parentOptions]);
 
-  // Filtered options for combobox
+  // Filtered options for comboboxes
   const filteredNameOptions = nameQuery.trim().length === 0
     ? worklogOptions
     : worklogOptions.filter(opt =>
         opt.project_name.toLowerCase().includes(nameQuery.toLowerCase()) ||
         (opt.module || '').toLowerCase().includes(nameQuery.toLowerCase())
       );
+
+  const topLevelParentOptions = useMemo(() => {
+    return parentOptions.filter(p => !p.parent_project_id);
+  }, [parentOptions]);
+
+  const filteredParentOptions = useMemo(() => {
+    if (!parentQuery.trim()) return topLevelParentOptions;
+    const q = parentQuery.toLowerCase();
+    return topLevelParentOptions.filter(p => p.project_name.toLowerCase().includes(q));
+  }, [topLevelParentOptions, parentQuery]);
 
   if (!isOpen) return null;
 
@@ -1282,17 +1377,90 @@ const ProjectFormModal = ({
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Parent Project</label>
-                <select
-                  value={formData.parent_project_id}
-                  onChange={e => setFormData(p => ({ ...p, parent_project_id: e.target.value }))}
-                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                >
-                  <option value="">— Top Level —</option>
-                  {parentOptions.filter(p => !p.parent_project_id).map(p => (
-                    <option key={p.id} value={p.id}>{p.project_name}</option>
-                  ))}
-                </select>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5 flex items-center justify-between">
+                  <span>Parent Project (โปรเจคหลัก)</span>
+                  {formData.parent_project_id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData(p => ({ ...p, parent_project_id: '' }));
+                        setParentQuery('');
+                      }}
+                      className="text-indigo-400 hover:underline font-normal text-[10px]"
+                    >
+                      (ล้างตัวเลือก ✖)
+                    </button>
+                  )}
+                </label>
+                <div className="relative">
+                  <input
+                    ref={parentInputRef}
+                    value={parentQuery}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setParentQuery(v);
+                      setShowParentDrop(true);
+                      if (!v.trim()) {
+                        setFormData(p => ({ ...p, parent_project_id: '' }));
+                      }
+                    }}
+                    onFocus={() => setShowParentDrop(true)}
+                    placeholder="พิมพ์เพื่อค้นหา Parent Project..."
+                    className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all pr-8"
+                    autoComplete="off"
+                  />
+                  <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
+
+                  {showParentDrop && (
+                    <div
+                      ref={parentDropRef}
+                      className="absolute z-[60] top-full mt-1 left-0 right-0 max-h-56 overflow-y-auto rounded-xl border border-theme-border bg-theme-surface-modal shadow-2xl shadow-black/20 animate-in fade-in slide-in-from-top-1 duration-100"
+                    >
+                      <button
+                        type="button"
+                        onMouseDown={e => {
+                          e.preventDefault();
+                          setFormData(p => ({ ...p, parent_project_id: '' }));
+                          setParentQuery('');
+                          setShowParentDrop(false);
+                        }}
+                        className={cn(
+                          'w-full text-left px-4 py-2 text-sm hover:bg-indigo-500/10 transition-colors flex items-center justify-between border-b border-theme-border/40 font-semibold',
+                          !formData.parent_project_id ? 'text-indigo-500 bg-indigo-500/5' : 'text-theme-text-muted'
+                        )}
+                      >
+                        <span>— Top Level (ไม่มี Parent) —</span>
+                      </button>
+                      {filteredParentOptions.length === 0 ? (
+                        <div className="px-4 py-3 text-xs text-theme-text-muted text-center">ไม่พบโปรเจคที่ค้นหา</div>
+                      ) : (
+                        filteredParentOptions.map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={e => {
+                              e.preventDefault();
+                              setFormData(prev => ({ ...prev, parent_project_id: p.id }));
+                              setParentQuery(p.project_name);
+                              setShowParentDrop(false);
+                            }}
+                            className={cn(
+                              'w-full text-left px-4 py-2 text-sm hover:bg-indigo-500/10 transition-colors flex items-center justify-between border-b border-theme-border/40 last:border-0',
+                              formData.parent_project_id === p.id ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-bold' : 'text-theme-text'
+                            )}
+                          >
+                            <span className="truncate">{p.project_name}</span>
+                            {p.owner_holding && (
+                              <span className="text-[10px] text-theme-text-muted bg-theme-surface-secondary px-1.5 py-0.5 rounded border border-theme-border shrink-0">
+                                {p.owner_holding}
+                              </span>
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Module (Optional)</label>

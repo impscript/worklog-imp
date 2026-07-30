@@ -539,7 +539,8 @@ class GoogleCalendarService {
 
       // 2. Extract Project Name
       const projectMatch = desc.match(/🎯 Project:\s*([^\n]+)/);
-      const projectName = projectMatch ? projectMatch[1].trim() : 'Work Log';
+      const rawProjectName = projectMatch ? projectMatch[1].trim() : 'Work Log';
+      const projectName = rawProjectName.split(/<br\s*\/?>|\n/i)[0].replace(/<[^>]+>/g, '').trim() || 'Work Log';
 
       // 3. Extract BU and Dept
       const buDeptMatch = desc.match(/🏢 BU:\s*([^|]+)\s*\|\s*Dept:\s*([^\n]+)/);
