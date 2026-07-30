@@ -429,7 +429,7 @@ export default function AdminPage() {
   }, [deptSuggestions, formStructDept]);
 
   const handleExportProjectStructures = () => {
-    const headers = ['holding', 'department_operator', 'project_type', 'project_name', 'module', 'bu', 'department', 'project_description'];
+    const headers = ['id', 'holding', 'department_operator', 'project_type', 'project_name', 'module', 'bu', 'department', 'project_description'];
     const csvContent = [
       headers.join(','),
       ...projectStructures.map(row => 
@@ -550,6 +550,9 @@ export default function AdminPage() {
               department: rowObj.department.trim(),
               project_description: rowObj.project_description ? rowObj.project_description.trim() : null
             };
+            if (rowObj.id && String(rowObj.id).trim()) {
+              newRow.id = String(rowObj.id).trim();
+            }
             if (hasWorkspace) {
               newRow.workspace_id = activeWorkspaceId;
             }
@@ -570,16 +573,18 @@ export default function AdminPage() {
           return;
         }
 
-        // Deduplicate parsedRows based on unique structure combination: holding, role, type, name, module
+        // Deduplicate parsedRows based on ID (if present) or candidate structure combination
         const uniqueParsedRowsMap = new Map<string, any>();
         parsedRows.forEach(row => {
-          const key = [
-            row.holding.toLowerCase().trim(),
-            row.department_operator.toLowerCase().trim(),
-            row.project_type.toLowerCase().trim(),
-            row.project_name.toLowerCase().trim(),
-            (row.module || '').toLowerCase().trim()
-          ].join('|');
+          const key = row.id 
+            ? `id:${row.id}`
+            : [
+                row.holding.toLowerCase().trim(),
+                row.department_operator.toLowerCase().trim(),
+                row.project_type.toLowerCase().trim(),
+                row.project_name.toLowerCase().trim(),
+                (row.module || '').toLowerCase().trim()
+              ].join('|');
           // Keep the last occurrence in case there are duplicates with different values in other fields
           uniqueParsedRowsMap.set(key, row);
         });
@@ -590,31 +595,35 @@ export default function AdminPage() {
         const updateRows: any[] = [];
 
         // Match existing structures:
-        // We match by: holding, department_operator, project_type, project_name, module (case insensitive)
+        // Priority 1: Match by ID if row.id is provided and exists in projectStructures
+        // Priority 2: Fallback to matching by candidate key (holding, department_operator, project_type, project_name, module)
         deduplicatedRows.forEach(row => {
-          const existing = projectStructures.find(p => 
-            p.holding?.toLowerCase().trim() === row.holding?.toLowerCase().trim() &&
-            p.department_operator?.toLowerCase().trim() === row.department_operator?.toLowerCase().trim() &&
-            p.project_type?.toLowerCase().trim() === row.project_type?.toLowerCase().trim() &&
-            p.project_name?.toLowerCase().trim() === row.project_name?.toLowerCase().trim() &&
-            (p.module || '').toLowerCase().trim() === (row.module || '').toLowerCase().trim()
-          );
+          let existing = row.id ? projectStructures.find(p => p.id === row.id) : undefined;
+          if (!existing) {
+            existing = projectStructures.find(p => 
+              p.holding?.toLowerCase().trim() === row.holding?.toLowerCase().trim() &&
+              p.department_operator?.toLowerCase().trim() === row.department_operator?.toLowerCase().trim() &&
+              p.project_type?.toLowerCase().trim() === row.project_type?.toLowerCase().trim() &&
+              p.project_name?.toLowerCase().trim() === row.project_name?.toLowerCase().trim() &&
+              (p.module || '').toLowerCase().trim() === (row.module || '').toLowerCase().trim()
+            );
+          }
 
           if (existing) {
             updateRows.push({
               ...row,
-              id: existing.id // Keep the same ID to trigger Supabase upsert/update
+              id: existing.id // Keep the matched ID to trigger Supabase upsert/update
             });
           } else {
             newRows.push({
               ...row,
-              id: typeof window.crypto?.randomUUID === 'function' 
+              id: row.id || (typeof window.crypto?.randomUUID === 'function' 
                 ? window.crypto.randomUUID() 
                 : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
                     const r = (Math.random() * 16) | 0;
                     const v = c === 'x' ? r : (r & 0x3) | 0x8;
                     return v.toString(16);
-                  })
+                  }))
             });
           }
         });
