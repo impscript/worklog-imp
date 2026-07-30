@@ -4322,128 +4322,229 @@ ${(guide.insight_questions || []).map((q: string, i: number) => `${i+1}. ${q}`).
                 <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
                 <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-violet-500/5 rounded-full blur-[100px] pointer-events-none" />
 
-                <div className="flex items-center justify-between pb-4 border-b border-theme-border/60">
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-theme-border/60">
                   <div className="flex items-center gap-2">
                     <Clock size={18} className="text-emerald-600 dark:text-emerald-400" />
                     <h3 className="text-sm font-black text-theme-text uppercase tracking-wider">
                       ประวัติการประเมินย้อนหลัง (HISTORICAL DIAGNOSTICS LOGS)
                     </h3>
                   </div>
-                  
-                  <button
-                    onClick={() => setStep(1)}
-                    className="px-3.5 py-1.5 rounded-xl bg-theme-surface-tertiary dark:bg-theme-surface-secondary border border-theme-border hover:border-theme-border dark:hover:border-theme-border text-theme-text-secondary text-[10px] font-black uppercase tracking-wider transition-all"
-                  >
-                    ย้อนกลับ / Setup Page
-                  </button>
+
+                  <div className="flex items-center gap-3">
+                    {/* Sub-tabs: Active vs Trash */}
+                    <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-theme-surface-secondary rounded-xl border border-slate-200 dark:border-theme-border/80 text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setHistorySubFilter('active')}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5",
+                          historySubFilter === 'active'
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "text-slate-600 dark:text-theme-text-secondary hover:text-slate-900 dark:hover:text-theme-text"
+                        )}
+                      >
+                        <span>📋 รายการประเมิน</span>
+                        <span className={cn(
+                          "px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold",
+                          historySubFilter === 'active' ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-theme-surface-tertiary text-slate-700 dark:text-theme-text-secondary"
+                        )}>
+                          {analysisHistory.filter(r => !r.is_deleted).length}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setHistorySubFilter('trash')}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5",
+                          historySubFilter === 'trash'
+                            ? "bg-rose-600 text-white shadow-sm"
+                            : "text-slate-600 dark:text-theme-text-secondary hover:text-rose-600 dark:hover:text-rose-400"
+                        )}
+                      >
+                        <Trash2 size={12} />
+                        <span>ถังขยะ (7 วัน)</span>
+                        <span className={cn(
+                          "px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold",
+                          historySubFilter === 'trash' ? "bg-white/20 text-white" : "bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                        )}>
+                          {analysisHistory.filter(r => r.is_deleted).length}
+                        </span>
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => setStep(1)}
+                      className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-theme-surface-secondary border border-slate-300 dark:border-theme-border text-slate-700 dark:text-theme-text-secondary text-[10px] font-black uppercase tracking-wider transition-all"
+                    >
+                      ย้อนกลับ / Setup Page
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
                   {isLoadingHistory ? (
                     <div className="flex justify-center p-12">
-                      <Loader2 className="animate-spin text-indigo-400" size={32} />
+                      <Loader2 className="animate-spin text-indigo-500" size={32} />
                     </div>
-                  ) : analysisHistory.length === 0 ? (
-                    <div className="text-center p-12 rounded-3xl bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border/80 text-xs text-theme-text-secondary italic space-y-4">
-                      <div>ไม่มีประวัติการประเมินมาก่อนสำหรับพนักงานรายนี้ / No history logs found for this employee</div>
-                      <button
-                        onClick={() => setStep(1)}
-                        className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-indigo-600/20 transition-all inline-block not-italic"
-                      >
-                        กำหนดตัวแปรและเริ่มวิเคราะห์ (Setup Page)
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-1">
-                      {analysisHistory.map((record) => (
-                        <div 
-                          key={record.id} 
-                          className="p-5 rounded-2xl border text-xs flex flex-col gap-4 justify-between transition-all hover:border-indigo-500/40 bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border-theme-border/80"
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="space-y-1">
-                              <span className="font-bold text-theme-text font-mono tracking-wide text-sm">
-                                📅 {record.start_date} ~ {record.end_date}
-                              </span>
-                              <span className="text-[10px] text-theme-text-secondary block">
-                                วิเคราะห์เมื่อ: {new Date(record.created_at).toLocaleString('th-TH')}
-                              </span>
-                            </div>
+                  ) : (() => {
+                    const filteredRecords = analysisHistory.filter(r => historySubFilter === 'trash' ? r.is_deleted : !r.is_deleted);
 
-                            <div className="flex items-center gap-1.5">
-                              {record.acknowledged_at && (
-                                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider font-mono">
-                                  SIGNED
-                                </span>
-                              )}
-                            </div>
+                    if (filteredRecords.length === 0) {
+                      return (
+                        <div className="text-center p-12 rounded-3xl bg-slate-50 dark:bg-theme-surface-secondary/30 border border-slate-200 dark:border-theme-border/80 text-xs text-slate-600 dark:text-theme-text-secondary italic space-y-4">
+                          <div>
+                            {historySubFilter === 'trash'
+                              ? 'ไม่มีประวัติที่อยู่ในถังขยะ / Trash is empty'
+                              : 'ไม่มีประวัติการประเมินมาก่อนสำหรับพนักงานรายนี้ / No active history logs found'}
                           </div>
-
-                          <div className="grid grid-cols-2 gap-3 bg-theme-surface/80 dark:bg-theme-bg-page/60 p-3 rounded-xl border border-theme-border/60 font-mono text-xs font-bold text-center">
-                            <div>
-                              <span className="text-theme-text-secondary uppercase block text-[8px] tracking-widest mb-0.5">ALIGNMENT</span>
-                              <span className="text-indigo-400 text-sm">{record.jd_alignment_score || 0}%</span>
-                            </div>
-                            <div className="border-l border-theme-border/80">
-                              <span className="text-theme-text-secondary uppercase block text-[8px] tracking-widest mb-0.5">BURNOUT</span>
-                              <span className={cn(
-                                "text-sm",
-                                (record.burnout_risk_score || 0) > 70 ? "text-rose-400" :
-                                (record.burnout_risk_score || 0) > 40 ? "text-amber-400" :
-                                "text-emerald-400"
-                              )}>
-                                {record.burnout_risk_score || 0}%
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between border-t border-theme-border/60 pt-3">
-                            <div className="flex items-center gap-2">
-                              {/* Public / Private Toggle */}
-                              <button
-                                onClick={() => toggleHistoryRecordShare(record.id, record.is_public)}
-                                className={cn(
-                                  "px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
-                                  record.is_public
-                                    ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20"
-                                    : "bg-theme-surface-tertiary dark:bg-theme-surface-tertiary text-theme-text-secondary border border-theme-border/50 hover:text-theme-text"
-                                )}
-                              >
-                                {record.is_public ? <Globe size={11} /> : <Lock size={11} />}
-                                <span>{record.is_public ? 'Public' : 'Private'}</span>
-                              </button>
-
-                              {record.is_public && record.share_token && (
-                                <button
-                                  onClick={() => copyHistoryShareLink(record.share_token)}
-                                  className="p-1.5 rounded-lg bg-theme-surface-tertiary dark:bg-theme-surface-tertiary text-theme-text-secondary hover:text-theme-text transition-colors border border-theme-border/50"
-                                  title="Copy URL Share Link to Clipboard"
-                                >
-                                  <Copy size={11} />
-                                </button>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <button 
-                                className="p-1.5 rounded-lg bg-rose-600/10 hover:bg-rose-600/20 text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-colors border border-rose-500/20"
-                                onClick={() => setDeleteRecordId(record.id)}
-                                title="ลบรายงานนี้ / Delete report"
-                              >
-                                <Trash2 size={11} />
-                              </button>
-                              <button 
-                                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-theme-text font-black uppercase tracking-wider transition-all text-[10px] shadow-lg shadow-indigo-600/10"
-                                onClick={() => loadHistoryRecord(record)}
-                              >
-                                LOAD REPORT
-                              </button>
-                            </div>
-                          </div>
+                          {historySubFilter !== 'trash' && (
+                            <button
+                              onClick={() => setStep(1)}
+                              className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[10px] font-black uppercase tracking-wider text-white shadow-xl shadow-indigo-600/20 transition-all inline-block not-italic"
+                            >
+                              กำหนดตัวแปรและเริ่มวิเคราะห์ (Setup Page)
+                            </button>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-1">
+                        {filteredRecords.map((record) => {
+                          const remainingDays = record.is_deleted ? getRemainingDaysInTrash(record.deleted_at) : 7;
+
+                          return (
+                            <div 
+                              key={record.id} 
+                              className={cn(
+                                "p-5 rounded-2xl border text-xs flex flex-col gap-4 justify-between transition-all hover:border-indigo-500/40 relative overflow-hidden shadow-xs",
+                                record.is_deleted
+                                  ? "bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-500/30"
+                                  : "bg-white dark:bg-theme-surface-secondary/50 border-slate-200 dark:border-theme-border/80"
+                              )}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                  <span className="font-extrabold text-slate-900 dark:text-theme-text font-mono tracking-wide text-sm flex items-center gap-1.5">
+                                    📅 {record.start_date} ~ {record.end_date}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 dark:text-theme-text-secondary block font-medium">
+                                    วิเคราะห์เมื่อ: {new Date(record.created_at).toLocaleString('th-TH')}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                  {record.is_deleted && (
+                                    <span className="bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-500/20 px-2 py-0.5 rounded-full text-[9px] font-extrabold tracking-wider font-mono flex items-center gap-1">
+                                      <Clock size={10} /> เหลือ {remainingDays} วัน
+                                    </span>
+                                  )}
+
+                                  {record.acknowledged_at && !record.is_deleted && (
+                                    <span className="bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/20 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider font-mono">
+                                      SIGNED
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-theme-bg-page/60 p-3 rounded-xl border border-slate-200 dark:border-theme-border/60 font-mono text-xs font-bold text-center">
+                                <div>
+                                  <span className="text-slate-500 dark:text-theme-text-secondary uppercase block text-[8px] tracking-widest mb-0.5 font-bold">ALIGNMENT</span>
+                                  <span className="text-indigo-600 dark:text-indigo-400 text-sm font-black">{record.jd_alignment_score || 0}%</span>
+                                </div>
+                                <div className="border-l border-slate-200 dark:border-theme-border/80">
+                                  <span className="text-slate-500 dark:text-theme-text-secondary uppercase block text-[8px] tracking-widest mb-0.5 font-bold">BURNOUT</span>
+                                  <span className={cn(
+                                    "text-sm font-black",
+                                    (record.burnout_risk_score || 0) > 70 ? "text-rose-600 dark:text-rose-400" :
+                                    (record.burnout_risk_score || 0) > 40 ? "text-amber-600 dark:text-amber-400" :
+                                    "text-emerald-600 dark:text-emerald-400"
+                                  )}>
+                                    {record.burnout_risk_score || 0}%
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between border-t border-slate-200 dark:border-theme-border/60 pt-3">
+                                {!record.is_deleted ? (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      {/* Public / Private Toggle */}
+                                      <button
+                                        onClick={() => toggleHistoryRecordShare(record.id, record.is_public)}
+                                        className={cn(
+                                          "px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1",
+                                          record.is_public
+                                            ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-600/10 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20"
+                                            : "bg-slate-100 dark:bg-theme-surface-tertiary text-slate-600 dark:text-theme-text-secondary border border-slate-200 dark:border-theme-border/50 hover:text-slate-900 dark:hover:text-theme-text"
+                                        )}
+                                      >
+                                        {record.is_public ? <Globe size={11} /> : <Lock size={11} />}
+                                        <span>{record.is_public ? 'Public' : 'Private'}</span>
+                                      </button>
+
+                                      {record.is_public && record.share_token && (
+                                        <button
+                                          onClick={() => copyHistoryShareLink(record.share_token)}
+                                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-theme-surface-tertiary text-slate-600 dark:text-theme-text-secondary hover:text-slate-900 dark:hover:text-theme-text transition-colors border border-slate-200 dark:border-theme-border/50"
+                                          title="Copy URL Share Link to Clipboard"
+                                        >
+                                          <Copy size={11} />
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <button 
+                                        className="p-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-600/10 dark:hover:bg-rose-600/20 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 transition-all"
+                                        onClick={() => setDeleteRecordId(record.id)}
+                                        title="ย้ายลงถังขยะ / Move to Trash"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                      <button 
+                                        className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black uppercase tracking-wider transition-all text-[10px] shadow-sm"
+                                        onClick={() => loadHistoryRecord(record)}
+                                      >
+                                        LOAD REPORT
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="flex items-center justify-between w-full">
+                                    <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">
+                                      จะถูกลบถาวรอัตโนมัติเมื่อครบ 7 วัน
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => handleRestoreRecord(record.id)}
+                                        className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-600/10 dark:hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-[10px] font-extrabold flex items-center gap-1 transition-all"
+                                        title="กู้คืนประวัติการประเมินนี้"
+                                      >
+                                        <RotateCcw size={12} />
+                                        <span>กู้คืน (Restore)</span>
+                                      </button>
+                                      <button
+                                        onClick={() => handlePermanentPurgeRecord(record.id)}
+                                        className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-extrabold flex items-center gap-1 transition-all shadow-sm active:scale-95"
+                                        title="ลบออกอย่างถาวรทันที"
+                                      >
+                                        <Trash2 size={12} />
+                                        <span>ลบถาวร (Purge)</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
