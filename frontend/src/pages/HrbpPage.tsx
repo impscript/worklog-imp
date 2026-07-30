@@ -1933,10 +1933,10 @@ export default function HrbpPage() {
                           </div>
                         )}
 
-                        <div className="p-3.5 bg-indigo-500/5 dark:bg-indigo-950/20 border border-indigo-500/10 dark:border-indigo-900/30 rounded-2xl flex items-center justify-between text-xs">
+                        <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/30 rounded-2xl flex items-center justify-between text-xs shadow-xs">
                           <div className="space-y-0.5">
-                            <span className="text-[10px] text-theme-text-secondary block uppercase font-bold tracking-wider">ประวัติการวิเคราะห์ / History</span>
-                            <span className="text-indigo-600 dark:text-indigo-300 font-mono font-bold">มีบันทึก {analysisHistory.length} รายการ</span>
+                            <span className="text-[10px] text-slate-600 dark:text-theme-text-secondary block uppercase font-bold tracking-wider">ประวัติการวิเคราะห์ / History</span>
+                            <span className="text-indigo-700 dark:text-indigo-300 font-mono font-bold">มีบันทึก {analysisHistory.length} รายการ</span>
                           </div>
                           <button
                             onClick={() => {
@@ -1944,7 +1944,7 @@ export default function HrbpPage() {
                               setActiveResultsSubTab('history');
                               loadAnalysisHistory();
                             }}
-                            className="px-3 py-1.5 rounded-xl bg-indigo-650 hover:bg-indigo-700 text-white dark:bg-indigo-600/20 dark:hover:bg-indigo-600/30 dark:text-indigo-400 dark:hover:text-indigo-300 border border-indigo-500/20 text-[10px] font-black uppercase tracking-wider transition-all"
+                            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white border border-indigo-500/30 text-[10px] font-black uppercase tracking-wider transition-all shadow-sm"
                           >
                             จัดการประวัติ
                           </button>
@@ -2208,9 +2208,9 @@ export default function HrbpPage() {
                             </div>
                           ) : (
                             keyResponsibilities.map((w, index) => (
-                              <div key={index} className="flex items-center justify-between p-3.5 bg-theme-surface dark:bg-theme-surface-secondary/40 border border-theme-border/80 rounded-2xl gap-4 hover:border-theme-border dark:hover:border-theme-border/80 transition-colors">
+                              <div key={index} className="flex items-center justify-between p-3.5 bg-white dark:bg-theme-surface-secondary/40 border border-slate-200 dark:border-theme-border/80 rounded-2xl gap-4 hover:border-indigo-300 dark:hover:border-theme-border/80 transition-colors shadow-xs">
                                 <div className="flex-1 space-y-1">
-                                  <div className="text-[11px] font-bold text-theme-text line-clamp-1">{w.category}</div>
+                                  <div className="text-[11px] font-extrabold text-slate-800 dark:text-theme-text line-clamp-1">{w.category}</div>
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="range"
@@ -2218,14 +2218,14 @@ export default function HrbpPage() {
                                       max="100"
                                       value={w.weight}
                                       onChange={(e) => handleWeightChange(index, parseInt(e.target.value))}
-                                      className="flex-1 h-1.5 rounded-lg bg-slate-200 dark:bg-theme-surface-tertiary accent-indigo-500 cursor-pointer"
+                                      className="flex-1 h-1.5 rounded-lg bg-slate-200 dark:bg-theme-surface-tertiary accent-indigo-600 cursor-pointer"
                                     />
-                                    <span className="text-[10px] font-mono font-extrabold text-indigo-600 dark:text-indigo-400 w-8 text-right">{w.weight}%</span>
+                                    <span className="text-[10px] font-mono font-black text-indigo-700 dark:text-indigo-400 w-8 text-right">{w.weight}%</span>
                                   </div>
                                 </div>
                                 <button
                                   onClick={() => handleRemoveWeight(index)}
-                                  className="p-2 rounded-lg text-theme-text-secondary hover:text-rose-400 hover:bg-rose-500/5 transition-all"
+                                  className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all"
                                   title="ลบสัดส่วนภาระงานนี้"
                                 >
                                   <Trash2 size={14} />
@@ -2236,42 +2236,43 @@ export default function HrbpPage() {
                         </div>
 
                         {/* Add key weights config form */}
-                        <div className="p-5 rounded-2xl bg-theme-surface dark:bg-theme-surface-secondary/40 border border-theme-border/80 space-y-4">
-                          <div className="text-[10px] font-extrabold text-theme-text-secondary uppercase tracking-widest">
-                            ➕ เพิ่มหัวข้อความรับผิดชอบใหม่
+                        <div className="p-5 rounded-2xl bg-white dark:bg-theme-surface-secondary/40 border border-slate-200 dark:border-theme-border/80 space-y-4 shadow-sm">
+                          <div className="text-[10px] font-extrabold text-indigo-700 dark:text-indigo-300 uppercase tracking-widest flex items-center gap-1.5">
+                            <PlusCircle size={14} className="text-indigo-600 dark:text-indigo-400" />
+                            <span>เพิ่มหัวข้อความรับผิดชอบใหม่</span>
                           </div>
                           
                           <div className="space-y-3">
                             <div className="space-y-1">
-                              <span className="text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold">ชื่อหน้าที่ / ลักษณะงานหลัก</span>
+                              <span className="text-[9px] uppercase tracking-widest text-slate-700 dark:text-theme-text-secondary font-bold">ชื่อหน้าที่ / ลักษณะงานหลัก</span>
                               <input
                                 type="text"
                                 value={newCatName}
                                 onChange={(e) => setNewCatName(e.target.value)}
                                 placeholder="เช่น พัฒนาซอฟต์แวร์, ทำแผนงานบำรุงรักษา, เอกสาร"
-                                className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border/60 rounded-xl px-3.5 py-2.5 text-xs text-theme-text"
+                                className="w-full bg-slate-50 dark:bg-theme-surface-secondary border border-slate-300 dark:border-theme-border/60 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-theme-text placeholder:text-slate-400 dark:placeholder:text-slate-500 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
                               />
                             </div>
                             
                             <div className="grid grid-cols-3 gap-2 items-end">
                               <div className="col-span-2 space-y-1">
-                                <span className="text-[9px] uppercase tracking-widest text-theme-text-secondary font-bold">น้ำหนักภาระงาน (%)</span>
+                                <span className="text-[9px] uppercase tracking-widest text-slate-700 dark:text-theme-text-secondary font-bold">น้ำหนักภาระงาน (%)</span>
                                 <input
                                   type="number"
                                   min="1"
                                   max="100"
                                   value={newCatWeight}
                                   onChange={(e) => setNewCatWeight(parseInt(e.target.value) || 0)}
-                                  className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border/60 rounded-xl px-3.5 py-2 text-xs text-theme-text"
+                                  className="w-full bg-slate-50 dark:bg-theme-surface-secondary border border-slate-300 dark:border-theme-border/60 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-theme-text font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 />
                               </div>
                               
                               <button
                                 type="button"
                                 onClick={handleAddWeight}
-                                className="w-full py-2.5 rounded-xl bg-indigo-650 hover:bg-indigo-700 text-white dark:bg-indigo-600/20 dark:hover:bg-indigo-600/30 dark:text-indigo-400 dark:hover:text-indigo-300 border border-indigo-500/25 hover:text-indigo-300 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all"
+                                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white border border-indigo-500/30 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm"
                               >
-                                <PlusCircle size={12} />
+                                <PlusCircle size={14} />
                                 <span>เพิ่ม</span>
                               </button>
                             </div>
