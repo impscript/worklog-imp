@@ -200,6 +200,33 @@ export default function AdminPage() {
     return Array.from(new Set(projectStructures.map(p => p.project_type))).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [projectStructures]);
 
+  // Dynamic action categories derived from workspace project types and master list
+  const actionCategoryOptions = useMemo(() => {
+    const optionsSet = new Set<string>();
+
+    if (projectTypes && Array.isArray(projectTypes)) {
+      projectTypes.forEach((t: any) => {
+        if (t.type_name && t.type_name.trim()) {
+          optionsSet.add(t.type_name.trim());
+        }
+      });
+    }
+
+    if (projectStructures && Array.isArray(projectStructures)) {
+      projectStructures.forEach((p: any) => {
+        if (p.project_type && p.project_type.trim()) {
+          optionsSet.add(p.project_type.trim());
+        }
+      });
+    }
+
+    if (optionsSet.size === 0) {
+      ['Project', 'Support', 'Management', 'Routine', 'Other'].forEach(o => optionsSet.add(o));
+    }
+
+    return Array.from(optionsSet).sort((a, b) => a.localeCompare(b));
+  }, [projectTypes, projectStructures]);
+
   const uniqueBUs = useMemo(() => {
     if (!projectStructures || !Array.isArray(projectStructures)) return [];
     return Array.from(new Set(projectStructures.map(p => p.bu))).filter(Boolean).sort((a, b) => a.localeCompare(b));
@@ -915,7 +942,7 @@ export default function AdminPage() {
       setFormHoldingName('');
       setFormRoleName('');
       setFormTypeName('');
-      setFormActionCategory('Project');
+      setFormActionCategory(actionCategoryOptions[0] || 'Project');
       setFormActionName('');
       setFormMapUserName('');
       setFormMapUserId('');
@@ -2020,9 +2047,11 @@ export default function AdminPage() {
                       onChange={(e) => setFormActionCategory(e.target.value)}
                       className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                     >
-                      <option value="Project">Project</option>
-                      <option value="Support">Support</option>
-                      <option value="Management">Management</option>
+                      {actionCategoryOptions.map((catName) => (
+                        <option key={catName} value={catName}>
+                          {catName}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
