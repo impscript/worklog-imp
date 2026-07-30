@@ -207,7 +207,7 @@ export default function LoginPage() {
                 if (code === '337999') {
                   setShowSimPanel(true);
                 } else {
-                  alert(t('login.simPasscodeWrong', { defaultValue: 'รหัสผ่านไม่ถูกต้อง ❌' }));
+                  setError(t('login.simPasscodeWrong', { defaultValue: 'รหัสผ่านไม่ถูกต้อง ❌' }));
                 }
               } else {
                 setShowSimPanel(false);

@@ -278,7 +278,8 @@ export default function ProfilePage() {
       setTimeout(() => setToastMessage(null), 4000);
     } catch (err: any) {
       console.error('Error saving profile changes:', err);
-      alert('Failed to update profile: ' + err.message);
+      setToastMessage('Failed to update profile: ' + err.message);
+      setTimeout(() => setToastMessage(null), 4000);
     } finally {
       setIsSavingProfile(false);
     }
@@ -486,7 +487,8 @@ export default function ProfilePage() {
                               type="button"
                               onClick={() => {
                                 navigator.clipboard.writeText(session.workspaceInviteCode);
-                                alert('คัดลอกรหัสเชิญสำเร็จ! / Copied Invite Code!');
+                                setToastMessage('คัดลอกรหัสเชิญสำเร็จ! / Copied Invite Code!');
+                                setTimeout(() => setToastMessage(null), 3000);
                               }}
                               className="bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-indigo-500/20 transition-all active:scale-95 w-fit"
                             >
@@ -508,7 +510,8 @@ export default function ProfilePage() {
                               type="button"
                               onClick={() => {
                                 navigator.clipboard.writeText(session.activeWorkspaceId);
-                                alert('คัดลอก Workspace ID สำเร็จ! / Copied Workspace ID!');
+                                setToastMessage('คัดลอก Workspace ID สำเร็จ! / Copied Workspace ID!');
+                                setTimeout(() => setToastMessage(null), 3000);
                               }}
                               className="bg-slate-800 hover:bg-slate-700 text-theme-text-secondary text-xs font-bold px-3 py-1.5 rounded-lg border border-theme-border transition-all active:scale-95 w-fit"
                             >

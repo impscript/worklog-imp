@@ -52,7 +52,10 @@ interface UserRecord {
   department: string;
 }
 
+import { useNotification } from '../context/NotificationContext';
+
 export default function MigratePage() {
+  const { showToast } = useNotification();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -715,7 +718,7 @@ export default function MigratePage() {
     if (previewRows.length === 0 || isProcessing) return;
     const errors = previewRows.filter(r => r.status === 'error');
     if (errors.length > 0) {
-      alert(`Please fix the ${errors.length} error(s) before importing.`);
+      showToast(`Please fix the ${errors.length} error(s) before importing.`, 'error');
       return;
     }
 
@@ -828,12 +831,12 @@ export default function MigratePage() {
 
       if (error) {
         console.error('Failed to export logs:', error);
-        alert('Failed to export logs. Please try again.');
+        showToast('Failed to export logs. Please try again.', 'error');
         return;
       }
 
       if (!data || data.length === 0) {
-        alert('No worklogs found for the selected date range.');
+        showToast('No worklogs found for the selected date range.', 'warning');
         return;
       }
 

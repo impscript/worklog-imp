@@ -44,7 +44,7 @@ interface KeyResponsibility {
 }
 
 export default function HrbpPage() {
-  const { showToast } = useNotification();
+  const { showToast, showConfirm } = useNotification();
   const navigate = useNavigate();
 
   const isCoachTemplate = (id: string | null | undefined) => {
@@ -612,9 +612,13 @@ export default function HrbpPage() {
 
       if (reportErr) throw reportErr;
       if (!report) {
-        const confirmLeave = window.confirm(
-          'ไม่พบรายงานที่แชร์ หรือหมดอายุ / Shared report not found or expired\n\nกด OK เพื่อกลับไปหน้า Login หรือ Cancel เพื่ออยู่หน้านี้'
-        );
+        const confirmLeave = await showConfirm({
+          title: 'ไม่พบรายงานแชร์',
+          message: 'ไม่พบรายงานที่แชร์ หรือหมดอายุ / Shared report not found or expired',
+          type: 'danger',
+          confirmText: 'กลับหน้า Login',
+          cancelText: 'อยู่หน้านี้'
+        });
         if (confirmLeave) {
           navigate('/login');
         }
@@ -623,9 +627,13 @@ export default function HrbpPage() {
       }
 
       if (!report.is_public) {
-        const confirmLeave = window.confirm(
-          'รายงานนี้ถูกตั้งค่าเป็นส่วนตัวแล้ว / This report has been set to private\n\nกด OK เพื่อกลับไปหน้า Login หรือ Cancel เพื่ออยู่หน้านี้'
-        );
+        const confirmLeave = await showConfirm({
+          title: 'รายงานเป็นส่วนตัว',
+          message: 'รายงานนี้ถูกตั้งค่าเป็นส่วนตัวแล้ว / This report has been set to private',
+          type: 'danger',
+          confirmText: 'กลับหน้า Login',
+          cancelText: 'อยู่หน้านี้'
+        });
         if (confirmLeave) {
           navigate('/login');
         }
@@ -635,9 +643,13 @@ export default function HrbpPage() {
 
       if (report.expires_at && new Date(report.expires_at) < new Date()) {
         const expiryStr = new Date(report.expires_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-        const confirmLeave = window.confirm(
-          `รายงานนี้หมดอายุแล้ว (${expiryStr}) กรุณาขอเจ้าของสร้างลิงก์ใหม่ / Report expired (${expiryStr})\n\nกด OK เพื่อกลับไปหน้า Login หรือ Cancel เพื่ออยู่หน้านี้`
-        );
+        const confirmLeave = await showConfirm({
+          title: 'รายงานหมดอายุ',
+          message: `รายงานนี้หมดอายุแล้ว (${expiryStr}) กรุณาขอเจ้าของสร้างลิงก์ใหม่ / Report expired (${expiryStr})`,
+          type: 'danger',
+          confirmText: 'กลับหน้า Login',
+          cancelText: 'อยู่หน้านี้'
+        });
         if (confirmLeave) {
           navigate('/login');
         }
@@ -892,7 +904,14 @@ export default function HrbpPage() {
   };
 
   const handlePermanentPurgeRecord = async (recordId: string) => {
-    if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายงานนี้อย่างถาวรทันที? ไม่สามารถกู้คืนได้อีก')) return;
+    const ok = await showConfirm({
+      title: 'ยืนยันการลบรายงานถาวร',
+      message: 'คุณแน่ใจหรือไม่ว่าต้องการลบรายงานนี้อย่างถาวรทันที? ไม่สามารถกู้คืนได้อีก',
+      type: 'danger',
+      confirmText: 'ลบถาวร',
+      cancelText: 'ยกเลิก'
+    });
+    if (!ok) return;
     try {
       const { data, error } = await supabase
         .from('tb_ai_individual_analysis')

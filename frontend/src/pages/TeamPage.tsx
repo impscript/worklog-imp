@@ -28,7 +28,7 @@ interface AuditEntry {
 }
 
 export default function TeamPage() {
-  const { showToast } = useNotification();
+  const { showToast, showConfirm } = useNotification();
   const [session, setSession] = useState<any>(null);
   const [workspace, setWorkspace] = useState<any>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -160,7 +160,14 @@ export default function TeamPage() {
       return;
     }
 
-    if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการเปลี่ยนรหัสเชิญใหม่? รหัสเดิมจะใช้งานไม่ได้ทันที')) return;
+    const ok = await showConfirm({
+      title: 'เปลี่ยนรหัสเชิญใหม่',
+      message: 'คุณแน่ใจหรือไม่ว่าต้องการเปลี่ยนรหัสเชิญใหม่? รหัสเดิมจะใช้งานไม่ได้ทันที',
+      type: 'danger',
+      confirmText: 'เปลี่ยนรหัสใหม่',
+      cancelText: 'ยกเลิก'
+    });
+    if (!ok) return;
 
     const newCode = `${workspace.workspace_name.split(' ')[0].toUpperCase()}-TEAM-${Math.floor(Math.random() * 9000 + 1000)}`;
 
