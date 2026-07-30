@@ -118,24 +118,24 @@ export default function LoginPage() {
             <h1 className="text-2xl font-extrabold text-theme-text dark:text-theme-text-invert tracking-wider theme-heading-gradient">
               IMP WORKLOG
             </h1>
-            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-2 flex items-center gap-1.5 bg-indigo-500/5 border border-indigo-500/10 px-3 py-1 rounded-full">
+            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mt-2 flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/10 px-3 py-1 rounded-full">
               <span className="ai-pulse-dot" />
               <span>AI COPILOT SECURE ACCESS</span>
             </p>
           </div>
 
           {error && (
-            <div className="mb-6 p-3 bg-red-500/5 border border-red-500/15 rounded-xl text-red-400 text-xs font-semibold text-center tracking-wide">
+            <div className="mb-6 p-3 bg-red-500/10 dark:bg-red-500/5 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-semibold text-center tracking-wide rounded-xl">
               {error}
             </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold text-theme-text-muted dark:text-theme-text-secondary uppercase tracking-wider mb-2 ml-1">{t('login.username')}</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 ml-1">{t('login.username')}</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <UserIcon size={18} className="text-slate-500" />
+                  <UserIcon size={18} className="text-slate-500 dark:text-slate-400" />
                 </div>
                 <input
                   type="text"
@@ -145,24 +145,24 @@ export default function LoginPage() {
                   autoCapitalize="none"
                   autoCorrect="off"
                   inputMode="text"
-                  className="w-full bg-theme-surface/80 dark:bg-theme-bg-page/60 border border-theme-border rounded-xl py-3.5 pl-11 pr-4 text-theme-text text-base sm:text-sm min-h-[48px] placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold"
+                  className="w-full bg-slate-50 dark:bg-theme-bg-page/60 border border-slate-300 dark:border-theme-border rounded-xl py-3.5 pl-11 pr-4 text-slate-900 dark:text-white text-base sm:text-sm min-h-[48px] placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all font-semibold shadow-xs"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-theme-text-muted dark:text-theme-text-secondary uppercase tracking-wider mb-2 ml-1">{t('login.password')}</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 ml-1">{t('login.password')}</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <KeyRound size={18} className="text-slate-500" />
+                  <KeyRound size={18} className="text-slate-500 dark:text-slate-400" />
                 </div>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-theme-surface/80 dark:bg-theme-bg-page/60 border border-theme-border rounded-xl py-3.5 pl-11 pr-4 text-theme-text text-base sm:text-sm min-h-[48px] placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/30 transition-all font-semibold"
+                  className="w-full bg-slate-50 dark:bg-theme-bg-page/60 border border-slate-300 dark:border-theme-border rounded-xl py-3.5 pl-11 pr-4 text-slate-900 dark:text-white text-base sm:text-sm min-h-[48px] placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all font-semibold shadow-xs"
                   required
                 />
               </div>
@@ -171,7 +171,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full min-h-[48px] bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 disabled:cursor-not-allowed text-theme-text dark:text-theme-text-invert font-extrabold uppercase tracking-wider text-xs rounded-xl py-3.5 shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 transition-all active:scale-[0.98] mt-6 flex items-center justify-center gap-2 border border-indigo-400/20"
+              className="w-full min-h-[48px] bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold uppercase tracking-wider text-xs rounded-xl py-3.5 shadow-lg shadow-indigo-500/25 transition-all active:scale-[0.98] mt-6 flex items-center justify-center gap-2 border border-indigo-400/20"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -186,19 +186,19 @@ export default function LoginPage() {
         </div>
 
         {/* Mobile PWA Installation Guide Card */}
-        <div className="w-full bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 text-xs space-y-2 text-indigo-300">
-          <div className="font-bold flex items-center gap-2 text-indigo-200">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <div className="w-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200/90 dark:border-indigo-500/20 rounded-2xl p-4 text-xs space-y-2 text-indigo-950 dark:text-indigo-300 shadow-sm">
+          <div className="font-bold flex items-center gap-2 text-indigo-900 dark:text-indigo-200">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>แนะนำ: เพิ่มเข้าหน้าจอโฮมมือถือ (Add to Home Screen)</span>
           </div>
-          <p className="text-[11px] leading-relaxed opacity-90">
-            เปิดบน Safari (iOS) ให้กดไอคอน <strong className="text-white">Share</strong> ➔ เลือก <strong className="text-white">"Add to Home Screen"</strong><br />
-            เปิดบน Chrome (Android) ให้กด <strong className="text-white">⋮</strong> ➔ เลือก <strong className="text-white">"Install App"</strong> เพื่อให้จำ Login ยาวนานและโหลดแอปได้เร็วขึ้น!
+          <p className="text-[11px] leading-relaxed text-indigo-950 dark:text-indigo-200">
+            เปิดบน Safari (iOS) ให้กดไอคอน <strong className="text-indigo-950 dark:text-white font-black">Share</strong> ➔ เลือก <strong className="text-indigo-950 dark:text-white font-black">"Add to Home Screen"</strong><br />
+            เปิดบน Chrome (Android) ให้กด <strong className="text-indigo-950 dark:text-white font-black">⋮</strong> ➔ เลือก <strong className="text-indigo-950 dark:text-white font-black">"Install App"</strong> เพื่อให้จำ Login ยาวนานและโหลดแอปได้เร็วขึ้น!
           </p>
         </div>
 
         {/* Development Workspace Mock Profiles Simulator */}
-        <div className="w-full ai-glass rounded-3xl border border-indigo-500/20 overflow-hidden shadow-xl transition-all duration-300">
+        <div className="w-full ai-glass rounded-3xl border border-indigo-200/80 dark:border-indigo-500/20 overflow-hidden shadow-xl transition-all duration-300">
           <button
             onClick={() => {
               if (!showSimPanel) {
@@ -213,13 +213,13 @@ export default function LoginPage() {
                 setShowSimPanel(false);
               }
             }}
-            className="w-full px-6 py-4 flex items-center justify-between bg-indigo-500/5 hover:bg-indigo-500/10 transition-colors text-left"
+            className="w-full px-6 py-4 flex items-center justify-between bg-indigo-50/50 dark:bg-indigo-500/5 hover:bg-indigo-100/60 dark:hover:bg-indigo-500/10 transition-colors text-left border-b border-theme-border/40"
           >
-            <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm tracking-wider">
+            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-sm tracking-wider">
               <UserCheck size={16} />
-              <span>HRMS PROFILE SIMULATION</span>
+              <span>DEV TOOLS</span>
             </div>
-            {showSimPanel ? <ChevronUp size={16} className="text-indigo-400" /> : <ChevronDown size={16} className="text-indigo-400" />}
+            {showSimPanel ? <ChevronUp size={16} className="text-indigo-600 dark:text-indigo-400" /> : <ChevronDown size={16} className="text-indigo-600 dark:text-indigo-400" />}
           </button>
 
           {showSimPanel && (
