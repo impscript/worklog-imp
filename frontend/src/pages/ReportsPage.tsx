@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import { 
   FileSpreadsheet, Search, Clock, Award, Layers, ChevronDown, ChevronUp,
-  TrendingUp, User as UserIcon, Users, Edit3, Eye, Brain
+  TrendingUp, User as UserIcon, Users, Edit3, Eye, Brain, FolderKanban, Table, Download
 } from 'lucide-react';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
@@ -42,6 +42,7 @@ interface WorklogEntry {
   department_operator: string;
   project_type: string;
   project_name: string;
+  module?: string | null;
   action_name: string;
   total_hours: number;
   description: string | null;
@@ -71,7 +72,7 @@ export default function ReportsPage() {
   const navigate = useNavigate();
 
   // State
-  const [activeTab, setActiveTab] = useState<'personal' | 'overview' | 'individual' | 'manpower'>('personal');
+  const [activeTab, setActiveTab] = useState<'personal' | 'overview' | 'individual' | 'manpower' | 'project_summary'>('project_summary');
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [workspacesList, setWorkspacesList] = useState<{ id: string; workspace_name: string; invite_code: string }[]>([]);
   const { grants } = useWorkspaceGrants();
@@ -95,6 +96,16 @@ export default function ReportsPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [projectSearch, setProjectSearch] = useState('');
   const [workspaceProjectTypes, setWorkspaceProjectTypes] = useState<string[]>([]);
+
+  // Project Summary Tab States
+  const [projSummaryUser, setProjSummaryUser] = useState<string>('all');
+  const [projSummaryProject, setProjSummaryProject] = useState<string>('all');
+  const [projSummaryModule, setProjSummaryModule] = useState<string>('all');
+  const [projSummarySearch, setProjSummarySearch] = useState<string>('');
+  const [projSummaryViewMode, setProjSummaryViewMode] = useState<'grouped' | 'flat'>('grouped');
+  const [projSummaryDayMode, setProjSummaryDayMode] = useState<'mandays' | 'calendardays' | 'both'>('mandays');
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
 
   // Helper: YYYY-MM-DD format
   const formatDateToYMD = (date: Date) => {
@@ -364,6 +375,274 @@ export default function ReportsPage() {
   const filteredAllEntries = useMemo(() => {
     return applyFilters(allEntries);
   }, [allEntries, dateFilter, customStart, customEnd, typeFilter, projectSearch]);
+
+  // User map helper for Project Summary
+  const userMap = useMemo(() => {
+    const map = new Map<string, UserProfile>();
+    usersList.forEach(u => map.set(u.id, u));
+    return map;
+  }, [usersList]);
+
+  // Project Summary Filtered Entries
+  const filteredProjectSummaryEntries = useMemo(() => {
+    return allEntries.filter(entry => {
+      // 1. User Filter
+      if (projSummaryUser !== 'all' && entry.user_id !== projSummaryUser) {
+        return false;
+      }
+      // 2. Project Filter
+      if (projSummaryProject !== 'all' && (entry.project_name || '') !== projSummaryProject) {
+        return false;
+      }
+      // 3. Module Filter
+      if (projSummaryModule !== 'all') {
+        const mod = entry.module || '-';
+        if (mod !== projSummaryModule) return false;
+      }
+      // 4. Free-text Search Filter
+      if (projSummarySearch.trim()) {
+        const q = projSummarySearch.toLowerCase().trim();
+        const userName = (userMap.get(entry.user_id)?.full_name || '').toLowerCase();
+        const proj = (entry.project_name || '').toLowerCase();
+        const mod = (entry.module || '').toLowerCase();
+        const act = (entry.action_name || '').toLowerCase();
+        const desc = (entry.description || '').toLowerCase();
+        if (!userName.includes(q) && !proj.includes(q) && !mod.includes(q) && !act.includes(q) && !desc.includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [allEntries, projSummaryUser, projSummaryProject, projSummaryModule, projSummarySearch, userMap]);
+
+  // Project options for dropdown
+  const projSummaryProjectOptions = useMemo(() => {
+    const set = new Set<string>();
+    allEntries.forEach(e => {
+      if (e.project_name) set.add(e.project_name);
+    });
+    return Array.from(set).sort();
+  }, [allEntries]);
+
+  // Module options for dropdown
+  const projSummaryModuleOptions = useMemo(() => {
+    const set = new Set<string>();
+    allEntries.forEach(e => {
+      if (projSummaryProject === 'all' || e.project_name === projSummaryProject) {
+        set.add(e.module || '-');
+      }
+    });
+    return Array.from(set).sort();
+  }, [allEntries, projSummaryProject]);
+
+  // KPI Metrics for Project Summary
+  const projSummaryMetrics = useMemo(() => {
+    let totalHours = 0;
+    const uniqueDates = new Set<string>();
+    const uniqueProjects = new Set<string>();
+    const uniqueUsers = new Set<string>();
+
+    filteredProjectSummaryEntries.forEach(e => {
+      totalHours += (e.total_hours || 0);
+      if (e.work_date) uniqueDates.add(e.work_date);
+      if (e.project_name) uniqueProjects.add(e.project_name);
+      if (e.user_id) uniqueUsers.add(e.user_id);
+    });
+
+    const manDays = Number((totalHours / 8.0).toFixed(2));
+    const calendarDays = uniqueDates.size;
+
+    return {
+      totalHours: Number(totalHours.toFixed(1)),
+      manDays,
+      calendarDays,
+      projectCount: uniqueProjects.size,
+      contributorCount: uniqueUsers.size,
+    };
+  }, [filteredProjectSummaryEntries]);
+
+  // Grouped structure for Tree Accordion View
+  const projSummaryGroupedData = useMemo(() => {
+    const projectMap = new Map<string, {
+      projectName: string;
+      holding: string;
+      departmentOperator: string;
+      projectType: string;
+      totalHours: number;
+      dates: Set<string>;
+      moduleMap: Map<string, {
+        moduleName: string;
+        totalHours: number;
+        dates: Set<string>;
+        leafMap: Map<string, {
+          userName: string;
+          userRole: string;
+          actionName: string;
+          totalHours: number;
+          manDays: number;
+          uniqueDatesCount: number;
+          holding: string;
+          departmentOperator: string;
+          projectType: string;
+          dates: Set<string>;
+        }>;
+      }>;
+    }>();
+
+    filteredProjectSummaryEntries.forEach(entry => {
+      const pName = entry.project_name || 'Unassigned Project';
+      const mName = entry.module || '-';
+      const userObj = userMap.get(entry.user_id);
+      const userName = userObj ? (userObj.nickname ? `${userObj.full_name} (${userObj.nickname})` : userObj.full_name) : 'Unknown User';
+      const leafKey = `${entry.action_name}||${entry.user_id}`;
+
+      if (!projectMap.has(pName)) {
+        projectMap.set(pName, {
+          projectName: pName,
+          holding: entry.holding || '-',
+          departmentOperator: entry.department_operator || '-',
+          projectType: entry.project_type || '-',
+          totalHours: 0,
+          dates: new Set(),
+          moduleMap: new Map()
+        });
+      }
+
+      const pGroup = projectMap.get(pName)!;
+      pGroup.totalHours += (entry.total_hours || 0);
+      if (entry.work_date) pGroup.dates.add(entry.work_date);
+      if (entry.holding) pGroup.holding = entry.holding;
+      if (entry.department_operator) pGroup.departmentOperator = entry.department_operator;
+      if (entry.project_type) pGroup.projectType = entry.project_type;
+
+      if (!pGroup.moduleMap.has(mName)) {
+        pGroup.moduleMap.set(mName, {
+          moduleName: mName,
+          totalHours: 0,
+          dates: new Set(),
+          leafMap: new Map()
+        });
+      }
+
+      const mGroup = pGroup.moduleMap.get(mName)!;
+      mGroup.totalHours += (entry.total_hours || 0);
+      if (entry.work_date) mGroup.dates.add(entry.work_date);
+
+      if (!mGroup.leafMap.has(leafKey)) {
+        mGroup.leafMap.set(leafKey, {
+          userName,
+          userRole: userObj?.position || userObj?.role || 'Team Member',
+          actionName: entry.action_name || '-',
+          totalHours: 0,
+          manDays: 0,
+          uniqueDatesCount: 0,
+          holding: entry.holding || '-',
+          departmentOperator: entry.department_operator || '-',
+          projectType: entry.project_type || '-',
+          dates: new Set()
+        });
+      }
+
+      const leaf = mGroup.leafMap.get(leafKey)!;
+      leaf.totalHours += (entry.total_hours || 0);
+      if (entry.work_date) leaf.dates.add(entry.work_date);
+    });
+
+    return Array.from(projectMap.values()).map(p => ({
+      projectName: p.projectName,
+      holding: p.holding,
+      departmentOperator: p.departmentOperator,
+      projectType: p.projectType,
+      totalHours: Number(p.totalHours.toFixed(1)),
+      manDays: Number((p.totalHours / 8.0).toFixed(2)),
+      uniqueDatesCount: p.dates.size,
+      modules: Array.from(p.moduleMap.values()).map(m => ({
+        moduleName: m.moduleName,
+        totalHours: Number(m.totalHours.toFixed(1)),
+        manDays: Number((m.totalHours / 8.0).toFixed(2)),
+        uniqueDatesCount: m.dates.size,
+        items: Array.from(m.leafMap.values()).map(l => ({
+          userName: l.userName,
+          userRole: l.userRole,
+          actionName: l.actionName,
+          totalHours: Number(l.totalHours.toFixed(1)),
+          manDays: Number((l.totalHours / 8.0).toFixed(2)),
+          uniqueDatesCount: l.dates.size,
+          holding: l.holding,
+          departmentOperator: l.departmentOperator,
+          projectType: l.projectType
+        })).sort((a, b) => b.totalHours - a.totalHours)
+      })).sort((a, b) => b.totalHours - a.totalHours)
+    })).sort((a, b) => b.totalHours - a.totalHours);
+  }, [filteredProjectSummaryEntries, userMap]);
+
+  // CSV Export handler for Project Summary
+  const exportProjectSummaryToCSV = useCallback(() => {
+    if (filteredProjectSummaryEntries.length === 0) {
+      showToast('ไม่มีข้อมูลสำหรับ Export', 'warning');
+      return;
+    }
+
+    const headers = [
+      'Holding BU',
+      'Role Operator',
+      'Project Type',
+      'Project Name',
+      'Module',
+      'Action Name',
+      'User (ทีมเราที่ Stamp Log)',
+      'Hour total (hrs)',
+      'Day total (Man-Days @ 8h)',
+      'Calendar Days'
+    ];
+
+    const rows: string[][] = [];
+
+    projSummaryGroupedData.forEach(proj => {
+      proj.modules.forEach(mod => {
+        mod.items.forEach(item => {
+          rows.push([
+            `"${(item.holding || '').replace(/"/g, '""')}"`,
+            `"${(item.departmentOperator || '').replace(/"/g, '""')}"`,
+            `"${(item.projectType || '').replace(/"/g, '""')}"`,
+            `"${(proj.projectName || '').replace(/"/g, '""')}"`,
+            `"${(mod.moduleName || '').replace(/"/g, '""')}"`,
+            `"${(item.actionName || '').replace(/"/g, '""')}"`,
+            `"${(item.userName || '').replace(/"/g, '""')}"`,
+            item.totalHours.toString(),
+            item.manDays.toString(),
+            item.uniqueDatesCount.toString()
+          ]);
+        });
+      });
+    });
+
+    rows.push([]);
+    rows.push([
+      '"SUMMARY TOTAL"',
+      '""',
+      '""',
+      `"Total Projects: ${projSummaryMetrics.projectCount}"`,
+      '""',
+      '""',
+      `"Total Contributors: ${projSummaryMetrics.contributorCount}"`,
+      projSummaryMetrics.totalHours.toString(),
+      projSummaryMetrics.manDays.toString(),
+      projSummaryMetrics.calendarDays.toString()
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Project_Summary_Report_${formatDateToYMD(new Date())}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showToast('ส่งออกรายงาน Project Summary สำเร็จ ✅', 'success');
+  }, [filteredProjectSummaryEntries, projSummaryGroupedData, projSummaryMetrics, showToast, formatDateToYMD]);
 
   // Pagination for Personal logs
   const totalPages = Math.ceil(filteredPersonalEntries.length / entriesPerPage);
@@ -1200,7 +1479,20 @@ export default function ReportsPage() {
         </div>
 
         {/* Dynamic Zone Selector (Tabs) */}
-        <div className="flex flex-wrap bg-theme-surface-tertiary/60 p-1 border border-theme-border/50 rounded-2xl max-w-2xl shadow-inner gap-1 sm:gap-0">
+        <div className="flex flex-wrap bg-theme-surface-tertiary/60 p-1 border border-theme-border/50 rounded-2xl max-w-4xl shadow-inner gap-1 sm:gap-0">
+          <button
+            onClick={() => setActiveTab('project_summary')}
+            className={cn(
+              "flex-1 min-w-[130px] flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all",
+              activeTab === 'project_summary'
+                ? "bg-indigo-500 text-white shadow-md shadow-indigo-500/20 border border-indigo-400/20"
+                : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-tertiary/40"
+            )}
+          >
+            <FolderKanban size={15} />
+            Project Summary
+          </button>
+
           <button
             onClick={() => setActiveTab('personal')}
             className={cn(
@@ -1353,6 +1645,430 @@ export default function ReportsPage() {
           )}
         </div>
 
+
+        {/* ======================================================== */}
+        {/* TAB 0: PROJECT SUMMARY REPORT (MANAGEMENT VIEW) */}
+        {/* ======================================================== */}
+        {activeTab === 'project_summary' && (
+          <div className="space-y-6">
+            {/* Header & Controls Toolbar */}
+            <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-5 shadow-xl flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                  <FolderKanban size={22} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-extrabold text-theme-text flex items-center gap-2">
+                    Project Summary Report
+                  </h2>
+                  <p className="text-xs text-theme-text-secondary">
+                    รายงานสรุปภาพรวมโครงการ ชั่วโมงทำงาน และ Man-Days ตามมิติต่างๆ
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center flex-wrap gap-3">
+                {/* View Mode Toggle: Grouped vs Flat */}
+                <div className="flex bg-theme-surface-secondary/80 p-1 rounded-xl border border-theme-border/50 text-xs font-semibold">
+                  <button
+                    onClick={() => setProjSummaryViewMode('grouped')}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all",
+                      projSummaryViewMode === 'grouped'
+                        ? "bg-indigo-500 text-white shadow-sm font-bold"
+                        : "text-theme-text-secondary hover:text-theme-text"
+                    )}
+                  >
+                    <Layers size={14} />
+                    Grouped Tree
+                  </button>
+                  <button
+                    onClick={() => setProjSummaryViewMode('flat')}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all",
+                      projSummaryViewMode === 'flat'
+                        ? "bg-indigo-500 text-white shadow-sm font-bold"
+                        : "text-theme-text-secondary hover:text-theme-text"
+                    )}
+                  >
+                    <Table size={14} />
+                    Flat Table
+                  </button>
+                </div>
+
+                {/* Day Mode Toggle */}
+                <div className="flex bg-theme-surface-secondary/80 p-1 rounded-xl border border-theme-border/50 text-xs font-semibold">
+                  <button
+                    onClick={() => setProjSummaryDayMode('mandays')}
+                    className={cn(
+                      "px-2.5 py-1.5 rounded-lg transition-all",
+                      projSummaryDayMode === 'mandays'
+                        ? "bg-indigo-500/20 text-indigo-400 font-bold border border-indigo-500/30"
+                        : "text-theme-text-secondary hover:text-theme-text"
+                    )}
+                    title="Man-Days = Hours / 8.0"
+                  >
+                    Man-Days (8h)
+                  </button>
+                  <button
+                    onClick={() => setProjSummaryDayMode('calendardays')}
+                    className={cn(
+                      "px-2.5 py-1.5 rounded-lg transition-all",
+                      projSummaryDayMode === 'calendardays'
+                        ? "bg-indigo-500/20 text-indigo-400 font-bold border border-indigo-500/30"
+                        : "text-theme-text-secondary hover:text-theme-text"
+                    )}
+                    title="Unique Calendar Days"
+                  >
+                    Calendar Days
+                  </button>
+                  <button
+                    onClick={() => setProjSummaryDayMode('both')}
+                    className={cn(
+                      "px-2.5 py-1.5 rounded-lg transition-all",
+                      projSummaryDayMode === 'both'
+                        ? "bg-indigo-500/20 text-indigo-400 font-bold border border-indigo-500/30"
+                        : "text-theme-text-secondary hover:text-theme-text"
+                    )}
+                  >
+                    Both
+                  </button>
+                </div>
+
+                {/* Export CSV Button */}
+                <button
+                  onClick={exportProjectSummaryToCSV}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Download size={15} />
+                  Export Excel / CSV
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Bar */}
+            <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-5 shadow-xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* User Filter */}
+              <div>
+                <label className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block mb-1.5">
+                  User (ทีมเราที่ Stamp Log)
+                </label>
+                <select
+                  value={projSummaryUser}
+                  onChange={(e) => setProjSummaryUser(e.target.value)}
+                  className="w-full bg-theme-surface-secondary border border-theme-border/50 rounded-xl px-3 py-2 text-xs text-theme-text focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">👥 All Users ({usersList.length})</option>
+                  {usersList.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} {u.nickname ? `(${u.nickname})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Project Filter */}
+              <div>
+                <label className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block mb-1.5">
+                  Project
+                </label>
+                <select
+                  value={projSummaryProject}
+                  onChange={(e) => {
+                    setProjSummaryProject(e.target.value);
+                    setProjSummaryModule('all');
+                  }}
+                  className="w-full bg-theme-surface-secondary border border-theme-border/50 rounded-xl px-3 py-2 text-xs text-theme-text focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">📁 All Projects ({projSummaryProjectOptions.length})</option>
+                  {projSummaryProjectOptions.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Module Filter */}
+              <div>
+                <label className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block mb-1.5">
+                  Module
+                </label>
+                <select
+                  value={projSummaryModule}
+                  onChange={(e) => setProjSummaryModule(e.target.value)}
+                  className="w-full bg-theme-surface-secondary border border-theme-border/50 rounded-xl px-3 py-2 text-xs text-theme-text focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">📦 All Modules ({projSummaryModuleOptions.length})</option>
+                  {projSummaryModuleOptions.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Search Box */}
+              <div>
+                <label className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider block mb-1.5">
+                  Search
+                </label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-secondary" />
+                  <input
+                    type="text"
+                    value={projSummarySearch}
+                    onChange={(e) => setProjSummarySearch(e.target.value)}
+                    placeholder="Search project, module, user, action..."
+                    className="w-full bg-theme-surface-secondary border border-theme-border/50 rounded-xl pl-9 pr-3 py-2 text-xs text-theme-text focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* KPI Cards (4 Cards) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <ReportKpi
+                title="Hour Total (hrs)"
+                value={`${projSummaryMetrics.totalHours.toLocaleString()} hrs`}
+                icon={<Clock className="text-indigo-400" size={20} />}
+              />
+              <ReportKpi
+                title="Day Total (Man-Days @ 8h)"
+                value={`${projSummaryMetrics.manDays.toLocaleString()} Days`}
+                icon={<Award className="text-emerald-400" size={20} />}
+              />
+              <ReportKpi
+                title="Active Projects"
+                value={`${projSummaryMetrics.projectCount} Projects`}
+                icon={<FolderKanban className="text-amber-400" size={20} />}
+              />
+              <ReportKpi
+                title="Active Contributors"
+                value={`${projSummaryMetrics.contributorCount} Staff`}
+                icon={<Users className="text-sky-400" size={20} />}
+              />
+            </div>
+
+            {/* Main Content Area */}
+            {projSummaryGroupedData.length === 0 ? (
+              <div className="bg-theme-surface-tertiary/80 border border-theme-border/50 rounded-2xl p-12 text-center">
+                <FileSpreadsheet className="mx-auto text-theme-text-secondary mb-3 opacity-40" size={48} />
+                <p className="text-theme-text-secondary text-sm font-medium">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</p>
+                <p className="text-xs text-theme-text-secondary/70 mt-1">ลองปรับเปลี่ยนตัวกรองวันที่, Project หรือ User เพื่อค้นหาข้อมูลใหม่</p>
+              </div>
+            ) : projSummaryViewMode === 'grouped' ? (
+              /* Grouped Tree Accordion View */
+              <div className="space-y-4">
+                {projSummaryGroupedData.map((project) => {
+                  const isProjectExpanded = expandedProjects[project.projectName] !== false; // default expanded
+
+                  return (
+                    <div
+                      key={project.projectName}
+                      className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl overflow-hidden shadow-lg transition-all"
+                    >
+                      {/* Project Header Bar */}
+                      <div
+                        onClick={() => setExpandedProjects(prev => ({ ...prev, [project.projectName]: !isProjectExpanded }))}
+                        className="p-4 bg-theme-surface-secondary/60 hover:bg-theme-surface-secondary border-b border-theme-border/40 flex items-center justify-between cursor-pointer select-none"
+                      >
+                        <div className="flex items-center gap-3">
+                          <button className="text-theme-text-secondary hover:text-theme-text p-1">
+                            {isProjectExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                          </button>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-theme-text text-base">
+                                📁 {project.projectName}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] font-bold">
+                                {project.projectType}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-slate-500/10 text-slate-400 border border-slate-500/20 text-[10px] font-medium">
+                                {project.holding} • {project.departmentOperator}
+                              </span>
+                            </div>
+                            <span className="text-xs text-theme-text-secondary">
+                              {project.modules.length} Modules • {project.modules.reduce((acc, m) => acc + m.items.length, 0)} Activity Records
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Project Level Totals */}
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <span className="text-[10px] uppercase font-bold text-theme-text-secondary block">Hours Total</span>
+                            <span className="text-base font-extrabold text-indigo-400 font-mono">{project.totalHours.toLocaleString()} hrs</span>
+                          </div>
+                          {(projSummaryDayMode === 'mandays' || projSummaryDayMode === 'both') && (
+                            <div className="text-right">
+                              <span className="text-[10px] uppercase font-bold text-theme-text-secondary block">Man-Days (8h)</span>
+                              <span className="text-base font-extrabold text-emerald-400 font-mono">{project.manDays.toLocaleString()} Days</span>
+                            </div>
+                          )}
+                          {(projSummaryDayMode === 'calendardays' || projSummaryDayMode === 'both') && (
+                            <div className="text-right">
+                              <span className="text-[10px] uppercase font-bold text-theme-text-secondary block">Calendar Days</span>
+                              <span className="text-base font-extrabold text-amber-400 font-mono">{project.uniqueDatesCount} Days</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Project Modules Content */}
+                      {isProjectExpanded && (
+                        <div className="p-4 space-y-3 bg-theme-surface-tertiary/40">
+                          {project.modules.map(mod => {
+                            const modKey = `${project.projectName}||${mod.moduleName}`;
+                            const isModExpanded = expandedModules[modKey] !== false; // default expanded
+
+                            return (
+                              <div
+                                key={modKey}
+                                className="bg-theme-surface-secondary/40 border border-theme-border/30 rounded-xl overflow-hidden"
+                              >
+                                {/* Module Header */}
+                                <div
+                                  onClick={() => setExpandedModules(prev => ({ ...prev, [modKey]: !isModExpanded }))}
+                                  className="px-4 py-2.5 bg-theme-surface-secondary/70 hover:bg-theme-surface-secondary flex items-center justify-between cursor-pointer select-none text-xs"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <button className="text-theme-text-secondary">
+                                      {isModExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                    </button>
+                                    <span className="font-bold text-theme-text">
+                                      📦 Module: <span className="text-indigo-400">{mod.moduleName}</span>
+                                    </span>
+                                    <span className="text-[10px] text-theme-text-secondary">
+                                      ({mod.items.length} records)
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-4 text-xs font-mono font-bold">
+                                    <span className="text-indigo-300">{mod.totalHours} hrs</span>
+                                    {(projSummaryDayMode === 'mandays' || projSummaryDayMode === 'both') && (
+                                      <span className="text-emerald-400">{mod.manDays} Days</span>
+                                    )}
+                                    {(projSummaryDayMode === 'calendardays' || projSummaryDayMode === 'both') && (
+                                      <span className="text-amber-400">{mod.uniqueDatesCount} Cal-Days</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Leaf Items Table */}
+                                {isModExpanded && (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs">
+                                      <thead>
+                                        <tr className="bg-theme-surface-tertiary/80 text-theme-text-secondary font-bold text-[11px] uppercase border-b border-theme-border/30">
+                                          <th className="px-4 py-2">Holding BU</th>
+                                          <th className="px-4 py-2">Role Operator</th>
+                                          <th className="px-4 py-2">Project Type</th>
+                                          <th className="px-4 py-2">Action Name</th>
+                                          <th className="px-4 py-2">User (ทีมเราที่ Stamp Log)</th>
+                                          <th className="px-4 py-2 text-right">Hour Total</th>
+                                          {(projSummaryDayMode === 'mandays' || projSummaryDayMode === 'both') && (
+                                            <th className="px-4 py-2 text-right">Man-Days (8h)</th>
+                                          )}
+                                          {(projSummaryDayMode === 'calendardays' || projSummaryDayMode === 'both') && (
+                                            <th className="px-4 py-2 text-right">Calendar Days</th>
+                                          )}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-theme-border/20">
+                                        {mod.items.map((item, idx) => (
+                                          <tr key={idx} className="hover:bg-theme-surface-secondary/40 transition-colors">
+                                            <td className="px-4 py-2 text-theme-text-secondary">{item.holding}</td>
+                                            <td className="px-4 py-2 text-theme-text-secondary">{item.departmentOperator}</td>
+                                            <td className="px-4 py-2 text-theme-text-secondary">{item.projectType}</td>
+                                            <td className="px-4 py-2 font-medium text-theme-text">{item.actionName}</td>
+                                            <td className="px-4 py-2 font-semibold text-indigo-400">{item.userName}</td>
+                                            <td className="px-4 py-2 text-right font-mono font-bold text-theme-text">{item.totalHours} hrs</td>
+                                            {(projSummaryDayMode === 'mandays' || projSummaryDayMode === 'both') && (
+                                              <td className="px-4 py-2 text-right font-mono font-bold text-emerald-400">{item.manDays} Days</td>
+                                            )}
+                                            {(projSummaryDayMode === 'calendardays' || projSummaryDayMode === 'both') && (
+                                              <td className="px-4 py-2 text-right font-mono text-amber-400">{item.uniqueDatesCount} Days</td>
+                                            )}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Flat Table View (Exact Management Image Match) */
+              <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-theme-surface-secondary border-b border-theme-border/50 text-theme-text font-bold text-xs uppercase tracking-wider">
+                        <th className="px-4 py-3">Holding BU</th>
+                        <th className="px-4 py-3">Role Operator</th>
+                        <th className="px-4 py-3">Project Type</th>
+                        <th className="px-4 py-3">Project Name</th>
+                        <th className="px-4 py-3">Module</th>
+                        <th className="px-4 py-3">Action Name</th>
+                        <th className="px-4 py-3">User (ทีมเราที่ Stamp Log)</th>
+                        <th className="px-4 py-3 text-right">Hour Total (hrs)</th>
+                        {(projSummaryDayMode === 'mandays' || projSummaryDayMode === 'both') && (
+                          <th className="px-4 py-3 text-right">Day Total (Man-Days)</th>
+                        )}
+                        {(projSummaryDayMode === 'calendardays' || projSummaryDayMode === 'both') && (
+                          <th className="px-4 py-3 text-right">Calendar Days</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-theme-border/30 font-medium">
+                      {projSummaryGroupedData.flatMap(proj =>
+                        proj.modules.flatMap(mod =>
+                          mod.items.map((item, idx) => (
+                            <tr key={`${proj.projectName}-${mod.moduleName}-${item.userName}-${idx}`} className="hover:bg-theme-surface-secondary/50 transition-colors">
+                              <td className="px-4 py-2.5 text-theme-text-secondary">{item.holding}</td>
+                              <td className="px-4 py-2.5 text-theme-text-secondary">{item.departmentOperator}</td>
+                              <td className="px-4 py-2.5 text-theme-text-secondary">{item.projectType}</td>
+                              <td className="px-4 py-2.5 font-bold text-theme-text">{proj.projectName}</td>
+                              <td className="px-4 py-2.5 font-medium text-indigo-400">{mod.moduleName}</td>
+                              <td className="px-4 py-2.5 text-theme-text">{item.actionName}</td>
+                              <td className="px-4 py-2.5 font-semibold text-emerald-400">{item.userName}</td>
+                              <td className="px-4 py-2.5 text-right font-mono font-bold text-theme-text">{item.totalHours} hrs</td>
+                              {(projSummaryDayMode === 'mandays' || projSummaryDayMode === 'both') && (
+                                <td className="px-4 py-2.5 text-right font-mono font-bold text-emerald-400">{item.manDays} Days</td>
+                              )}
+                              {(projSummaryDayMode === 'calendardays' || projSummaryDayMode === 'both') && (
+                                <td className="px-4 py-2.5 text-right font-mono text-amber-400">{item.uniqueDatesCount} Days</td>
+                              )}
+                            </tr>
+                          ))
+                        )
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-theme-surface-secondary border-t-2 border-theme-border/60 font-bold text-xs text-theme-text">
+                        <td colSpan={7} className="px-4 py-3 uppercase tracking-wider text-indigo-400">
+                          Summary Total ({projSummaryGroupedData.length} Projects, {projSummaryMetrics.contributorCount} Users)
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-indigo-400 text-sm">{projSummaryMetrics.totalHours.toLocaleString()} hrs</td>
+                        {(projSummaryDayMode === 'mandays' || projSummaryDayMode === 'both') && (
+                          <td className="px-4 py-3 text-right font-mono text-emerald-400 text-sm">{projSummaryMetrics.manDays.toLocaleString()} Days</td>
+                        )}
+                        {(projSummaryDayMode === 'calendardays' || projSummaryDayMode === 'both') && (
+                          <td className="px-4 py-3 text-right font-mono text-amber-400 text-sm">{projSummaryMetrics.calendarDays.toLocaleString()} Days</td>
+                        )}
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ======================================================== */}
         {/* TAB 1: PERSONAL WORK LOGS */}

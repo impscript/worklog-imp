@@ -670,18 +670,24 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
 
   const availableProjects = useMemo(() => {
     if (!holding || !role || !projectType) return [];
-    return Array.from(new Set(mapProjectStructure
+    const list = Array.from(new Set(mapProjectStructure
       .filter(p => 
         (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() && 
         (p.department_operator || '').trim().toLowerCase() === (role || '').trim().toLowerCase() && 
         p.project_type === projectType
       )
       .map(p => p.project_name))).sort();
-  }, [holding, role, projectType, mapProjectStructure]);
+
+    if (log && log.project_name && !list.includes(log.project_name)) {
+      list.push(log.project_name);
+      list.sort();
+    }
+    return list;
+  }, [holding, role, projectType, mapProjectStructure, log]);
 
   const availableModules = useMemo(() => {
     if (!projectName) return [];
-    return Array.from(new Set(
+    const list = Array.from(new Set(
       mapProjectStructure
         .filter(p => 
           (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() && 
@@ -692,7 +698,13 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         .map(p => p.module)
         .filter(Boolean) as string[]
     )).sort();
-  }, [projectName, projectType, role, holding, mapProjectStructure]);
+
+    if (log && log.module && !list.includes(log.module)) {
+      list.push(log.module);
+      list.sort();
+    }
+    return list;
+  }, [projectName, projectType, role, holding, mapProjectStructure, log]);
 
   // When no modules exist for the selected project, expose BU/Dept options for manual selection
   const noModuleMode = projectName && availableModules.length === 0;

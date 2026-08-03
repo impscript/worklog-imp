@@ -12,6 +12,8 @@ import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import ProjectNotesModal from '../components/modals/ProjectNotesModal';
+import ProjectNotesExportModal from '../components/modals/ProjectNotesExportModal';
+
 
 
 /* ── Types ── */
@@ -462,6 +464,8 @@ export default function ProjectRegistryPage() {
   // Notes state
   const [notesCountMap, setNotesCountMap] = useState<Record<string, number>>({});
   const [notesProject, setNotesProject] = useState<Project | null>(null);
+  const [isExportNotesOpen, setIsExportNotesOpen] = useState(false);
+
 
   /* ── Data Loading ── */
   const loadProjects = useCallback(async () => {
@@ -828,14 +832,25 @@ export default function ProjectRegistryPage() {
               จัดการพอร์ตโฟลิโอโปรเจค — สถานะ, ลำดับชั้น, URL, และปริมาณการใช้งาน
             </p>
           </div>
-          <button
-            onClick={openAddModal}
-            className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-500/25 transition-all active:scale-95"
-          >
-            <Plus size={16} />
-            <span>Add Project</span>
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setIsExportNotesOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs md:text-sm font-bold text-theme-text border border-theme-border bg-theme-surface-secondary hover:bg-theme-surface-tertiary shadow-sm transition-all active:scale-95"
+              title="สรุปและส่งออก Notes ทั้งหมด"
+            >
+              <FileText size={16} className="text-indigo-600 dark:text-indigo-400" />
+              <span>Notes Summary</span>
+            </button>
+            <button
+              onClick={openAddModal}
+              className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-500/25 transition-all active:scale-95"
+            >
+              <Plus size={16} />
+              <span>Add Project</span>
+            </button>
+          </div>
         </div>
+
 
         {/* ── Status Summary Bar ── */}
         <div className="flex items-center gap-3 flex-wrap">
@@ -1050,6 +1065,14 @@ export default function ProjectRegistryPage() {
         project={notesProject}
         onNotesUpdated={loadProjects}
       />
+
+      {/* ── Project Notes Export Modal ── */}
+      <ProjectNotesExportModal
+        isOpen={isExportNotesOpen}
+        onClose={() => setIsExportNotesOpen(false)}
+        projects={projects}
+      />
+
 
       {/* ── Mobile FAB ── */}
       <button
