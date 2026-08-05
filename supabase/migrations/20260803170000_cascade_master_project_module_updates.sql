@@ -4,6 +4,11 @@
 
 BEGIN;
 
+-- 0. Ensure project_id and module_id exist on tb_map_project_structure
+ALTER TABLE public.tb_map_project_structure 
+ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES public.tb_project_registry(id) ON DELETE SET NULL,
+ADD COLUMN IF NOT EXISTS module_id UUID REFERENCES public.tb_project_registry(id) ON DELETE SET NULL;
+
 -- 1. Trigger Function for tb_project_registry
 CREATE OR REPLACE FUNCTION public.fn_cascade_project_registry_update()
 RETURNS TRIGGER AS $$
