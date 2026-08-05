@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Plus, ClipboardList, Clock, Eye, RefreshCw, 
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureValidSupabaseSession } from '../lib/supabase';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import { googleCalendar, syncWorklogToGCal } from '../lib/google-calendar';
@@ -1168,6 +1168,19 @@ export default function CalendarPage() {
     }
   }, [sessionUser, selectedWorkspaceId]);
 
+  // Auto re-fetch on window focus / visibility change or session refresh
+  useEffect(() => {
+    const handleRefresh = () => {
+      setRefreshTrigger((prev) => prev + 1);
+    };
+    window.addEventListener('worklog_session_refreshed', handleRefresh);
+    window.addEventListener('focus', handleRefresh);
+    return () => {
+      window.removeEventListener('worklog_session_refreshed', handleRefresh);
+      window.removeEventListener('focus', handleRefresh);
+    };
+  }, []);
+
   // Main worklog fetching effect
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
@@ -1180,6 +1193,8 @@ export default function CalendarPage() {
     async function fetchMonthEntries() {
       try {
         setIsLoading(true);
+        await ensureValidSupabaseSession();
+
         let query = supabase
           .from('col_worklog')
           .select('*')

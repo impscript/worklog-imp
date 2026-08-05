@@ -8,7 +8,7 @@ import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureValidSupabaseSession } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
 import WorkspaceSwitcher from '../components/common/WorkspaceSwitcher';
@@ -214,6 +214,7 @@ export default function ReportsPage() {
         });
       }
 
+      await ensureValidSupabaseSession();
       // 2. Fetch All Worklogs in the Database within date range using pagination
       let fetchedLogs: any[] = [];
       let page = 0;

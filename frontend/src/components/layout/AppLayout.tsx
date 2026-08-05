@@ -2,7 +2,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { supabase } from '../../lib/supabase';
+import { supabase, ensureValidSupabaseSession } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
 import { useNotification } from '../../context/NotificationContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -62,6 +62,28 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     if (urlInvite) {
       setInviteCodeInput(urlInvite.trim());
     }
+  }, []);
+
+  // Automatic session health check when user re-opens screen or switches back to tab
+  useEffect(() => {
+    const handleVisibilityCheck = async () => {
+      if (document.visibilityState === 'visible') {
+        const isValid = await ensureValidSupabaseSession();
+        if (isValid) {
+          window.dispatchEvent(new CustomEvent('worklog_session_refreshed'));
+        }
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityCheck);
+    window.addEventListener('focus', handleVisibilityCheck);
+
+    handleVisibilityCheck();
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityCheck);
+      window.removeEventListener('focus', handleVisibilityCheck);
+    };
   }, []);
 
   const handleJoinWorkspace = async (e: React.FormEvent) => {

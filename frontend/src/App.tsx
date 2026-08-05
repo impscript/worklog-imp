@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, Routes, Route, useLocation } from 'react-router-dom';
-import { supabase } from './lib/supabase';
+import { ensureValidSupabaseSession } from './lib/supabase';
 import DashboardPage from './pages/DashboardPage';
 import LogWorkPage from './pages/LogWorkPage';
 import LoginPage from './pages/LoginPage';
@@ -19,6 +19,7 @@ import WorkspacesPage from './pages/WorkspacesPage';
 import { NotificationProvider } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
 
+
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [state, setState] = useState<'loading' | 'authenticated' | 'anonymous'>('loading');
@@ -26,27 +27,27 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     const checkSession = async () => {
-      // 1. Check local cached user session first (instant PWA startup)
-      const cached = localStorage.getItem('worklog_session');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (parsed && parsed.id) {
-            if (active) setState('authenticated');
-            return;
-          }
-        } catch {
-          // invalid JSON, fall through
-        }
-      }
+      // Check and restore valid Supabase Auth JWT token
+      const isValid = await ensureValidSupabaseSession();
 
-      // 2. Check Supabase Auth session as secondary check
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (active) setState(data?.session ? 'authenticated' : 'anonymous');
-      } catch (err) {
-        console.warn('ProtectedRoute auth check error:', err);
-        if (active) setState(cached ? 'authenticated' : 'anonymous');
+      if (!active) return;
+
+      if (isValid) {
+        setState('authenticated');
+      } else {
+        const cached = localStorage.getItem('worklog_session');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.id) {
+              setState('authenticated');
+              return;
+            }
+          } catch {
+            // invalid JSON
+          }
+        }
+        setState('anonymous');
       }
     };
 

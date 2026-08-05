@@ -22,7 +22,7 @@ import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureValidSupabaseSession } from '../lib/supabase';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 
@@ -234,6 +234,7 @@ export default function DashboardPage() {
     async function fetchEntries() {
       try {
         setIsLoading(true);
+        await ensureValidSupabaseSession();
         const { data, error } = await supabase
           .from('col_worklog')
           .select('*')

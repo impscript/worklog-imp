@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Plus, Search, ExternalLink, FolderTree, Calendar,
   ChevronDown, ChevronRight, Edit2, Trash2, X, Save,
-  Check, Clock, Activity, Users, FileText,
+  Check, Clock, Activity, Users, FileText, FileCode,
   FolderOpen, Layers, Building2,
   RefreshCw, Link, Server, Database, Mail, Key, GitBranch
 } from 'lucide-react';
@@ -13,8 +13,7 @@ import { useNotification } from '../context/NotificationContext';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import ProjectNotesModal from '../components/modals/ProjectNotesModal';
 import ProjectNotesExportModal from '../components/modals/ProjectNotesExportModal';
-
-
+import ProjectDocumentsModal from '../components/modals/ProjectDocumentsModal';
 
 /* ── Types ── */
 type ProjectStatus = 'planning' | 'development' | 'active' | 'inactive' | 'sunset' | 'retired';
@@ -48,12 +47,14 @@ interface Project {
   recentLogs?: any[];
   children?: Project[];
   notes_count?: number;
+  documents_count?: number;
   // Added fields
   hosting_provider?: string | null;
   admin_email?: string | null;
   database_info?: string | null;
   github_repo_url?: string | null;
   credentials_ref_note?: string | null;
+  vault_url?: string | null;
 }
 
 interface WorklogSummary {
@@ -145,6 +146,7 @@ interface ProjectCardProps {
   onDelete: (project: Project) => void;
   onViewLog: (log: any) => void;
   onOpenNotes: (project: Project) => void;
+  onOpenDocs: (project: Project) => void;
 }
 
 /* ── ProjectCard (top-level for stable identity) ── */
@@ -157,6 +159,7 @@ function ProjectCard({
   onDelete,
   onViewLog,
   onOpenNotes,
+  onOpenDocs,
 }: ProjectCardProps) {
   const hasChildren = project.children && project.children.length > 0;
   const isExpanded = expandedProjects.has(project.id);
@@ -247,6 +250,20 @@ function ProjectCard({
           <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               type="button"
+              onClick={() => onOpenDocs(project)}
+              className="p-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 transition-all flex items-center gap-1 text-xs font-semibold px-2"
+              title="ดูและจัดการเอกสาร System Blueprints / User Manuals"
+            >
+              <FileCode size={13} />
+              <span className="text-[11px]">Docs</span>
+              {project.documents_count ? (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-600 text-white font-bold">
+                  {project.documents_count}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
               onClick={() => onOpenNotes(project)}
               className="p-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 transition-all flex items-center gap-1 text-xs font-semibold px-2"
               title="ดูและเพิ่มบันทึก Internal Logs / WI"
@@ -320,6 +337,18 @@ function ProjectCard({
               <Database size={12} />
               <span>{project.database_info}</span>
             </span>
+          )}
+          {project.vault_url && (
+            <a
+              href={project.vault_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-amber-500 hover:underline font-semibold"
+              title="Open Secrets Vault"
+            >
+              <Key size={12} />
+              <span>Secrets Vault</span>
+            </a>
           )}
           {project.github_repo_url && (
             <a
@@ -433,6 +462,7 @@ function ProjectCard({
               onDelete={onDelete}
               onViewLog={onViewLog}
               onOpenNotes={onOpenNotes}
+              onOpenDocs={onOpenDocs}
             />
           ))}
         </div>
@@ -461,11 +491,12 @@ export default function ProjectRegistryPage() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [selectedWorklog, setSelectedWorklog] = useState<any | null>(null);
 
-  // Notes state
+  // Notes & Documents state
   const [notesCountMap, setNotesCountMap] = useState<Record<string, number>>({});
   const [notesProject, setNotesProject] = useState<Project | null>(null);
   const [isExportNotesOpen, setIsExportNotesOpen] = useState(false);
-
+  const [docsCountMap, setDocsCountMap] = useState<Record<string, number>>({});
+  const [docsModalProject, setDocsModalProject] = useState<Project | null>(null);
 
   /* ── Data Loading ── */
   const loadProjects = useCallback(async () => {
@@ -527,6 +558,24 @@ export default function ProjectRegistryPage() {
           }
         });
         setNotesCountMap(counts);
+      }
+
+      // Load project documents count summary
+      let docsQuery = supabase
+        .from('tb_project_documents')
+        .select('project_id');
+      if (workspaceId) {
+        docsQuery = docsQuery.eq('workspace_id', workspaceId);
+      }
+      const { data: dData } = await docsQuery;
+      if (dData) {
+        const counts: Record<string, number> = {};
+        dData.forEach((d: any) => {
+          if (d.project_id) {
+            counts[d.project_id] = (counts[d.project_id] || 0) + 1;
+          }
+        });
+        setDocsCountMap(counts);
       }
 
       // Load worklog summary (aggregated by project_id / module_id for exact mapping)
@@ -623,9 +672,10 @@ export default function ProjectRegistryPage() {
         worklog_recent: stats.recent_30d,
         recentLogs: stats.logs,
         notes_count: notesCountMap[p.id] || 0,
+        documents_count: docsCountMap[p.id] || 0,
       };
     });
-  }, [projects, worklogSummary, notesCountMap]);
+  }, [projects, worklogSummary, notesCountMap, docsCountMap]);
 
   const filteredProjects = useMemo(() => {
     let list = projectsWithStats;
@@ -1000,6 +1050,7 @@ export default function ProjectRegistryPage() {
                 onDelete={handleDeleteProject}
                 onViewLog={handleViewLog}
                 onOpenNotes={handleOpenNotes}
+                onOpenDocs={setDocsModalProject}
               />
             ))}
           </div>
@@ -1029,6 +1080,7 @@ export default function ProjectRegistryPage() {
                       onDelete={handleDeleteProject}
                       onViewLog={handleViewLog}
                       onOpenNotes={handleOpenNotes}
+                      onOpenDocs={setDocsModalProject}
                     />
                   ))}
                 </div>
@@ -1072,6 +1124,20 @@ export default function ProjectRegistryPage() {
         onClose={() => setIsExportNotesOpen(false)}
         projects={projects}
       />
+
+      {/* ── Project Documents Modal ── */}
+      {docsModalProject && (
+        <ProjectDocumentsModal
+          isOpen={!!docsModalProject}
+          onClose={() => setDocsModalProject(null)}
+          project={{
+            id: docsModalProject.id,
+            project_name: docsModalProject.project_name,
+            workspace_id: docsModalProject.workspace_id || ''
+          }}
+          sessionUser={null}
+        />
+      )}
 
 
       {/* ── Mobile FAB ── */}
@@ -1128,6 +1194,7 @@ const ProjectFormModal = ({
     database_info: '',
     github_repo_url: '',
     credentials_ref_note: '',
+    vault_url: '',
   });
 
   // ── Searchable combobox state ──
@@ -1237,6 +1304,7 @@ const ProjectFormModal = ({
         database_info: editingProject?.database_info || '',
         github_repo_url: editingProject?.github_repo_url || '',
         credentials_ref_note: editingProject?.credentials_ref_note || '',
+        vault_url: editingProject?.vault_url || '',
       });
       setNameQuery(name);
       setParentQuery(parentObj ? parentObj.project_name : '');
@@ -1289,6 +1357,7 @@ const ProjectFormModal = ({
         database_info: formData.database_info.trim() || null,
         github_repo_url: formData.github_repo_url.trim() || null,
         credentials_ref_note: formData.credentials_ref_note.trim() || null,
+        vault_url: formData.vault_url.trim() || null,
       };
       await onSave(payload);
     } catch (err: any) {
@@ -1648,6 +1717,21 @@ const ProjectFormModal = ({
                   onChange={e => setFormData(p => ({ ...p, github_repo_url: e.target.value }))}
                   placeholder="https://github.com/owner/repository"
                   className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-semibold text-indigo-400 mb-1.5 flex items-center gap-1">
+                  🔒 Secrets Vault Link (1Password / Bitwarden / Secrets URL)
+                  <span className="text-[10px] text-theme-text-muted font-normal italic">
+                    (ลิงก์ไปยัง Vault จัดเก็บรหัสผ่านอย่างปลอดภัย)
+                  </span>
+                </label>
+                <input
+                  type="url"
+                  value={formData.vault_url}
+                  onChange={e => setFormData(p => ({ ...p, vault_url: e.target.value }))}
+                  placeholder="https://my.1password.com/... หรือ Vault Link ชนิดจำกัดสิทธิ์"
+                  className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border border-indigo-500/30 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-mono"
                 />
               </div>
               <div className="md:col-span-2">
