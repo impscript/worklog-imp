@@ -14,6 +14,7 @@ import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import ProjectNotesModal from '../components/modals/ProjectNotesModal';
 import ProjectNotesExportModal from '../components/modals/ProjectNotesExportModal';
 import ProjectDocumentsModal from '../components/modals/ProjectDocumentsModal';
+import ProjectSecretsModal from '../components/modals/ProjectSecretsModal';
 
 /* ── Types ── */
 type ProjectStatus = 'planning' | 'development' | 'active' | 'inactive' | 'sunset' | 'retired';
@@ -48,6 +49,7 @@ interface Project {
   children?: Project[];
   notes_count?: number;
   documents_count?: number;
+  secrets_count?: number;
   // Added fields
   hosting_provider?: string | null;
   admin_email?: string | null;
@@ -147,6 +149,7 @@ interface ProjectCardProps {
   onViewLog: (log: any) => void;
   onOpenNotes: (project: Project) => void;
   onOpenDocs: (project: Project) => void;
+  onOpenSecrets: (project: Project) => void;
 }
 
 /* ── ProjectCard (top-level for stable identity) ── */
@@ -160,6 +163,7 @@ function ProjectCard({
   onViewLog,
   onOpenNotes,
   onOpenDocs,
+  onOpenSecrets,
 }: ProjectCardProps) {
   const hasChildren = project.children && project.children.length > 0;
   const isExpanded = expandedProjects.has(project.id);
@@ -248,6 +252,20 @@ function ProjectCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={() => onOpenSecrets(project)}
+              className="p-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-all flex items-center gap-1 text-xs font-semibold px-2"
+              title="ดูและจัดการ In-App Project Secrets / Environment Variables"
+            >
+              <Key size={13} />
+              <span className="text-[11px]">Secrets</span>
+              {project.secrets_count ? (
+                <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-amber-600 text-white font-bold">
+                  {project.secrets_count}
+                </span>
+              ) : null}
+            </button>
             <button
               type="button"
               onClick={() => onOpenDocs(project)}
@@ -463,6 +481,7 @@ function ProjectCard({
               onViewLog={onViewLog}
               onOpenNotes={onOpenNotes}
               onOpenDocs={onOpenDocs}
+              onOpenSecrets={onOpenSecrets}
             />
           ))}
         </div>
@@ -491,12 +510,14 @@ export default function ProjectRegistryPage() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [selectedWorklog, setSelectedWorklog] = useState<any | null>(null);
 
-  // Notes & Documents state
+  // Notes & Documents & Secrets state
   const [notesCountMap, setNotesCountMap] = useState<Record<string, number>>({});
   const [notesProject, setNotesProject] = useState<Project | null>(null);
   const [isExportNotesOpen, setIsExportNotesOpen] = useState(false);
   const [docsCountMap, setDocsCountMap] = useState<Record<string, number>>({});
   const [docsModalProject, setDocsModalProject] = useState<Project | null>(null);
+  const [secretsCountMap, setSecretsCountMap] = useState<Record<string, number>>({});
+  const [secretsModalProject, setSecretsModalProject] = useState<Project | null>(null);
 
   /* ── Data Loading ── */
   const loadProjects = useCallback(async () => {
@@ -576,6 +597,24 @@ export default function ProjectRegistryPage() {
           }
         });
         setDocsCountMap(counts);
+      }
+
+      // Load project secrets count summary
+      let secretsQuery = supabase
+        .from('tb_project_secrets')
+        .select('project_id');
+      if (workspaceId) {
+        secretsQuery = secretsQuery.eq('workspace_id', workspaceId);
+      }
+      const { data: sData } = await secretsQuery;
+      if (sData) {
+        const counts: Record<string, number> = {};
+        sData.forEach((s: any) => {
+          if (s.project_id) {
+            counts[s.project_id] = (counts[s.project_id] || 0) + 1;
+          }
+        });
+        setSecretsCountMap(counts);
       }
 
       // Load worklog summary (aggregated by project_id / module_id for exact mapping)
@@ -673,9 +712,10 @@ export default function ProjectRegistryPage() {
         recentLogs: stats.logs,
         notes_count: notesCountMap[p.id] || 0,
         documents_count: docsCountMap[p.id] || 0,
+        secrets_count: secretsCountMap[p.id] || 0,
       };
     });
-  }, [projects, worklogSummary, notesCountMap, docsCountMap]);
+  }, [projects, worklogSummary, notesCountMap, docsCountMap, secretsCountMap]);
 
   const filteredProjects = useMemo(() => {
     let list = projectsWithStats;
@@ -1051,6 +1091,7 @@ export default function ProjectRegistryPage() {
                 onViewLog={handleViewLog}
                 onOpenNotes={handleOpenNotes}
                 onOpenDocs={setDocsModalProject}
+                onOpenSecrets={setSecretsModalProject}
               />
             ))}
           </div>
@@ -1081,6 +1122,7 @@ export default function ProjectRegistryPage() {
                       onViewLog={handleViewLog}
                       onOpenNotes={handleOpenNotes}
                       onOpenDocs={setDocsModalProject}
+                      onOpenSecrets={setSecretsModalProject}
                     />
                   ))}
                 </div>
@@ -1134,6 +1176,20 @@ export default function ProjectRegistryPage() {
             id: docsModalProject.id,
             project_name: docsModalProject.project_name,
             workspace_id: docsModalProject.workspace_id || ''
+          }}
+          sessionUser={null}
+        />
+      )}
+
+      {/* ── Project Secrets Modal ── */}
+      {secretsModalProject && (
+        <ProjectSecretsModal
+          isOpen={!!secretsModalProject}
+          onClose={() => setSecretsModalProject(null)}
+          project={{
+            id: secretsModalProject.id,
+            project_name: secretsModalProject.project_name,
+            workspace_id: secretsModalProject.workspace_id || ''
           }}
           sessionUser={null}
         />
