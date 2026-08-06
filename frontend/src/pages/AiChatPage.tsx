@@ -873,7 +873,16 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     return userInstruction;
   };
 
-  /** Enter draw mode from an AI chat bubble with smart model recommendation */
+  type DrawSendOptions = {
+    forceDraw?: boolean;
+    sourceText?: string;
+    intent?: DrawIntent;
+    imageModelId?: string;
+    ratio?: string;
+    engine?: 'flux_cf' | 'openrouter';
+  };
+
+  /** One-click: pick model + generate image from an AI bubble (no second Send needed) */
   const handleCreateImageFromMessage = (content: string, intent?: DrawIntent) => {
     if (isGenerating) return;
     const clean = content
@@ -887,42 +896,52 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
 
     const resolvedIntent = intent || detectDrawIntent(clean);
     const rec = recommendImageModel(resolvedIntent);
+    const ratio = resolvedIntent === 'infographic' ? '9:16' : '1:1';
+    const instruction =
+      resolvedIntent === 'infographic'
+        ? 'ทำเป็น infographic สวย ชัด อ่านง่าย ใช้ภาษาไทยบนภาพให้ถูกต้อง'
+        : resolvedIntent === 'thai_text'
+          ? 'สร้างภาพจากเนื้อหานี้ ตัวอักษรภาษาไทยต้องอ่านชัด'
+          : 'วาดภาพประกอบสวย ๆ จากเนื้อหาด้านบน';
 
     setDrawMode(true);
     setWebSearch(false);
-    setImageSettingsOpen(false); // keep chat visible — compact bar only
+    setImageSettingsOpen(false);
     setDrawIntent(resolvedIntent);
     setDrawSourceText(clean);
     setDrawEngine('openrouter');
     setOpenrouterImageModel(rec.id);
+    setFluxRatio(ratio);
+    setFluxStyle('none');
     localStorage.setItem('openrouter_draw_engine', 'openrouter');
     localStorage.setItem('openrouter_image_model', rec.id);
 
-    if (resolvedIntent === 'infographic') {
-      setFluxRatio('9:16');
-      setFluxStyle('none');
-      setInput('ทำเป็น infographic สวย ชัด อ่านง่าย ใช้ภาษาไทยบนภาพให้ถูกต้อง');
-    } else if (resolvedIntent === 'thai_text') {
-      setFluxRatio('1:1');
-      setInput('สร้างภาพจากเนื้อหานี้ ตัวอักษรภาษาไทยต้องอ่านชัด');
-    } else {
-      setFluxRatio('1:1');
-      setInput('วาดภาพประกอบสวย ๆ จากเนื้อหาด้านบน');
-    }
+    showToast(`กำลังสร้างรูปด้วย ${rec.shortName}…`, 'info');
 
-    showToast(
-      `พร้อมสร้างรูปด้วย ${rec.shortName} — กดส่งได้เลย (ตั้งค่าเพิ่มกดที่แถบบนช่องพิมพ์)`,
-      'info'
-    );
+    void handleSendMessage(instruction, {
+      forceDraw: true,
+      sourceText: clean,
+      intent: resolvedIntent,
+      imageModelId: rec.id,
+      ratio,
+      engine: 'openrouter',
+    });
   };
 
-  const handleSendMessage = async (customPrompt?: string, forceDraw = false) => {
+  const handleSendMessage = async (customPrompt?: string, forceDrawOrOpts: boolean | DrawSendOptions = false) => {
+    const opts: DrawSendOptions =
+      typeof forceDrawOrOpts === 'object' && forceDrawOrOpts !== null
+        ? forceDrawOrOpts
+        : { forceDraw: !!forceDrawOrOpts };
+
     const textToSend = customPrompt || input;
     if (!textToSend.trim() || isGenerating) return;
     
-    const isDrawing = forceDraw || drawMode;
+    const isDrawing = !!opts.forceDraw || drawMode;
+    const willUseOpenRouterImage =
+      isDrawing && (opts.engine || drawEngine) !== 'flux_cf';
 
-    if ((!isDrawing || (isDrawing && drawEngine === 'openrouter')) && !apiKey.trim()) {
+    if ((!isDrawing || willUseOpenRouterImage) && !apiKey.trim()) {
       showToast('กรุณากรอก OpenRouter API Key ในแถบด้านซ้ายก่อนเริ่มใช้งาน', 'warning');
       setIsEditingKey(true);
       return;
@@ -964,19 +983,41 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
 
     targetSession.messages = [...targetSession.messages, userMessage];
 
-    // Resolve draw intent for this send (refine from text when still on generic illustration)
-    const activeDrawIntent: DrawIntent = isDrawing
-      ? (drawIntent === 'illustration'
-          ? detectDrawIntent(`${textToSend}\n${drawSourceText}`)
-          : drawIntent)
-      : drawIntent;
-    const imagePreset = getImagePreset(openrouterImageModel);
+    // Resolve draw params (opts override state — needed for one-click from bubble before re-render)
+    let activeDrawIntent: DrawIntent = opts.intent || drawIntent;
+    if (isDrawing && !opts.intent && activeDrawIntent === 'illustration') {
+      activeDrawIntent = detectDrawIntent(`${textToSend}\n${opts.sourceText || drawSourceText}`);
+    }
+    let activeDrawEngine: 'flux_cf' | 'openrouter' = opts.engine || drawEngine;
+    let activeImageModelId = opts.imageModelId || openrouterImageModel;
+    let activeRatio = opts.ratio || fluxRatio;
+
+    // Auto-pick a text-strong model when job needs Thai/infographic but user still on Flux/free
+    if (isDrawing && (activeDrawIntent === 'infographic' || activeDrawIntent === 'thai_text')) {
+      const presetCheck = getImagePreset(activeImageModelId);
+      if (activeDrawEngine === 'flux_cf' || presetCheck?.textQuality === 'weak' || !presetCheck) {
+        const rec = recommendImageModel(activeDrawIntent);
+        activeDrawEngine = 'openrouter';
+        activeImageModelId = rec.id;
+        setDrawEngine('openrouter');
+        setOpenrouterImageModel(rec.id);
+        localStorage.setItem('openrouter_draw_engine', 'openrouter');
+        localStorage.setItem('openrouter_image_model', rec.id);
+        showToast(`สลับเป็น ${rec.shortName} อัตโนมัติ (เหมาะข้อความไทย/Infographic)`, 'info');
+      }
+      if (activeDrawIntent === 'infographic' && activeRatio === '1:1' && !opts.ratio) {
+        activeRatio = '9:16';
+        setFluxRatio('9:16');
+      }
+    }
+
+    const imagePreset = getImagePreset(activeImageModelId);
 
     // Add assistant processing placeholder
     const assistantPlaceholder: Message = {
       role: 'assistant',
       content: isDrawing
-        ? '⏳ กำลังออกแบบคำสั่งภาพ (Step 1/2)...'
+        ? '⏳ กำลังสร้างรูป…'
         : (webSearch ? '🌐 กำลังค้นหาเว็บและเรียบเรียงคำตอบ...' : 'กำลังพิมพ์คำตอบ...'),
       timestamp: new Date().toISOString()
     };
@@ -989,22 +1030,11 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
 
     // B. IMAGE GENERATION WORKFLOW
     if (isDrawing) {
-      const sourceForImage = drawSourceText.trim();
+      const sourceForImage = (opts.sourceText ?? drawSourceText).trim();
       const imageModelLabel =
-        drawEngine === 'openrouter'
-          ? (imagePreset?.shortName || openrouterImageModel)
+        activeDrawEngine === 'openrouter'
+          ? (imagePreset?.shortName || activeImageModelId)
           : 'Flux Cloudflare (ฟรี)';
-
-      // Warn if free/weak text model used for infographic
-      if (
-        (activeDrawIntent === 'infographic' || activeDrawIntent === 'thai_text') &&
-        (drawEngine === 'flux_cf' || imagePreset?.textQuality === 'weak')
-      ) {
-        showToast(
-          'งาน Infographic/ข้อความไทย แนะนำ Nano Banana 2 หรือ GPT Image — โมเดลฟรี/Flux มักอ่านตัวอักษรไม่คม',
-          'warning'
-        );
-      }
 
       let finalPrompt = textToSend;
       let translationStatus = '';
@@ -1013,15 +1043,15 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         textToSend,
         sourceForImage,
         activeDrawIntent,
-        drawEngine === 'openrouter' ? imagePreset : undefined,
+        activeDrawEngine === 'openrouter' ? imagePreset : undefined,
         apiKey,
         selectedModel
       );
 
       translationStatus =
         `⏳ กำลังสร้างรูป…\n` +
-        `โมเดล: ${imageModelLabel} · ${activeDrawIntent} · ${fluxRatio}\n` +
-        `อย่าปิดหน้านี้ (อาจใช้เวลา 15–90 วินาที)`;
+        `${imageModelLabel} · ${activeDrawIntent === 'infographic' ? 'Infographic' : activeDrawIntent === 'thai_text' ? 'ข้อความไทย' : 'ภาพประกอบ'} · ${activeRatio}\n` +
+        `รอสักครู่ (ประมาณ 15–90 วินาที)`;
 
       setSessions(prevSessions => {
         const updated = prevSessions.map(s => {
@@ -1079,6 +1109,8 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
           return updated;
         });
         setDrawSourceText('');
+        setDrawMode(false);
+        setImageSettingsOpen(false);
         setIsGenerating(false);
         showToast('สร้างรูปสำเร็จ', 'success');
       };
@@ -1088,13 +1120,16 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
       const timeoutId = window.setTimeout(() => abortCtrl.abort(), timeoutMs);
 
       try {
-        if (drawEngine === 'openrouter') {
+        if (activeDrawEngine === 'openrouter') {
+          if (!apiKey.trim()) {
+            throw new Error('ต้องมี OpenRouter API Key สำหรับโมเดลรูปนี้');
+          }
           const body: Record<string, unknown> = {
-            model: openrouterImageModel,
+            model: activeImageModelId,
             prompt: promptWithStyle,
           };
           if (imagePreset?.supportsAspectRatio !== false) {
-            body.aspect_ratio = fluxRatio;
+            body.aspect_ratio = activeRatio;
           }
 
           const response = await fetch("https://openrouter.ai/api/v1/images", {
@@ -1136,7 +1171,7 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
             throw new Error("OpenRouter API ไม่ได้คืนค่ารูปภาพกลับมา (ลองโมเดลอื่นหรือตรวจเครดิตบัญชี)");
           }
 
-          finishImageMessage(imageUrl, openrouterImageModel);
+          finishImageMessage(imageUrl, activeImageModelId);
         } else {
           // Cloudflare Worker Flow (free Flux)
           const response = await fetch("https://flux-image-generator.play2earn.workers.dev/", {
@@ -1147,7 +1182,7 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
             body: JSON.stringify({
               prompt: promptWithStyle,
               steps: fluxSteps,
-              aspectRatio: fluxRatio
+              aspectRatio: activeRatio
             }),
             signal: abortCtrl.signal,
           });
@@ -1191,12 +1226,11 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                 role: 'assistant',
                 content:
                   `❌ สร้างรูปไม่สำเร็จ\n\n` +
-                  `**สาเหตุ:** ${errMsg}\n\n` +
-                  `**โมเดล:** ${imageModelLabel}\n` +
-                  `**คำแนะนำ:** ตรวจ OpenRouter API Key / เครดิต · ลอง Nano Banana 2 อีกครั้ง · หรือสลับ Cloudflare ฟรีสำหรับภาพ mood\n\n` +
-                  `<details><summary>คำสั่งภาพที่ใช้</summary>\n\n${promptWithStyle.slice(0, 800)}\n\n</details>`,
+                  `สาเหตุ: ${errMsg}\n\n` +
+                  `โมเดล: ${imageModelLabel}\n` +
+                  `คำแนะนำ: ตรวจ OpenRouter API Key / เครดิต · กด「ทำ Infographic」ใต้ข้อความอีกครั้ง · หรือเปิดตั้งค่าแล้วเลือก Nano Banana 2`,
                 timestamp: new Date().toISOString(),
-                modelUsed: drawEngine === 'openrouter' ? openrouterImageModel : 'flux-cloudflare',
+                modelUsed: activeDrawEngine === 'openrouter' ? activeImageModelId : 'flux-cloudflare',
               };
               return { ...s, messages: messagesCopy };
             }
@@ -1906,14 +1940,14 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                               </span>
                             )}
                           </div>
-                          {/* Create image from AI text — avoid when already an image or generating */}
+                          {/* One-click image from AI text */}
                           {!isUser && !m.content.startsWith('![') && m.content.length > 40 && !isGenerating && (
                             <div className="flex flex-wrap gap-1.5 pt-0.5">
                               <button
                                 type="button"
                                 onClick={() => handleCreateImageFromMessage(m.content, 'infographic')}
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all cursor-pointer select-none"
-                                title="ใช้ Nano Banana / GPT Image ทำ infographic จากข้อความนี้"
+                                title="สร้าง Infographic ทันทีด้วย Nano Banana 2"
                               >
                                 <Palette size={11} />
                                 ทำ Infographic
@@ -1922,10 +1956,10 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                                 type="button"
                                 onClick={() => handleCreateImageFromMessage(m.content, 'illustration')}
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-theme-border bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text transition-all cursor-pointer select-none"
-                                title="วาดภาพประกอบจากข้อความนี้"
+                                title="สร้างภาพประกอบทันที"
                               >
                                 <Sparkles size={11} />
-                                สร้างรูปประกอบ
+                                ภาพประกอบ
                               </button>
                             </div>
                           )}
