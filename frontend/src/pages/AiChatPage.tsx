@@ -456,6 +456,15 @@ function engineFromPath(path: DrawPath): 'flux_cf' | 'openrouter' {
   return path === 'free_flux' ? 'flux_cf' : 'openrouter';
 }
 
+/** Visual aspect-ratio chips (Google Flow–style frame icons) */
+const ASPECT_RATIO_CHIPS: { id: string; label: string; frameW: number; frameH: number; hint: string }[] = [
+  { id: '16:9', label: '16:9', frameW: 22, frameH: 12, hint: 'แนวนอนกว้าง' },
+  { id: '4:3', label: '4:3', frameW: 18, frameH: 14, hint: 'คลาสสิก' },
+  { id: '1:1', label: '1:1', frameW: 14, frameH: 14, hint: 'จัตุรัส' },
+  { id: '3:4', label: '3:4', frameW: 14, frameH: 18, hint: 'แนวตั้ง' },
+  { id: '9:16', label: '9:16', frameW: 12, frameH: 22, hint: 'สตอรี่ / Infographic' },
+];
+
 function detectDrawIntent(text: string): DrawIntent {
   const t = text.toLowerCase();
   if (/infographic|อินโฟ|อินโฟกราฟ|อินโฟกราฟิก|อินโฟกราฟฟิก|ข้อมูลสรุป.*รูป|โปสเตอร์ข้อมูล|แผนภาพ/.test(t) || /อินโฟ/.test(text)) {
@@ -2109,6 +2118,46 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                       </button>
                     </div>
 
+                    {/* Aspect ratio — visual chips (Google Flow style) */}
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wide">สัดส่วนภาพ</span>
+                      <div className="flex flex-wrap gap-1">
+                        {ASPECT_RATIO_CHIPS.map((ar) => {
+                          const active = fluxRatio === ar.id;
+                          return (
+                            <button
+                              key={ar.id}
+                              type="button"
+                              title={ar.hint}
+                              disabled={isGenerating}
+                              onClick={() => setFluxRatio(ar.id)}
+                              className={cn(
+                                "inline-flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1.5 py-1.5 rounded-xl border transition-all cursor-pointer select-none",
+                                active
+                                  ? "border-violet-400/70 bg-theme-surface shadow-sm ring-1 ring-violet-400/25"
+                                  : "border-theme-border/60 bg-theme-surface/50 hover:border-theme-border-strong text-theme-text-muted"
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "rounded-[3px] border-2",
+                                  active ? "border-violet-500 bg-violet-500/10" : "border-theme-text-muted/50 bg-transparent"
+                                )}
+                                style={{ width: ar.frameW, height: ar.frameH }}
+                                aria-hidden
+                              />
+                              <span className={cn(
+                                "text-[9px] font-bold tabular-nums",
+                                active ? "text-violet-600 dark:text-violet-300" : "text-theme-text-muted"
+                              )}>
+                                {ar.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     {drawEngine === 'flux_cf' && (
                       <p className="text-[9px] text-emerald-700 dark:text-emerald-300/90 leading-relaxed px-0.5">
                         ✓ เลือก <strong>ฟรี</strong> แล้ว — ไม่ต้องใช้เครดิต image บน OpenRouter · ตัวอักษรไทยบนภาพอาจเพี้ยน
@@ -2201,38 +2250,23 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                         </div>
                       )}
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">สไตล์</label>
-                          <select
-                            value={fluxStyle}
-                            onChange={(e) => setFluxStyle(e.target.value)}
-                            className="w-full text-[11px] font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface cursor-pointer"
-                          >
-                            <option value="none">Default</option>
-                            <option value="infographic">Infographic</option>
-                            <option value="realistic">Realistic</option>
-                            <option value="anime">Anime</option>
-                            <option value="pixel">Pixel</option>
-                            <option value="watercolor">Watercolor</option>
-                            <option value="cyberpunk">Cyberpunk</option>
-                            <option value="render3d">3D</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">สัดส่วน</label>
-                          <select
-                            value={fluxRatio}
-                            onChange={(e) => setFluxRatio(e.target.value)}
-                            className="w-full text-[11px] font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface cursor-pointer"
-                          >
-                            <option value="1:1">1:1</option>
-                            <option value="16:9">16:9</option>
-                            <option value="9:16">9:16 Infographic</option>
-                            <option value="4:3">4:3</option>
-                            <option value="3:4">3:4</option>
-                          </select>
-                        </div>
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">สไตล์ภาพ</label>
+                        <select
+                          value={fluxStyle}
+                          onChange={(e) => setFluxStyle(e.target.value)}
+                          className="w-full text-[11px] font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface cursor-pointer"
+                        >
+                          <option value="none">Default</option>
+                          <option value="infographic">Infographic</option>
+                          <option value="realistic">Realistic</option>
+                          <option value="anime">Anime</option>
+                          <option value="pixel">Pixel</option>
+                          <option value="watercolor">Watercolor</option>
+                          <option value="cyberpunk">Cyberpunk</option>
+                          <option value="render3d">3D</option>
+                        </select>
+                        <p className="text-[9px] text-theme-text-muted">สัดส่วนภาพเลือกจาก chip ด้านบนได้เลย</p>
                       </div>
                     </div>
                   )}
