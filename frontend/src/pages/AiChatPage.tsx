@@ -2,17 +2,29 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Send, Trash2, Plus, Sparkles, Key, Eye, EyeOff, 
   Shield, Cpu, AlertTriangle, RefreshCw, MessageSquare, Info, ShieldAlert, Trash, Globe, Palette, Copy, X,
-  Brain, Code2, Image as ImageIcon, Wrench, MessagesSquare
+  Brain, Code2, Image as ImageIcon, Wrench, MessagesSquare, Paperclip, FileText, Table2
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useNotification } from '../context/NotificationContext';
 import { cn } from '../lib/utils';
+import {
+  type ChatAttachment,
+  processChatFile,
+  prepareSessionsForStorage,
+  normalizeImageForChat,
+  buildMessageContentParts,
+  attachmentsNeedVision,
+  suggestVisionChatModel,
+  stripHeavyMediaFromText,
+} from '../lib/chat-files';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
   modelUsed?: string; // Stores the actual model that served the response
+  /** Lightweight attachment meta for display (images may be purged from storage) */
+  attachmentMeta?: { name: string; kind: string; summary: string }[];
 }
 
 interface ChatSession {
@@ -621,6 +633,10 @@ export default function AiChatPage() {
   const [drawSourceText, setDrawSourceText] = useState<string>('');
   /** Image settings panel collapsed by default so chat stays readable */
   const [imageSettingsOpen, setImageSettingsOpen] = useState<boolean>(false);
+  /** Pending file attachments for the next send (images / PDF / Excel) */
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCopyText = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -635,21 +651,61 @@ export default function AiChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load chat sessions from LocalStorage on mount
+  // Load chat sessions from LocalStorage on mount (strip any legacy huge base64)
   useEffect(() => {
     try {
       const stored = localStorage.getItem('worklog_ai_chat_sessions');
       if (stored) {
-        const parsed = JSON.parse(stored) as ChatSession[];
-        setSessions(parsed);
-        if (parsed.length > 0) {
-          setActiveSessionId(parsed[0].id);
+        // Guard: enormous payloads can crash the tab on parse/render
+        if (stored.length > 4_500_000) {
+          console.warn('Chat history too large — clearing to recover from OOM');
+          localStorage.removeItem('worklog_ai_chat_sessions');
+          showToast('ประวัติแชทใหญ่เกิน ล้างแล้วเพื่อไม่ให้เบราว์เซอร์ค้าง', 'warning');
+          return;
         }
+        const parsed = JSON.parse(stored) as ChatSession[];
+        const cleaned = prepareSessionsForStorage(parsed);
+        setSessions(cleaned);
+        if (cleaned.length > 0) {
+          setActiveSessionId(cleaned[0].id);
+        }
+        // Re-save stripped version
+        try {
+          localStorage.setItem('worklog_ai_chat_sessions', JSON.stringify(cleaned));
+        } catch { /* ignore */ }
       }
     } catch (e) {
       console.error('Failed to load chat sessions:', e);
+      localStorage.removeItem('worklog_ai_chat_sessions');
     }
   }, []);
+
+  const handlePickFiles = async (fileList: FileList | null) => {
+    if (!fileList?.length) return;
+    setIsProcessingFiles(true);
+    try {
+      const next: ChatAttachment[] = [...pendingAttachments];
+      for (const file of Array.from(fileList).slice(0, 5)) {
+        if (next.length >= 5) {
+          showToast('แนบได้สูงสุด 5 ไฟล์ต่อข้อความ', 'warning');
+          break;
+        }
+        try {
+          const att = await processChatFile(file);
+          next.push(att);
+        } catch (err: any) {
+          showToast(`${file.name}: ${err?.message || 'อ่านไฟล์ไม่สำเร็จ'}`, 'error');
+        }
+      }
+      setPendingAttachments(next);
+      if (next.length > pendingAttachments.length) {
+        showToast(`แนบไฟล์แล้ว ${next.length - pendingAttachments.length} รายการ`, 'success');
+      }
+    } finally {
+      setIsProcessingFiles(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   // Scroll to bottom whenever messages change
   useEffect(() => {
@@ -763,46 +819,34 @@ export default function AiChatPage() {
   };
 
   const safeSaveSessions = (sessionsToSave: ChatSession[]) => {
+    // Always strip heavy data:image payloads first — prevents Chrome Aw Snap / OOM
+    const light = prepareSessionsForStorage(sessionsToSave);
     try {
-      localStorage.setItem('worklog_ai_chat_sessions', JSON.stringify(sessionsToSave));
+      localStorage.setItem('worklog_ai_chat_sessions', JSON.stringify(light));
     } catch (e: any) {
       if (e.name === 'QuotaExceededError' || e.code === 22) {
-        console.warn("LocalStorage quota exceeded! Pruning oldest generated images...");
-        const cloned = JSON.parse(JSON.stringify(sessionsToSave)) as ChatSession[];
-        let prunedAny = false;
-        
-        // Loop backwards from oldest to newest sessions to prune generated image data URLs
-        for (let i = cloned.length - 1; i >= 0; i--) {
-          const session = cloned[i];
-          for (let j = 0; j < session.messages.length; j++) {
-            const msg = session.messages[j];
-            if (msg.role === 'assistant' && msg.content.includes('data:image/')) {
-              msg.content = msg.content.replace(/!\[(.*?)\]\(data:image\/.*?;base64,.*?\)/g, '![Image: $1](ภาพถูกลบเพื่อประหยัดพื้นที่จัดเก็บของเบราว์เซอร์)');
-              prunedAny = true;
-              break;
-            }
-          }
-          if (prunedAny) break;
-        }
-
-        if (prunedAny) {
-          // Attempt to save again recursively
-          safeSaveSessions(cloned);
-          setSessions(cloned); // Sync state with the pruned version to keep UI updated
-          showToast('พื้นที่เบราว์เซอร์เต็ม: ระบบได้ลบไฟล์ภาพแชทเก่าบางส่วนเพื่อบันทึกประวัติการแชทใหม่', 'info');
-        } else {
-          // If no images are left to prune, delete the oldest session
-          if (cloned.length > 1) {
-            cloned.pop(); // Remove the oldest session
-            safeSaveSessions(cloned);
-            setSessions(cloned); // Sync state with the pruned version
-            showToast('พื้นที่เบราว์เซอร์เต็ม: ระบบได้ลบประวัติการแชทเก่าเพื่อบันทึกประวัติการแชทใหม่', 'info');
-          } else {
-            console.error("Cannot prune further, single session is too large");
+        console.warn('LocalStorage quota exceeded — pruning sessions...');
+        const cloned = JSON.parse(JSON.stringify(light)) as ChatSession[];
+        // Drop oldest sessions until it fits
+        while (cloned.length > 1) {
+          cloned.pop();
+          try {
+            localStorage.setItem('worklog_ai_chat_sessions', JSON.stringify(cloned));
+            setSessions(cloned);
+            showToast('พื้นที่เบราว์เซอร์เต็ม: ลบประวัติเก่าบางส่วนแล้ว (รูปใหญ่ไม่ถูกเก็บถาวร)', 'info');
+            return;
+          } catch {
+            /* continue pruning */
           }
         }
+        try {
+          localStorage.setItem('worklog_ai_chat_sessions', JSON.stringify(cloned));
+        } catch {
+          localStorage.removeItem('worklog_ai_chat_sessions');
+        }
+        showToast('พื้นที่เต็มมาก: ล้างประวัติแชทบางส่วนแล้ว', 'warning');
       } else {
-        console.error("Failed to save sessions to localStorage:", e);
+        console.error('Failed to save sessions to localStorage:', e);
       }
     }
   };
@@ -985,7 +1029,8 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         : { forceDraw: !!forceDrawOrOpts };
 
     const textToSend = customPrompt || input;
-    if (!textToSend.trim() || isGenerating) return;
+    const attachmentsSnap = [...pendingAttachments];
+    if ((!textToSend.trim() && attachmentsSnap.length === 0) || isGenerating || isProcessingFiles) return;
     
     const isDrawing = !!opts.forceDraw || drawMode;
     const willUseOpenRouterImage =
@@ -997,15 +1042,27 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
       return;
     }
 
+    // Chat with files always needs API key
+    if (!isDrawing && !apiKey.trim()) {
+      showToast('กรุณากรอก OpenRouter API Key ก่อนสนทนา / แนบไฟล์', 'warning');
+      setIsEditingKey(true);
+      return;
+    }
+
     let currentSessionId = activeSessionId;
     let updatedSessions = [...sessions];
+
+    const titleSeed =
+      textToSend.trim() ||
+      attachmentsSnap[0]?.name ||
+      'ไฟล์แนบ';
 
     // Create session if not exists or if currently selected session is empty but we want a new chat
     if (!currentSessionId || sessions.length === 0) {
       const newSessionId = 'session_' + Date.now();
       const newSession: ChatSession = {
         id: newSessionId,
-        title: textToSend.slice(0, 30) + (textToSend.length > 30 ? '...' : ''),
+        title: titleSeed.slice(0, 30) + (titleSeed.length > 30 ? '...' : ''),
         createdAt: new Date().toISOString(),
         messages: []
       };
@@ -1014,10 +1071,21 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
       setActiveSessionId(newSessionId);
     }
 
+    const displayUserText =
+      textToSend.trim() ||
+      (attachmentsSnap.length
+        ? `📎 แนบ ${attachmentsSnap.map((a) => a.name).join(', ')}`
+        : '');
+
     const userMessage: Message = {
       role: 'user',
-      content: textToSend,
-      timestamp: new Date().toISOString()
+      content: displayUserText,
+      timestamp: new Date().toISOString(),
+      attachmentMeta: attachmentsSnap.map((a) => ({
+        name: a.name,
+        kind: a.kind,
+        summary: a.summary,
+      })),
     };
 
     // Find the session and append the user message
@@ -1028,10 +1096,12 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     
     // Auto-update title if it's the default name
     if (targetSession.title === 'บทสนทนาใหม่' && targetSession.messages.length === 0) {
-      targetSession.title = textToSend.slice(0, 30) + (textToSend.length > 30 ? '...' : '');
+      targetSession.title = titleSeed.slice(0, 30) + (titleSeed.length > 30 ? '...' : '');
     }
 
     targetSession.messages = [...targetSession.messages, userMessage];
+    // Clear chips immediately so user doesn't re-send same files
+    setPendingAttachments([]);
 
     // Resolve draw params (opts override state — needed for one-click from bubble before re-render)
     let activeDrawIntent: DrawIntent = opts.intent || drawIntent;
@@ -1133,18 +1203,28 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         }
       }
 
-      const finishImageMessage = (imageUrl: string, usedModel: string) => {
+      const finishImageMessage = async (imageUrl: string, usedModel: string) => {
         if (!imageUrl || typeof imageUrl !== 'string') {
           throw new Error('ไม่พบ URL รูปภาพจากระบบสร้างรูป');
         }
+        // Compress data URLs / huge payloads so React + localStorage never hold multi-MB strings (Chrome Aw Snap)
+        let safeUrl = imageUrl;
+        try {
+          safeUrl = await normalizeImageForChat(imageUrl);
+        } catch (compErr) {
+          console.warn('Image compress failed, using original if remote:', compErr);
+          if (imageUrl.startsWith('data:') && imageUrl.length > 800_000) {
+            throw new Error('รูปใหญ่เกินไปจนเบราว์เซอร์ค้างได้ — ลองสัดส่วนเล็กลงหรือโมเดลอื่น');
+          }
+        }
+
         setSessions(prevSessions => {
           const updated = prevSessions.map(s => {
             if (s.id === currentSessionId) {
               const messagesCopy = [...s.messages];
-              // Short single-line alt only — long/multiline prompt used to break markdown and look "stuck"
               messagesCopy[messagesCopy.length - 1] = {
                 role: 'assistant',
-                content: formatImageMarkdown(imageUrl, imageModelLabel),
+                content: formatImageMarkdown(safeUrl, imageModelLabel),
                 timestamp: new Date().toISOString(),
                 modelUsed: usedModel
               };
@@ -1177,6 +1257,14 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
           };
           if (imagePreset?.supportsAspectRatio !== false) {
             body.aspect_ratio = activeRatio;
+          }
+          // Optional image reference from attachments (quality path)
+          const refImages = attachmentsSnap.filter((a) => a.kind === 'image' && a.dataUrl).slice(0, 2);
+          if (refImages.length > 0) {
+            body.input_references = refImages.map((img) => ({
+              type: 'image_url',
+              image_url: { url: img.dataUrl },
+            }));
           }
 
           const response = await fetch("https://openrouter.ai/api/v1/images", {
@@ -1218,9 +1306,9 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
             throw new Error("OpenRouter API ไม่ได้คืนค่ารูปภาพกลับมา (ลองโมเดลอื่นหรือตรวจเครดิตบัญชี)");
           }
 
-          finishImageMessage(imageUrl, activeImageModelId);
+          await finishImageMessage(imageUrl, activeImageModelId);
         } else {
-          // Cloudflare Worker Flow (free Flux)
+          // Cloudflare Worker Flow (free Flux) — compress blob before state to avoid tab crash
           const response = await fetch("https://flux-image-generator.play2earn.workers.dev/", {
             method: "POST",
             headers: {
@@ -1243,19 +1331,8 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
           if (!blob || blob.size < 32) {
             throw new Error('Cloudflare ไม่ได้ส่งไฟล์รูปกลับมา');
           }
-          const base64data = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              if (typeof reader.result === 'string' && reader.result.startsWith('data:')) {
-                resolve(reader.result);
-              } else {
-                reject(new Error('แปลงรูปเป็น base64 ไม่สำเร็จ'));
-              }
-            };
-            reader.onerror = () => reject(new Error('อ่านไฟล์รูปไม่สำเร็จ'));
-            reader.readAsDataURL(blob);
-          });
-          finishImageMessage(base64data, 'flux-cloudflare');
+          const compressed = await normalizeImageForChat(blob);
+          await finishImageMessage(compressed, 'flux-cloudflare');
         }
       } catch (err: any) {
         console.error("Image generation failed:", err);
@@ -1296,20 +1373,27 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     // A. CHAT LOGIC (OpenRouter API)
     let requestModel = selectedModel;
     try {
-      const formattedMessages = targetSession.messages
-        .slice(0, -1) // remove placeholder
-        .map(m => {
-          // If the message contains a generated image from the assistant, strip the heavy base64 string
-          let content = m.content;
-          if (m.role === 'assistant') {
-            content = content.replace(/!\[(.*?)\]\(data:image\/.*?;base64,.*?\)/g, '![Image: $1](Flux generated image)');
-          }
-          return { role: m.role, content: content };
-        });
+      // History: strip heavy media; last user turn gets multimodal parts if attachments
+      const historyMsgs = targetSession.messages.slice(0, -2); // exclude user just added + placeholder
+      const formattedMessages: { role: string; content: any }[] = historyMsgs.map((m) => {
+        let content = stripHeavyMediaFromText(m.content);
+        if (m.role === 'assistant') {
+          content = content.replace(
+            /!\[[^\]]*\]\(data:image\/[^)]+\)/g,
+            '![Image](generated image omitted)'
+          );
+        }
+        return { role: m.role, content };
+      });
 
-      // Inject system prompt for the active AI Skill if selected
+      const userApiContent = buildMessageContentParts(
+        textToSend.trim() || 'โปรดวิเคราะห์ไฟล์แนบ',
+        attachmentsSnap
+      );
+      formattedMessages.push({ role: 'user', content: userApiContent });
+
       const activeSkill = AI_SKILLS.find(s => s.id === activeSkillId);
-      const messagesToSend: { role: string; content: string }[] = [...formattedMessages];
+      const messagesToSend: { role: string; content: any }[] = [...formattedMessages];
       if (activeSkill && activeSkill.systemPrompt) {
         messagesToSend.unshift({
           role: 'system',
@@ -1317,8 +1401,14 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         });
       }
 
-      // Keep the user's selected model — enable web via OpenRouter tools (not model swap to Perplexity)
       requestModel = selectedModel;
+      if (attachmentsNeedVision(attachmentsSnap)) {
+        const suggested = suggestVisionChatModel(selectedModel);
+        if (suggested) {
+          requestModel = suggested;
+          showToast(`แนบรูป: สลับแชทชั่วคราวเป็น ${suggested} (รองรับ vision)`, 'info');
+        }
+      }
 
       if (webSearch) {
         messagesToSend.unshift({
@@ -1326,6 +1416,15 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
           content:
             'You have access to real-time web search. Use it when the user needs current facts, news, or research. ' +
             'Cite sources with markdown links (e.g. [domain.com](https://...)). Prefer concise Thai answers when the user writes in Thai.'
+        });
+      }
+
+      if (attachmentsSnap.some((a) => a.textContent)) {
+        messagesToSend.unshift({
+          role: 'system',
+          content:
+            'The user attached documents (PDF/Excel/CSV/text). Base answers only on the provided extract. ' +
+            'If data is incomplete, say so. Prefer Thai when the user writes in Thai. Use markdown tables when helpful.',
         });
       }
 
@@ -1959,6 +2058,18 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                         <div className="whitespace-pre-wrap">
                           {isUser ? m.content : renderMessageContent(m.content)}
                         </div>
+                        {isUser && m.attachmentMeta && m.attachmentMeta.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {m.attachmentMeta.map((a, ai) => (
+                              <span
+                                key={ai}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20"
+                              >
+                                {a.kind === 'image' ? '🖼' : a.kind === 'spreadsheet' ? '📊' : '📄'} {a.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
                         {/* Timestamp & Meta */}
                         <div className="mt-2 text-[9px] text-theme-text-muted flex flex-col gap-2 font-mono font-bold">
@@ -2072,49 +2183,35 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                       </div>
                     </div>
 
-                    {/* Primary choice: Free vs Quality */}
-                    <div className="grid grid-cols-2 gap-1.5">
+                    {/* Primary choice: Free vs Quality — compact chips */}
+                    <div className="flex flex-wrap gap-1.5">
                       <button
                         type="button"
                         disabled={isGenerating}
                         onClick={() => applyDrawPath('free_flux')}
                         className={cn(
-                          "text-left px-2.5 py-2 rounded-xl border transition-all cursor-pointer select-none",
+                          "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-extrabold transition-all cursor-pointer select-none",
                           drawEngine === 'flux_cf'
-                            ? "border-emerald-400/60 bg-emerald-500/15 shadow-sm ring-1 ring-emerald-400/30"
-                            : "border-theme-border/70 bg-theme-surface/80 hover:border-emerald-400/40"
+                            ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-400/30"
+                            : "border-theme-border/70 bg-theme-surface/80 text-theme-text-secondary hover:border-emerald-400/40"
                         )}
                       >
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-[11px] font-extrabold text-theme-text">ฟรี · Flux</span>
-                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
-                            ไม่คิด OR image
-                          </span>
-                        </div>
-                        <p className="text-[9px] text-theme-text-muted mt-0.5 leading-snug">
-                          Worker เดิม · แปลไทย→EN อัตโนมัติ · ภาพ mood เร็ว
-                        </p>
+                        ฟรี · Flux
+                        <span className="text-[8px] font-bold opacity-80">ไม่เสีย image</span>
                       </button>
                       <button
                         type="button"
                         disabled={isGenerating}
                         onClick={() => applyDrawPath('quality', { intent: drawIntent })}
                         className={cn(
-                          "text-left px-2.5 py-2 rounded-xl border transition-all cursor-pointer select-none",
+                          "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-extrabold transition-all cursor-pointer select-none",
                           drawEngine === 'openrouter'
-                            ? "border-violet-400/60 bg-violet-500/15 shadow-sm ring-1 ring-violet-400/30"
-                            : "border-theme-border/70 bg-theme-surface/80 hover:border-violet-400/40"
+                            ? "border-violet-400/60 bg-violet-500/15 text-violet-800 dark:text-violet-200 ring-1 ring-violet-400/30"
+                            : "border-theme-border/70 bg-theme-surface/80 text-theme-text-secondary hover:border-violet-400/40"
                         )}
                       >
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-[11px] font-extrabold text-theme-text">คมชัด · Banana</span>
-                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/25">
-                            ใช้ API Key
-                          </span>
-                        </div>
-                        <p className="text-[9px] text-theme-text-muted mt-0.5 leading-snug">
-                          Nano Banana / GPT · ไทย+Infographic คม · อาจมีค่าใช้จ่าย
-                        </p>
+                        คมชัด · Banana
+                        <span className="text-[8px] font-bold opacity-80">API Key</span>
                       </button>
                     </div>
 
@@ -2316,6 +2413,50 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                 </div>
               )}
 
+              {/* Pending attachments chips */}
+              {pendingAttachments.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {pendingAttachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="inline-flex items-center gap-1.5 max-w-full px-2 py-1 rounded-xl border border-theme-border bg-theme-surface text-[10px] font-bold text-theme-text"
+                    >
+                      {att.kind === 'image' && att.dataUrl ? (
+                        <img src={att.dataUrl} alt="" className="w-6 h-6 rounded object-cover shrink-0" />
+                      ) : att.kind === 'pdf' ? (
+                        <FileText size={12} className="text-rose-500 shrink-0" />
+                      ) : att.kind === 'spreadsheet' ? (
+                        <Table2 size={12} className="text-emerald-600 shrink-0" />
+                      ) : (
+                        <FileText size={12} className="text-theme-text-muted shrink-0" />
+                      )}
+                      <span className="truncate max-w-[9rem]">{att.name}</span>
+                      <button
+                        type="button"
+                        className="p-0.5 rounded hover:bg-theme-surface-secondary text-theme-text-muted cursor-pointer"
+                        onClick={() => setPendingAttachments((prev) => prev.filter((p) => p.id !== att.id))}
+                        title="ลบแนบ"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                multiple
+                accept={
+                  drawMode
+                    ? 'image/png,image/jpeg,image/webp,image/gif'
+                    : 'image/png,image/jpeg,image/webp,image/gif,application/pdf,.pdf,.xlsx,.xls,.csv,text/plain,.txt,.md'
+                }
+                onChange={(e) => void handlePickFiles(e.target.files)}
+              />
+
               <form 
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -2323,6 +2464,21 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                 }}
                 className="relative flex items-center gap-2 bg-theme-surface dark:bg-theme-surface-secondary/70 rounded-2xl border border-theme-border-strong p-1.5 focus-within:border-indigo-500/80 focus-within:shadow-[0_0_12px_rgba(99,102,241,0.05)] transition-all"
               >
+                <button
+                  type="button"
+                  disabled={isGenerating || isProcessingFiles}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={cn(
+                    "p-2.5 rounded-xl flex items-center justify-center border transition-all shrink-0 select-none",
+                    isProcessingFiles
+                      ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-500"
+                      : "bg-theme-surface border-theme-border/80 text-theme-text-muted hover:text-theme-text disabled:opacity-40"
+                  )}
+                  title={drawMode ? 'แนบรูปเป็น ref (โหมดคมชัด · Banana)' : 'แนบรูป / PDF / Excel / CSV / ข้อความ'}
+                >
+                  {isProcessingFiles ? <RefreshCw size={14} className="animate-spin" /> : <Paperclip size={14} />}
+                </button>
+
                 {/* Web Search Toggle Switch — enables OpenRouter web_search for ANY selected model */}
                 <button
                   type="button"
@@ -2413,14 +2569,19 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                               : (AI_SKILLS.find(s => s.id === activeSkillId)?.placeholder || "พิมพ์คำถามของคุณเพื่อคุยกับ AI..."))
                           : "กรุณาใส่ API Key ด้านซ้ายเพื่อเริ่มสนทนา")
                   }
-                  disabled={(!apiKey && !drawMode) || isGenerating}
+                  disabled={(!apiKey && !drawMode) || isGenerating || isProcessingFiles}
                   rows={1}
                   className="flex-1 bg-transparent border-0 outline-none text-sm text-theme-text placeholder-theme-text-muted py-2.5 px-3 resize-none max-h-32 min-h-[38px] leading-relaxed custom-scrollbar disabled:opacity-50"
                 />
                 
                 <button
                   type="submit"
-                  disabled={(!apiKey && !drawMode) || !input.trim() || isGenerating}
+                  disabled={
+                    (!apiKey && !(drawMode && drawEngine === 'flux_cf')) ||
+                    (!input.trim() && pendingAttachments.length === 0) ||
+                    isGenerating ||
+                    isProcessingFiles
+                  }
                   className={cn(
                     "p-2.5 rounded-xl flex items-center justify-center text-white transition-all scale-95 hover:scale-100 disabled:opacity-50 disabled:scale-95 shrink-0",
                     isGenerating
