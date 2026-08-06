@@ -1850,14 +1850,14 @@ export default function AiChatPage() {
 
       {/* SEARCH MODELS MODAL */}
       {isSearchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg rounded-2xl border border-theme-border/80 bg-theme-surface/95 dark:bg-theme-bg-page/95 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-theme-text animate-scale-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-3xl rounded-2xl border border-theme-border/80 bg-theme-surface/95 dark:bg-theme-bg-page/95 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[88vh] text-theme-text animate-scale-in">
             
             {/* Header */}
-            <div className="p-4 border-b border-theme-border/50 bg-theme-surface-secondary/40 flex justify-between items-center shrink-0">
-              <div>
-                <h3 className="font-bold text-sm">ค้นหาโมเดล OpenRouter ทั้งหมด</h3>
-                <p className="text-[10px] text-theme-text-muted mt-0.5">
+            <div className="px-5 py-4 border-b border-theme-border/50 bg-theme-surface-secondary/40 flex justify-between items-center shrink-0 gap-3">
+              <div className="min-w-0">
+                <h3 className="font-bold text-base">ค้นหาโมเดล OpenRouter ทั้งหมด</h3>
+                <p className="text-xs text-theme-text-muted mt-1">
                   เลือกจากโมเดล Live — กรองตามประเภทงานเพื่อไม่ให้เลือกโมเดลผิดโจทย์
                 </p>
               </div>
@@ -1868,34 +1868,34 @@ export default function AiChatPage() {
                   setModelCategoryFilter('all');
                   setModelTierFilter('all');
                 }}
-                className="p-1 rounded-lg text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-secondary transition-all cursor-pointer"
+                className="p-1.5 rounded-lg text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-secondary transition-all cursor-pointer shrink-0"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
             {/* Search + Filters */}
-            <div className="p-3 border-b border-theme-border/30 bg-theme-surface-secondary/20 space-y-2.5 shrink-0">
+            <div className="px-5 py-4 border-b border-theme-border/30 bg-theme-surface-secondary/20 space-y-3 shrink-0">
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ค้นหา เช่น claude, gemini, gpt, deepseek, llama..."
-                  className="flex-1 text-xs py-2.5 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="flex-1 text-sm py-2.5 px-3.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
                   autoFocus
                 />
                 {isLoadingModels && (
                   <div className="flex items-center justify-center px-2">
-                    <RefreshCw size={14} className="animate-spin text-indigo-500" />
+                    <RefreshCw size={16} className="animate-spin text-indigo-500" />
                   </div>
                 )}
               </div>
 
               {/* Use-case category filters */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">
                     เหมาะสำหรับ (ประเภทงาน)
                   </span>
                   {(modelCategoryFilter !== 'all' || modelTierFilter !== 'all') && (
@@ -1905,19 +1905,19 @@ export default function AiChatPage() {
                         setModelCategoryFilter('all');
                         setModelTierFilter('all');
                       }}
-                      className="text-[9px] font-bold text-indigo-500 hover:text-indigo-600 cursor-pointer"
+                      className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 cursor-pointer shrink-0"
                     >
                       ล้างตัวกรอง
                     </button>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     data-active={modelCategoryFilter === 'all'}
                     onClick={() => setModelCategoryFilter('all')}
                     className={cn(
-                      "px-2 py-1 rounded-lg text-[9px] font-bold border transition-all cursor-pointer",
+                      "px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer",
                       "border-theme-border text-theme-text-secondary data-[active=true]:bg-indigo-500/15 data-[active=true]:border-indigo-400 data-[active=true]:text-indigo-700 dark:data-[active=true]:text-indigo-200"
                     )}
                   >
@@ -1934,19 +1934,19 @@ export default function AiChatPage() {
                         data-active={modelCategoryFilter === cat}
                         onClick={() => setModelCategoryFilter(cat)}
                         className={cn(
-                          "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold border transition-all cursor-pointer",
+                          "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer",
                           meta.chipClass
                         )}
                       >
-                        <Icon size={10} />
+                        <Icon size={12} />
                         {meta.shortLabel}
                       </button>
                     );
                   })}
                 </div>
                 {/* Tier filter */}
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  <span className="text-[9px] font-bold text-theme-text-muted self-center mr-0.5">ราคา:</span>
+                <div className="flex flex-wrap gap-2 pt-0.5">
+                  <span className="text-[10px] font-bold text-theme-text-muted self-center mr-0.5">ราคา:</span>
                   {([
                     { id: 'all' as const, label: 'ทุก tier' },
                     { id: 'free' as const, label: 'Free' },
@@ -1958,7 +1958,7 @@ export default function AiChatPage() {
                       data-active={modelTierFilter === t.id}
                       onClick={() => setModelTierFilter(t.id)}
                       className={cn(
-                        "px-2 py-1 rounded-lg text-[9px] font-bold border transition-all cursor-pointer",
+                        "px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer",
                         "border-theme-border text-theme-text-secondary data-[active=true]:bg-emerald-500/15 data-[active=true]:border-emerald-400 data-[active=true]:text-emerald-700 dark:data-[active=true]:text-emerald-200"
                       )}
                     >
@@ -1967,7 +1967,7 @@ export default function AiChatPage() {
                   ))}
                 </div>
                 {modelCategoryFilter === 'web' && (
-                  <p className="text-[9px] text-indigo-600 dark:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2 py-1.5 leading-relaxed">
+                  <p className="text-[11px] text-indigo-600 dark:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-xl px-3 py-2 leading-relaxed">
                     💡 งานค้นหาข่าว/ข้อมูลสด ควรเลือกโมเดลป้าย <strong>ค้นหาเว็บ</strong> (เช่น Perplexity Sonar)
                     โมเดลทั่วไปไม่ค้นหาอินเทอร์เน็ตได้เอง — กดปุ่ม “ค้นหาเว็บ ON” จะสลับไป Sonar ให้อัตโนมัติ
                   </p>
@@ -1976,13 +1976,13 @@ export default function AiChatPage() {
             </div>
 
             {/* Model List */}
-            <div className="flex-1 overflow-y-auto p-2 divide-y divide-theme-border/20 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
               {isLoadingModels && fetchedModels.length === 0 ? (
-                <div className="py-8 text-center text-xs text-theme-text-muted animate-pulse">
+                <div className="py-12 text-center text-sm text-theme-text-muted animate-pulse">
                   กำลังโหลดรายการโมเดลล่าสุดจาก OpenRouter...
                 </div>
               ) : filteredSearchModels.length === 0 ? (
-                <div className="py-8 text-center text-xs text-theme-text-muted space-y-2">
+                <div className="py-12 text-center text-sm text-theme-text-muted space-y-2">
                   <p>ไม่พบโมเดลตามเงื่อนไขที่เลือก</p>
                   <button
                     type="button"
@@ -2008,13 +2008,13 @@ export default function AiChatPage() {
                       setModelCategoryFilter('all');
                       setModelTierFilter('all');
                     }}
-                    className="w-full text-left p-3 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors rounded-xl flex flex-col gap-1.5 group cursor-pointer border border-transparent hover:border-indigo-100 dark:hover:border-indigo-500/10"
+                    className="w-full text-left px-4 py-3.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors rounded-xl flex flex-col gap-2 group cursor-pointer border border-transparent hover:border-indigo-100 dark:hover:border-indigo-500/10"
                   >
-                    <div className="flex items-center justify-between w-full gap-2">
-                      <span className="text-xs font-bold group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    <div className="flex items-start justify-between w-full gap-3">
+                      <span className="text-sm font-bold group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug">
                         {m.name}
                       </span>
-                      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                      <span className={`shrink-0 mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold ${
                         m.tier === 'paid' 
                           ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25' 
                           : 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/25'
@@ -2022,12 +2022,12 @@ export default function AiChatPage() {
                         {m.tier === 'paid' ? 'Paid' : 'Free'}
                       </span>
                     </div>
-                    <span className="text-[9px] font-mono text-theme-text-muted select-all">
+                    <span className="text-[11px] font-mono text-theme-text-muted select-all">
                       {m.id}
                     </span>
                     {/* Capability badges */}
                     {m.categories?.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {m.categories
                           .filter((c) => c !== 'general' || m.categories.length === 1)
                           .slice(0, 5)
@@ -2040,11 +2040,11 @@ export default function AiChatPage() {
                                 key={c}
                                 title={meta.hint}
                                 className={cn(
-                                  "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold border",
+                                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border",
                                   meta.badgeClass
                                 )}
                               >
-                                <Icon size={9} />
+                                <Icon size={11} />
                                 {meta.shortLabel}
                               </span>
                             );
@@ -2053,18 +2053,18 @@ export default function AiChatPage() {
                           <span
                             title={MODEL_CATEGORY_META.general.hint}
                             className={cn(
-                              "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold border",
+                              "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border",
                               MODEL_CATEGORY_META.general.badgeClass
                             )}
                           >
-                            <MessagesSquare size={9} />
+                            <MessagesSquare size={11} />
                             ทั่วไป
                           </span>
                         )}
                       </div>
                     )}
                     {m.description && (
-                      <p className="text-[10px] text-theme-text-secondary leading-relaxed line-clamp-2 mt-0.5">
+                      <p className="text-xs text-theme-text-secondary leading-relaxed line-clamp-2">
                         {m.description}
                       </p>
                     )}
@@ -2074,7 +2074,7 @@ export default function AiChatPage() {
             </div>
 
             {/* Footer */}
-            <div className="p-3 border-t border-theme-border/50 bg-theme-surface-secondary/40 text-[9px] text-theme-text-muted flex justify-between items-center shrink-0 gap-2">
+            <div className="px-5 py-3.5 border-t border-theme-border/50 bg-theme-surface-secondary/40 text-[11px] text-theme-text-muted flex justify-between items-center shrink-0 gap-3">
               <span>
                 แสดง {filteredSearchModels.length.toLocaleString()} / {fetchedModels.length.toLocaleString()} รายการ
               </span>
@@ -2098,9 +2098,9 @@ export default function AiChatPage() {
                     setIsLoadingModels(false);
                   }
                 }}
-                className="inline-flex items-center gap-1 hover:text-theme-text font-bold transition-all cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1.5 hover:text-theme-text font-bold transition-all cursor-pointer shrink-0"
               >
-                <RefreshCw size={10} className={isLoadingModels ? "animate-spin" : ""} /> รีเฟรชรายการ
+                <RefreshCw size={12} className={isLoadingModels ? "animate-spin" : ""} /> รีเฟรชรายการ
               </button>
             </div>
 
