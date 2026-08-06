@@ -458,6 +458,46 @@ function detectDrawIntent(text: string): DrawIntent {
   return 'illustration';
 }
 
+/** Markdown image alt must be single-line without ] or newlines or the bubble shows raw "![..." junk */
+function sanitizeImageAlt(text: string): string {
+  return (text || 'Generated image')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[\[\]]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'Generated image';
+}
+
+function formatImageMarkdown(imageUrl: string, alt: string): string {
+  return `![${sanitizeImageAlt(alt)}](${imageUrl})`;
+}
+
+/** Parse ![alt](url) — supports long data: URLs; rejects multiline alt leftovers from old bugs */
+function parseImageMarkdown(text: string): { alt: string; url: string } | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('![')) return null;
+  const closeAlt = trimmed.indexOf('](');
+  if (closeAlt < 2) return null;
+  const alt = trimmed.slice(2, closeAlt);
+  if (/[\r\n]/.test(alt)) return null;
+  let i = closeAlt + 2;
+  let url = '';
+  if (trimmed.startsWith('data:', i)) {
+    // data URLs: take rest until final closing )
+    const lastParen = trimmed.lastIndexOf(')');
+    if (lastParen <= i) return null;
+    url = trimmed.slice(i, lastParen);
+  } else {
+    const closeUrl = trimmed.indexOf(')', i);
+    if (closeUrl < 0) return null;
+    url = trimmed.slice(i, closeUrl);
+  }
+  if (!url || (!url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('blob:'))) {
+    return null;
+  }
+  return { alt: alt || 'Generated image', url };
+}
+
 interface AISkill {
   id: string;
   name: string;
@@ -549,7 +589,7 @@ export default function AiChatPage() {
   // Flux Custom Parameters
   const [fluxStyle, setFluxStyle] = useState<string>('none');
   const [fluxRatio, setFluxRatio] = useState<string>('1:1');
-  const [fluxSteps, setFluxSteps] = useState<number>(4);
+  const [fluxSteps] = useState<number>(4);
 
   // Image Generation settings
   const [drawEngine, setDrawEngine] = useState<'flux_cf' | 'openrouter'>(() => (localStorage.getItem('openrouter_draw_engine') as 'flux_cf' | 'openrouter') || 'openrouter');
@@ -557,6 +597,8 @@ export default function AiChatPage() {
   const [drawIntent, setDrawIntent] = useState<DrawIntent>('illustration');
   /** Content from chat bubble to visualize (not only the short instruction in the input) */
   const [drawSourceText, setDrawSourceText] = useState<string>('');
+  /** Image settings panel collapsed by default so chat stays readable */
+  const [imageSettingsOpen, setImageSettingsOpen] = useState<boolean>(false);
 
   const handleCopyText = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -848,6 +890,7 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
 
     setDrawMode(true);
     setWebSearch(false);
+    setImageSettingsOpen(false); // keep chat visible — compact bar only
     setDrawIntent(resolvedIntent);
     setDrawSourceText(clean);
     setDrawEngine('openrouter');
@@ -868,7 +911,7 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     }
 
     showToast(
-      `แนะนำ: ${rec.shortName} (${rec.badge}) — กดส่งเพื่อสร้างรูป`,
+      `พร้อมสร้างรูปด้วย ${rec.shortName} — กดส่งได้เลย (ตั้งค่าเพิ่มกดที่แถบบนช่องพิมพ์)`,
       'info'
     );
   };
@@ -951,10 +994,6 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         drawEngine === 'openrouter'
           ? (imagePreset?.shortName || openrouterImageModel)
           : 'Flux Cloudflare (ฟรี)';
-      const engineLabel =
-        drawEngine === 'openrouter'
-          ? `OpenRouter · ${imageModelLabel}`
-          : 'Flux Cloudflare (ฟรี — ตัวอักษรไทยอาจเพี้ยน)';
 
       // Warn if free/weak text model used for infographic
       if (
@@ -979,12 +1018,10 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         selectedModel
       );
 
-      const promptPreview = finalPrompt.length > 500 ? finalPrompt.slice(0, 500) + '…' : finalPrompt;
       translationStatus =
-        `✓ ออกแบบคำสั่งภาพสำเร็จ (Step 1/2)\n` +
-        `โมเดลรูป: **${imageModelLabel}** · โหมด: ${activeDrawIntent}\n` +
-        `---\n${promptPreview}\n---\n\n` +
-        `⏳ กำลังสร้างรูปด้วย ${engineLabel} (Step 2/2)...`;
+        `⏳ กำลังสร้างรูป…\n` +
+        `โมเดล: ${imageModelLabel} · ${activeDrawIntent} · ${fluxRatio}\n` +
+        `อย่าปิดหน้านี้ (อาจใช้เวลา 15–90 วินาที)`;
 
       setSessions(prevSessions => {
         const updated = prevSessions.map(s => {
@@ -1020,13 +1057,17 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
       }
 
       const finishImageMessage = (imageUrl: string, usedModel: string) => {
+        if (!imageUrl || typeof imageUrl !== 'string') {
+          throw new Error('ไม่พบ URL รูปภาพจากระบบสร้างรูป');
+        }
         setSessions(prevSessions => {
           const updated = prevSessions.map(s => {
             if (s.id === currentSessionId) {
               const messagesCopy = [...s.messages];
+              // Short single-line alt only — long/multiline prompt used to break markdown and look "stuck"
               messagesCopy[messagesCopy.length - 1] = {
                 role: 'assistant',
-                content: `![${promptWithStyle.slice(0, 120)}](${imageUrl})`,
+                content: formatImageMarkdown(imageUrl, imageModelLabel),
                 timestamp: new Date().toISOString(),
                 modelUsed: usedModel
               };
@@ -1039,7 +1080,12 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         });
         setDrawSourceText('');
         setIsGenerating(false);
+        showToast('สร้างรูปสำเร็จ', 'success');
       };
+
+      const abortCtrl = new AbortController();
+      const timeoutMs = 120_000;
+      const timeoutId = window.setTimeout(() => abortCtrl.abort(), timeoutMs);
 
       try {
         if (drawEngine === 'openrouter') {
@@ -1059,12 +1105,17 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
               "X-Title": "Worklog AI Chat Image Generator",
               "Content-Type": "application/json"
             },
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
+            signal: abortCtrl.signal,
           });
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData?.error?.message || errorData?.error || `HTTP error (${response.status})`);
+            const msg =
+              errorData?.error?.message ||
+              (typeof errorData?.error === 'string' ? errorData.error : null) ||
+              `HTTP error (${response.status})`;
+            throw new Error(msg);
           }
 
           const json = await response.json();
@@ -1074,8 +1125,15 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
             const media = item.media_type || 'image/png';
             imageUrl = `data:${media};base64,${item.b64_json}`;
           }
+          // Some providers nest differently
+          if (!imageUrl && typeof item?.image_url === 'string') {
+            imageUrl = item.image_url;
+          }
+          if (!imageUrl && item?.image_url?.url) {
+            imageUrl = item.image_url.url;
+          }
           if (!imageUrl) {
-            throw new Error("OpenRouter API ไม่ได้คืนค่ารูปภาพกลับมา");
+            throw new Error("OpenRouter API ไม่ได้คืนค่ารูปภาพกลับมา (ลองโมเดลอื่นหรือตรวจเครดิตบัญชี)");
           }
 
           finishImageMessage(imageUrl, openrouterImageModel);
@@ -1090,7 +1148,8 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
               prompt: promptWithStyle,
               steps: fluxSteps,
               aspectRatio: fluxRatio
-            })
+            }),
+            signal: abortCtrl.signal,
           });
 
           if (!response.ok) {
@@ -1099,16 +1158,30 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
           }
 
           const blob = await response.blob();
-          const reader = new FileReader();
-          reader.readAsDataURL(blob);
-          reader.onloadend = () => {
-            const base64data = reader.result as string;
-            finishImageMessage(base64data, 'flux-cloudflare');
-          };
+          if (!blob || blob.size < 32) {
+            throw new Error('Cloudflare ไม่ได้ส่งไฟล์รูปกลับมา');
+          }
+          const base64data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (typeof reader.result === 'string' && reader.result.startsWith('data:')) {
+                resolve(reader.result);
+              } else {
+                reject(new Error('แปลงรูปเป็น base64 ไม่สำเร็จ'));
+              }
+            };
+            reader.onerror = () => reject(new Error('อ่านไฟล์รูปไม่สำเร็จ'));
+            reader.readAsDataURL(blob);
+          });
+          finishImageMessage(base64data, 'flux-cloudflare');
         }
       } catch (err: any) {
         console.error("Image generation failed:", err);
-        showToast(`สร้างรูปภาพล้มเหลว: ${err.message}`, 'error');
+        const isAbort = err?.name === 'AbortError';
+        const errMsg = isAbort
+          ? `หมดเวลารอรูป (${timeoutMs / 1000}s) — ลองใหม่หรือเปลี่ยนโมเดล`
+          : (err?.message || 'Unknown error');
+        showToast(`สร้างรูปภาพล้มเหลว: ${errMsg}`, 'error');
         
         setSessions(prevSessions => {
           const updated = prevSessions.map(s => {
@@ -1116,8 +1189,14 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
               const messagesCopy = [...s.messages];
               messagesCopy[messagesCopy.length - 1] = {
                 role: 'assistant',
-                content: `${translationStatus}\n\n❌ เกิดข้อผิดพลาดในการสร้างภาพ (Step 2/2): ${err.message}\n\nลองเปลี่ยนโมเดลรูป (แนะนำ Nano Banana 2) หรือตรวจ API Key`,
-                timestamp: new Date().toISOString()
+                content:
+                  `❌ สร้างรูปไม่สำเร็จ\n\n` +
+                  `**สาเหตุ:** ${errMsg}\n\n` +
+                  `**โมเดล:** ${imageModelLabel}\n` +
+                  `**คำแนะนำ:** ตรวจ OpenRouter API Key / เครดิต · ลอง Nano Banana 2 อีกครั้ง · หรือสลับ Cloudflare ฟรีสำหรับภาพ mood\n\n` +
+                  `<details><summary>คำสั่งภาพที่ใช้</summary>\n\n${promptWithStyle.slice(0, 800)}\n\n</details>`,
+                timestamp: new Date().toISOString(),
+                modelUsed: drawEngine === 'openrouter' ? openrouterImageModel : 'flux-cloudflare',
               };
               return { ...s, messages: messagesCopy };
             }
@@ -1127,6 +1206,8 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
           return updated;
         });
         setIsGenerating(false);
+      } finally {
+        window.clearTimeout(timeoutId);
       }
       return;
     }
@@ -1316,19 +1397,27 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     if (!text) return null;
     
     // Check if the message is a Markdown Image: ![alt](url)
-    const imgMatch = text.match(/^!\[(.*?)\]\((.*?)\)$/);
-    if (imgMatch) {
-      const altText = imgMatch[1];
-      const imageUrl = imgMatch[2];
+    const parsedImg = parseImageMarkdown(text);
+    if (parsedImg) {
+      const altText = parsedImg.alt;
+      const imageUrl = parsedImg.url;
 
       return (
         <div className="space-y-3 my-2 max-w-full">
           <div className="rounded-2xl border border-theme-border/60 overflow-hidden bg-slate-900/5 dark:bg-slate-950/20 max-w-sm shadow-md">
             <img 
               src={imageUrl} 
-              alt={altText} 
+              alt={altText}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+                const sib = (e.target as HTMLImageElement).nextElementSibling;
+                if (sib) (sib as HTMLElement).hidden = false;
+              }}
               className="max-w-full h-auto object-cover select-text block transition-transform hover:scale-[1.01]" 
             />
+            <div hidden className="p-3 text-[11px] text-rose-500 font-semibold">
+              โหลดรูปไม่สำเร็จ (URL หมดอายุหรือเสีย) — ลองสร้างใหม่
+            </div>
             <div className="p-3 border-t border-theme-border/60 bg-theme-surface/50 dark:bg-theme-bg-page/40 flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-theme-text-muted font-bold tracking-wide">AI Image</span>
@@ -1347,6 +1436,18 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
               )}
             </div>
           </div>
+        </div>
+      );
+    }
+
+    // Old/broken image markdown (multiline alt) looked like generation "stuck" as raw text
+    if (text.trim().startsWith('![') && text.includes('](')) {
+      return (
+        <div className="space-y-2 text-xs text-theme-text-secondary">
+          <p className="font-bold text-amber-600 dark:text-amber-400">
+            ⚠️ ข้อความนี้เป็นผลสร้างรูปรุ่นเก่าที่แสดงไม่ถูกต้อง
+          </p>
+          <p>กรุณากดสร้างรูปใหม่อีกครั้ง (ระบบแก้การบันทึกรูปแล้ว)</p>
         </div>
       );
     }
@@ -1850,209 +1951,195 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                 </div>
               )}
 
-              {/* Image Settings — only when Draw Mode is ON */}
+              {/* Image mode: compact summary by default (don't cover chat) */}
               {drawMode && (
-                <div className="mb-3 p-3 rounded-2xl border border-violet-500/20 bg-violet-500/5 dark:bg-violet-950/10 backdrop-blur-md space-y-3 animate-fade-in text-xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-violet-500/10 pb-2 gap-2">
-                    <span className="font-extrabold text-violet-600 dark:text-violet-400 flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
-                      <Palette size={12} className="animate-pulse" />
-                      โหมดสร้างรูป (แยกจากแชทข้อความ)
+                <div className="mb-2 space-y-2 animate-fade-in text-xs">
+                  <div className="flex flex-wrap items-center gap-2 px-2.5 py-2 rounded-xl border border-violet-500/25 bg-violet-500/5 dark:bg-violet-950/20">
+                    <span className="inline-flex items-center gap-1 font-extrabold text-violet-600 dark:text-violet-300 text-[10px] uppercase tracking-wide shrink-0">
+                      <Palette size={12} />
+                      สร้างรูป
                     </span>
-                    <span className="text-[9px] text-theme-text-muted">
-                      {drawSourceText
-                        ? `ใช้เนื้อหาจากแชท ${drawSourceText.length.toLocaleString()} ตัวอักษร`
-                        : 'พิมพ์คำอธิบายรูป แล้วกดส่ง'}
+                    <span className="text-[11px] font-bold text-theme-text truncate max-w-[10rem] sm:max-w-none">
+                      {drawEngine === 'openrouter'
+                        ? (getImagePreset(openrouterImageModel)?.shortName || openrouterImageModel)
+                        : 'Cloudflare ฟรี'}
                     </span>
-                  </div>
-
-                  {drawSourceText && (
-                    <div className="text-[10px] text-theme-text-secondary bg-theme-surface/60 border border-theme-border/50 rounded-xl px-2.5 py-2 line-clamp-2">
-                      📎 ต้นทาง: {drawSourceText.slice(0, 160)}{drawSourceText.length > 160 ? '…' : ''}
-                    </div>
-                  )}
-
-                  {/* Intent */}
-                  <div className="space-y-1.5">
-                    <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">ประเภทงาน (ระบบจะแนะนำโมเดลให้)</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {([
-                        { id: 'infographic' as DrawIntent, label: '📊 Infographic', tip: 'สรุปข้อมูล / โปสเตอร์หัวข้อ' },
-                        { id: 'thai_text' as DrawIntent, label: '🇹🇭 ข้อความไทยบนภาพ', tip: 'ป้าย หัวข้อ ภาษาไทยชัด' },
-                        { id: 'illustration' as DrawIntent, label: '🎨 ภาพประกอบ', tip: 'mood / hero ไม่เน้นตัวอักษร' },
-                      ]).map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          title={opt.tip}
-                          onClick={() => {
-                            setDrawIntent(opt.id);
-                            const rec = recommendImageModel(opt.id);
-                            setDrawEngine('openrouter');
-                            setOpenrouterImageModel(rec.id);
-                            localStorage.setItem('openrouter_draw_engine', 'openrouter');
-                            localStorage.setItem('openrouter_image_model', rec.id);
-                            if (opt.id === 'infographic') setFluxRatio('9:16');
-                            showToast(`แนะนำโมเดล: ${rec.shortName} — ${rec.badge}`, 'info');
-                          }}
-                          className={cn(
-                            "px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer",
-                            drawIntent === opt.id
-                              ? "bg-violet-500/15 border-violet-400 text-violet-700 dark:text-violet-200"
-                              : "border-theme-border text-theme-text-muted hover:text-theme-text"
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Engine */}
-                  <div className="space-y-1">
-                    <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">ช่องทางสร้างรูป</label>
-                    <div className="flex gap-2">
+                    <span className="text-[9px] text-theme-text-muted hidden sm:inline">·</span>
+                    <span className="text-[10px] text-theme-text-secondary">
+                      {drawIntent === 'infographic' ? 'Infographic' : drawIntent === 'thai_text' ? 'ข้อความไทย' : 'ภาพประกอบ'}
+                      {' · '}{fluxRatio}
+                    </span>
+                    {drawSourceText && (
+                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md">
+                        📎 จากแชท
+                      </span>
+                    )}
+                    <div className="flex items-center gap-1 ml-auto shrink-0">
                       <button
                         type="button"
-                        onClick={() => {
-                          setDrawEngine('openrouter');
-                          localStorage.setItem('openrouter_draw_engine', 'openrouter');
-                        }}
-                        className={cn(
-                          "flex-1 py-1.5 px-2.5 rounded-lg text-[10px] font-bold border transition-all text-center select-none cursor-pointer",
-                          drawEngine === 'openrouter'
-                            ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400 font-extrabold shadow-sm"
-                            : "bg-theme-surface border-theme-border/60 text-theme-text-muted hover:text-theme-text"
-                        )}
+                        onClick={() => setImageSettingsOpen((v) => !v)}
+                        className="px-2 py-1 rounded-lg text-[10px] font-bold border border-violet-500/30 text-violet-600 dark:text-violet-300 hover:bg-violet-500/10 cursor-pointer"
                       >
-                        🌐 OpenRouter (แนะนำ)
+                        {imageSettingsOpen ? 'ซ่อนตั้งค่า' : 'ตั้งค่า'}
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          setDrawEngine('flux_cf');
-                          localStorage.setItem('openrouter_draw_engine', 'flux_cf');
+                          setDrawMode(false);
+                          setImageSettingsOpen(false);
+                          setDrawSourceText('');
                         }}
-                        className={cn(
-                          "flex-1 py-1.5 px-2.5 rounded-lg text-[10px] font-bold border transition-all text-center select-none cursor-pointer",
-                          drawEngine === 'flux_cf'
-                            ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400 font-extrabold shadow-sm"
-                            : "bg-theme-surface border-theme-border/60 text-theme-text-muted hover:text-theme-text"
-                        )}
+                        className="px-2 py-1 rounded-lg text-[10px] font-bold border border-theme-border text-theme-text-muted hover:text-theme-text cursor-pointer"
                       >
-                        ☁️ Cloudflare ฟรี
+                        ปิด
                       </button>
                     </div>
                   </div>
 
-                  {/* Recommended model chips (OpenRouter) */}
-                  {drawEngine === 'openrouter' && (
-                    <div className="space-y-1.5">
-                      <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">
-                        โมเดลรูปภาพที่แนะนำ
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto custom-scrollbar pr-0.5">
-                        {IMAGE_MODEL_PRESETS.map((preset) => {
-                          const isActive = openrouterImageModel === preset.id;
-                          const matchesIntent = preset.bestFor.includes(drawIntent);
-                          return (
+                  {imageSettingsOpen && (
+                    <div className="p-3 rounded-2xl border border-violet-500/20 bg-violet-500/5 dark:bg-violet-950/10 backdrop-blur-md space-y-3 max-h-[min(42vh,360px)] overflow-y-auto custom-scrollbar">
+                      {drawSourceText && (
+                        <div className="text-[10px] text-theme-text-secondary bg-theme-surface/60 border border-theme-border/50 rounded-xl px-2.5 py-2 line-clamp-2">
+                          📎 ต้นทาง: {drawSourceText.slice(0, 160)}{drawSourceText.length > 160 ? '…' : ''}
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">ประเภทงาน</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {([
+                            { id: 'infographic' as DrawIntent, label: '📊 Infographic' },
+                            { id: 'thai_text' as DrawIntent, label: '🇹🇭 ข้อความไทย' },
+                            { id: 'illustration' as DrawIntent, label: '🎨 ภาพประกอบ' },
+                          ]).map((opt) => (
                             <button
-                              key={preset.id}
+                              key={opt.id}
                               type="button"
-                              title={preset.hint}
                               onClick={() => {
-                                setOpenrouterImageModel(preset.id);
-                                localStorage.setItem('openrouter_image_model', preset.id);
+                                setDrawIntent(opt.id);
+                                const rec = recommendImageModel(opt.id);
+                                setDrawEngine('openrouter');
+                                setOpenrouterImageModel(rec.id);
+                                localStorage.setItem('openrouter_draw_engine', 'openrouter');
+                                localStorage.setItem('openrouter_image_model', rec.id);
+                                if (opt.id === 'infographic') setFluxRatio('9:16');
+                                showToast(`แนะนำ: ${rec.shortName}`, 'info');
                               }}
                               className={cn(
-                                "text-left px-2.5 py-2 rounded-xl border transition-all cursor-pointer",
-                                isActive
-                                  ? "border-violet-400 bg-violet-500/15 shadow-sm"
-                                  : matchesIntent
-                                    ? "border-violet-500/25 bg-theme-surface hover:border-violet-400/50"
-                                    : "border-theme-border/60 bg-theme-surface/50 opacity-80 hover:opacity-100"
+                                "px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer",
+                                drawIntent === opt.id
+                                  ? "bg-violet-500/15 border-violet-400 text-violet-700 dark:text-violet-200"
+                                  : "border-theme-border text-theme-text-muted hover:text-theme-text"
                               )}
                             >
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="text-[11px] font-extrabold text-theme-text">{preset.shortName}</span>
-                                <span className={cn(
-                                  "text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0",
-                                  preset.textQuality === 'excellent'
-                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/25"
-                                    : preset.textQuality === 'good'
-                                      ? "bg-amber-500/10 text-amber-700 border-amber-500/25"
-                                      : "bg-slate-500/10 text-slate-500 border-slate-500/25"
-                                )}>
-                                  {preset.textQuality === 'excellent' ? 'ไทย/ข้อความดี' : preset.textQuality === 'good' ? 'ข้อความพอใช้' : 'ไม่เน้นข้อความ'}
-                                </span>
-                              </div>
-                              <p className="text-[9px] text-violet-600 dark:text-violet-300 font-bold mt-0.5">{preset.badge}</p>
-                              <p className="text-[9px] text-theme-text-muted mt-0.5 line-clamp-2 leading-snug">{preset.hint}</p>
+                              {opt.label}
                             </button>
-                          );
-                        })}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
 
-                  {drawEngine === 'flux_cf' && (
-                    <div className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-2.5 py-2 leading-relaxed">
-                      ⚠️ Cloudflare Flux ฟรีเหมาะภาพ mood เท่านั้น — Infographic / ป้ายไทยมักเพี้ยน แนะนำสลับ OpenRouter + <strong>Nano Banana 2</strong>
-                    </div>
-                  )}
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-theme-text-secondary uppercase">สไตล์ภาพ (Style)</label>
-                      <select
-                        value={fluxStyle}
-                        onChange={(e) => setFluxStyle(e.target.value)}
-                        className="w-full text-xs font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer"
-                      >
-                        <option value="none">ตามที่พิมพ์ (Default)</option>
-                        <option value="infographic">📊 Infographic แบนเนอร์</option>
-                        <option value="realistic">📸 ภาพถ่ายสมจริง (Realistic)</option>
-                        <option value="anime">🎨 การ์ตูน/อนิเมะ (Anime)</option>
-                        <option value="pixel">👾 พิกเซลอาร์ต (Pixel Art)</option>
-                        <option value="watercolor">🖌️ ภาพวาดสีน้ำ (Watercolor)</option>
-                        <option value="cyberpunk">🌌 ไซเบอร์พังก์ (Cyberpunk)</option>
-                        <option value="render3d">🧸 เรนเดอร์ 3D (3D Toy/Clay)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-theme-text-secondary uppercase">สัดส่วนภาพ (Aspect Ratio)</label>
-                      <select
-                        value={fluxRatio}
-                        onChange={(e) => setFluxRatio(e.target.value)}
-                        className="w-full text-xs font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer"
-                      >
-                        <option value="1:1">1:1 สี่เหลี่ยมจัตุรัส</option>
-                        <option value="16:9">16:9 แนวนอนกว้าง</option>
-                        <option value="9:16">9:16 แนวตั้ง (Infographic)</option>
-                        <option value="4:3">4:3 รูปถ่ายคลาสสิก</option>
-                        <option value="3:4">3:4 แนวตั้งคลาสสิก</option>
-                      </select>
-                    </div>
-
-                    {drawEngine === 'flux_cf' && (
-                      <div className="space-y-1 sm:col-span-2">
-                        <label className="block text-[10px] font-bold text-theme-text-secondary uppercase">ระดับความละเอียด (Quality)</label>
-                        <select
-                          value={fluxSteps}
-                          onChange={(e) => setFluxSteps(Number(e.target.value))}
-                          className="w-full text-xs font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer"
-                        >
-                          <option value="4">ด่วน (4 Steps - มาตรฐาน)</option>
-                          <option value="8">สูง (8 Steps - คมชัด)</option>
-                          <option value="12">สูงสุด (12 Steps - รายละเอียดครบ)</option>
-                        </select>
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">ช่องทาง</label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDrawEngine('openrouter');
+                              localStorage.setItem('openrouter_draw_engine', 'openrouter');
+                            }}
+                            className={cn(
+                              "flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold border cursor-pointer",
+                              drawEngine === 'openrouter'
+                                ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400"
+                                : "border-theme-border text-theme-text-muted"
+                            )}
+                          >
+                            OpenRouter
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDrawEngine('flux_cf');
+                              localStorage.setItem('openrouter_draw_engine', 'flux_cf');
+                            }}
+                            className={cn(
+                              "flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold border cursor-pointer",
+                              drawEngine === 'flux_cf'
+                                ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400"
+                                : "border-theme-border text-theme-text-muted"
+                            )}
+                          >
+                            Cloudflare ฟรี
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </div>
 
-                  {drawEngine === 'openrouter' && (
-                    <div className="text-[9.5px] text-violet-600 dark:text-violet-300 tracking-wide bg-violet-500/5 px-2.5 py-1.5 rounded-lg border border-violet-500/10 leading-relaxed">
-                      💡 <strong>Nano Banana / GPT Image</strong> = ข้อความบนภาพดี (รวมไทย) · <strong>Flux</strong> = ภาพสวยแต่ตัวอักษรมักเพี้ยน · มีค่าใช้จ่ายตาม OpenRouter
+                      {drawEngine === 'openrouter' && (
+                        <div className="space-y-1">
+                          <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">โมเดลรูป</label>
+                          <select
+                            value={openrouterImageModel}
+                            onChange={(e) => {
+                              setOpenrouterImageModel(e.target.value);
+                              localStorage.setItem('openrouter_image_model', e.target.value);
+                            }}
+                            className="w-full text-xs font-semibold py-2 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer"
+                          >
+                            {IMAGE_MODEL_PRESETS.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.shortName} — {p.badge}
+                              </option>
+                            ))}
+                            <option value="black-forest-labs/flux.2-flex">FLUX.2 Flex</option>
+                            <option value="black-forest-labs/flux.2-max">FLUX.2 Max</option>
+                          </select>
+                          {getImagePreset(openrouterImageModel) && (
+                            <p className="text-[9px] text-theme-text-muted leading-relaxed">
+                              {getImagePreset(openrouterImageModel)!.hint}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {drawEngine === 'flux_cf' && (
+                        <div className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-2.5 py-2">
+                          ⚠️ ฟรีเหมาะภาพ mood — ข้อความไทย/Infographic มักเพี้ยน แนะนำ OpenRouter + Nano Banana 2
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">สไตล์</label>
+                          <select
+                            value={fluxStyle}
+                            onChange={(e) => setFluxStyle(e.target.value)}
+                            className="w-full text-[11px] font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface cursor-pointer"
+                          >
+                            <option value="none">Default</option>
+                            <option value="infographic">Infographic</option>
+                            <option value="realistic">Realistic</option>
+                            <option value="anime">Anime</option>
+                            <option value="pixel">Pixel</option>
+                            <option value="watercolor">Watercolor</option>
+                            <option value="cyberpunk">Cyberpunk</option>
+                            <option value="render3d">3D</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">สัดส่วน</label>
+                          <select
+                            value={fluxRatio}
+                            onChange={(e) => setFluxRatio(e.target.value)}
+                            className="w-full text-[11px] font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface cursor-pointer"
+                          >
+                            <option value="1:1">1:1</option>
+                            <option value="16:9">16:9</option>
+                            <option value="9:16">9:16 Infographic</option>
+                            <option value="4:3">4:3</option>
+                            <option value="3:4">3:4</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2142,6 +2229,7 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                     setDrawMode(nextVal);
                     if (nextVal) {
                       setWebSearch(false);
+                      setImageSettingsOpen(false);
                       // Prefer text-strong default when opening draw mode blank
                       if (!getImagePreset(openrouterImageModel)) {
                         const rec = recommendImageModel(drawIntent);
@@ -2151,11 +2239,12 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                         localStorage.setItem('openrouter_image_model', rec.id);
                       }
                       showToast(
-                        'โหมดสร้างรูป: ปิดค้นหาเว็บแล้ว — เลือก Nano Banana/GPT สำหรับข้อความไทย หรือ Cloudflare ถ้าอยากฟรี',
+                        'โหมดสร้างรูปพร้อม — กดส่งได้เลย · ตั้งค่าเพิ่มกดปุ่ม「ตั้งค่า」',
                         'info'
                       );
                     } else {
                       setDrawSourceText('');
+                      setImageSettingsOpen(false);
                     }
                   }}
                   className={cn(
