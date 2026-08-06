@@ -484,16 +484,12 @@ export default function AiChatPage() {
       showToast(`สลับโมเดลเป็น ${matchedName}`, 'info');
 
       const cats = matched?.categories || categorizeOpenRouterModel({ id: modelId, name: modelId });
-      const supportsNativeWeb = cats.includes('web') || modelId.startsWith('perplexity/');
-
-      // Auto-enable web search only for native search models; turn off otherwise to avoid silent model swap errors
-      if (supportsNativeWeb) {
+      // Auto-enable web search for native search specialists (Perplexity etc.); keep user toggle otherwise
+      if (cats.includes('web') || modelId.startsWith('perplexity/')) {
         setWebSearch(true);
         setDrawMode(false);
-      } else if (webSearch) {
-        setWebSearch(false);
-        showToast('โมเดลนี้ไม่รองรับค้นหาเว็บโดยตรง — ปิดโหมดค้นหาเว็บแล้ว (เลือกโมเดลที่มีป้าย "ค้นหาเว็บ" เช่น Perplexity)', 'warning');
       }
+      // Do NOT force webSearch off for other models — OpenRouter web_search tool works across models
     }
   };
 
@@ -738,7 +734,9 @@ export default function AiChatPage() {
     // Add assistant processing placeholder
     const assistantPlaceholder: Message = {
       role: 'assistant',
-      content: isDrawing ? '⏳ กำลังแปลและปรับแต่งคำสั่งภาพ (Step 1/2)...' : 'กำลังพิมพ์คำตอบ...',
+      content: isDrawing
+        ? '⏳ กำลังแปลและปรับแต่งคำสั่งภาพ (Step 1/2)...'
+        : (webSearch ? '🌐 กำลังค้นหาเว็บและเรียบเรียงคำตอบ...' : 'กำลังพิมพ์คำตอบ...'),
       timestamp: new Date().toISOString()
     };
     targetSession.messages = [...targetSession.messages, assistantPlaceholder];
@@ -946,29 +944,78 @@ export default function AiChatPage() {
         });
       }
 
-      // Determine model based on webSearch toggle
-      requestModel = webSearch
-        ? (selectedModel.startsWith('perplexity/') ? selectedModel : 'perplexity/sonar')
-        : selectedModel;
+      // Keep the user's selected model — enable web via OpenRouter tools (not model swap to Perplexity)
+      requestModel = selectedModel;
 
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "HTTP-Referer": window.location.origin,
-          "X-Title": "Worklog AI Chat",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
+      if (webSearch) {
+        messagesToSend.unshift({
+          role: 'system',
+          content:
+            'You have access to real-time web search. Use it when the user needs current facts, news, or research. ' +
+            'Cite sources with markdown links (e.g. [domain.com](https://...)). Prefer concise Thai answers when the user writes in Thai.'
+        });
+      }
+
+      const openRouterHeaders = {
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": window.location.origin,
+        "X-Title": "Worklog AI Chat",
+        "Content-Type": "application/json"
+      };
+
+      // Primary: server tool (model decides when/how often to search). Fallback: legacy web plugin.
+      const buildChatBody = (mode: 'tool' | 'plugin' | 'plain') => {
+        const body: Record<string, unknown> = {
           model: requestModel,
           messages: messagesToSend,
-          stream: true
-        })
-      });
+          stream: true,
+        };
+        if (mode === 'tool' && webSearch) {
+          body.tools = [
+            {
+              type: 'openrouter:web_search',
+              parameters: {
+                engine: 'auto',
+                max_results: 5,
+                max_uses: 3,
+              },
+            },
+          ];
+        } else if (mode === 'plugin' && webSearch) {
+          body.plugins = [{ id: 'web', max_results: 5 }];
+        }
+        return body;
+      };
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData?.error?.message || `API error (${response.status})`);
+      const postChat = async (mode: 'tool' | 'plugin' | 'plain') => {
+        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: openRouterHeaders,
+          body: JSON.stringify(buildChatBody(mode)),
+        });
+        return res;
+      };
+
+      let response: Response;
+      if (webSearch) {
+        response = await postChat('tool');
+        if (!response.ok) {
+          // Some free / non-tool models reject server tools — retry with web plugin
+          const firstErr = await response.json().catch(() => ({}));
+          const firstMsg = firstErr?.error?.message || `API error (${response.status})`;
+          console.warn('Web search via server tool failed, retrying with web plugin:', firstMsg);
+          response = await postChat('plugin');
+          if (!response.ok) {
+            const secondErr = await response.json().catch(() => ({}));
+            throw new Error(secondErr?.error?.message || firstMsg || `API error (${response.status})`);
+          }
+        }
+      } else {
+        response = await postChat('plain');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData?.error?.message || `API error (${response.status})`);
+        }
       }
 
       const reader = response.body?.getReader();
@@ -1741,7 +1788,7 @@ export default function AiChatPage() {
                 }}
                 className="relative flex items-center gap-2 bg-theme-surface dark:bg-theme-surface-secondary/70 rounded-2xl border border-theme-border-strong p-1.5 focus-within:border-indigo-500/80 focus-within:shadow-[0_0_12px_rgba(99,102,241,0.05)] transition-all"
               >
-                {/* Web Search Toggle Switch */}
+                {/* Web Search Toggle Switch — enables OpenRouter web_search for ANY selected model */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1749,15 +1796,10 @@ export default function AiChatPage() {
                     setWebSearch(nextVal);
                     if (nextVal) {
                       setDrawMode(false);
-                      const isNativeWeb =
-                        selectedModel.startsWith('perplexity/') ||
-                        activeModelInfo.categories?.includes('web');
-                      if (!isNativeWeb) {
-                        showToast(
-                          'โหมดค้นหาเว็บจะใช้ Perplexity Sonar แทนโมเดลปัจจุบัน (โมเดลทั่วไปค้นหาอินเทอร์เน็ตไม่ได้) — หรือเลือกโมเดลป้าย "ค้นหาเว็บ" จากรายการ',
-                          'info'
-                        );
-                      }
+                      showToast(
+                        `เปิดค้นหาเว็บแล้ว — ใช้โมเดล ${activeModelInfo.name} ค้นหาอินเทอร์เน็ตผ่าน OpenRouter (อาจมีค่าใช้จ่ายเพิ่ม)`,
+                        'info'
+                      );
                     }
                   }}
                   className={cn(
@@ -1766,7 +1808,7 @@ export default function AiChatPage() {
                       ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-400"
                       : "bg-theme-surface border-theme-border/80 text-theme-text-muted hover:text-theme-text"
                   )}
-                  title="ค้นหาข้อมูลจากอินเทอร์เน็ตแบบเรียลไทม์ — ใช้โมเดล Perplexity / ป้ายค้นหาเว็บ"
+                  title="ค้นหาข้อมูลจากอินเทอร์เน็ตแบบเรียลไทม์ด้วยโมเดลที่เลือกอยู่ (OpenRouter web search)"
                 >
                   <Globe size={14} className={cn(webSearch && "animate-pulse")} />
                   <span className="hidden sm:inline">ค้นหาเว็บ {webSearch ? 'ON' : 'OFF'}</span>
@@ -1840,7 +1882,7 @@ export default function AiChatPage() {
               
               <div className="mt-1.5 text-center text-[9px] text-theme-text-muted font-semibold tracking-wide flex items-center justify-center gap-1">
                 <span>ผู้ให้บริการระบบ OpenRouter API | ข้อมูลจะถูกคุ้มครองตามข้อกำหนดนโยบายความเป็นส่วนตัวของ API Provider</span>
-                {webSearch && <span className="text-indigo-500">• กำลังใช้งานการค้นหาเว็บเรียลไทม์</span>}
+                {webSearch && <span className="text-indigo-500">• ค้นหาเว็บ ON — ใช้โมเดลปัจจุบัน + OpenRouter search (มีค่าใช้จ่ายเพิ่มได้)</span>}
                 {drawMode && <span className="text-violet-500">• กำลังใช้งานโหมดสร้างรูปภาพด้วย {drawEngine === 'openrouter' ? 'OpenRouter' : 'Flux Cloudflare'}</span>}
               </div>
             </div>
@@ -1968,8 +2010,8 @@ export default function AiChatPage() {
                 </div>
                 {modelCategoryFilter === 'web' && (
                   <p className="text-[11px] text-indigo-600 dark:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-xl px-3 py-2 leading-relaxed">
-                    💡 งานค้นหาข่าว/ข้อมูลสด ควรเลือกโมเดลป้าย <strong>ค้นหาเว็บ</strong> (เช่น Perplexity Sonar)
-                    โมเดลทั่วไปไม่ค้นหาอินเทอร์เน็ตได้เอง — กดปุ่ม “ค้นหาเว็บ ON” จะสลับไป Sonar ให้อัตโนมัติ
+                    💡 โมเดลป้าย <strong>ค้นหาเว็บ</strong> (เช่น Perplexity) เก่งค้นหาเป็นพิเศษ
+                    — แต่โมเดลอื่นก็ค้นหาได้เมื่อกดปุ่ม <strong>ค้นหาเว็บ ON</strong> ผ่าน OpenRouter web search
                   </p>
                 )}
               </div>
