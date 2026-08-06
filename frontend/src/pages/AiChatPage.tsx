@@ -16,6 +16,10 @@ import {
   attachmentsNeedVision,
   suggestVisionChatModel,
   stripHeavyMediaFromText,
+  isRetiredChatModel,
+  chatModelFallbackChain,
+  DEFAULT_VISION_CHAT_MODEL,
+  DEFAULT_FREE_CHAT_MODEL,
 } from '../lib/chat-files';
 
 interface Message {
@@ -284,31 +288,31 @@ const AVAILABLE_MODELS: ModelInfo[] = [
     privacy: '🔒 ปลอดภัย: มีนโยบายรักษาความเป็นส่วนตัวในการเข้าถึงข้อมูลผ่าน API',
     categories: ['web', 'reasoning', 'general'],
   },
-  // Free Tier (For standard queries/non-sensitive data)
+  // Free Tier — only IDs that still have OpenRouter endpoints (retired free models removed)
   {
     id: 'openrouter/free',
     name: 'Auto Free Router (Free - แนะนำ)',
     tier: 'free',
-    description: 'สลับเลือกโมเดลใช้งานฟรีที่เปิดให้บริการอยู่แบบอัตโนมัติ แก้ปัญหาโมเดลปลายทางออฟไลน์',
+    description: 'สลับเลือกโมเดลฟรีที่ยังออนไลน์อัตโนมัติ ลดปัญหา No endpoints found',
     privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ',
     categories: ['general'],
   },
   {
-    id: 'google/gemini-2.0-flash-exp:free',
-    name: 'Gemini 2.0 Flash Exp (Free)',
+    id: 'google/gemma-4-31b-it:free',
+    name: 'Gemma 4 31B (Free)',
     tier: 'free',
-    description: 'โมเดลรุ่นทดลองรวดเร็วจาก Google ตอบสนองคำสั่งแบบกระชับฉับไว',
-    privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ',
-    categories: ['general', 'vision'],
-  },
-  {
-    id: 'meta-llama/llama-3.3-70b-instruct:free',
-    name: 'Llama 3.3 70B (Free)',
-    tier: 'free',
-    description: 'โมเดลประสิทธิภาพสูงระดับ 70B ล่าสุดจาก Meta ตอบสนองรวดเร็วเป็นธรรมชาติ',
+    description: 'โมเดลฟรีจาก Google ใช้คุยทั่วไป/สรุปข้อความ (แนบรูปจะสลับไป vision model ให้อัตโนมัติ)',
     privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ',
     categories: ['general'],
-  }
+  },
+  {
+    id: 'google/gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash (แนะนำแนบรูป)',
+    tier: 'paid',
+    description: '⚡ เร็ว รองรับรูป/ไฟล์ — ใช้เมื่อวิเคราะห์ภาพ ราคาถูก (ไม่ใช่ free tier แต่เสถียรกว่า free เก่าที่ปิดแล้ว)',
+    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+    categories: ['general', 'vision', 'tools'],
+  },
 ];
 
 const QUICK_PROMPTS = [
@@ -577,7 +581,15 @@ export default function AiChatPage() {
   // Settings States
   const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('openrouter_chat_api_key') || '');
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
-  const [selectedModel, setSelectedModel] = useState<string>(() => localStorage.getItem('openrouter_chat_model') || AVAILABLE_MODELS[0].id);
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    const stored = localStorage.getItem('openrouter_chat_model') || AVAILABLE_MODELS[0].id;
+    if (isRetiredChatModel(stored)) {
+      const next = DEFAULT_FREE_CHAT_MODEL;
+      localStorage.setItem('openrouter_chat_model', next);
+      return next;
+    }
+    return stored;
+  });
   const [isEditingKey, setIsEditingKey] = useState<boolean>(() => !localStorage.getItem('openrouter_chat_api_key'));
   const [webSearch, setWebSearch] = useState<boolean>(false);
   const [drawMode, setDrawMode] = useState<boolean>(false);
@@ -588,7 +600,8 @@ export default function AiChatPage() {
   const [fetchedModels, setFetchedModels] = useState<ModelInfo[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
   const [customModelId, setCustomModelId] = useState<string>(() => {
-    const stored = localStorage.getItem('openrouter_chat_model') || AVAILABLE_MODELS[0].id;
+    let stored = localStorage.getItem('openrouter_chat_model') || AVAILABLE_MODELS[0].id;
+    if (isRetiredChatModel(stored)) stored = DEFAULT_FREE_CHAT_MODEL;
     const isPreset = AVAILABLE_MODELS.some(m => m.id === stored);
     return isPreset ? '' : stored;
   });
@@ -866,9 +879,9 @@ export default function AiChatPage() {
     const keepThai = preset?.keepThaiInPrompt ?? false;
     const modelsToTry = [
       activeModel,
-      "google/gemini-2.0-flash:free",
-      "meta-llama/llama-3-8b-instruct:free",
-      "openrouter/free",
+      DEFAULT_VISION_CHAT_MODEL,
+      "google/gemini-2.5-flash-lite",
+      DEFAULT_FREE_CHAT_MODEL,
     ];
 
     const sourceBlock = sourceContent.trim()
@@ -1401,13 +1414,19 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         });
       }
 
-      requestModel = selectedModel;
+      // Start from selected model; force vision-capable id when images attached
+      requestModel = isRetiredChatModel(selectedModel) ? DEFAULT_FREE_CHAT_MODEL : selectedModel;
       if (attachmentsNeedVision(attachmentsSnap)) {
-        const suggested = suggestVisionChatModel(selectedModel);
+        const suggested = suggestVisionChatModel(requestModel);
         if (suggested) {
           requestModel = suggested;
-          showToast(`แนบรูป: สลับแชทชั่วคราวเป็น ${suggested} (รองรับ vision)`, 'info');
+          showToast(`แนบรูป: ใช้ ${suggested} (รองรับ vision · โมเดลเดิมอาจไม่มี endpoint)`, 'info');
         }
+      } else if (isRetiredChatModel(selectedModel)) {
+        requestModel = DEFAULT_FREE_CHAT_MODEL;
+        showToast(`โมเดลเดิมปิดบริการแล้ว — สลับเป็น ${DEFAULT_FREE_CHAT_MODEL}`, 'warning');
+        setSelectedModel(DEFAULT_FREE_CHAT_MODEL);
+        localStorage.setItem('openrouter_chat_model', DEFAULT_FREE_CHAT_MODEL);
       }
 
       if (webSearch) {
@@ -1436,9 +1455,9 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
       };
 
       // Primary: server tool (model decides when/how often to search). Fallback: legacy web plugin.
-      const buildChatBody = (mode: 'tool' | 'plugin' | 'plain') => {
+      const buildChatBody = (mode: 'tool' | 'plugin' | 'plain', modelId: string) => {
         const body: Record<string, unknown> = {
-          model: requestModel,
+          model: modelId,
           messages: messagesToSend,
           stream: true,
         };
@@ -1459,35 +1478,56 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         return body;
       };
 
-      const postChat = async (mode: 'tool' | 'plugin' | 'plain') => {
+      const postChat = async (mode: 'tool' | 'plugin' | 'plain', modelId: string) => {
         const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: openRouterHeaders,
-          body: JSON.stringify(buildChatBody(mode)),
+          body: JSON.stringify(buildChatBody(mode, modelId)),
         });
         return res;
       };
 
-      let response: Response;
-      if (webSearch) {
-        response = await postChat('tool');
-        if (!response.ok) {
-          // Some free / non-tool models reject server tools — retry with web plugin
-          const firstErr = await response.json().catch(() => ({}));
-          const firstMsg = firstErr?.error?.message || `API error (${response.status})`;
-          console.warn('Web search via server tool failed, retrying with web plugin:', firstMsg);
-          response = await postChat('plugin');
-          if (!response.ok) {
-            const secondErr = await response.json().catch(() => ({}));
-            throw new Error(secondErr?.error?.message || firstMsg || `API error (${response.status})`);
-          }
+      const isNoEndpointError = (msg: string) =>
+        /no endpoints found/i.test(msg) || /not found/i.test(msg) || /model.*(unavailable|retired)/i.test(msg);
+
+      // Try preferred model, then fallbacks when OpenRouter has no endpoints
+      const modelsToTry = chatModelFallbackChain(requestModel);
+      let response: Response | null = null;
+      let lastErrMsg = '';
+
+      for (const modelId of modelsToTry) {
+        requestModel = modelId;
+        const mode: 'tool' | 'plugin' | 'plain' = webSearch ? 'tool' : 'plain';
+        response = await postChat(mode, modelId);
+
+        if (response.ok) break;
+
+        const errData = await response.json().catch(() => ({}));
+        lastErrMsg = errData?.error?.message || `API error (${response.status})`;
+
+        if (webSearch && mode === 'tool') {
+          // plugin fallback same model
+          response = await postChat('plugin', modelId);
+          if (response.ok) break;
+          const err2 = await response.json().catch(() => ({}));
+          lastErrMsg = err2?.error?.message || lastErrMsg;
         }
-      } else {
-        response = await postChat('plain');
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData?.error?.message || `API error (${response.status})`);
+
+        if (!isNoEndpointError(lastErrMsg) && response.status !== 404) {
+          // Auth / billing / etc — don't silently hop models
+          throw new Error(lastErrMsg);
         }
+
+        console.warn(`Model ${modelId} unavailable (${lastErrMsg}), trying next…`);
+        showToast(`โมเดล ${modelId} ไม่พร้อม — ลองตัวถัดไป…`, 'info');
+        response = null;
+      }
+
+      if (!response || !response.ok) {
+        throw new Error(
+          lastErrMsg ||
+            'ไม่พบ endpoint ของโมเดลที่เลือก (มักเกิดกับ free เก่าที่ปิดแล้ว) — เลือก Gemini 2.5 Flash หรือ openrouter/free'
+        );
       }
 
       const reader = response.body?.getReader();

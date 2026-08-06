@@ -275,19 +275,64 @@ export function attachmentsNeedVision(attachments: ChatAttachment[]): boolean {
   return attachments.some((a) => a.kind === 'image' && !!a.dataUrl);
 }
 
-/** Prefer a known vision-capable chat model id when user has images attached */
+/** Models known offline / retired on OpenRouter — migrate users off these */
+export const RETIRED_CHAT_MODELS = [
+  'google/gemini-2.0-flash-exp:free',
+  'google/gemini-2.0-flash:free',
+  'google/gemini-2.0-flash-thinking-exp:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'meta-llama/llama-3-8b-instruct:free',
+  'qwen/qwen-2-7b-instruct:free',
+];
+
+export const DEFAULT_VISION_CHAT_MODEL = 'google/gemini-2.5-flash';
+export const DEFAULT_FREE_CHAT_MODEL = 'openrouter/free';
+
+export function isRetiredChatModel(modelId: string): boolean {
+  const id = (modelId || '').toLowerCase();
+  return RETIRED_CHAT_MODELS.some((r) => id === r.toLowerCase() || id.includes('flash-exp:free'));
+}
+
+/**
+ * When user attaches images, pick a model that still has OpenRouter endpoints + vision.
+ * Returns null only if current model is already a known-good vision id (not retired free).
+ */
 export function suggestVisionChatModel(currentId: string): string | null {
-  const id = currentId.toLowerCase();
-  if (
+  const id = (currentId || '').toLowerCase();
+
+  // Always leave retired / dead free experimentals
+  if (isRetiredChatModel(id) || id.includes(':free') && id.includes('exp')) {
+    return DEFAULT_VISION_CHAT_MODEL;
+  }
+
+  // openrouter/free may route to text-only — for vision prefer explicit multimodal
+  if (id === 'openrouter/free' || id === 'openrouter/auto') {
+    return DEFAULT_VISION_CHAT_MODEL;
+  }
+
+  const looksVisionCapable =
     id.includes('vision') ||
     id.includes('gpt-4o') ||
     id.includes('gpt-5') ||
     id.includes('claude') ||
-    id.includes('gemini') ||
+    (id.includes('gemini') && !id.includes('exp:free')) ||
+    id.includes('gemma-4') ||
     id.includes('llama-4') ||
-    id.includes('qwen') && id.includes('vl')
-  ) {
-    return null; // keep current
-  }
-  return 'google/gemini-2.5-flash';
+    (id.includes('qwen') && (id.includes('vl') || id.includes('vision'))) ||
+    id.includes('nemotron') && id.includes('vl');
+
+  if (looksVisionCapable) return null;
+  return DEFAULT_VISION_CHAT_MODEL;
+}
+
+/** Fallback chain when OpenRouter returns "No endpoints found" */
+export function chatModelFallbackChain(preferred?: string): string[] {
+  const chain = [
+    preferred,
+    DEFAULT_VISION_CHAT_MODEL,
+    'google/gemini-2.5-flash-lite',
+    'google/gemini-3.1-flash-lite',
+    DEFAULT_FREE_CHAT_MODEL,
+  ].filter(Boolean) as string[];
+  return [...new Set(chain.filter((m) => !isRetiredChatModel(m)))];
 }
