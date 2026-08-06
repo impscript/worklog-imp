@@ -431,6 +431,9 @@ const IMAGE_MODEL_PRESETS: ImageModelPreset[] = [
 
 const DEFAULT_OR_IMAGE_MODEL = 'google/gemini-3.1-flash-image';
 
+/** Top-level image path: free worker vs paid-quality OpenRouter models */
+type DrawPath = 'free_flux' | 'quality';
+
 function getImagePreset(modelId: string): ImageModelPreset | undefined {
   return IMAGE_MODEL_PRESETS.find((m) => m.id === modelId);
 }
@@ -441,6 +444,16 @@ function recommendImageModel(intent: DrawIntent): ImageModelPreset {
   );
   if (preferred) return preferred;
   return IMAGE_MODEL_PRESETS[0];
+}
+
+/** Default path by job type — user can always override via the 2 chips */
+function recommendDrawPath(intent: DrawIntent): DrawPath {
+  if (intent === 'infographic' || intent === 'thai_text') return 'quality';
+  return 'free_flux';
+}
+
+function engineFromPath(path: DrawPath): 'flux_cf' | 'openrouter' {
+  return path === 'free_flux' ? 'flux_cf' : 'openrouter';
 }
 
 function detectDrawIntent(text: string): DrawIntent {
@@ -882,7 +895,23 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     engine?: 'flux_cf' | 'openrouter';
   };
 
-  /** One-click: pick model + generate image from an AI bubble (no second Send needed) */
+  const applyDrawPath = (path: DrawPath, opts?: { silent?: boolean; intent?: DrawIntent }) => {
+    const engine = engineFromPath(path);
+    setDrawEngine(engine);
+    localStorage.setItem('openrouter_draw_engine', engine);
+    if (path === 'quality') {
+      const rec = recommendImageModel(opts?.intent || drawIntent);
+      setOpenrouterImageModel(rec.id);
+      localStorage.setItem('openrouter_image_model', rec.id);
+      if (!opts?.silent) {
+        showToast(`คมชัด · ${rec.shortName} (ใช้ API Key · อาจมีค่าใช้จ่าย)`, 'info');
+      }
+    } else if (!opts?.silent) {
+      showToast('ฟรี · Flux — แปลไทย→อังกฤษอัตโนมัติ · ไม่คิดค่า image ผ่าน OpenRouter', 'info');
+    }
+  };
+
+  /** One-click: pick free vs quality by job type, then generate immediately */
   const handleCreateImageFromMessage = (content: string, intent?: DrawIntent) => {
     if (isGenerating) return;
     const clean = content
@@ -895,8 +924,10 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     }
 
     const resolvedIntent = intent || detectDrawIntent(clean);
+    const path = recommendDrawPath(resolvedIntent);
     const rec = recommendImageModel(resolvedIntent);
     const ratio = resolvedIntent === 'infographic' ? '9:16' : '1:1';
+    const engine = engineFromPath(path);
     const instruction =
       resolvedIntent === 'infographic'
         ? 'ทำเป็น infographic สวย ชัด อ่านง่าย ใช้ภาษาไทยบนภาพให้ถูกต้อง'
@@ -909,22 +940,32 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     setImageSettingsOpen(false);
     setDrawIntent(resolvedIntent);
     setDrawSourceText(clean);
-    setDrawEngine('openrouter');
-    setOpenrouterImageModel(rec.id);
+    setDrawEngine(engine);
     setFluxRatio(ratio);
     setFluxStyle('none');
-    localStorage.setItem('openrouter_draw_engine', 'openrouter');
-    localStorage.setItem('openrouter_image_model', rec.id);
+    localStorage.setItem('openrouter_draw_engine', engine);
 
-    showToast(`กำลังสร้างรูปด้วย ${rec.shortName}…`, 'info');
+    if (path === 'quality') {
+      if (!apiKey.trim()) {
+        showToast('โหมดคมชัดต้องมี OpenRouter API Key — หรือสลับไป「ฟรี · Flux」', 'warning');
+        setIsEditingKey(true);
+        setImageSettingsOpen(false);
+        return;
+      }
+      setOpenrouterImageModel(rec.id);
+      localStorage.setItem('openrouter_image_model', rec.id);
+      showToast(`กำลังสร้างด้วย ${rec.shortName} (คมชัด)…`, 'info');
+    } else {
+      showToast('กำลังสร้างด้วย Flux ฟรี (แปลอังกฤษอัตโนมัติ)…', 'info');
+    }
 
     void handleSendMessage(instruction, {
       forceDraw: true,
       sourceText: clean,
       intent: resolvedIntent,
-      imageModelId: rec.id,
+      imageModelId: path === 'quality' ? rec.id : undefined,
       ratio,
-      engine: 'openrouter',
+      engine,
     });
   };
 
@@ -992,23 +1033,20 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     let activeImageModelId = opts.imageModelId || openrouterImageModel;
     let activeRatio = opts.ratio || fluxRatio;
 
-    // Auto-pick a text-strong model when job needs Thai/infographic but user still on Flux/free
-    if (isDrawing && (activeDrawIntent === 'infographic' || activeDrawIntent === 'thai_text')) {
-      const presetCheck = getImagePreset(activeImageModelId);
-      if (activeDrawEngine === 'flux_cf' || presetCheck?.textQuality === 'weak' || !presetCheck) {
-        const rec = recommendImageModel(activeDrawIntent);
-        activeDrawEngine = 'openrouter';
-        activeImageModelId = rec.id;
-        setDrawEngine('openrouter');
-        setOpenrouterImageModel(rec.id);
-        localStorage.setItem('openrouter_draw_engine', 'openrouter');
-        localStorage.setItem('openrouter_image_model', rec.id);
-        showToast(`สลับเป็น ${rec.shortName} อัตโนมัติ (เหมาะข้อความไทย/Infographic)`, 'info');
-      }
-      if (activeDrawIntent === 'infographic' && activeRatio === '1:1' && !opts.ratio) {
-        activeRatio = '9:16';
-        setFluxRatio('9:16');
-      }
+    // Soft guidance only — never force-switch if user chose free Flux intentionally
+    if (
+      isDrawing &&
+      activeDrawEngine === 'flux_cf' &&
+      (activeDrawIntent === 'infographic' || activeDrawIntent === 'thai_text')
+    ) {
+      showToast(
+        'กำลังใช้ Flux ฟรี — ตัวอักษรไทย/Infographic อาจไม่คม ถ้าต้องการชัดสลับ「คมชัด · Nano Banana」',
+        'info'
+      );
+    }
+    if (isDrawing && activeDrawIntent === 'infographic' && activeRatio === '1:1' && !opts.ratio) {
+      activeRatio = '9:16';
+      setFluxRatio('9:16');
     }
 
     const imagePreset = getImagePreset(activeImageModelId);
@@ -1947,19 +1985,19 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                                 type="button"
                                 onClick={() => handleCreateImageFromMessage(m.content, 'infographic')}
                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all cursor-pointer select-none"
-                                title="สร้าง Infographic ทันทีด้วย Nano Banana 2"
+                                title="คมชัด · Nano Banana (ใช้ API Key)"
                               >
                                 <Palette size={11} />
-                                ทำ Infographic
+                                Infographic · คมชัด
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleCreateImageFromMessage(m.content, 'illustration')}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-theme-border bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text transition-all cursor-pointer select-none"
-                                title="สร้างภาพประกอบทันที"
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition-all cursor-pointer select-none"
+                                title="ฟรี · Flux worker (ไม่คิด OR image)"
                               >
                                 <Sparkles size={11} />
-                                ภาพประกอบ
+                                ภาพประกอบ · ฟรี
                               </button>
                             </div>
                           )}
@@ -1985,55 +2023,109 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                 </div>
               )}
 
-              {/* Image mode: compact summary by default (don't cover chat) */}
+              {/* Image mode: free Flux vs quality Banana — always visible, compact */}
               {drawMode && (
-                <div className="mb-2 space-y-2 animate-fade-in text-xs">
-                  <div className="flex flex-wrap items-center gap-2 px-2.5 py-2 rounded-xl border border-violet-500/25 bg-violet-500/5 dark:bg-violet-950/20">
-                    <span className="inline-flex items-center gap-1 font-extrabold text-violet-600 dark:text-violet-300 text-[10px] uppercase tracking-wide shrink-0">
-                      <Palette size={12} />
-                      สร้างรูป
-                    </span>
-                    <span className="text-[11px] font-bold text-theme-text truncate max-w-[10rem] sm:max-w-none">
-                      {drawEngine === 'openrouter'
-                        ? (getImagePreset(openrouterImageModel)?.shortName || openrouterImageModel)
-                        : 'Cloudflare ฟรี'}
-                    </span>
-                    <span className="text-[9px] text-theme-text-muted hidden sm:inline">·</span>
-                    <span className="text-[10px] text-theme-text-secondary">
-                      {drawIntent === 'infographic' ? 'Infographic' : drawIntent === 'thai_text' ? 'ข้อความไทย' : 'ภาพประกอบ'}
-                      {' · '}{fluxRatio}
-                    </span>
-                    {drawSourceText && (
-                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md">
-                        📎 จากแชท
+                <div className="mb-2 space-y-1.5 animate-fade-in text-xs">
+                  <div className="rounded-2xl border border-violet-500/25 bg-violet-500/5 dark:bg-violet-950/15 px-2.5 py-2 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 font-extrabold text-violet-600 dark:text-violet-300 text-[10px] uppercase tracking-wide shrink-0">
+                        <Palette size={12} />
+                        สร้างรูป
                       </span>
-                    )}
-                    <div className="flex items-center gap-1 ml-auto shrink-0">
+                      {drawSourceText && (
+                        <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md">
+                          📎 จากแชท
+                        </span>
+                      )}
+                      <span className="text-[10px] text-theme-text-muted">
+                        {drawIntent === 'infographic' ? 'Infographic' : drawIntent === 'thai_text' ? 'ข้อความไทย' : 'ภาพประกอบ'}
+                        {' · '}{fluxRatio}
+                      </span>
+                      <div className="flex items-center gap-1 ml-auto shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setImageSettingsOpen((v) => !v)}
+                          className="px-2 py-1 rounded-lg text-[10px] font-bold border border-theme-border/80 text-theme-text-secondary hover:text-theme-text cursor-pointer"
+                        >
+                          {imageSettingsOpen ? 'ซ่อน' : 'เพิ่มเติม'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDrawMode(false);
+                            setImageSettingsOpen(false);
+                            setDrawSourceText('');
+                          }}
+                          className="px-2 py-1 rounded-lg text-[10px] font-bold border border-theme-border text-theme-text-muted hover:text-theme-text cursor-pointer"
+                        >
+                          ปิด
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Primary choice: Free vs Quality */}
+                    <div className="grid grid-cols-2 gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setImageSettingsOpen((v) => !v)}
-                        className="px-2 py-1 rounded-lg text-[10px] font-bold border border-violet-500/30 text-violet-600 dark:text-violet-300 hover:bg-violet-500/10 cursor-pointer"
+                        disabled={isGenerating}
+                        onClick={() => applyDrawPath('free_flux')}
+                        className={cn(
+                          "text-left px-2.5 py-2 rounded-xl border transition-all cursor-pointer select-none",
+                          drawEngine === 'flux_cf'
+                            ? "border-emerald-400/60 bg-emerald-500/15 shadow-sm ring-1 ring-emerald-400/30"
+                            : "border-theme-border/70 bg-theme-surface/80 hover:border-emerald-400/40"
+                        )}
                       >
-                        {imageSettingsOpen ? 'ซ่อนตั้งค่า' : 'ตั้งค่า'}
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[11px] font-extrabold text-theme-text">ฟรี · Flux</span>
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
+                            ไม่คิด OR image
+                          </span>
+                        </div>
+                        <p className="text-[9px] text-theme-text-muted mt-0.5 leading-snug">
+                          Worker เดิม · แปลไทย→EN อัตโนมัติ · ภาพ mood เร็ว
+                        </p>
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          setDrawMode(false);
-                          setImageSettingsOpen(false);
-                          setDrawSourceText('');
-                        }}
-                        className="px-2 py-1 rounded-lg text-[10px] font-bold border border-theme-border text-theme-text-muted hover:text-theme-text cursor-pointer"
+                        disabled={isGenerating}
+                        onClick={() => applyDrawPath('quality', { intent: drawIntent })}
+                        className={cn(
+                          "text-left px-2.5 py-2 rounded-xl border transition-all cursor-pointer select-none",
+                          drawEngine === 'openrouter'
+                            ? "border-violet-400/60 bg-violet-500/15 shadow-sm ring-1 ring-violet-400/30"
+                            : "border-theme-border/70 bg-theme-surface/80 hover:border-violet-400/40"
+                        )}
                       >
-                        ปิด
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[11px] font-extrabold text-theme-text">คมชัด · Banana</span>
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/25">
+                            ใช้ API Key
+                          </span>
+                        </div>
+                        <p className="text-[9px] text-theme-text-muted mt-0.5 leading-snug">
+                          Nano Banana / GPT · ไทย+Infographic คม · อาจมีค่าใช้จ่าย
+                        </p>
                       </button>
                     </div>
+
+                    {drawEngine === 'flux_cf' && (
+                      <p className="text-[9px] text-emerald-700 dark:text-emerald-300/90 leading-relaxed px-0.5">
+                        ✓ เลือก <strong>ฟรี</strong> แล้ว — ไม่ต้องใช้เครดิต image บน OpenRouter · ตัวอักษรไทยบนภาพอาจเพี้ยน
+                      </p>
+                    )}
+                    {drawEngine === 'openrouter' && (
+                      <p className="text-[9px] text-violet-700 dark:text-violet-300/90 leading-relaxed px-0.5">
+                        ✓ เลือก <strong>คมชัด</strong> แล้ว — {getImagePreset(openrouterImageModel)?.shortName || openrouterImageModel}
+                        {!apiKey.trim() && ' · ยังไม่มี API Key ด้านซ้าย'}
+                      </p>
+                    )}
                   </div>
 
                   {imageSettingsOpen && (
-                    <div className="p-3 rounded-2xl border border-violet-500/20 bg-violet-500/5 dark:bg-violet-950/10 backdrop-blur-md space-y-3 max-h-[min(42vh,360px)] overflow-y-auto custom-scrollbar">
+                    <div className="p-3 rounded-2xl border border-theme-border/60 bg-theme-surface/90 dark:bg-theme-bg-page/40 space-y-3 max-h-[min(36vh,300px)] overflow-y-auto custom-scrollbar">
                       {drawSourceText && (
-                        <div className="text-[10px] text-theme-text-secondary bg-theme-surface/60 border border-theme-border/50 rounded-xl px-2.5 py-2 line-clamp-2">
+                        <div className="text-[10px] text-theme-text-secondary bg-theme-surface-secondary/50 border border-theme-border/40 rounded-xl px-2.5 py-2 line-clamp-2">
                           📎 ต้นทาง: {drawSourceText.slice(0, 160)}{drawSourceText.length > 160 ? '…' : ''}
                         </div>
                       )}
@@ -2042,22 +2134,23 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                         <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">ประเภทงาน</label>
                         <div className="flex flex-wrap gap-1.5">
                           {([
-                            { id: 'infographic' as DrawIntent, label: '📊 Infographic' },
-                            { id: 'thai_text' as DrawIntent, label: '🇹🇭 ข้อความไทย' },
-                            { id: 'illustration' as DrawIntent, label: '🎨 ภาพประกอบ' },
+                            { id: 'infographic' as DrawIntent, label: '📊 Infographic', path: 'quality' as DrawPath },
+                            { id: 'thai_text' as DrawIntent, label: '🇹🇭 ข้อความไทย', path: 'quality' as DrawPath },
+                            { id: 'illustration' as DrawIntent, label: '🎨 ภาพประกอบ', path: 'free_flux' as DrawPath },
                           ]).map((opt) => (
                             <button
                               key={opt.id}
                               type="button"
                               onClick={() => {
                                 setDrawIntent(opt.id);
-                                const rec = recommendImageModel(opt.id);
-                                setDrawEngine('openrouter');
-                                setOpenrouterImageModel(rec.id);
-                                localStorage.setItem('openrouter_draw_engine', 'openrouter');
-                                localStorage.setItem('openrouter_image_model', rec.id);
                                 if (opt.id === 'infographic') setFluxRatio('9:16');
-                                showToast(`แนะนำ: ${rec.shortName}`, 'info');
+                                applyDrawPath(opt.path, { intent: opt.id, silent: true });
+                                showToast(
+                                  opt.path === 'quality'
+                                    ? `งานนี้แนะนำ「คมชัด」· ${recommendImageModel(opt.id).shortName}`
+                                    : 'งานนี้ใช้「ฟรี · Flux」ได้',
+                                  'info'
+                                );
                               }}
                               className={cn(
                                 "px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer",
@@ -2072,45 +2165,11 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">ช่องทาง</label>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDrawEngine('openrouter');
-                              localStorage.setItem('openrouter_draw_engine', 'openrouter');
-                            }}
-                            className={cn(
-                              "flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold border cursor-pointer",
-                              drawEngine === 'openrouter'
-                                ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400"
-                                : "border-theme-border text-theme-text-muted"
-                            )}
-                          >
-                            OpenRouter
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDrawEngine('flux_cf');
-                              localStorage.setItem('openrouter_draw_engine', 'flux_cf');
-                            }}
-                            className={cn(
-                              "flex-1 py-1.5 px-2 rounded-lg text-[10px] font-bold border cursor-pointer",
-                              drawEngine === 'flux_cf'
-                                ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400"
-                                : "border-theme-border text-theme-text-muted"
-                            )}
-                          >
-                            Cloudflare ฟรี
-                          </button>
-                        </div>
-                      </div>
-
                       {drawEngine === 'openrouter' && (
                         <div className="space-y-1">
-                          <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">โมเดลรูป</label>
+                          <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">
+                            โมเดลคมชัด (OpenRouter)
+                          </label>
                           <select
                             value={openrouterImageModel}
                             onChange={(e) => {
@@ -2119,25 +2178,26 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                             }}
                             className="w-full text-xs font-semibold py-2 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer"
                           >
-                            {IMAGE_MODEL_PRESETS.map((p) => (
+                            {IMAGE_MODEL_PRESETS.filter((p) => p.keepThaiInPrompt).map((p) => (
                               <option key={p.id} value={p.id}>
                                 {p.shortName} — {p.badge}
                               </option>
                             ))}
-                            <option value="black-forest-labs/flux.2-flex">FLUX.2 Flex</option>
-                            <option value="black-forest-labs/flux.2-max">FLUX.2 Max</option>
+                            <optgroup label="Flux บน OpenRouter (ไม่ฟรี worker)">
+                              {IMAGE_MODEL_PRESETS.filter((p) => !p.keepThaiInPrompt).map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.shortName} — {p.badge}
+                                </option>
+                              ))}
+                              <option value="black-forest-labs/flux.2-flex">FLUX.2 Flex</option>
+                              <option value="black-forest-labs/flux.2-max">FLUX.2 Max</option>
+                            </optgroup>
                           </select>
                           {getImagePreset(openrouterImageModel) && (
                             <p className="text-[9px] text-theme-text-muted leading-relaxed">
                               {getImagePreset(openrouterImageModel)!.hint}
                             </p>
                           )}
-                        </div>
-                      )}
-
-                      {drawEngine === 'flux_cf' && (
-                        <div className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-2.5 py-2">
-                          ⚠️ ฟรีเหมาะภาพ mood — ข้อความไทย/Infographic มักเพี้ยน แนะนำ OpenRouter + Nano Banana 2
                         </div>
                       )}
 
@@ -2264,16 +2324,16 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                     if (nextVal) {
                       setWebSearch(false);
                       setImageSettingsOpen(false);
-                      // Prefer text-strong default when opening draw mode blank
-                      if (!getImagePreset(openrouterImageModel)) {
+                      // Keep last free/quality choice; ensure quality model id is valid
+                      if (drawEngine === 'openrouter' && !getImagePreset(openrouterImageModel) && !openrouterImageModel.includes('/')) {
                         const rec = recommendImageModel(drawIntent);
-                        setDrawEngine('openrouter');
                         setOpenrouterImageModel(rec.id);
-                        localStorage.setItem('openrouter_draw_engine', 'openrouter');
                         localStorage.setItem('openrouter_image_model', rec.id);
                       }
                       showToast(
-                        'โหมดสร้างรูปพร้อม — กดส่งได้เลย · ตั้งค่าเพิ่มกดปุ่ม「ตั้งค่า」',
+                        drawEngine === 'flux_cf'
+                          ? 'โหมดสร้างรูป · เลือก「ฟรี · Flux」อยู่ — กดส่งได้เลย'
+                          : 'โหมดสร้างรูป · เลือก「คมชัด · Banana」อยู่ — กดส่งได้เลย',
                         'info'
                       );
                     } else {
@@ -2287,7 +2347,7 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                       ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400"
                       : "bg-theme-surface border-theme-border/80 text-theme-text-muted hover:text-theme-text"
                   )}
-                  title="โหมดสร้างรูป (OpenRouter: Nano Banana / GPT Image / Flux หรือ Cloudflare ฟรี)"
+                  title="โหมดสร้างรูป — เลือก ฟรี·Flux หรือ คมชัด·Banana ได้บนแถบ"
                 >
                   <Palette size={14} className={cn(drawMode && "animate-pulse")} />
                   <span className="hidden sm:inline">สร้างรูป {drawMode ? 'ON' : 'OFF'}</span>
@@ -2304,11 +2364,15 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                   }}
                   placeholder={
                     drawMode 
-                      ? (apiKey 
+                      ? (drawEngine === 'flux_cf'
                           ? (drawSourceText
-                              ? "ปรับคำสั่งเพิ่มได้ เช่น 'โทนเขียว หัวข้อใหญ่' แล้วกดส่ง — จะใช้เนื้อหาจากแชทด้วย"
-                              : "อธิบายรูปที่อยากได้ (ไทยได้) · Infographic แนะนำ Nano Banana 2...")
-                          : "ใส่ API Key ด้านซ้าย หรือใช้ Cloudflare ฟรี (ตัวอักษรไทยอาจเพี้ยน)")
+                              ? "ปรับคำสั่งได้ แล้วกดส่ง — Flux ฟรีจะแปล EN ให้อัตโนมัติ"
+                              : "อธิบายรูป (ไทยได้) · โหมดฟรี Flux · ไม่คิด OR image")
+                          : (apiKey
+                              ? (drawSourceText
+                                  ? "ปรับคำสั่งได้ แล้วกดส่ง — ใช้โมเดลคมชัด (อาจมีค่าใช้จ่าย)"
+                                  : "อธิบายรูป (ไทยได้) · โหมดคมชัด Banana/GPT")
+                              : "โหมดคมชัดต้องมี API Key ด้านซ้าย — หรือสลับไป「ฟรี · Flux」"))
                       : (apiKey 
                           ? (webSearch 
                               ? "ค้นหาและถามคำถามจากอินเทอร์เน็ตสดๆ..." 
@@ -2343,11 +2407,11 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                 <span>ผู้ให้บริการระบบ OpenRouter API | ข้อมูลจะถูกคุ้มครองตามข้อกำหนดนโยบายความเป็นส่วนตัวของ API Provider</span>
                 {webSearch && <span className="text-indigo-500">• ค้นหาเว็บ ON — ใช้โมเดลปัจจุบัน + OpenRouter search (มีค่าใช้จ่ายเพิ่มได้)</span>}
                 {drawMode && (
-                  <span className="text-violet-500">
-                    • สร้างรูป ON — {drawEngine === 'openrouter'
-                      ? (getImagePreset(openrouterImageModel)?.shortName || openrouterImageModel)
-                      : 'Cloudflare ฟรี'}
-                    {drawSourceText ? ' · มีเนื้อหาจากแชท' : ''}
+                  <span className={drawEngine === 'flux_cf' ? 'text-emerald-600 dark:text-emerald-400' : 'text-violet-500'}>
+                    • สร้างรูป ON — {drawEngine === 'flux_cf'
+                      ? 'ฟรี · Flux'
+                      : `คมชัด · ${getImagePreset(openrouterImageModel)?.shortName || openrouterImageModel}`}
+                    {drawSourceText ? ' · จากแชท' : ''}
                   </span>
                 )}
               </div>
