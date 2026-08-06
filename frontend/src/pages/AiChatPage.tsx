@@ -306,6 +306,158 @@ const QUICK_PROMPTS = [
   { label: '✉️ เขียนอีเมลลาหยุดสุภาพ', text: 'ช่วยเขียนอีเมลสำหรับส่งแจ้งผู้บริหารเพื่อขอลาหยุดพักผ่อน 1 วันเป็นภาษาไทยอย่างสุภาพเป็นทางการหน่อย' }
 ];
 
+/** Image generation intent — drives model recommendation + prompt style */
+type DrawIntent = 'illustration' | 'infographic' | 'thai_text';
+
+type ImageTextQuality = 'excellent' | 'good' | 'weak';
+
+interface ImageModelPreset {
+  id: string;
+  name: string;
+  shortName: string;
+  /** free = CF/quota, budget = cheap paid, quality = best output */
+  cost: 'free' | 'budget' | 'quality';
+  textQuality: ImageTextQuality;
+  bestFor: DrawIntent[];
+  badge: string;
+  hint: string;
+  supportsAspectRatio: boolean;
+  /** When true, keep Thai labels in the image prompt (do not force EN-only) */
+  keepThaiInPrompt: boolean;
+}
+
+/**
+ * Curated OpenRouter image models — order = recommendation priority within a cost band.
+ * Nano Banana = Gemini image family (strong layout + text). GPT Image = high visual polish.
+ */
+const IMAGE_MODEL_PRESETS: ImageModelPreset[] = [
+  {
+    id: 'google/gemini-3.1-flash-image',
+    name: 'Nano Banana 2 (Gemini 3.1 Flash Image)',
+    shortName: 'Nano Banana 2',
+    cost: 'budget',
+    textQuality: 'excellent',
+    bestFor: ['infographic', 'thai_text', 'illustration'],
+    badge: '⭐ แนะนำ Infographic / ไทย',
+    hint: 'เก่งจัด layout + ตัวอักษร (รวมไทย) เร็ว ราคาคุ้ม — default งานโปสเตอร์/อินโฟ',
+    supportsAspectRatio: true,
+    keepThaiInPrompt: true,
+  },
+  {
+    id: 'google/gemini-2.5-flash-image',
+    name: 'Nano Banana (Gemini 2.5 Flash Image)',
+    shortName: 'Nano Banana',
+    cost: 'budget',
+    textQuality: 'excellent',
+    bestFor: ['infographic', 'thai_text', 'illustration'],
+    badge: 'ข้อความไทยดี',
+    hint: 'รุ่นคลาสสิกของ Nano Banana — คุยบริบท + วาด/แก้รูปได้',
+    supportsAspectRatio: true,
+    keepThaiInPrompt: true,
+  },
+  {
+    id: 'google/gemini-3-pro-image',
+    name: 'Nano Banana Pro (Gemini 3 Pro Image)',
+    shortName: 'Nano Banana Pro',
+    cost: 'quality',
+    textQuality: 'excellent',
+    bestFor: ['infographic', 'thai_text', 'illustration'],
+    badge: 'คุณภาพสูงสุด',
+    hint: 'คมสุดในตระกูล Banana — งานสำคัญ / ตัวอักษรละเอียด',
+    supportsAspectRatio: true,
+    keepThaiInPrompt: true,
+  },
+  {
+    id: 'openai/gpt-image-1',
+    name: 'GPT Image 1',
+    shortName: 'GPT Image',
+    cost: 'quality',
+    textQuality: 'excellent',
+    bestFor: ['illustration', 'infographic', 'thai_text'],
+    badge: 'สวย / ข้อความดี',
+    hint: 'ภาพสวย สไตล์ทันสมัย ตัวอักษรบนภาพดี — ราคาสูงกว่า Flash',
+    supportsAspectRatio: true,
+    keepThaiInPrompt: true,
+  },
+  {
+    id: 'openai/gpt-image-1-mini',
+    name: 'GPT Image 1 Mini',
+    shortName: 'GPT Image Mini',
+    cost: 'budget',
+    textQuality: 'good',
+    bestFor: ['illustration', 'infographic'],
+    badge: 'GPT ราคาเบา',
+    hint: 'คุณภาพใกล้ GPT Image ราคาถูกกว่า — ทดลอง infographic ได้',
+    supportsAspectRatio: true,
+    keepThaiInPrompt: true,
+  },
+  {
+    id: 'openai/gpt-5-image-mini',
+    name: 'GPT-5 Image Mini',
+    shortName: 'GPT-5 Image Mini',
+    cost: 'budget',
+    textQuality: 'good',
+    bestFor: ['illustration', 'infographic'],
+    badge: 'GPT-5 เบา',
+    hint: 'ตระกูล GPT-5 ฝั่งภาพ ราคาประหยัด',
+    supportsAspectRatio: false,
+    keepThaiInPrompt: true,
+  },
+  {
+    id: 'black-forest-labs/flux.2-klein-4b',
+    name: 'FLUX.2 Klein (โควต้าฟรี OpenRouter)',
+    shortName: 'Flux Klein ฟรี',
+    cost: 'free',
+    textQuality: 'weak',
+    bestFor: ['illustration'],
+    badge: 'ฟรีโควต้า',
+    hint: 'เร็ว/ถูก เหมาะภาพ mood — ตัวอักษรไทยมักเพี้ยน ไม่ใช้กับ infographic',
+    supportsAspectRatio: true,
+    keepThaiInPrompt: false,
+  },
+  {
+    id: 'black-forest-labs/flux.2-pro',
+    name: 'FLUX.2 Pro',
+    shortName: 'Flux Pro',
+    cost: 'quality',
+    textQuality: 'weak',
+    bestFor: ['illustration'],
+    badge: 'ภาพสวย (Flux)',
+    hint: 'ภาพสวย แต่ข้อความบนภาพไม่แม่น — ใช้เป็นปก/hero ไม่ฝากข้อมูล',
+    supportsAspectRatio: true,
+    keepThaiInPrompt: false,
+  },
+];
+
+const DEFAULT_OR_IMAGE_MODEL = 'google/gemini-3.1-flash-image';
+
+function getImagePreset(modelId: string): ImageModelPreset | undefined {
+  return IMAGE_MODEL_PRESETS.find((m) => m.id === modelId);
+}
+
+function recommendImageModel(intent: DrawIntent): ImageModelPreset {
+  const preferred = IMAGE_MODEL_PRESETS.find(
+    (m) => m.bestFor.includes(intent) && m.textQuality === 'excellent' && m.cost !== 'quality'
+  );
+  if (preferred) return preferred;
+  return IMAGE_MODEL_PRESETS[0];
+}
+
+function detectDrawIntent(text: string): DrawIntent {
+  const t = text.toLowerCase();
+  if (/infographic|อินโฟ|อินโฟกราฟ|อินโฟกราฟิก|อินโฟกราฟฟิก|ข้อมูลสรุป.*รูป|โปสเตอร์ข้อมูล|แผนภาพ/.test(t) || /อินโฟ/.test(text)) {
+    return 'infographic';
+  }
+  if (/ภาษาไทย|ตัวอักษรไทย|ข้อความไทย|thai text|ป้ายไทย/.test(t) || /[\u0e00-\u0e7f]{8,}/.test(text)) {
+    // Long Thai content often wants readable Thai on image
+    if (/infographic|อินโฟ|สรุป|หัวข้อ|bullet|ข้อ\s*\d/.test(t) || text.length > 200) {
+      return 'infographic';
+    }
+    return 'thai_text';
+  }
+  return 'illustration';
+}
+
 interface AISkill {
   id: string;
   name: string;
@@ -400,8 +552,11 @@ export default function AiChatPage() {
   const [fluxSteps, setFluxSteps] = useState<number>(4);
 
   // Image Generation settings
-  const [drawEngine, setDrawEngine] = useState<'flux_cf' | 'openrouter'>(() => (localStorage.getItem('openrouter_draw_engine') as 'flux_cf' | 'openrouter') || 'flux_cf');
-  const [openrouterImageModel, setOpenrouterImageModel] = useState<string>(() => localStorage.getItem('openrouter_image_model') || 'black-forest-labs/flux.2-klein-4b');
+  const [drawEngine, setDrawEngine] = useState<'flux_cf' | 'openrouter'>(() => (localStorage.getItem('openrouter_draw_engine') as 'flux_cf' | 'openrouter') || 'openrouter');
+  const [openrouterImageModel, setOpenrouterImageModel] = useState<string>(() => localStorage.getItem('openrouter_image_model') || DEFAULT_OR_IMAGE_MODEL);
+  const [drawIntent, setDrawIntent] = useState<DrawIntent>('illustration');
+  /** Content from chat bubble to visualize (not only the short instruction in the input) */
+  const [drawSourceText, setDrawSourceText] = useState<string>('');
 
   const handleCopyText = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -588,19 +743,55 @@ export default function AiChatPage() {
     }
   };
 
-  const translatePromptToEnglish = async (thaiPrompt: string, key: string, activeModel: string): Promise<string> => {
-    // List of models to try in order of preference
+  /**
+   * Build a model-ready image prompt from user instruction + optional chat source.
+   * Text-strong models (Nano Banana / GPT Image) keep Thai labels; Flux gets EN-only scene prompts.
+   */
+  const buildImagePrompt = async (
+    userInstruction: string,
+    sourceContent: string,
+    intent: DrawIntent,
+    preset: ImageModelPreset | undefined,
+    key: string,
+    activeModel: string
+  ): Promise<string> => {
+    const keepThai = preset?.keepThaiInPrompt ?? false;
     const modelsToTry = [
       activeModel,
       "google/gemini-2.0-flash:free",
       "meta-llama/llama-3-8b-instruct:free",
-      "qwen/qwen-2-7b-instruct:free",
-      "openrouter/free"
+      "openrouter/free",
     ];
 
-    let lastError = "";
+    const sourceBlock = sourceContent.trim()
+      ? `\n\n--- SOURCE CONTENT (facts / copy to visualize) ---\n${sourceContent.slice(0, 3500)}\n---`
+      : '';
 
-    // 1. Try OpenRouter translation if key is available
+    let systemBrief = '';
+    if (intent === 'infographic') {
+      systemBrief = keepThai
+        ? `You design prompts for an AI image model that CAN render Thai text accurately.
+Write ONE detailed image-generation prompt for a clean corporate infographic poster.
+Rules:
+- Vertical or clear section layout, flat design, large readable titles, icons, whitespace
+- Include EXACT Thai (and English if needed) strings that must appear on the image, in quotes
+- Max 5 short sections; no tiny paragraph text
+- Specify colors, hierarchy (title → sections → footer warning if any)
+- Output ONLY the prompt, no markdown fences or intro`
+        : `You design prompts for Flux-style models that are WEAK at text.
+Write ONE detailed English image prompt for an infographic-style illustration WITHOUT relying on readable body text.
+Use icons, shapes, color blocks, big short English labels only (3-5 words max per label).
+Output ONLY the prompt.`;
+    } else if (intent === 'thai_text' || keepThai) {
+      systemBrief = `You design prompts for an AI image model that CAN render Thai text.
+Write ONE detailed image-generation prompt. Keep any Thai labels exactly as the user needs them (in quotes).
+Describe layout, style, lighting. Output ONLY the prompt.`;
+    } else {
+      systemBrief = `Translate/expand into a detailed English image prompt for Flux. No Thai characters. Output ONLY the prompt.`;
+    }
+
+    const userMsg = `${systemBrief}\n\nUser request: ${userInstruction}${sourceBlock}`;
+
     if (key.trim()) {
       for (const model of modelsToTry) {
         try {
@@ -609,78 +800,77 @@ export default function AiChatPage() {
             headers: {
               "Authorization": `Bearer ${key}`,
               "HTTP-Referer": window.location.origin,
-              "X-Title": "Worklog AI Chat Prompt Translator",
-              "Content-Type": "application/json"
+              "X-Title": "Worklog AI Chat Image Prompt Builder",
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: model,
-              messages: [
-                {
-                  role: "user",
-                  content: `Translate the following prompt into a detailed English image prompt for Flux. Output ONLY the English translation. Do not include quotes, intro, or explanations.\n\nPrompt: ${thaiPrompt}`
-                }
-              ],
-              temperature: 0.3,
-              max_tokens: 150
-            })
+              model,
+              messages: [{ role: "user", content: userMsg }],
+              temperature: 0.4,
+              max_tokens: intent === 'infographic' ? 600 : 280,
+            }),
           });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.error) {
-              lastError = data.error.message || `API error (${data.error.code})`;
-            } else {
-              const translated = data.choices?.[0]?.message?.content?.trim();
-              if (translated && translated.length > 0) {
-                const cleaned = translated.replace(/^["'`]|["'`]$/g, '');
-                // Verify that it translated and doesn't still contain Thai characters
-                const hasThai = /[\u0e00-\u0e7f]/.test(cleaned);
-                if (!hasThai) {
-                  console.log(`Successfully translated using model ${model}:`, cleaned);
-                  return cleaned;
-                } else {
-                  lastError = `โมเดล ${model} คืนค่าเป็นภาษาไทยดิบ`;
-                }
-              } else {
-                lastError = `โมเดล ${model} ส่งคำตอบว่างเปล่า`;
-              }
-            }
-          } else {
-            const errData = await response.json().catch(() => ({}));
-            lastError = errData?.error?.message || `HTTP error ${response.status}`;
-          }
-        } catch (err: any) {
-          lastError = err.message || "Network error";
-          console.warn(`Translation attempt with model ${model} failed:`, err);
+          if (!response.ok) continue;
+          const data = await response.json();
+          if (data.error) continue;
+          const raw = data.choices?.[0]?.message?.content?.trim();
+          if (!raw) continue;
+          const cleaned = raw.replace(/^```[\w]*\n?|\n?```$/g, '').replace(/^["']|["']$/g, '').trim();
+          if (!keepThai && /[\u0e00-\u0e7f]/.test(cleaned)) continue;
+          if (cleaned.length > 20) return cleaned;
+        } catch {
+          /* try next */
         }
       }
+    }
+
+    // Fallback: stitch instruction + truncated source
+    if (sourceContent.trim()) {
+      return `${userInstruction}\n\nContent to visualize:\n${sourceContent.slice(0, 1200)}`;
+    }
+    return userInstruction;
+  };
+
+  /** Enter draw mode from an AI chat bubble with smart model recommendation */
+  const handleCreateImageFromMessage = (content: string, intent?: DrawIntent) => {
+    if (isGenerating) return;
+    const clean = content
+      .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+      .replace(/```[\s\S]*?```/g, (block) => (block.length > 800 ? '[code omitted]' : block))
+      .trim();
+    if (!clean || clean.length < 8) {
+      showToast('ไม่มีข้อความพอสำหรับสร้างรูป', 'warning');
+      return;
+    }
+
+    const resolvedIntent = intent || detectDrawIntent(clean);
+    const rec = recommendImageModel(resolvedIntent);
+
+    setDrawMode(true);
+    setWebSearch(false);
+    setDrawIntent(resolvedIntent);
+    setDrawSourceText(clean);
+    setDrawEngine('openrouter');
+    setOpenrouterImageModel(rec.id);
+    localStorage.setItem('openrouter_draw_engine', 'openrouter');
+    localStorage.setItem('openrouter_image_model', rec.id);
+
+    if (resolvedIntent === 'infographic') {
+      setFluxRatio('9:16');
+      setFluxStyle('none');
+      setInput('ทำเป็น infographic สวย ชัด อ่านง่าย ใช้ภาษาไทยบนภาพให้ถูกต้อง');
+    } else if (resolvedIntent === 'thai_text') {
+      setFluxRatio('1:1');
+      setInput('สร้างภาพจากเนื้อหานี้ ตัวอักษรภาษาไทยต้องอ่านชัด');
     } else {
-      lastError = "ไม่มี API Key (ข้ามการใช้ OpenRouter)";
+      setFluxRatio('1:1');
+      setInput('วาดภาพประกอบสวย ๆ จากเนื้อหาด้านบน');
     }
 
-    // 2. Fallback to free public MyMemory Translation API to at least translate the words to English!
-    try {
-      console.log("Attempting fallback translation via MyMemory API...");
-      const myMemoryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(thaiPrompt)}&langpair=th|en`;
-      const myMemoryRes = await fetch(myMemoryUrl);
-      if (myMemoryRes.ok) {
-        const myMemoryData = await myMemoryRes.json();
-        const translatedText = myMemoryData?.responseData?.translatedText?.trim();
-        if (translatedText && translatedText.length > 0) {
-          const hasThai = /[\u0e00-\u0e7f]/.test(translatedText);
-          if (!hasThai) {
-            console.log("Successfully translated using MyMemory API:", translatedText);
-            return translatedText;
-          }
-        }
-      }
-    } catch (mymemoryErr) {
-      console.warn("MyMemory translation fallback failed:", mymemoryErr);
-    }
-
-    console.warn("All translation attempts failed. Last error:", lastError);
-    showToast(`ระบบแปลคำสั่งขัดข้อง (${lastError}) จะส่งคำสั่งเดิมไปวาดรูป`, 'warning');
-    return thaiPrompt;
+    showToast(
+      `แนะนำ: ${rec.shortName} (${rec.badge}) — กดส่งเพื่อสร้างรูป`,
+      'info'
+    );
   };
 
   const handleSendMessage = async (customPrompt?: string, forceDraw = false) => {
@@ -731,11 +921,19 @@ export default function AiChatPage() {
 
     targetSession.messages = [...targetSession.messages, userMessage];
 
+    // Resolve draw intent for this send (refine from text when still on generic illustration)
+    const activeDrawIntent: DrawIntent = isDrawing
+      ? (drawIntent === 'illustration'
+          ? detectDrawIntent(`${textToSend}\n${drawSourceText}`)
+          : drawIntent)
+      : drawIntent;
+    const imagePreset = getImagePreset(openrouterImageModel);
+
     // Add assistant processing placeholder
     const assistantPlaceholder: Message = {
       role: 'assistant',
       content: isDrawing
-        ? '⏳ กำลังแปลและปรับแต่งคำสั่งภาพ (Step 1/2)...'
+        ? '⏳ กำลังออกแบบคำสั่งภาพ (Step 1/2)...'
         : (webSearch ? '🌐 กำลังค้นหาเว็บและเรียบเรียงคำตอบ...' : 'กำลังพิมพ์คำตอบ...'),
       timestamp: new Date().toISOString()
     };
@@ -746,31 +944,48 @@ export default function AiChatPage() {
     setInput('');
     setIsGenerating(true);
 
-    // B. IMAGE GENERATION WORKFLOW (Flux Worker)
+    // B. IMAGE GENERATION WORKFLOW
     if (isDrawing) {
-      let finalPrompt = textToSend;
-      let translationStatus = '';
-      
-      // Always attempt to translate the prompt for Flux (uses OpenRouter first, then keyless MyMemory fallback)
-      finalPrompt = await translatePromptToEnglish(textToSend, apiKey, selectedModel);
-      
-      // Verify that it translated successfully and does not contain Thai characters
-      const engineLabel = drawEngine === 'openrouter' ? 'OpenRouter Image API' : 'Flux Cloudflare';
+      const sourceForImage = drawSourceText.trim();
+      const imageModelLabel =
+        drawEngine === 'openrouter'
+          ? (imagePreset?.shortName || openrouterImageModel)
+          : 'Flux Cloudflare (ฟรี)';
+      const engineLabel =
+        drawEngine === 'openrouter'
+          ? `OpenRouter · ${imageModelLabel}`
+          : 'Flux Cloudflare (ฟรี — ตัวอักษรไทยอาจเพี้ยน)';
 
-      // Verify that it translated successfully and does not contain Thai characters
-      const hasThai = /[\u0e00-\u0e7f]/.test(finalPrompt);
-      if (!hasThai) {
-        const isEnhanced = finalPrompt !== textToSend;
-        if (isEnhanced) {
-          translationStatus = `✓ แปลและปรับแต่งคำสั่งสำเร็จ (Step 1/2):\n"${finalPrompt}"\n\n⏳ กำลังส่งคำสั่งไปวาดรูปด้วย ${engineLabel} (Step 2/2)...`;
-        } else {
-          translationStatus = `✓ แปลคำสั่งสำเร็จ (Step 1/2):\n"${finalPrompt}"\n\n⏳ กำลังส่งคำสั่งไปวาดรูปด้วย ${engineLabel} (Step 2/2)...`;
-        }
-      } else {
-        translationStatus = `⚠️ การแปลคำสั่งขัดข้อง (Step 1/2):\nใช้ภาษาไทยเดิม: "${textToSend}"\n\n⏳ กำลังส่งคำสั่งไปวาดรูปด้วย ${engineLabel} (Step 2/2)...`;
+      // Warn if free/weak text model used for infographic
+      if (
+        (activeDrawIntent === 'infographic' || activeDrawIntent === 'thai_text') &&
+        (drawEngine === 'flux_cf' || imagePreset?.textQuality === 'weak')
+      ) {
+        showToast(
+          'งาน Infographic/ข้อความไทย แนะนำ Nano Banana 2 หรือ GPT Image — โมเดลฟรี/Flux มักอ่านตัวอักษรไม่คม',
+          'warning'
+        );
       }
 
-      // Update session UI text with Step 1 translation status
+      let finalPrompt = textToSend;
+      let translationStatus = '';
+
+      finalPrompt = await buildImagePrompt(
+        textToSend,
+        sourceForImage,
+        activeDrawIntent,
+        drawEngine === 'openrouter' ? imagePreset : undefined,
+        apiKey,
+        selectedModel
+      );
+
+      const promptPreview = finalPrompt.length > 500 ? finalPrompt.slice(0, 500) + '…' : finalPrompt;
+      translationStatus =
+        `✓ ออกแบบคำสั่งภาพสำเร็จ (Step 1/2)\n` +
+        `โมเดลรูป: **${imageModelLabel}** · โหมด: ${activeDrawIntent}\n` +
+        `---\n${promptPreview}\n---\n\n` +
+        `⏳ กำลังสร้างรูปด้วย ${engineLabel} (Step 2/2)...`;
+
       setSessions(prevSessions => {
         const updated = prevSessions.map(s => {
           if (s.id === currentSessionId) {
@@ -795,7 +1010,8 @@ export default function AiChatPage() {
           pixel: ", retro 16-bit pixel art style, detailed game asset, pixelated grid aesthetic",
           watercolor: ", beautiful watercolor painting style, soft textures, wet brush details, pastel color palette, artistic canvas look",
           cyberpunk: ", futuristic cyberpunk style, neon night city, glowing dark synthwave aesthetic, highly detailed sci-fi scene",
-          render3d: ", 3D clay toy model style, blender octane render, cute cartoon render, smooth plastics and clay textures"
+          render3d: ", 3D clay toy model style, blender octane render, cute cartoon render, smooth plastics and clay textures",
+          infographic: ", clean corporate infographic poster, flat design, large typography, icon sections, ample whitespace, vector style"
         };
         const suffix = styleSuffixes[fluxStyle];
         if (suffix) {
@@ -803,9 +1019,38 @@ export default function AiChatPage() {
         }
       }
 
+      const finishImageMessage = (imageUrl: string, usedModel: string) => {
+        setSessions(prevSessions => {
+          const updated = prevSessions.map(s => {
+            if (s.id === currentSessionId) {
+              const messagesCopy = [...s.messages];
+              messagesCopy[messagesCopy.length - 1] = {
+                role: 'assistant',
+                content: `![${promptWithStyle.slice(0, 120)}](${imageUrl})`,
+                timestamp: new Date().toISOString(),
+                modelUsed: usedModel
+              };
+              return { ...s, messages: messagesCopy };
+            }
+            return s;
+          });
+          setTimeout(() => safeSaveSessions(updated), 0);
+          return updated;
+        });
+        setDrawSourceText('');
+        setIsGenerating(false);
+      };
+
       try {
         if (drawEngine === 'openrouter') {
-          // OpenRouter Image API Flow
+          const body: Record<string, unknown> = {
+            model: openrouterImageModel,
+            prompt: promptWithStyle,
+          };
+          if (imagePreset?.supportsAspectRatio !== false) {
+            body.aspect_ratio = fluxRatio;
+          }
+
           const response = await fetch("https://openrouter.ai/api/v1/images", {
             method: "POST",
             headers: {
@@ -814,10 +1059,7 @@ export default function AiChatPage() {
               "X-Title": "Worklog AI Chat Image Generator",
               "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-              model: openrouterImageModel,
-              prompt: promptWithStyle
-            })
+            body: JSON.stringify(body)
           });
 
           if (!response.ok) {
@@ -826,31 +1068,19 @@ export default function AiChatPage() {
           }
 
           const json = await response.json();
-          const imageUrl = json.data?.[0]?.url;
+          const item = json.data?.[0];
+          let imageUrl: string | undefined = item?.url;
+          if (!imageUrl && item?.b64_json) {
+            const media = item.media_type || 'image/png';
+            imageUrl = `data:${media};base64,${item.b64_json}`;
+          }
           if (!imageUrl) {
-            throw new Error("OpenRouter API ไม่ได้คืนค่า URL รูปภาพกลับมา");
+            throw new Error("OpenRouter API ไม่ได้คืนค่ารูปภาพกลับมา");
           }
 
-          setSessions(prevSessions => {
-            const updated = prevSessions.map(s => {
-              if (s.id === currentSessionId) {
-                const messagesCopy = [...s.messages];
-                messagesCopy[messagesCopy.length - 1] = {
-                  role: 'assistant',
-                  content: `![${promptWithStyle}](${imageUrl})`,
-                  timestamp: new Date().toISOString()
-                };
-                return { ...s, messages: messagesCopy };
-              }
-              return s;
-            });
-            setTimeout(() => safeSaveSessions(updated), 0);
-            return updated;
-          });
-          setIsGenerating(false);
-
+          finishImageMessage(imageUrl, openrouterImageModel);
         } else {
-          // Cloudflare Worker Flow
+          // Cloudflare Worker Flow (free Flux)
           const response = await fetch("https://flux-image-generator.play2earn.workers.dev/", {
             method: "POST",
             headers: {
@@ -869,30 +1099,11 @@ export default function AiChatPage() {
           }
 
           const blob = await response.blob();
-          
-          // Convert blob to Base64
           const reader = new FileReader();
           reader.readAsDataURL(blob);
           reader.onloadend = () => {
             const base64data = reader.result as string;
-
-            setSessions(prevSessions => {
-              const updated = prevSessions.map(s => {
-                if (s.id === currentSessionId) {
-                  const messagesCopy = [...s.messages];
-                  messagesCopy[messagesCopy.length - 1] = {
-                    role: 'assistant',
-                    content: `![${promptWithStyle}](${base64data})`,
-                    timestamp: new Date().toISOString()
-                  };
-                  return { ...s, messages: messagesCopy };
-                }
-                return s;
-              });
-              setTimeout(() => safeSaveSessions(updated), 0);
-              return updated;
-            });
-            setIsGenerating(false);
+            finishImageMessage(base64data, 'flux-cloudflare');
           };
         }
       } catch (err: any) {
@@ -905,7 +1116,7 @@ export default function AiChatPage() {
               const messagesCopy = [...s.messages];
               messagesCopy[messagesCopy.length - 1] = {
                 role: 'assistant',
-                content: `${translationStatus}\n\n❌ เกิดข้อผิดพลาดในการสร้างภาพ (Step 2/2): ${err.message}\n\nกรุณาตรวจสอบคีย์หรือการเชื่อมต่อกับผู้ให้บริการ`,
+                content: `${translationStatus}\n\n❌ เกิดข้อผิดพลาดในการสร้างภาพ (Step 2/2): ${err.message}\n\nลองเปลี่ยนโมเดลรูป (แนะนำ Nano Banana 2) หรือตรวจ API Key`,
                 timestamp: new Date().toISOString()
               };
               return { ...s, messages: messagesCopy };
@@ -1120,7 +1331,7 @@ export default function AiChatPage() {
             />
             <div className="p-3 border-t border-theme-border/60 bg-theme-surface/50 dark:bg-theme-bg-page/40 flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-theme-text-muted font-bold tracking-wide">โมเดล Flux-1-schnell</span>
+                <span className="text-[10px] text-theme-text-muted font-bold tracking-wide">AI Image</span>
                 <a 
                   href={imageUrl} 
                   download={`flux-image-${Date.now()}.jpg`}
@@ -1568,29 +1779,54 @@ export default function AiChatPage() {
                         </div>
 
                         {/* Timestamp & Meta */}
-                        <div className="mt-2 text-[9px] text-theme-text-muted flex items-center justify-between gap-4 font-mono font-bold">
-                          <div className="flex items-center gap-2">
-                            <span>{new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                            {!m.content.startsWith('![') && (
-                              <button
-                                onClick={() => handleCopyText(m.content)}
-                                className={cn(
-                                  "font-semibold transition-colors flex items-center gap-0.5 select-none cursor-pointer",
-                                  isUser ? "text-indigo-300 hover:text-indigo-200" : "text-indigo-500 hover:text-indigo-600"
-                                )}
-                                title="คัดลอกข้อความ"
-                              >
-                                <Copy size={10} />
-                                <span>คัดลอก</span>
-                              </button>
+                        <div className="mt-2 text-[9px] text-theme-text-muted flex flex-col gap-2 font-mono font-bold">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span>{new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                              {!m.content.startsWith('![') && (
+                                <button
+                                  onClick={() => handleCopyText(m.content)}
+                                  className={cn(
+                                    "font-semibold transition-colors flex items-center gap-0.5 select-none cursor-pointer",
+                                    isUser ? "text-indigo-300 hover:text-indigo-200" : "text-indigo-500 hover:text-indigo-600"
+                                  )}
+                                  title="คัดลอกข้อความ"
+                                >
+                                  <Copy size={10} />
+                                  <span>คัดลอก</span>
+                                </button>
+                              )}
+                            </div>
+                            {!isUser && (
+                              <span className="uppercase text-[8px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded tracking-wide shrink-0">
+                                {m.content.startsWith('![')
+                                  ? (getImagePreset(m.modelUsed || '')?.shortName || m.modelUsed || 'AI Image')
+                                  : (AVAILABLE_MODELS.find(mod => mod.id === m.modelUsed)?.name || activeModelInfo.name).split(' (')[0]}
+                              </span>
                             )}
                           </div>
-                          {!isUser && (
-                            <span className="uppercase text-[8px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded tracking-wide">
-                              {m.content.startsWith('![') 
-                                ? 'Flux Image' 
-                                : (AVAILABLE_MODELS.find(mod => mod.id === m.modelUsed)?.name || activeModelInfo.name).split(' (')[0]}
-                            </span>
+                          {/* Create image from AI text — avoid when already an image or generating */}
+                          {!isUser && !m.content.startsWith('![') && m.content.length > 40 && !isGenerating && (
+                            <div className="flex flex-wrap gap-1.5 pt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleCreateImageFromMessage(m.content, 'infographic')}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all cursor-pointer select-none"
+                                title="ใช้ Nano Banana / GPT Image ทำ infographic จากข้อความนี้"
+                              >
+                                <Palette size={11} />
+                                ทำ Infographic
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleCreateImageFromMessage(m.content, 'illustration')}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-theme-border bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text transition-all cursor-pointer select-none"
+                                title="วาดภาพประกอบจากข้อความนี้"
+                              >
+                                <Sparkles size={11} />
+                                สร้างรูปประกอบ
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1614,36 +1850,67 @@ export default function AiChatPage() {
                 </div>
               )}
 
-              {/* Flux Parameter Settings Drawer - Only visible when Draw Mode is ON */}
+              {/* Image Settings — only when Draw Mode is ON */}
               {drawMode && (
                 <div className="mb-3 p-3 rounded-2xl border border-violet-500/20 bg-violet-500/5 dark:bg-violet-950/10 backdrop-blur-md space-y-3 animate-fade-in text-xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-violet-500/10 pb-2 gap-2">
                     <span className="font-extrabold text-violet-600 dark:text-violet-400 flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
                       <Palette size={12} className="animate-pulse" />
-                      ตั้งค่าการสร้างรูปภาพ (Image Settings)
+                      โหมดสร้างรูป (แยกจากแชทข้อความ)
                     </span>
-                    <span className="text-[9px] text-theme-text-muted">เลือกบริการและปรับแต่งสไตล์ภาพถ่าย</span>
+                    <span className="text-[9px] text-theme-text-muted">
+                      {drawSourceText
+                        ? `ใช้เนื้อหาจากแชท ${drawSourceText.length.toLocaleString()} ตัวอักษร`
+                        : 'พิมพ์คำอธิบายรูป แล้วกดส่ง'}
+                    </span>
                   </div>
 
-                  {/* Engine Toggle Selection */}
+                  {drawSourceText && (
+                    <div className="text-[10px] text-theme-text-secondary bg-theme-surface/60 border border-theme-border/50 rounded-xl px-2.5 py-2 line-clamp-2">
+                      📎 ต้นทาง: {drawSourceText.slice(0, 160)}{drawSourceText.length > 160 ? '…' : ''}
+                    </div>
+                  )}
+
+                  {/* Intent */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">ประเภทงาน (ระบบจะแนะนำโมเดลให้)</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {([
+                        { id: 'infographic' as DrawIntent, label: '📊 Infographic', tip: 'สรุปข้อมูล / โปสเตอร์หัวข้อ' },
+                        { id: 'thai_text' as DrawIntent, label: '🇹🇭 ข้อความไทยบนภาพ', tip: 'ป้าย หัวข้อ ภาษาไทยชัด' },
+                        { id: 'illustration' as DrawIntent, label: '🎨 ภาพประกอบ', tip: 'mood / hero ไม่เน้นตัวอักษร' },
+                      ]).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          title={opt.tip}
+                          onClick={() => {
+                            setDrawIntent(opt.id);
+                            const rec = recommendImageModel(opt.id);
+                            setDrawEngine('openrouter');
+                            setOpenrouterImageModel(rec.id);
+                            localStorage.setItem('openrouter_draw_engine', 'openrouter');
+                            localStorage.setItem('openrouter_image_model', rec.id);
+                            if (opt.id === 'infographic') setFluxRatio('9:16');
+                            showToast(`แนะนำโมเดล: ${rec.shortName} — ${rec.badge}`, 'info');
+                          }}
+                          className={cn(
+                            "px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer",
+                            drawIntent === opt.id
+                              ? "bg-violet-500/15 border-violet-400 text-violet-700 dark:text-violet-200"
+                              : "border-theme-border text-theme-text-muted hover:text-theme-text"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Engine */}
                   <div className="space-y-1">
-                    <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">บริการสร้างรูปภาพ (Image Generation Engine)</label>
+                    <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">ช่องทางสร้างรูป</label>
                     <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDrawEngine('flux_cf');
-                          localStorage.setItem('openrouter_draw_engine', 'flux_cf');
-                        }}
-                        className={cn(
-                          "flex-1 py-1 px-2.5 rounded-lg text-[10px] font-bold border transition-all text-center select-none cursor-pointer",
-                          drawEngine === 'flux_cf'
-                            ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400 font-extrabold shadow-sm"
-                            : "bg-theme-surface border-theme-border/60 text-theme-text-muted hover:text-theme-text"
-                        )}
-                      >
-                        ☁️ Cloudflare (ฟรีตลอดชีพ)
-                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -1651,19 +1918,89 @@ export default function AiChatPage() {
                           localStorage.setItem('openrouter_draw_engine', 'openrouter');
                         }}
                         className={cn(
-                          "flex-1 py-1 px-2.5 rounded-lg text-[10px] font-bold border transition-all text-center select-none cursor-pointer",
+                          "flex-1 py-1.5 px-2.5 rounded-lg text-[10px] font-bold border transition-all text-center select-none cursor-pointer",
                           drawEngine === 'openrouter'
                             ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400 font-extrabold shadow-sm"
                             : "bg-theme-surface border-theme-border/60 text-theme-text-muted hover:text-theme-text"
                         )}
                       >
-                        🌐 OpenRouter API (ฟรี/ราคาประหยัด)
+                        🌐 OpenRouter (แนะนำ)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDrawEngine('flux_cf');
+                          localStorage.setItem('openrouter_draw_engine', 'flux_cf');
+                        }}
+                        className={cn(
+                          "flex-1 py-1.5 px-2.5 rounded-lg text-[10px] font-bold border transition-all text-center select-none cursor-pointer",
+                          drawEngine === 'flux_cf'
+                            ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400 font-extrabold shadow-sm"
+                            : "bg-theme-surface border-theme-border/60 text-theme-text-muted hover:text-theme-text"
+                        )}
+                      >
+                        ☁️ Cloudflare ฟรี
                       </button>
                     </div>
                   </div>
+
+                  {/* Recommended model chips (OpenRouter) */}
+                  {drawEngine === 'openrouter' && (
+                    <div className="space-y-1.5">
+                      <label className="block text-[9px] font-bold text-theme-text-secondary uppercase">
+                        โมเดลรูปภาพที่แนะนำ
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto custom-scrollbar pr-0.5">
+                        {IMAGE_MODEL_PRESETS.map((preset) => {
+                          const isActive = openrouterImageModel === preset.id;
+                          const matchesIntent = preset.bestFor.includes(drawIntent);
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              title={preset.hint}
+                              onClick={() => {
+                                setOpenrouterImageModel(preset.id);
+                                localStorage.setItem('openrouter_image_model', preset.id);
+                              }}
+                              className={cn(
+                                "text-left px-2.5 py-2 rounded-xl border transition-all cursor-pointer",
+                                isActive
+                                  ? "border-violet-400 bg-violet-500/15 shadow-sm"
+                                  : matchesIntent
+                                    ? "border-violet-500/25 bg-theme-surface hover:border-violet-400/50"
+                                    : "border-theme-border/60 bg-theme-surface/50 opacity-80 hover:opacity-100"
+                              )}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[11px] font-extrabold text-theme-text">{preset.shortName}</span>
+                                <span className={cn(
+                                  "text-[8px] font-bold px-1.5 py-0.5 rounded border shrink-0",
+                                  preset.textQuality === 'excellent'
+                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/25"
+                                    : preset.textQuality === 'good'
+                                      ? "bg-amber-500/10 text-amber-700 border-amber-500/25"
+                                      : "bg-slate-500/10 text-slate-500 border-slate-500/25"
+                                )}>
+                                  {preset.textQuality === 'excellent' ? 'ไทย/ข้อความดี' : preset.textQuality === 'good' ? 'ข้อความพอใช้' : 'ไม่เน้นข้อความ'}
+                                </span>
+                              </div>
+                              <p className="text-[9px] text-violet-600 dark:text-violet-300 font-bold mt-0.5">{preset.badge}</p>
+                              <p className="text-[9px] text-theme-text-muted mt-0.5 line-clamp-2 leading-snug">{preset.hint}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {drawEngine === 'flux_cf' && (
+                    <div className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-2.5 py-2 leading-relaxed">
+                      ⚠️ Cloudflare Flux ฟรีเหมาะภาพ mood เท่านั้น — Infographic / ป้ายไทยมักเพี้ยน แนะนำสลับ OpenRouter + <strong>Nano Banana 2</strong>
+                    </div>
+                  )}
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Style Preset */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold text-theme-text-secondary uppercase">สไตล์ภาพ (Style)</label>
                       <select
@@ -1672,6 +2009,7 @@ export default function AiChatPage() {
                         className="w-full text-xs font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer"
                       >
                         <option value="none">ตามที่พิมพ์ (Default)</option>
+                        <option value="infographic">📊 Infographic แบนเนอร์</option>
                         <option value="realistic">📸 ภาพถ่ายสมจริง (Realistic)</option>
                         <option value="anime">🎨 การ์ตูน/อนิเมะ (Anime)</option>
                         <option value="pixel">👾 พิกเซลอาร์ต (Pixel Art)</option>
@@ -1681,7 +2019,6 @@ export default function AiChatPage() {
                       </select>
                     </div>
 
-                    {/* Aspect Ratio */}
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold text-theme-text-secondary uppercase">สัดส่วนภาพ (Aspect Ratio)</label>
                       <select
@@ -1691,32 +2028,14 @@ export default function AiChatPage() {
                       >
                         <option value="1:1">1:1 สี่เหลี่ยมจัตุรัส</option>
                         <option value="16:9">16:9 แนวนอนกว้าง</option>
-                        <option value="9:16">9:16 แนวตั้งมือถือ</option>
+                        <option value="9:16">9:16 แนวตั้ง (Infographic)</option>
                         <option value="4:3">4:3 รูปถ่ายคลาสสิก</option>
                         <option value="3:4">3:4 แนวตั้งคลาสสิก</option>
                       </select>
                     </div>
 
-                    {/* Dynamic Third Column */}
-                    {drawEngine === 'openrouter' ? (
-                      <div className="space-y-1">
-                        <label className="block text-[10px] font-bold text-theme-text-secondary uppercase">โมเดลรูปภาพ (Image Model)</label>
-                        <select
-                          value={openrouterImageModel}
-                          onChange={(e) => {
-                            setOpenrouterImageModel(e.target.value);
-                            localStorage.setItem('openrouter_image_model', e.target.value);
-                          }}
-                          className="w-full text-xs font-semibold py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500 cursor-pointer text-[11px]"
-                        >
-                          <option value="black-forest-labs/flux.2-klein-4b">FLUX.2 Klein (ฟรี 1,000 req/วัน • แนะนำ)</option>
-                          <option value="black-forest-labs/flux.2-flex">FLUX.2 Flex (คุณภาพปานกลาง)</option>
-                          <option value="black-forest-labs/flux.2-pro">FLUX.2 Pro (คุณภาพสูง)</option>
-                          <option value="black-forest-labs/flux.2-max">FLUX.2 Max (คมชัดสูงสุด)</option>
-                        </select>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
+                    {drawEngine === 'flux_cf' && (
+                      <div className="space-y-1 sm:col-span-2">
                         <label className="block text-[10px] font-bold text-theme-text-secondary uppercase">ระดับความละเอียด (Quality)</label>
                         <select
                           value={fluxSteps}
@@ -1730,9 +2049,10 @@ export default function AiChatPage() {
                       </div>
                     )}
                   </div>
+
                   {drawEngine === 'openrouter' && (
-                    <div className="text-[9.5px] text-violet-500 font-extrabold tracking-wide bg-violet-500/5 px-2 py-1 rounded-lg border border-violet-500/10 mt-1">
-                      💡 บัญชี OpenRouter ที่มียอดเติมเงินสะสมขั้นต่ำ $10 จะได้รับสิทธิ์สร้างฟรี 1,000 ครั้ง/วัน บนโมเดล Flux 1 Schnell (จะดึง API Key จากช่องทางด้านซ้าย)
+                    <div className="text-[9.5px] text-violet-600 dark:text-violet-300 tracking-wide bg-violet-500/5 px-2.5 py-1.5 rounded-lg border border-violet-500/10 leading-relaxed">
+                      💡 <strong>Nano Banana / GPT Image</strong> = ข้อความบนภาพดี (รวมไทย) · <strong>Flux</strong> = ภาพสวยแต่ตัวอักษรมักเพี้ยน · มีค่าใช้จ่ายตาม OpenRouter
                     </div>
                   )}
                 </div>
@@ -1814,7 +2134,7 @@ export default function AiChatPage() {
                   <span className="hidden sm:inline">ค้นหาเว็บ {webSearch ? 'ON' : 'OFF'}</span>
                 </button>
 
-                {/* Draw Mode Toggle Switch */}
+                {/* Draw Mode Toggle — separate from chat/web search */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1822,6 +2142,20 @@ export default function AiChatPage() {
                     setDrawMode(nextVal);
                     if (nextVal) {
                       setWebSearch(false);
+                      // Prefer text-strong default when opening draw mode blank
+                      if (!getImagePreset(openrouterImageModel)) {
+                        const rec = recommendImageModel(drawIntent);
+                        setDrawEngine('openrouter');
+                        setOpenrouterImageModel(rec.id);
+                        localStorage.setItem('openrouter_draw_engine', 'openrouter');
+                        localStorage.setItem('openrouter_image_model', rec.id);
+                      }
+                      showToast(
+                        'โหมดสร้างรูป: ปิดค้นหาเว็บแล้ว — เลือก Nano Banana/GPT สำหรับข้อความไทย หรือ Cloudflare ถ้าอยากฟรี',
+                        'info'
+                      );
+                    } else {
+                      setDrawSourceText('');
                     }
                   }}
                   className={cn(
@@ -1830,7 +2164,7 @@ export default function AiChatPage() {
                       ? "bg-violet-500/10 border-violet-500/30 text-violet-600 dark:text-violet-400"
                       : "bg-theme-surface border-theme-border/80 text-theme-text-muted hover:text-theme-text"
                   )}
-                  title="สร้างภาพวาดฟรีผ่านโมเดล Flux-1-schnell"
+                  title="โหมดสร้างรูป (OpenRouter: Nano Banana / GPT Image / Flux หรือ Cloudflare ฟรี)"
                 >
                   <Palette size={14} className={cn(drawMode && "animate-pulse")} />
                   <span className="hidden sm:inline">สร้างรูป {drawMode ? 'ON' : 'OFF'}</span>
@@ -1848,8 +2182,10 @@ export default function AiChatPage() {
                   placeholder={
                     drawMode 
                       ? (apiKey 
-                          ? "พิมพ์ภาษาไทยได้เลย! AI จะแปลและวาดรูปอัจฉริยะด้วย Flux อัตโนมัติ..." 
-                          : "พิมพ์คำอธิบายรูปภาพภาษาอังกฤษเพื่อภาพที่ตรงปก (หรือใส่ API Key ด้านซ้ายเพื่อแปลไทยออโต้)...")
+                          ? (drawSourceText
+                              ? "ปรับคำสั่งเพิ่มได้ เช่น 'โทนเขียว หัวข้อใหญ่' แล้วกดส่ง — จะใช้เนื้อหาจากแชทด้วย"
+                              : "อธิบายรูปที่อยากได้ (ไทยได้) · Infographic แนะนำ Nano Banana 2...")
+                          : "ใส่ API Key ด้านซ้าย หรือใช้ Cloudflare ฟรี (ตัวอักษรไทยอาจเพี้ยน)")
                       : (apiKey 
                           ? (webSearch 
                               ? "ค้นหาและถามคำถามจากอินเทอร์เน็ตสดๆ..." 
@@ -1883,7 +2219,14 @@ export default function AiChatPage() {
               <div className="mt-1.5 text-center text-[9px] text-theme-text-muted font-semibold tracking-wide flex items-center justify-center gap-1">
                 <span>ผู้ให้บริการระบบ OpenRouter API | ข้อมูลจะถูกคุ้มครองตามข้อกำหนดนโยบายความเป็นส่วนตัวของ API Provider</span>
                 {webSearch && <span className="text-indigo-500">• ค้นหาเว็บ ON — ใช้โมเดลปัจจุบัน + OpenRouter search (มีค่าใช้จ่ายเพิ่มได้)</span>}
-                {drawMode && <span className="text-violet-500">• กำลังใช้งานโหมดสร้างรูปภาพด้วย {drawEngine === 'openrouter' ? 'OpenRouter' : 'Flux Cloudflare'}</span>}
+                {drawMode && (
+                  <span className="text-violet-500">
+                    • สร้างรูป ON — {drawEngine === 'openrouter'
+                      ? (getImagePreset(openrouterImageModel)?.shortName || openrouterImageModel)
+                      : 'Cloudflare ฟรี'}
+                    {drawSourceText ? ' · มีเนื้อหาจากแชท' : ''}
+                  </span>
+                )}
               </div>
             </div>
           </footer>
