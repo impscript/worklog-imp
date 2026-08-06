@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Send, Trash2, Plus, Sparkles, Key, Eye, EyeOff, 
-  Shield, Cpu, AlertTriangle, RefreshCw, MessageSquare, Info, ShieldAlert, Trash, Globe, Palette, Copy, X
+  Shield, Cpu, AlertTriangle, RefreshCw, MessageSquare, Info, ShieldAlert, Trash, Globe, Palette, Copy, X,
+  Brain, Code2, Image as ImageIcon, Wrench, MessagesSquare
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useNotification } from '../context/NotificationContext';
@@ -21,12 +22,180 @@ interface ChatSession {
   messages: Message[];
 }
 
+/** What a model is best suited for — used as filter chips in the model picker */
+type ModelCategory = 'general' | 'reasoning' | 'web' | 'coding' | 'vision' | 'image_gen' | 'tools';
+
 interface ModelInfo {
   id: string;
   name: string;
   tier: 'free' | 'paid';
   description: string;
   privacy: string;
+  categories: ModelCategory[];
+}
+
+const MODEL_CATEGORY_META: Record<ModelCategory, {
+  label: string;
+  shortLabel: string;
+  hint: string;
+  chipClass: string;
+  badgeClass: string;
+  Icon: typeof Globe;
+}> = {
+  general: {
+    label: 'ถามตอบทั่วไป',
+    shortLabel: 'ทั่วไป',
+    hint: 'คุย เขียนข้อความ สรุปงานประจำวัน',
+    chipClass: 'border-slate-300/80 text-slate-600 dark:text-slate-300 data-[active=true]:bg-slate-500/15 data-[active=true]:border-slate-400 data-[active=true]:text-slate-800 dark:data-[active=true]:text-slate-100',
+    badgeClass: 'bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20',
+    Icon: MessagesSquare,
+  },
+  reasoning: {
+    label: 'วิเคราะห์ / ใช้เหตุผล',
+    shortLabel: 'วิเคราะห์',
+    hint: 'คิดวิเคราะห์ วางแผน งานซับซ้อนหลายขั้น',
+    chipClass: 'border-violet-300/80 text-violet-600 dark:text-violet-300 data-[active=true]:bg-violet-500/15 data-[active=true]:border-violet-400 data-[active=true]:text-violet-800 dark:data-[active=true]:text-violet-100',
+    badgeClass: 'bg-violet-500/10 text-violet-600 dark:text-violet-300 border-violet-500/25',
+    Icon: Brain,
+  },
+  web: {
+    label: 'ค้นหาเว็บ',
+    shortLabel: 'ค้นหาเว็บ',
+    hint: 'ข่าวล่าสุด / ข้อมูลเรียลไทม์จากอินเทอร์เน็ต (เช่น Perplexity)',
+    chipClass: 'border-indigo-300/80 text-indigo-600 dark:text-indigo-300 data-[active=true]:bg-indigo-500/15 data-[active=true]:border-indigo-400 data-[active=true]:text-indigo-800 dark:data-[active=true]:text-indigo-100',
+    badgeClass: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border-indigo-500/25',
+    Icon: Globe,
+  },
+  coding: {
+    label: 'เขียนโค้ด',
+    shortLabel: 'โค้ด',
+    hint: 'เขียน แก้บั๊ก อธิบายโค้ด / SQL',
+    chipClass: 'border-amber-300/80 text-amber-700 dark:text-amber-300 data-[active=true]:bg-amber-500/15 data-[active=true]:border-amber-400 data-[active=true]:text-amber-900 dark:data-[active=true]:text-amber-100',
+    badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25',
+    Icon: Code2,
+  },
+  vision: {
+    label: 'อ่านรูป / มัลติมีเดีย',
+    shortLabel: 'รูปภาพ',
+    hint: 'รับรูปภาพ PDF วิดีโอ หรือไฟล์เป็นอินพุต',
+    chipClass: 'border-cyan-300/80 text-cyan-700 dark:text-cyan-300 data-[active=true]:bg-cyan-500/15 data-[active=true]:border-cyan-400 data-[active=true]:text-cyan-900 dark:data-[active=true]:text-cyan-100',
+    badgeClass: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/25',
+    Icon: ImageIcon,
+  },
+  image_gen: {
+    label: 'สร้างรูป',
+    shortLabel: 'สร้างรูป',
+    hint: 'โมเดลที่สร้างภาพเป็นเอาต์พุต',
+    chipClass: 'border-pink-300/80 text-pink-600 dark:text-pink-300 data-[active=true]:bg-pink-500/15 data-[active=true]:border-pink-400 data-[active=true]:text-pink-800 dark:data-[active=true]:text-pink-100',
+    badgeClass: 'bg-pink-500/10 text-pink-600 dark:text-pink-300 border-pink-500/25',
+    Icon: Palette,
+  },
+  tools: {
+    label: 'Tools / Agent',
+    shortLabel: 'Tools',
+    hint: 'รองรับ function calling / agentic workflow',
+    chipClass: 'border-emerald-300/80 text-emerald-700 dark:text-emerald-300 data-[active=true]:bg-emerald-500/15 data-[active=true]:border-emerald-400 data-[active=true]:text-emerald-900 dark:data-[active=true]:text-emerald-100',
+    badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25',
+    Icon: Wrench,
+  },
+};
+
+/** Infer use-case tags from OpenRouter model payload + id/name heuristics */
+function categorizeOpenRouterModel(raw: {
+  id?: string;
+  name?: string;
+  description?: string;
+  architecture?: {
+    modality?: string;
+    input_modalities?: string[];
+    output_modalities?: string[];
+  };
+  supported_parameters?: string[];
+  reasoning?: unknown;
+  pricing?: Record<string, string>;
+}): ModelCategory[] {
+  const id = (raw.id || '').toLowerCase();
+  const name = (raw.name || '').toLowerCase();
+  const desc = (raw.description || '').toLowerCase();
+  const blob = `${id} ${name} ${desc}`;
+  const inputs = raw.architecture?.input_modalities || [];
+  const outputs = raw.architecture?.output_modalities || [];
+  const params = raw.supported_parameters || [];
+  const cats = new Set<ModelCategory>();
+
+  // Native web / live search models (Perplexity Sonar family, :online variants)
+  const isWebNative =
+    id.startsWith('perplexity/') ||
+    id.includes(':online') ||
+    id.includes('/online') ||
+    /\bsonar\b/.test(blob) ||
+    (desc.includes('search') && (desc.includes('web') || desc.includes('internet') || desc.includes('real-time') || desc.includes('realtime') || id.includes('perplexity')));
+
+  if (isWebNative) cats.add('web');
+
+  // Image generation (output is image)
+  if (outputs.includes('image') || /flux|dall-e|dalle|stable-diffusion|sdxl|imagen|midjourney|image.generat|text-to-image|t2i/.test(blob)) {
+    cats.add('image_gen');
+  }
+
+  // Vision / multimodal input
+  if (
+    inputs.some(m => m === 'image' || m === 'file' || m === 'video' || m === 'audio') ||
+    (raw.architecture?.modality || '').includes('image') ||
+    /\b(vision|multimodal|vl\b|vlm)\b/.test(blob)
+  ) {
+    cats.add('vision');
+  }
+
+  // Reasoning / analysis
+  if (
+    raw.reasoning ||
+    params.includes('reasoning') ||
+    params.includes('include_reasoning') ||
+    params.includes('reasoning_effort') ||
+    /\b(reason|reasoning|think|o1\b|o3\b|o4\b|r1\b|deep.?research|agentic|analysis)\b/.test(blob)
+  ) {
+    cats.add('reasoning');
+  }
+
+  // Coding-focused
+  if (/\b(code|coder|coding|codestral|devstral|codellama|deepseek-coder|qwen.?coder|starcoder|programming)\b/.test(blob)) {
+    cats.add('coding');
+  }
+
+  // Tool / agent support
+  if (params.includes('tools') || params.includes('tool_choice') || /\b(agent|function.?call|tool.?use)\b/.test(blob)) {
+    cats.add('tools');
+  }
+
+  // Always tag pure chat models as general when they output text and aren't image-only generators
+  if (!cats.has('image_gen') || outputs.includes('text') || outputs.length === 0) {
+    cats.add('general');
+  }
+
+  // Strong coding signal for well-known general models that excel at code
+  if (/\b(claude|gpt-4|gpt-5|gemini|deepseek|qwen|llama|opus|sonnet|codex)\b/.test(blob) && !cats.has('coding') && cats.has('general')) {
+    // keep as general; don't over-tag every flagship as coding
+  }
+
+  return Array.from(cats);
+}
+
+function mapOpenRouterModel(m: any): ModelInfo {
+  const promptPrice = parseFloat(m.pricing?.prompt || '0') * 1000000;
+  const isFree = promptPrice === 0 || String(m.id || '').endsWith(':free');
+  const categories = categorizeOpenRouterModel(m);
+  const ctxK = m.context_length ? (m.context_length / 1000).toFixed(0) : '?';
+  return {
+    id: m.id,
+    name: m.name || m.id,
+    tier: isFree ? 'free' : 'paid',
+    description: `${m.description || ''} (Context: ${ctxK}k)`,
+    privacy: isFree
+      ? '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
+      : '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+    categories,
+  };
 }
 
 const AVAILABLE_MODELS: ModelInfo[] = [
@@ -36,63 +205,72 @@ const AVAILABLE_MODELS: ModelInfo[] = [
     name: 'Claude Sonnet 5 (Paid)',
     tier: 'paid',
     description: 'โมเดลที่ดีที่สุดในปัจจุบันด้านงานวิเคราะห์ เขียนโค้ด และใช้เหตุผลเชิงลึกระดับสูงสุด',
-    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+    categories: ['general', 'reasoning', 'coding', 'tools'],
   },
   {
     id: 'anthropic/claude-3.5-sonnet',
     name: 'Claude 3.5 Sonnet (Paid)',
     tier: 'paid',
     description: 'โมเดลยอดนิยมด้านการวิเคราะห์ เขียนโค้ด และใช้เหตุผลเชิงลึก',
-    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+    categories: ['general', 'reasoning', 'coding', 'tools'],
   },
   {
     id: 'google/gemini-2.5-pro',
     name: 'Gemini 2.5 Pro (Paid)',
     tier: 'paid',
     description: 'โมเดลความเร็วสูง หน้าต่างบริบทใหญ่พิเศษ เหมาะสำหรับการประมวลผลเอกสารหรือเนื้อหายาวๆ',
-    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+    categories: ['general', 'reasoning', 'vision', 'tools'],
   },
   {
     id: 'google/gemini-3.5-flash',
     name: 'Gemini 3.5 Flash (Paid)',
     tier: 'paid',
     description: 'โมเดลตระกูล Gemini ล่าสุด ความเร็วสูงพิเศษ เหมาะกับงานทั่วไปและการประมวลผลเร็ว',
-    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+    categories: ['general', 'vision', 'tools'],
   },
   {
     id: 'openai/gpt-4o',
     name: 'GPT-4o (Paid)',
     tier: 'paid',
     description: 'โมเดลประสิทธิภาพสูงรอบด้านจาก OpenAI ฉลาดและตอบคำถามภาษาไทยได้ดี',
-    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+    categories: ['general', 'coding', 'vision', 'tools'],
   },
   {
     id: 'openai/gpt-4o-mini',
     name: 'GPT-4o Mini (Paid)',
     tier: 'paid',
     description: 'โมเดลขนาดเล็ก ทำงานเร็วมาก และราคาประหยัดอย่างคุ้มค่าจาก OpenAI',
-    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+    categories: ['general', 'vision', 'tools'],
   },
   {
     id: 'deepseek/deepseek-v4-flash',
     name: 'DeepSeek V4 Flash (Paid)',
     tier: 'paid',
     description: '⚡ โมเดล MoE สถาปัตยกรรมล่าสุด ความเร็วสูงเป็นพิเศษระดับ 284B จาก DeepSeek',
-    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+    privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+    categories: ['general', 'coding', 'reasoning', 'tools'],
   },
   {
     id: 'perplexity/sonar',
     name: 'Perplexity Sonar Search (Paid)',
     tier: 'paid',
     description: '🌐 โมเดลพร้อมทักษะค้นหาเว็บเรียลไทม์ เหมาะสำหรับการสรุปข่าวสารล่าสุดในอินเทอร์เน็ต',
-    privacy: '🔒 ปลอดภัย: มีนโยบายรักษาความเป็นส่วนตัวในการเข้าถึงข้อมูลผ่าน API'
+    privacy: '🔒 ปลอดภัย: มีนโยบายรักษาความเป็นส่วนตัวในการเข้าถึงข้อมูลผ่าน API',
+    categories: ['web', 'general'],
   },
   {
     id: 'perplexity/sonar-reasoning',
     name: 'Perplexity Sonar Reasoning (Paid)',
     tier: 'paid',
     description: '🧠 โมเดลค้นหาข้อมูลอินเทอร์เน็ตเชิงลึก พร้อมการคิดวิเคราะห์หลายขั้นตอนก่อนตอบคำถาม',
-    privacy: '🔒 ปลอดภัย: มีนโยบายรักษาความเป็นส่วนตัวในการเข้าถึงข้อมูลผ่าน API'
+    privacy: '🔒 ปลอดภัย: มีนโยบายรักษาความเป็นส่วนตัวในการเข้าถึงข้อมูลผ่าน API',
+    categories: ['web', 'reasoning', 'general'],
   },
   // Free Tier (For standard queries/non-sensitive data)
   {
@@ -100,21 +278,24 @@ const AVAILABLE_MODELS: ModelInfo[] = [
     name: 'Auto Free Router (Free - แนะนำ)',
     tier: 'free',
     description: 'สลับเลือกโมเดลใช้งานฟรีที่เปิดให้บริการอยู่แบบอัตโนมัติ แก้ปัญหาโมเดลปลายทางออฟไลน์',
-    privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
+    privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ',
+    categories: ['general'],
   },
   {
     id: 'google/gemini-2.0-flash-exp:free',
     name: 'Gemini 2.0 Flash Exp (Free)',
     tier: 'free',
     description: 'โมเดลรุ่นทดลองรวดเร็วจาก Google ตอบสนองคำสั่งแบบกระชับฉับไว',
-    privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
+    privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ',
+    categories: ['general', 'vision'],
   },
   {
     id: 'meta-llama/llama-3.3-70b-instruct:free',
     name: 'Llama 3.3 70B (Free)',
     tier: 'free',
     description: 'โมเดลประสิทธิภาพสูงระดับ 70B ล่าสุดจาก Meta ตอบสนองรวดเร็วเป็นธรรมชาติ',
-    privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
+    privacy: '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ',
+    categories: ['general'],
   }
 ];
 
@@ -187,6 +368,9 @@ export default function AiChatPage() {
   });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState<boolean>(false);
+  /** Category filter chips in model search modal ('all' = show every use-case) */
+  const [modelCategoryFilter, setModelCategoryFilter] = useState<ModelCategory | 'all'>('all');
+  const [modelTierFilter, setModelTierFilter] = useState<'all' | 'free' | 'paid'>('all');
 
   // Fetch all models dynamically from OpenRouter (public endpoint)
   useEffect(() => {
@@ -197,20 +381,7 @@ export default function AiChatPage() {
         if (res.ok) {
           const json = await res.json();
           if (json && Array.isArray(json.data)) {
-            const mapped: ModelInfo[] = json.data.map((m: any) => {
-              const promptPrice = parseFloat(m.pricing?.prompt || '0') * 1000000;
-              const isFree = promptPrice === 0;
-              return {
-                id: m.id,
-                name: m.name,
-                tier: isFree ? 'free' : 'paid',
-                description: `${m.description || ''} (Context: ${(m.context_length / 1000).toFixed(0)}k)`,
-                privacy: isFree
-                  ? '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
-                  : '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
-              };
-            });
-            setFetchedModels(mapped);
+            setFetchedModels(json.data.map(mapOpenRouterModel));
           }
         }
       } catch (err) {
@@ -273,8 +444,28 @@ export default function AiChatPage() {
       name: selectedModel,
       tier: 'paid' as const,
       description: 'โมเดลกำหนดเองโดยผู้ใช้',
-      privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
+      privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+      categories: ['general'] as ModelCategory[],
     };
+
+  const filteredSearchModels = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    return fetchedModels.filter((m) => {
+      if (modelTierFilter !== 'all' && m.tier !== modelTierFilter) return false;
+      if (modelCategoryFilter !== 'all' && !m.categories?.includes(modelCategoryFilter)) return false;
+      if (!query) return true;
+      const catLabels = (m.categories || [])
+        .map((c) => MODEL_CATEGORY_META[c]?.label || c)
+        .join(' ')
+        .toLowerCase();
+      return (
+        m.id.toLowerCase().includes(query) ||
+        m.name.toLowerCase().includes(query) ||
+        (m.description || '').toLowerCase().includes(query) ||
+        catLabels.includes(query)
+      );
+    });
+  }, [fetchedModels, searchQuery, modelCategoryFilter, modelTierFilter]);
 
   const handleSaveApiKey = () => {
     localStorage.setItem('openrouter_chat_api_key', apiKey.trim());
@@ -286,17 +477,22 @@ export default function AiChatPage() {
     setSelectedModel(modelId);
     if (modelId !== 'custom') {
       localStorage.setItem('openrouter_chat_model', modelId);
-      const matchedName = AVAILABLE_MODELS.find(m => m.id === modelId)?.name || 
-                          fetchedModels.find(m => m.id === modelId)?.name || 
-                          modelId;
+      const matched =
+        AVAILABLE_MODELS.find(m => m.id === modelId) ||
+        fetchedModels.find(m => m.id === modelId);
+      const matchedName = matched?.name || modelId;
       showToast(`สลับโมเดลเป็น ${matchedName}`, 'info');
 
-      // Automatically toggle webSearch visual helper based on model
-      if (modelId.startsWith('perplexity/')) {
+      const cats = matched?.categories || categorizeOpenRouterModel({ id: modelId, name: modelId });
+      const supportsNativeWeb = cats.includes('web') || modelId.startsWith('perplexity/');
+
+      // Auto-enable web search only for native search models; turn off otherwise to avoid silent model swap errors
+      if (supportsNativeWeb) {
         setWebSearch(true);
         setDrawMode(false);
-      } else {
+      } else if (webSearch) {
         setWebSearch(false);
+        showToast('โมเดลนี้ไม่รองรับค้นหาเว็บโดยตรง — ปิดโหมดค้นหาเว็บแล้ว (เลือกโมเดลที่มีป้าย "ค้นหาเว็บ" เช่น Perplexity)', 'warning');
       }
     }
   };
@@ -1170,7 +1366,27 @@ export default function AiChatPage() {
                     </span>
                   )}
                 </h3>
-                <p className="text-[10px] text-theme-text-muted truncate mt-0.5">
+                <div className="flex flex-wrap items-center gap-1 mt-1">
+                  {(activeModelInfo.categories || ['general']).slice(0, 4).map((c) => {
+                    const meta = MODEL_CATEGORY_META[c];
+                    if (!meta) return null;
+                    const Icon = meta.Icon;
+                    return (
+                      <span
+                        key={c}
+                        title={meta.hint}
+                        className={cn(
+                          "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold border",
+                          meta.badgeClass
+                        )}
+                      >
+                        <Icon size={9} />
+                        {meta.shortLabel}
+                      </span>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-theme-text-muted truncate mt-0.5 hidden sm:block">
                   {activeModelInfo.description}
                 </p>
               </div>
@@ -1533,6 +1749,15 @@ export default function AiChatPage() {
                     setWebSearch(nextVal);
                     if (nextVal) {
                       setDrawMode(false);
+                      const isNativeWeb =
+                        selectedModel.startsWith('perplexity/') ||
+                        activeModelInfo.categories?.includes('web');
+                      if (!isNativeWeb) {
+                        showToast(
+                          'โหมดค้นหาเว็บจะใช้ Perplexity Sonar แทนโมเดลปัจจุบัน (โมเดลทั่วไปค้นหาอินเทอร์เน็ตไม่ได้) — หรือเลือกโมเดลป้าย "ค้นหาเว็บ" จากรายการ',
+                          'info'
+                        );
+                      }
                     }
                   }}
                   className={cn(
@@ -1541,7 +1766,7 @@ export default function AiChatPage() {
                       ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-400"
                       : "bg-theme-surface border-theme-border/80 text-theme-text-muted hover:text-theme-text"
                   )}
-                  title="ค้นหาข้อมูลจากอินเทอร์เน็ตแบบเรียลไทม์ (Web Search)"
+                  title="ค้นหาข้อมูลจากอินเทอร์เน็ตแบบเรียลไทม์ — ใช้โมเดล Perplexity / ป้ายค้นหาเว็บ"
                 >
                   <Globe size={14} className={cn(webSearch && "animate-pulse")} />
                   <span className="hidden sm:inline">ค้นหาเว็บ {webSearch ? 'ON' : 'OFF'}</span>
@@ -1626,18 +1851,22 @@ export default function AiChatPage() {
       {/* SEARCH MODELS MODAL */}
       {isSearchModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg rounded-2xl border border-theme-border/80 bg-theme-surface/95 dark:bg-theme-bg-page/95 shadow-2xl overflow-hidden flex flex-col max-h-[80vh] text-theme-text animate-scale-in">
+          <div className="w-full max-w-lg rounded-2xl border border-theme-border/80 bg-theme-surface/95 dark:bg-theme-bg-page/95 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-theme-text animate-scale-in">
             
             {/* Header */}
             <div className="p-4 border-b border-theme-border/50 bg-theme-surface-secondary/40 flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-bold text-sm">ค้นหาโมเดล OpenRouter ทั้งหมด</h3>
-                <p className="text-[10px] text-theme-text-muted mt-0.5">เลือกจากโมเดลทั้งหมดที่ให้บริการแบบ Live บนระบบ OpenRouter</p>
+                <p className="text-[10px] text-theme-text-muted mt-0.5">
+                  เลือกจากโมเดล Live — กรองตามประเภทงานเพื่อไม่ให้เลือกโมเดลผิดโจทย์
+                </p>
               </div>
               <button 
                 onClick={() => {
                   setIsSearchModalOpen(false);
                   setSearchQuery('');
+                  setModelCategoryFilter('all');
+                  setModelTierFilter('all');
                 }}
                 className="p-1 rounded-lg text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-secondary transition-all cursor-pointer"
               >
@@ -1645,21 +1874,105 @@ export default function AiChatPage() {
               </button>
             </div>
 
-            {/* Search Input */}
-            <div className="p-4 border-b border-theme-border/30 bg-theme-surface-secondary/20 flex gap-2 shrink-0">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหา เช่น claude, gemini, gpt, deepseek, llama..."
-                className="flex-1 text-xs py-2.5 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
-                autoFocus
-              />
-              {isLoadingModels && (
-                <div className="flex items-center justify-center px-2">
-                  <RefreshCw size={14} className="animate-spin text-indigo-500" />
+            {/* Search + Filters */}
+            <div className="p-3 border-b border-theme-border/30 bg-theme-surface-secondary/20 space-y-2.5 shrink-0">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ค้นหา เช่น claude, gemini, gpt, deepseek, llama..."
+                  className="flex-1 text-xs py-2.5 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
+                  autoFocus
+                />
+                {isLoadingModels && (
+                  <div className="flex items-center justify-center px-2">
+                    <RefreshCw size={14} className="animate-spin text-indigo-500" />
+                  </div>
+                )}
+              </div>
+
+              {/* Use-case category filters */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider">
+                    เหมาะสำหรับ (ประเภทงาน)
+                  </span>
+                  {(modelCategoryFilter !== 'all' || modelTierFilter !== 'all') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModelCategoryFilter('all');
+                        setModelTierFilter('all');
+                      }}
+                      className="text-[9px] font-bold text-indigo-500 hover:text-indigo-600 cursor-pointer"
+                    >
+                      ล้างตัวกรอง
+                    </button>
+                  )}
                 </div>
-              )}
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    data-active={modelCategoryFilter === 'all'}
+                    onClick={() => setModelCategoryFilter('all')}
+                    className={cn(
+                      "px-2 py-1 rounded-lg text-[9px] font-bold border transition-all cursor-pointer",
+                      "border-theme-border text-theme-text-secondary data-[active=true]:bg-indigo-500/15 data-[active=true]:border-indigo-400 data-[active=true]:text-indigo-700 dark:data-[active=true]:text-indigo-200"
+                    )}
+                  >
+                    ทั้งหมด
+                  </button>
+                  {(Object.keys(MODEL_CATEGORY_META) as ModelCategory[]).map((cat) => {
+                    const meta = MODEL_CATEGORY_META[cat];
+                    const Icon = meta.Icon;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        title={meta.hint}
+                        data-active={modelCategoryFilter === cat}
+                        onClick={() => setModelCategoryFilter(cat)}
+                        className={cn(
+                          "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-bold border transition-all cursor-pointer",
+                          meta.chipClass
+                        )}
+                      >
+                        <Icon size={10} />
+                        {meta.shortLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Tier filter */}
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  <span className="text-[9px] font-bold text-theme-text-muted self-center mr-0.5">ราคา:</span>
+                  {([
+                    { id: 'all' as const, label: 'ทุก tier' },
+                    { id: 'free' as const, label: 'Free' },
+                    { id: 'paid' as const, label: 'Paid' },
+                  ]).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      data-active={modelTierFilter === t.id}
+                      onClick={() => setModelTierFilter(t.id)}
+                      className={cn(
+                        "px-2 py-1 rounded-lg text-[9px] font-bold border transition-all cursor-pointer",
+                        "border-theme-border text-theme-text-secondary data-[active=true]:bg-emerald-500/15 data-[active=true]:border-emerald-400 data-[active=true]:text-emerald-700 dark:data-[active=true]:text-emerald-200"
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                {modelCategoryFilter === 'web' && (
+                  <p className="text-[9px] text-indigo-600 dark:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2 py-1.5 leading-relaxed">
+                    💡 งานค้นหาข่าว/ข้อมูลสด ควรเลือกโมเดลป้าย <strong>ค้นหาเว็บ</strong> (เช่น Perplexity Sonar)
+                    โมเดลทั่วไปไม่ค้นหาอินเทอร์เน็ตได้เอง — กดปุ่ม “ค้นหาเว็บ ON” จะสลับไป Sonar ให้อัตโนมัติ
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Model List */}
@@ -1668,61 +1981,103 @@ export default function AiChatPage() {
                 <div className="py-8 text-center text-xs text-theme-text-muted animate-pulse">
                   กำลังโหลดรายการโมเดลล่าสุดจาก OpenRouter...
                 </div>
+              ) : filteredSearchModels.length === 0 ? (
+                <div className="py-8 text-center text-xs text-theme-text-muted space-y-2">
+                  <p>ไม่พบโมเดลตามเงื่อนไขที่เลือก</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setModelCategoryFilter('all');
+                      setModelTierFilter('all');
+                    }}
+                    className="text-indigo-500 font-bold hover:underline cursor-pointer"
+                  >
+                    ล้างตัวกรองและลองใหม่
+                  </button>
+                </div>
               ) : (
-                (() => {
-                  const query = searchQuery.toLowerCase().trim();
-                  const filtered = fetchedModels.filter(
-                    m => m.id.toLowerCase().includes(query) || m.name.toLowerCase().includes(query)
-                  );
-
-                  if (filtered.length === 0) {
-                    return (
-                      <div className="py-8 text-center text-xs text-theme-text-muted">
-                        ไม่พบโมเดลที่ค้นหา หรือเชื่อมโยง OpenRouter ล้มเหลว
-                      </div>
-                    );
-                  }
-
-                  return filtered.map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => {
-                        handleModelChange(m.id);
-                        setCustomModelId(m.id);
-                        setIsSearchModalOpen(false);
-                        setSearchQuery('');
-                      }}
-                      className="w-full text-left p-3 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors rounded-xl flex flex-col gap-1 group cursor-pointer border border-transparent hover:border-indigo-100 dark:hover:border-indigo-500/10"
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span className="text-xs font-bold group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                          {m.name}
-                        </span>
-                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
-                          m.tier === 'paid' 
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25' 
-                            : 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/25'
-                        }`}>
-                          {m.tier === 'paid' ? 'Paid' : 'Free'}
-                        </span>
-                      </div>
-                      <span className="text-[9px] font-mono text-theme-text-muted select-all">
-                        {m.id}
+                filteredSearchModels.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      handleModelChange(m.id);
+                      setCustomModelId(m.id);
+                      setIsSearchModalOpen(false);
+                      setSearchQuery('');
+                      setModelCategoryFilter('all');
+                      setModelTierFilter('all');
+                    }}
+                    className="w-full text-left p-3 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors rounded-xl flex flex-col gap-1.5 group cursor-pointer border border-transparent hover:border-indigo-100 dark:hover:border-indigo-500/10"
+                  >
+                    <div className="flex items-center justify-between w-full gap-2">
+                      <span className="text-xs font-bold group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                        {m.name}
                       </span>
-                      {m.description && (
-                        <p className="text-[10px] text-theme-text-secondary leading-relaxed line-clamp-2 mt-0.5">
-                          {m.description}
-                        </p>
-                      )}
-                    </button>
-                  ));
-                })()
+                      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                        m.tier === 'paid' 
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25' 
+                          : 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/25'
+                      }`}>
+                        {m.tier === 'paid' ? 'Paid' : 'Free'}
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-mono text-theme-text-muted select-all">
+                      {m.id}
+                    </span>
+                    {/* Capability badges */}
+                    {m.categories?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {m.categories
+                          .filter((c) => c !== 'general' || m.categories.length === 1)
+                          .slice(0, 5)
+                          .map((c) => {
+                            const meta = MODEL_CATEGORY_META[c];
+                            if (!meta) return null;
+                            const Icon = meta.Icon;
+                            return (
+                              <span
+                                key={c}
+                                title={meta.hint}
+                                className={cn(
+                                  "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold border",
+                                  meta.badgeClass
+                                )}
+                              >
+                                <Icon size={9} />
+                                {meta.shortLabel}
+                              </span>
+                            );
+                          })}
+                        {m.categories.includes('general') && m.categories.length > 1 && (
+                          <span
+                            title={MODEL_CATEGORY_META.general.hint}
+                            className={cn(
+                              "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold border",
+                              MODEL_CATEGORY_META.general.badgeClass
+                            )}
+                          >
+                            <MessagesSquare size={9} />
+                            ทั่วไป
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {m.description && (
+                      <p className="text-[10px] text-theme-text-secondary leading-relaxed line-clamp-2 mt-0.5">
+                        {m.description}
+                      </p>
+                    )}
+                  </button>
+                ))
               )}
             </div>
 
             {/* Footer */}
-            <div className="p-3 border-t border-theme-border/50 bg-theme-surface-secondary/40 text-[9px] text-theme-text-muted flex justify-between items-center shrink-0">
-              <span>พบโมเดลทั้งหมด {fetchedModels.length} รายการ</span>
+            <div className="p-3 border-t border-theme-border/50 bg-theme-surface-secondary/40 text-[9px] text-theme-text-muted flex justify-between items-center shrink-0 gap-2">
+              <span>
+                แสดง {filteredSearchModels.length.toLocaleString()} / {fetchedModels.length.toLocaleString()} รายการ
+              </span>
               <button
                 onClick={async () => {
                   setFetchedModels([]);
@@ -1732,19 +2087,7 @@ export default function AiChatPage() {
                     if (res.ok) {
                       const json = await res.json();
                       if (json && Array.isArray(json.data)) {
-                        const mapped = json.data.map((m: any) => {
-                          const promptPrice = parseFloat(m.pricing?.prompt || '0') * 1000000;
-                          return {
-                            id: m.id,
-                            name: m.name,
-                            tier: promptPrice === 0 ? 'free' : 'paid',
-                            description: `${m.description || ''} (Context: ${(m.context_length / 1000).toFixed(0)}k)`,
-                            privacy: promptPrice === 0
-                              ? '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
-                              : '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ'
-                          };
-                        });
-                        setFetchedModels(mapped);
+                        setFetchedModels(json.data.map(mapOpenRouterModel));
                         showToast('อัปเดตรายชื่อโมเดลเรียบร้อย!', 'success');
                       }
                     }
@@ -1755,7 +2098,7 @@ export default function AiChatPage() {
                     setIsLoadingModels(false);
                   }
                 }}
-                className="inline-flex items-center gap-1 hover:text-theme-text font-bold transition-all cursor-pointer"
+                className="inline-flex items-center gap-1 hover:text-theme-text font-bold transition-all cursor-pointer shrink-0"
               >
                 <RefreshCw size={10} className={isLoadingModels ? "animate-spin" : ""} /> รีเฟรชรายการ
               </button>
