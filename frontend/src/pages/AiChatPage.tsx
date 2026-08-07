@@ -645,6 +645,8 @@ export default function AiChatPage() {
     return (localStorage.getItem('openrouter_thinking_level') as ThinkingLevel) || 'medium';
   });
 
+  const [expandedMsgId, setExpandedMsgId] = useState<string | null>(null);
+
   const toggleFavoriteModel = (modelId: string) => {
     const exists = favoriteModelIds.includes(modelId);
     const next = exists
@@ -1101,7 +1103,7 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
   };
 
   /** One-click: pick free vs quality by job type, then generate immediately */
-  const handleCreateImageFromMessage = (content: string, intent?: DrawIntent) => {
+  const handleCreateImageFromMessage = (content: string, intent?: DrawIntent, forceEngine?: 'flux_cf' | 'openrouter') => {
     if (isGenerating) return;
     const clean = content
       .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
@@ -1113,10 +1115,10 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     }
 
     const resolvedIntent = intent || detectDrawIntent(clean);
-    const path = recommendDrawPath(resolvedIntent);
+    const path: DrawPath = forceEngine ? (forceEngine === 'openrouter' ? 'quality' : 'free_flux') : recommendDrawPath(resolvedIntent);
     const rec = recommendImageModel(resolvedIntent);
     const ratio = resolvedIntent === 'infographic' ? '9:16' : '1:1';
-    const engine = engineFromPath(path);
+    const engine = forceEngine || engineFromPath(path);
     const instruction =
       resolvedIntent === 'infographic'
         ? 'ทำเป็น infographic สวย ชัด อ่านง่าย ใช้ภาษาไทยบนภาพให้ถูกต้อง'
@@ -1134,7 +1136,7 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
     setFluxStyle('none');
     localStorage.setItem('openrouter_draw_engine', engine);
 
-    if (path === 'quality') {
+    if (engine === 'openrouter' || path === 'quality') {
       if (!apiKey.trim()) {
         showToast('โหมดคมชัดต้องมี OpenRouter API Key — หรือสลับไป「ฟรี · Flux」', 'warning');
         setIsEditingKey(true);
@@ -1143,16 +1145,16 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
       }
       setOpenrouterImageModel(rec.id);
       localStorage.setItem('openrouter_image_model', rec.id);
-      showToast(`กำลังสร้างด้วย ${rec.shortName} (คมชัด)…`, 'info');
+      showToast(`กำลังสร้างภาพด้วย ${rec.shortName} (คมชัด)…`, 'info');
     } else {
-      showToast('กำลังสร้างด้วย Flux ฟรี (แปลอังกฤษอัตโนมัติ)…', 'info');
+      showToast('กำลังสร้างภาพด้วย Flux ฟรี (แปลอังกฤษอัตโนมัติ)…', 'info');
     }
 
     void handleSendMessage(instruction, {
       forceDraw: true,
       sourceText: clean,
       intent: resolvedIntent,
-      imageModelId: path === 'quality' ? rec.id : undefined,
+      imageModelId: (engine === 'openrouter' || path === 'quality') ? rec.id : undefined,
       ratio,
       engine,
     });
@@ -2415,27 +2417,73 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                               </span>
                             )}
                           </div>
-                          {/* One-click image from AI text */}
+                          {/* One-click Expandable Image Chip from AI text */}
                           {!isUser && !m.content.startsWith('![') && m.content.length > 40 && !isGenerating && (
-                            <div className="flex flex-wrap gap-1.5 pt-0.5">
-                              <button
-                                type="button"
-                                onClick={() => handleCreateImageFromMessage(m.content, 'infographic')}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20 transition-all cursor-pointer select-none"
-                                title="คมชัด · Nano Banana (ใช้ API Key)"
-                              >
-                                <Palette size={11} />
-                                Infographic · คมชัด
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleCreateImageFromMessage(m.content, 'illustration')}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition-all cursor-pointer select-none"
-                                title="ฟรี · Flux worker (ไม่คิด OR image)"
-                              >
-                                <Sparkles size={11} />
-                                ภาพประกอบ · ฟรี
-                              </button>
+                            <div className="pt-1 flex items-center">
+                              {expandedMsgId !== m.timestamp ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedMsgId(m.timestamp)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/20 transition-all cursor-pointer select-none active:scale-95 shadow-sm"
+                                >
+                                  <Palette size={12} className="text-indigo-500" />
+                                  <span>สร้างภาพประกอบจากข้อความนี้ ▾</span>
+                                </button>
+                              ) : (
+                                <div className="inline-flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-theme-surface border border-indigo-500/40 shadow-md animate-fade-in text-[10px] font-bold">
+                                  {/* Option 1: Free Flux Illustration */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExpandedMsgId(null);
+                                      handleCreateImageFromMessage(m.content, 'illustration', 'flux_cf');
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 transition-all cursor-pointer"
+                                    title="สร้างภาพประกอบฟรี ด้วย Flux Cloudflare (ไม่ใช้ API Key)"
+                                  >
+                                    <Sparkles size={11} className="text-emerald-500" />
+                                    <span>🪄 ภาพประกอบ (ฟรี)</span>
+                                  </button>
+
+                                  {/* Option 2: Paid High Quality Illustration */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExpandedMsgId(null);
+                                      handleCreateImageFromMessage(m.content, 'illustration', 'openrouter');
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 transition-all cursor-pointer"
+                                    title="สร้างภาพประกอบทั่วไปแบบคมชัด ด้วย Nano Banana / OpenRouter (ใช้ API Key)"
+                                  >
+                                    <Palette size={11} className="text-amber-500" />
+                                    <span>💎 ภาพประกอบ (คมชัด · Paid)</span>
+                                  </button>
+
+                                  {/* Option 3: Paid Infographic Poster */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExpandedMsgId(null);
+                                      handleCreateImageFromMessage(m.content, 'infographic', 'openrouter');
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-500/30 transition-all cursor-pointer"
+                                    title="สร้างโปสเตอร์ Infographic สรุปข้อมูล ด้วย Nano Banana (ใช้ API Key)"
+                                  >
+                                    <FileText size={11} className="text-violet-500" />
+                                    <span>📊 Infographic (คมชัด · Paid)</span>
+                                  </button>
+
+                                  {/* Close button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedMsgId(null)}
+                                    className="p-1 rounded-lg hover:bg-theme-surface-secondary text-theme-text-muted transition-all cursor-pointer"
+                                    title="ปิดเมนู"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
