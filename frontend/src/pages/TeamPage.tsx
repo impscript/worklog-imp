@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
-import { Users, UserMinus, Plus, QrCode, RefreshCw, Copy, Check, Shield, AlertCircle, ClipboardList } from 'lucide-react';
+import { Users, UserMinus, Plus, QrCode, RefreshCw, Copy, Check, Shield, AlertCircle, ClipboardList, Search, UserPlus, Phone, Building2, Mail } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 interface TeamMember {
   id: string; // workspace_users id
@@ -27,6 +28,19 @@ interface AuditEntry {
   created_at: string;
 }
 
+interface HRMSCandidate {
+  empId: string;
+  name: string;
+  sim?: string;
+  email?: string;
+  company?: string;
+  companyName?: string;
+  department?: string;
+  position?: string;
+  hasPhoto?: string;
+  status?: number;
+}
+
 export default function TeamPage() {
   const { showToast, showConfirm } = useNotification();
   const [session, setSession] = useState<any>(null);
@@ -35,8 +49,13 @@ export default function TeamPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
   
-  // Adding new member state
+  // Adding new member & provisioning states
+  const [addMemberTab, setAddMemberTab] = useState<'id' | 'search'>('id');
   const [newEmpId, setNewEmpId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<HRMSCandidate[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
   const [isAdding, setIsAdding] = useState(false);
 
   // Custom confirmation modal state
@@ -231,88 +250,182 @@ export default function TeamPage() {
     }
   };
 
-  const handleAddMember = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newEmpId.trim() || !session?.activeWorkspaceId) return;
+  // Search employee by Name or Phone number via HRMS API
+  const handleSearchByNameOrPhone = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError('');
+    try {
+      const res = await fetch(`/api/hrms/employee/search/${encodeURIComponent(query)}/?index=0&row=5`);
+      if (!res.ok) {
+        throw new Error('ไม่สามารถค้นหาข้อมูลจากระบบ HRMS ได้');
+      }
+      const json = await res.json();
+      const list: HRMSCandidate[] = json?.data?.search || json?.search || [];
+      setSearchResults(list);
+      if (list.length === 0) {
+        setSearchError(`ไม่พบข้อมูลพนักงานที่ตรงกับคำค้นหา "${query}"`);
+      }
+    } catch (err: any) {
+      console.error('HRMS search error:', err);
+      setSearchError(err.message || 'เกิดข้อผิดพลาดในการค้นหา');
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Provision & Add Member to Workspace
+  const handleProvisionAndAddMember = async (empIdToProvision: string) => {
+    const cleanEmpId = empIdToProvision.trim();
+    if (!cleanEmpId || !session?.activeWorkspaceId) return;
 
     setIsAdding(true);
     try {
-      // 1. Find user by emp_id (include active_workspace_id to check if already in another workspace)
-      const { data: targetUser, error: userErr } = await supabase
+      // 1. Find user by emp_id in local database `users` table
+      let { data: targetUser, error: userErr } = await supabase
         .from('users')
-        .select('id, full_name, active_workspace_id')
-        .eq('emp_id', newEmpId.trim())
+        .select('id, emp_id, full_name, nickname, active_workspace_id')
+        .eq('emp_id', cleanEmpId)
         .maybeSingle();
 
       if (userErr) throw userErr;
+
+      // 2. If user DOES NOT exist in database -> Auto Provision from HRMS API!
       if (!targetUser) {
-        // Fallback: check HRMS to distinguish "never logged in" vs "invalid ID"
+        let empData: any = null;
         try {
-          const hrmsRes = await fetch(`/api/hrms/employee/${newEmpId.trim()}`);
+          const hrmsRes = await fetch(`/api/hrms/employee/${cleanEmpId}/`);
           if (hrmsRes.ok) {
             const hrmsText = await hrmsRes.text();
-            const hrmsData = JSON.parse(hrmsText);
-            const empData = hrmsData?.data?.employee || hrmsData?.employee || hrmsData || null;
-            const empName = empData?.Emp_Fname || empData?.Emp_Name || empData?.Name || '';
-            if (empData && (empData.EmpID || empData.Emp_ID || empData.CardID)) {
-              // Employee exists in HRMS but hasn't logged into this system yet
-              showToast(
-                `พนักงาน${empName ? ` "${empName}"` : ''} (${newEmpId.trim()}) มีในระบบบริษัทแล้ว แต่ยังไม่เคย Login เข้าระบบ Worklog กรุณาแจ้งให้พนักงานล็อกอินก่อน แล้วค่อยเพิ่มเข้าทีม`,
-                'warning'
-              );
-              return;
-            }
+            const hrmsJson = JSON.parse(hrmsText);
+            empData = hrmsJson?.data?.employee || hrmsJson?.employee || hrmsJson || null;
           }
-        } catch {
-          // HRMS lookup failed silently — fall through to generic error
+        } catch (e) {
+          console.error('Failed to fetch HRMS employee detail:', e);
         }
-        showToast('ไม่พบรหัสพนักงานนี้ในระบบ กรุณาตรวจสอบรหัสอีกครั้ง / Employee ID not found', 'error');
+
+        if (!empData || (!empData.ID_Emp && !empData.EmpID && !empData.CardID)) {
+          showToast(`ไม่พบรหัสพนักงาน "${cleanEmpId}" ในระบบ HRMS บริษัท กรุณาตรวจสอบรหัสอีกครั้ง`, 'error');
+          return;
+        }
+
+        // Map employee profile from HRMS response
+        const empName = empData.EmpName || `${empData.FNameT || ''} ${empData.LNameT || ''}`.trim() || 'พนักงานใหม่';
+        const nickname = empData.DisplayName || empData.FNameT || empName.split(' ')[0];
+        const email = empData.EMail || empData.Gmail || `${cleanEmpId}@advanceagro.com`;
+        const department = empData.Department || empData.Section || 'General';
+        const position = empData.Position || empData.JobTitle || 'Staff';
+        const phone = empData.Sim_Number || '';
+        const companyCode = String(empData.Company_Code || empData.Comp_NameE || empData.CompanyID || '');
+        const companyName = empData.CompanyName || '';
+
+        // Insert new profile into `users` DB table
+        const { data: newUser, error: insertUserErr } = await supabase
+          .from('users')
+          .insert({
+            emp_id: cleanEmpId,
+            full_name: empName,
+            nickname: nickname,
+            email: email,
+            department: department,
+            position: position,
+            phone: phone,
+            company_code: companyCode,
+            company_name: companyName,
+            status: 'Active',
+            active_workspace_id: session.activeWorkspaceId
+          })
+          .select('id, emp_id, full_name, nickname, active_workspace_id')
+          .maybeSingle();
+
+        if (insertUserErr) {
+          // RPC fallback
+          const { data: rpcUser, error: rpcErr } = await supabase.rpc('provision_hrms_user', {
+            p_emp_id: cleanEmpId,
+            p_email: email,
+            p_full_name: empName,
+            p_nickname: nickname,
+            p_department: department,
+            p_position: position,
+            p_phone: phone,
+            p_employee_level: empData.LevelName || '',
+            p_role_start_date: empData.StartDate ? empData.StartDate.split('T')[0] : null,
+            p_company_code: companyCode,
+            p_company_name: companyName
+          });
+          if (rpcErr) throw rpcErr;
+          targetUser = rpcUser;
+        } else {
+          targetUser = newUser;
+        }
+
+        if (targetUser) {
+          showToast(`สร้างข้อมูลพนักงานคุณ ${empName} (${cleanEmpId}) เข้าระบบเรียบร้อย!`, 'info');
+        }
+      }
+
+      if (!targetUser) {
+        showToast('ไม่สามารถดึงหรือบันทึกข้อมูลพนักงานได้ กรุณาลองใหม่อีกครั้ง', 'error');
         return;
       }
 
-      // 2. Check if already member of THIS workspace
-      const isExist = members.some(m => m.user_id === targetUser.id);
-      if (isExist) {
-        showToast('พนักงานคนนี้อยู่ในฝ่ายนี้อยู่แล้ว / Already a member of this team', 'warning');
+      // 3. User now exists in DB. Check Workspace Membership conditions:
+      // Condition A: Already a member of THIS workspace
+      const isExistInThisWs = members.some(m => m.user_id === targetUser.id);
+      if (isExistInThisWs) {
+        showToast(`คุณ ${targetUser.full_name} เป็นสมาชิกของฝ่ายงานนี้อยู่แล้ว`, 'warning');
         return;
       }
 
-      // 3. Check if already belongs to ANOTHER workspace (1 user = 1 workspace only)
-      if (
-        targetUser.active_workspace_id &&
-        targetUser.active_workspace_id !== session.activeWorkspaceId
-      ) {
-        showToast(
-          `คุณ ${targetUser.full_name} สังกัดฝ่ายงานอื่นอยู่แล้ว ไม่สามารถเพิ่มได้ / Employee already belongs to another team`,
-          'error'
-        );
-        return;
+      // Condition B: Check if user already belongs to ANY OTHER workspace in workspace_users
+      const { data: existingMemberships } = await supabase
+        .from('workspace_users')
+        .select('workspace_id, workspaces(workspace_name, invite_code)')
+        .eq('user_id', targetUser.id);
+
+      if (existingMemberships && existingMemberships.length > 0) {
+        const otherMembership = existingMemberships.find((m: any) => m.workspace_id !== session.activeWorkspaceId);
+        if (otherMembership) {
+          const wsName = (otherMembership as any).workspaces?.workspace_name || (otherMembership as any).workspaces?.invite_code || 'ฝ่ายงานอื่น';
+          showToast(
+            `คุณ ${targetUser.full_name} (${targetUser.emp_id}) สังกัดฝ่ายงานอยู่แล้ว [สังกัด: ${wsName}] ไม่สามารถเพิ่มซ้ำได้`,
+            'warning'
+          );
+          return;
+        }
       }
 
-      // 4. Insert in workspace_users
-      const { error: insertErr } = await supabase
+      // Condition C: Insert in workspace_users & update active_workspace_id
+      const { error: insertWsErr } = await supabase
         .from('workspace_users')
         .insert({
           workspace_id: session.activeWorkspaceId,
           user_id: targetUser.id,
           role: 'user'
         });
-      if (insertErr) throw insertErr;
+      if (insertWsErr) throw insertWsErr;
 
-      // 5. Update user's active workspace
       await supabase
         .from('users')
         .update({ active_workspace_id: session.activeWorkspaceId })
         .eq('id', targetUser.id);
 
-      // 6. Audit log
-      await logAudit('MEMBER_ADDED', targetUser.id, targetUser.full_name, { role: 'user' });
+      await logAudit('MEMBER_ADDED', targetUser.id, targetUser.full_name, { role: 'user', emp_id: cleanEmpId });
 
       showToast(`เพิ่มคุณ ${targetUser.full_name} เข้าทีมเรียบร้อย!`, 'success');
       setNewEmpId('');
+      setSearchQuery('');
+      setSearchResults([]);
       fetchWorkspaceAndMembers(session.activeWorkspaceId);
     } catch (err: any) {
-      showToast('เกิดข้อผิดพลาด: ' + err.message, 'error');
+      showToast('เกิดข้อผิดพลาดในการเพิ่มพนักงาน: ' + err.message, 'error');
     } finally {
       setIsAdding(false);
     }
@@ -438,34 +551,166 @@ export default function TeamPage() {
 
               </div>
 
-              {/* Add Member manually */}
+              {/* Add Member & Provisioning Card */}
               {isWAdmin && (
-                <div className="bg-theme-surface-tertiary border border-theme-border rounded-2xl p-6 shadow-xl space-y-4">
-                  <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-2">
-                    <Plus size={16} />
-                    <span>เพิ่มสมาชิกโดยรหัสพนักงาน</span>
-                  </h3>
-                  <form onSubmit={handleAddMember} className="space-y-3">
-                    <input
-                      type="text"
-                      required
-                      value={newEmpId}
-                      onChange={e => setNewEmpId(e.target.value)}
-                      placeholder="ป้อนรหัสพนักงาน เช่น 11602338"
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 font-mono"
-                    />
+                <div className="bg-theme-surface-tertiary border border-theme-border rounded-2xl p-5 shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-theme-border/60 pb-2.5">
+                    <h3 className="text-xs font-black uppercase text-indigo-400 tracking-wider flex items-center gap-2">
+                      <UserPlus size={16} />
+                      <span>เพิ่มสมาชิก / Provisioning</span>
+                    </h3>
+                  </div>
+
+                  {/* Mode Switcher Tabs */}
+                  <div className="flex rounded-xl p-1 bg-theme-surface border border-theme-border/60 text-xs">
                     <button
-                      type="submit"
-                      disabled={isAdding}
-                      className="w-full bg-theme-text hover:opacity-85 text-theme-bg-page font-bold text-xs py-2.5 px-4 rounded-xl border border-theme-border transition-all flex items-center justify-center gap-2"
-                    >
-                      {isAdding ? (
-                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <span>เชิญเข้าทีม / Add to Team</span>
+                      type="button"
+                      onClick={() => setAddMemberTab('id')}
+                      className={cn(
+                        "flex-1 py-1.5 px-3 rounded-lg font-bold text-center transition-all cursor-pointer select-none flex items-center justify-center gap-1.5 text-[11px]",
+                        addMemberTab === 'id'
+                          ? "bg-indigo-500 text-white shadow-sm"
+                          : "text-theme-text-muted hover:text-theme-text"
                       )}
+                    >
+                      <Plus size={13} />
+                      <span>รหัสพนักงาน</span>
                     </button>
-                  </form>
+                    <button
+                      type="button"
+                      onClick={() => setAddMemberTab('search')}
+                      className={cn(
+                        "flex-1 py-1.5 px-3 rounded-lg font-bold text-center transition-all cursor-pointer select-none flex items-center justify-center gap-1.5 text-[11px]",
+                        addMemberTab === 'search'
+                          ? "bg-indigo-500 text-white shadow-sm"
+                          : "text-theme-text-muted hover:text-theme-text"
+                      )}
+                    >
+                      <Search size={13} />
+                      <span>ชื่อ / เบอร์โทร</span>
+                    </button>
+                  </div>
+
+                  {/* Mode 1: By Employee ID */}
+                  {addMemberTab === 'id' && (
+                    <form onSubmit={(e) => { e.preventDefault(); handleProvisionAndAddMember(newEmpId); }} className="space-y-3">
+                      <input
+                        type="text"
+                        required
+                        value={newEmpId}
+                        onChange={e => setNewEmpId(e.target.value)}
+                        placeholder="ป้อนรหัสพนักงาน เช่น 10005208"
+                        className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 font-mono"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isAdding || !newEmpId.trim()}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {isAdding ? (
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <span>เชิญเข้าทีม / Add to Team</span>
+                        )}
+                      </button>
+                    </form>
+                  )}
+
+                  {/* Mode 2: Search By Name or Phone */}
+                  {addMemberTab === 'search' && (
+                    <div className="space-y-3">
+                      <form onSubmit={handleSearchByNameOrPhone} className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="พิมพ์ ชื่อ หรือ เบอร์โทร (เช่น 3379)"
+                            className="w-full px-3.5 py-2.5 pl-8 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500"
+                          />
+                          <Search size={13} className="absolute left-2.5 top-3 text-theme-text-muted" />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={isSearching || !searchQuery.trim()}
+                          className="px-3.5 py-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1 shrink-0 cursor-pointer"
+                        >
+                          {isSearching ? (
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <span>ค้นหา</span>
+                          )}
+                        </button>
+                      </form>
+
+                      {/* Error notice */}
+                      {searchError && (
+                        <p className="text-[11px] text-rose-500 dark:text-rose-400 font-medium px-1">
+                          {searchError}
+                        </p>
+                      )}
+
+                      {/* Candidate list */}
+                      {searchResults.length > 0 && (
+                        <div className="space-y-2 pt-1 max-h-64 overflow-y-auto custom-scrollbar">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-theme-text-muted px-1">
+                            ผลการค้นหา ({searchResults.length} รายการ)
+                          </div>
+                          {searchResults.map((cand) => (
+                            <div
+                              key={cand.empId}
+                              className="p-3 rounded-xl border border-theme-border/80 bg-theme-surface hover:bg-theme-surface-secondary transition-all space-y-2 text-xs"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="font-bold text-theme-text flex items-center gap-1.5 flex-wrap">
+                                    <span>{cand.name}</span>
+                                    <span className="font-mono text-[10px] text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 rounded font-bold">
+                                      ID: {cand.empId}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-theme-text-secondary mt-0.5">
+                                    {cand.position || 'พนักงาน'} {cand.department ? `· ฝ่าย ${cand.department}` : ''}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={isAdding}
+                                  onClick={() => handleProvisionAndAddMember(cand.empId)}
+                                  className="px-2.5 py-1.5 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-bold text-[11px] rounded-lg shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+                                >
+                                  <Plus size={13} />
+                                  <span>เพิ่มเข้าทีม</span>
+                                </button>
+                              </div>
+                              {(cand.companyName || cand.sim || cand.email) && (
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-theme-text-muted border-t border-theme-border/40 pt-1.5">
+                                  {cand.companyName && (
+                                    <span className="flex items-center gap-1">
+                                      <Building2 size={10} className="text-slate-400" />
+                                      {cand.companyName}
+                                    </span>
+                                  )}
+                                  {cand.sim && (
+                                    <span className="flex items-center gap-1 font-mono">
+                                      <Phone size={10} className="text-emerald-500" />
+                                      {cand.sim}
+                                    </span>
+                                  )}
+                                  {cand.email && (
+                                    <span className="flex items-center gap-1 font-mono truncate">
+                                      <Mail size={10} className="text-sky-500" />
+                                      {cand.email}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

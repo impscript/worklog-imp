@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Send, Trash2, Plus, Sparkles, Key, Eye, EyeOff, 
   Shield, Cpu, AlertTriangle, RefreshCw, MessageSquare, Info, ShieldAlert, Trash, Globe, Palette, Copy, X,
-  Brain, Code2, Image as ImageIcon, Wrench, MessagesSquare, Paperclip, FileText, Table2
+  Brain, Code2, Image as ImageIcon, Wrench, MessagesSquare, Paperclip, FileText, Table2, Star
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useNotification } from '../context/NotificationContext';
@@ -213,6 +213,29 @@ function mapOpenRouterModel(m: any): ModelInfo {
     categories,
   };
 }
+
+const DEFAULT_FAVORITE_MODEL_IDS = [
+  'anthropic/claude-3.5-sonnet',
+  'google/gemini-2.5-pro',
+  'google/gemini-3.5-flash',
+  'deepseek/deepseek-r1',
+  'openai/gpt-4o',
+];
+
+const SMART_PRESETS = [
+  {
+    id: 'openrouter/free',
+    name: 'Auto Free Router (Free - แนะนำ)',
+    tier: 'free' as const,
+    description: 'สลับเลือกโมเดลฟรีที่ยังออนไลน์ให้อัตโนมัติ ป้องกันปัญหา No Endpoints Found',
+  },
+  {
+    id: 'auto_paid_smart',
+    name: 'Auto Paid Router (Paid - แนะนำ)',
+    tier: 'paid' as const,
+    description: 'ระบบสลับเลือกโมเดล Paid ที่เก่งที่สุดให้อัตโนมัติ (Vision -> Gemini, Coding -> DeepSeek, General -> GPT-4o)',
+  },
+];
 
 const AVAILABLE_MODELS: ModelInfo[] = [
   // Paid Tier (Recommended for Business/Sensitive Data)
@@ -595,6 +618,53 @@ export default function AiChatPage() {
   const [drawMode, setDrawMode] = useState<boolean>(false);
   const [clearModalType, setClearModalType] = useState<'history' | 'key' | null>(null);
   const [activeSkillId, setActiveSkillId] = useState<string>('none');
+  const [sidebarSettingsOpen, setSidebarSettingsOpen] = useState<boolean>(false);
+  const [sidebarTab, setSidebarTab] = useState<'key' | 'data'>('key');
+  const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState<boolean>(false);
+
+  // Favorite Models & Thinking Level
+  const [favoriteModelIds, setFavoriteModelIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('openrouter_favorite_models');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load favorite models:', e);
+    }
+    return DEFAULT_FAVORITE_MODEL_IDS;
+  });
+
+  type ThinkingLevel = 'low' | 'medium' | 'high';
+  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>(() => {
+    return (localStorage.getItem('openrouter_thinking_level') as ThinkingLevel) || 'medium';
+  });
+
+  const toggleFavoriteModel = (modelId: string) => {
+    const exists = favoriteModelIds.includes(modelId);
+    const next = exists
+      ? favoriteModelIds.filter((id) => id !== modelId)
+      : [...favoriteModelIds, modelId];
+
+    setFavoriteModelIds(next);
+    localStorage.setItem('openrouter_favorite_models', JSON.stringify(next));
+    showToast(
+      exists ? `นำ ${modelId} ออกจากรายการโปรดแล้ว` : `เพิ่ม ${modelId} เข้าเป็นโมเดลโปรดเรียบร้อย ⭐`,
+      'info'
+    );
+  };
+
+  const handleThinkingLevelChange = (level: ThinkingLevel) => {
+    setThinkingLevel(level);
+    localStorage.setItem('openrouter_thinking_level', level);
+    const hints: Record<ThinkingLevel, string> = {
+      low: '⚡ ปรับเป็นโหมดเน้นความเร็ว (Low Effort)',
+      medium: '⚖️ ปรับเป็นโหมดสมดุล (Medium Effort)',
+      high: '🧠 ปรับเป็นโหมดคิดวิเคราะห์เชิงลึก (High Reasoning)',
+    };
+    showToast(hints[level], 'info');
+  };
 
   // Dynamic OpenRouter Models
   const [fetchedModels, setFetchedModels] = useState<ModelInfo[]>([]);
@@ -602,13 +672,13 @@ export default function AiChatPage() {
   const [customModelId, setCustomModelId] = useState<string>(() => {
     let stored = localStorage.getItem('openrouter_chat_model') || AVAILABLE_MODELS[0].id;
     if (isRetiredChatModel(stored)) stored = DEFAULT_FREE_CHAT_MODEL;
-    const isPreset = AVAILABLE_MODELS.some(m => m.id === stored);
+    const isPreset = AVAILABLE_MODELS.some(m => m.id === stored) || SMART_PRESETS.some(p => p.id === stored);
     return isPreset ? '' : stored;
   });
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState<boolean>(false);
   /** Category filter chips in model search modal ('all' = show every use-case) */
-  const [modelCategoryFilter, setModelCategoryFilter] = useState<ModelCategory | 'all'>('all');
+  const [modelCategoryFilter, setModelCategoryFilter] = useState<ModelCategory | 'all' | 'favorites'>('all');
   const [modelTierFilter, setModelTierFilter] = useState<'all' | 'free' | 'paid'>('all');
 
   // Fetch all models dynamically from OpenRouter (public endpoint)
@@ -725,22 +795,71 @@ export default function AiChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [sessions, activeSessionId]);
 
+  const favoriteModelsList = useMemo(() => {
+    const allKnown = [...AVAILABLE_MODELS, ...fetchedModels];
+    const map = new Map<string, ModelInfo>();
+    allKnown.forEach((m) => map.set(m.id, m));
+
+    return favoriteModelIds.map((id) => {
+      if (map.has(id)) return map.get(id)!;
+      return {
+        id,
+        name: id.split('/').pop() || id,
+        tier: 'paid' as const,
+        description: `โมเดลโปรด: ${id}`,
+        privacy: '🔒 ปลอดภัยสูงสุด: บันทึกจากรายการโปรดส่วนตัวของคุณ',
+        categories: ['general'] as ModelCategory[],
+      };
+    });
+  }, [favoriteModelIds, fetchedModels]);
+
   const activeSession = sessions.find(s => s.id === activeSessionId);
-  const activeModelInfo = AVAILABLE_MODELS.find(m => m.id === selectedModel) ||
-    fetchedModels.find(m => m.id === selectedModel) || {
-      id: selectedModel,
-      name: selectedModel,
-      tier: 'paid' as const,
-      description: 'โมเดลกำหนดเองโดยผู้ใช้',
-      privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
-      categories: ['general'] as ModelCategory[],
-    };
+  const activeModelInfo: ModelInfo = useMemo(() => {
+    if (selectedModel === 'auto_paid_smart') {
+      return {
+        id: 'auto_paid_smart',
+        name: 'Auto Paid Router (Paid - แนะนำ)',
+        tier: 'paid' as const,
+        description: 'สลับเลือกโมเดล Paid ที่เก่งที่สุดให้อัตโนมัติ (Vision -> Gemini, Coding -> DeepSeek/Claude, General -> GPT-4o)',
+        privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+        categories: ['general', 'reasoning', 'coding', 'vision', 'tools'] as ModelCategory[],
+      };
+    }
+    const preset = SMART_PRESETS.find(p => p.id === selectedModel);
+    if (preset) {
+      return {
+        id: preset.id,
+        name: preset.name,
+        tier: preset.tier,
+        description: preset.description,
+        privacy: preset.tier === 'free'
+          ? '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
+          : '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+        categories: ['general'] as ModelCategory[],
+      };
+    }
+    return (
+      AVAILABLE_MODELS.find(m => m.id === selectedModel) ||
+      fetchedModels.find(m => m.id === selectedModel) ||
+      favoriteModelsList.find(m => m.id === selectedModel) || {
+        id: selectedModel,
+        name: selectedModel,
+        tier: 'paid' as const,
+        description: 'โมเดลกำหนดเองโดยผู้ใช้',
+        privacy: '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
+        categories: ['general'] as ModelCategory[],
+      }
+    );
+  }, [selectedModel, fetchedModels, favoriteModelsList]);
 
   const filteredSearchModels = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     return fetchedModels.filter((m) => {
+      if (modelCategoryFilter === 'favorites' && !favoriteModelIds.includes(m.id)) {
+        return false;
+      }
       if (modelTierFilter !== 'all' && m.tier !== modelTierFilter) return false;
-      if (modelCategoryFilter !== 'all' && !m.categories?.includes(modelCategoryFilter)) return false;
+      if (modelCategoryFilter !== 'all' && modelCategoryFilter !== 'favorites' && !m.categories?.includes(modelCategoryFilter)) return false;
       if (!query) return true;
       const catLabels = (m.categories || [])
         .map((c) => MODEL_CATEGORY_META[c]?.label || c)
@@ -753,7 +872,7 @@ export default function AiChatPage() {
         catLabels.includes(query)
       );
     });
-  }, [fetchedModels, searchQuery, modelCategoryFilter, modelTierFilter]);
+  }, [fetchedModels, searchQuery, modelCategoryFilter, modelTierFilter, favoriteModelIds]);
 
   const handleSaveApiKey = () => {
     localStorage.setItem('openrouter_chat_api_key', apiKey.trim());
@@ -1415,7 +1534,18 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
       }
 
       // Start from selected model; force vision-capable id when images attached
-      requestModel = isRetiredChatModel(selectedModel) ? DEFAULT_FREE_CHAT_MODEL : selectedModel;
+      if (selectedModel === 'auto_paid_smart') {
+        if (attachmentsNeedVision(attachmentsSnap)) {
+          requestModel = 'google/gemini-2.5-flash';
+        } else if (/code|coder|sql|function|script|bug|react|python|ts|js|html|css/.test(textToSend.toLowerCase())) {
+          requestModel = 'deepseek/deepseek-r1';
+        } else {
+          requestModel = 'openai/gpt-4o-mini';
+        }
+      } else {
+        requestModel = isRetiredChatModel(selectedModel) ? DEFAULT_FREE_CHAT_MODEL : selectedModel;
+      }
+
       if (attachmentsNeedVision(attachmentsSnap)) {
         const suggested = suggestVisionChatModel(requestModel);
         if (suggested) {
@@ -1427,6 +1557,13 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         showToast(`โมเดลเดิมปิดบริการแล้ว — สลับเป็น ${DEFAULT_FREE_CHAT_MODEL}`, 'warning');
         setSelectedModel(DEFAULT_FREE_CHAT_MODEL);
         localStorage.setItem('openrouter_chat_model', DEFAULT_FREE_CHAT_MODEL);
+      }
+
+      if (thinkingLevel === 'high') {
+        messagesToSend.unshift({
+          role: 'system',
+          content: 'โหมดวิเคราะห์ลึก: โปรดคิดวิเคราะห์ทีละขั้นตอน (Step-by-Step reasoning) และตรวจสอบความถูกต้องอย่างรอบคอบก่อนตอบ',
+        });
       }
 
       if (webSearch) {
@@ -1461,6 +1598,22 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
           messages: messagesToSend,
           stream: true,
         };
+
+        // Inject reasoning effort for supported models or high thinking level
+        const isReasoningCapable =
+          /deepseek|r1\b|o1\b|o3\b|o4\b|claude-3\.7|sonar-reasoning/.test(modelId.toLowerCase()) ||
+          thinkingLevel === 'high';
+
+        if (isReasoningCapable) {
+          body.reasoning = { effort: thinkingLevel };
+        }
+
+        if (thinkingLevel === 'low') {
+          body.temperature = 0.3;
+        } else if (thinkingLevel === 'high') {
+          body.temperature = 0.7;
+        }
+
         if (mode === 'tool' && webSearch) {
           body.tools = [
             {
@@ -1786,14 +1939,15 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
             )}
           </div>
 
-          {/* AI Settings Section (Key & Model Selection) */}
-          <div className="p-4 border-t border-theme-border/60 bg-theme-surface-secondary/50 dark:bg-theme-bg-page/50 space-y-4">
+          {/* AI Settings Section (Compact & Collapsible) */}
+          <div className="p-3 border-t border-theme-border/60 bg-theme-surface-secondary/40 dark:bg-theme-bg-page/40 space-y-2">
             
-            {/* Model Selection */}
-            <div className="space-y-2">
+            {/* Model Selection & Favorites */}
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="block text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">
-                  เลือกปัญญาประดิษฐ์ (Model)
+                <label className="block text-[10px] font-bold text-theme-text-muted uppercase tracking-wider flex items-center gap-1">
+                  <Cpu size={12} className="text-indigo-500" />
+                  เลือกโมเดล (MODEL)
                 </label>
                 <button
                   onClick={() => setIsSearchModalOpen(true)}
@@ -1804,116 +1958,208 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                 </button>
               </div>
               
-              <div className="space-y-1.5">
-                <select
-                  value={AVAILABLE_MODELS.some(m => m.id === selectedModel) ? selectedModel : 'custom'}
-                  onChange={(e) => {
-                    if (e.target.value === 'custom') {
-                      handleModelChange(customModelId || 'anthropic/claude-sonnet-5');
-                    } else {
-                      handleModelChange(e.target.value);
-                    }
-                  }}
-                  className="w-full text-xs font-semibold py-2 px-3 rounded-xl border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer"
-                >
-                  <optgroup label="🔒 Paid Tier (ปลอดภัยสูง / แนะนำ)">
-                    {AVAILABLE_MODELS.filter(m => m.tier === 'paid').map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="⚠️ Free Tier (ใช้งานทั่วไป)">
-                    {AVAILABLE_MODELS.filter(m => m.tier === 'free').map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="⚙️ Custom Config">
-                    <option value="custom">พิมพ์กำหนดเอง (Custom ID)...</option>
-                  </optgroup>
-                </select>
+              <select
+                value={
+                  SMART_PRESETS.some((p) => p.id === selectedModel)
+                    ? selectedModel
+                    : favoriteModelsList.some((m) => m.id === selectedModel)
+                    ? selectedModel
+                    : 'custom'
+                }
+                onChange={(e) => {
+                  if (e.target.value === 'custom') {
+                    handleModelChange(customModelId || 'anthropic/claude-3.5-sonnet');
+                  } else {
+                    handleModelChange(e.target.value);
+                  }
+                }}
+                className="w-full text-xs font-semibold py-1.5 px-2.5 rounded-xl border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer"
+              >
+                <optgroup label="🤖 Preset มาตรฐาน (แนะนำ)">
+                  {SMART_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label={`⭐ โมเดลโปรดส่วนตัว (${favoriteModelsList.length})`}>
+                  {favoriteModelsList.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.tier === 'paid' ? '🔒' : '⚠️'} {m.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="⚙️ Custom Config">
+                  <option value="custom">พิมพ์กำหนดเอง (Custom ID)...</option>
+                </optgroup>
+              </select>
 
-                {(!AVAILABLE_MODELS.some(m => m.id === selectedModel)) && (
+              {!SMART_PRESETS.some((p) => p.id === selectedModel) &&
+                !favoriteModelsList.some((m) => m.id === selectedModel) && (
                   <div className="space-y-1 animate-in slide-in-from-top-1 duration-150">
                     <input
                       type="text"
                       value={selectedModel}
                       onChange={(e) => handleCustomModelChange(e.target.value)}
-                      placeholder="e.g. anthropic/claude-sonnet-5"
-                      className="w-full text-xs font-mono py-2 px-3 rounded-xl border border-theme-border-strong bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
+                      placeholder="e.g. anthropic/claude-3.5-sonnet"
+                      className="w-full text-xs font-mono py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
                     />
                     <p className="text-[9px] text-theme-text-muted">
-                      ระบุ ID จาก OpenRouter เช่น <code className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 px-1 rounded font-mono">anthropic/claude-sonnet-5</code>
+                      ระบุ ID จาก OpenRouter เช่น <code className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 px-1 rounded font-mono">anthropic/claude-3.5-sonnet</code>
                     </p>
                   </div>
                 )}
+            </div>
+
+            {/* Inline Thinking Level Selector */}
+            <div className="flex items-center justify-between gap-1 pt-0.5">
+              <span className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider flex items-center gap-1 shrink-0">
+                <Brain size={11} className="text-violet-500" />
+                ความคิด:
+              </span>
+              <div className="flex items-center gap-1 flex-1 justify-end">
+                {(['low', 'medium', 'high'] as const).map((lvl) => (
+                  <button
+                    key={lvl}
+                    type="button"
+                    onClick={() => handleThinkingLevelChange(lvl)}
+                    className={cn(
+                      "px-2 py-0.5 rounded-lg text-[9px] font-bold transition-all cursor-pointer select-none border",
+                      thinkingLevel === lvl
+                        ? "bg-violet-500/15 border-violet-400 text-violet-700 dark:text-violet-200 shadow-xs"
+                        : "border-theme-border/60 bg-theme-surface/50 text-theme-text-muted hover:text-theme-text"
+                    )}
+                  >
+                    {lvl === 'low' ? '⚡ เร็ว' : lvl === 'medium' ? '⚖️ สมดุล' : '🧠 คิดลึก'}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* API Key Config */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-[10px] font-bold text-theme-text-muted uppercase tracking-wider">
-                  OpenRouter API Key
-                </label>
-                <button 
-                  onClick={() => setIsEditingKey(!isEditingKey)}
-                  className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 transition-colors"
-                >
-                  {isEditingKey ? 'ยกเลิก' : (apiKey ? 'แก้ไข' : 'ใส่คีย์')}
-                </button>
-              </div>
+            {/* Collapsible Advanced Settings & Key Toggle Bar */}
+            <div className="pt-1 border-t border-theme-border/40 space-y-2">
+              <button
+                type="button"
+                onClick={() => setSidebarSettingsOpen((v) => !v)}
+                className="w-full flex items-center justify-between py-1.5 px-2.5 rounded-xl border border-theme-border/70 bg-theme-surface/70 hover:bg-theme-surface text-theme-text-secondary hover:text-theme-text text-[10px] font-bold transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-1.5 truncate">
+                  <Key size={12} className={apiKey ? "text-emerald-500" : "text-amber-500"} />
+                  <span className="truncate">
+                    {apiKey ? 'API Key: บันทึกแล้ว 🟢' : 'ยังไม่ได้ใส่ API Key 🔴'}
+                  </span>
+                </div>
+                <span className="text-indigo-500 dark:text-indigo-400 text-[9px] shrink-0 font-extrabold">
+                  {sidebarSettingsOpen ? '▲ ซ่อน' : '⚙️ จัดการ / ล้าง'}
+                </span>
+              </button>
 
-              {isEditingKey ? (
-                <div className="flex gap-1.5">
-                  <div className="relative flex-1">
-                    <input
-                      type={showApiKey ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="sk-or-v1-..."
-                      className="w-full text-xs font-mono py-2 pl-3 pr-8 rounded-xl border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500"
-                    />
+              {/* Collapsible Mini Tab Drawer */}
+              {sidebarSettingsOpen && (
+                <div className="p-2.5 rounded-xl border border-theme-border/70 bg-theme-surface/90 space-y-2.5 animate-fade-in text-xs">
+                  {/* Mini Tabs */}
+                  <div className="flex border-b border-theme-border/50 pb-1">
                     <button
                       type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-2 top-2 text-theme-text-muted hover:text-theme-text"
+                      onClick={() => setSidebarTab('key')}
+                      className={cn(
+                        "flex-1 text-[10px] font-bold py-1 text-center border-b-2 transition-all cursor-pointer",
+                        sidebarTab === 'key'
+                          ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                          : "border-transparent text-theme-text-muted hover:text-theme-text"
+                      )}
                     >
-                      {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                      🔑 API Key
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSidebarTab('data')}
+                      className={cn(
+                        "flex-1 text-[10px] font-bold py-1 text-center border-b-2 transition-all cursor-pointer",
+                        sidebarTab === 'data'
+                          ? "border-rose-500 text-rose-600 dark:text-rose-400"
+                          : "border-transparent text-theme-text-muted hover:text-theme-text"
+                      )}
+                    >
+                      🧹 ล้างข้อมูล
                     </button>
                   </div>
-                  <button
-                    onClick={handleSaveApiKey}
-                    className="px-3 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold transition-all"
-                  >
-                    บันทึก
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-theme-surface border border-theme-border/60">
-                  <Key size={13} className="text-emerald-500 shrink-0" />
-                  <span className="text-[10px] font-mono text-theme-text-secondary truncate flex-1">
-                    {apiKey ? '••••••••••••••••••••••••••••••••' : 'ยังไม่ได้ตั้งค่าคีย์'}
-                  </span>
-                  <div className={cn("w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse", !apiKey && "bg-slate-400")} />
+
+                  {/* Tab 1: API Key Entry */}
+                  {sidebarTab === 'key' && (
+                    <div className="space-y-1.5 pt-0.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[9px] font-bold text-theme-text-muted uppercase">OpenRouter Key</label>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingKey(!isEditingKey)}
+                          className="text-[9px] font-bold text-indigo-500 hover:text-indigo-600"
+                        >
+                          {isEditingKey ? 'ยกเลิก' : (apiKey ? 'แก้ไข' : 'ใส่คีย์')}
+                        </button>
+                      </div>
+
+                      {isEditingKey ? (
+                        <div className="flex gap-1">
+                          <div className="relative flex-1">
+                            <input
+                              type={showApiKey ? 'text' : 'password'}
+                              value={apiKey}
+                              onChange={(e) => setApiKey(e.target.value)}
+                              placeholder="sk-or-v1-..."
+                              className="w-full text-[11px] font-mono py-1.5 pl-2.5 pr-7 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowApiKey(!showApiKey)}
+                              className="absolute right-2 top-1.5 text-theme-text-muted hover:text-theme-text"
+                            >
+                              {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleSaveApiKey}
+                            className="px-2.5 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-[10px] font-bold transition-all shrink-0"
+                          >
+                            บันทึก
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-theme-surface-secondary/50 border border-theme-border/50">
+                          <Key size={12} className="text-emerald-500 shrink-0" />
+                          <span className="text-[9px] font-mono text-theme-text-secondary truncate flex-1">
+                            {apiKey ? '••••••••••••••••••••••••••••' : 'ยังไม่ได้ตั้งค่าคีย์'}
+                          </span>
+                          <div className={cn("w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse", !apiKey && "bg-slate-400")} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tab 2: Clear Data */}
+                  {sidebarTab === 'data' && (
+                    <div className="space-y-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setClearModalType('history')}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 border border-dashed border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                      >
+                        <Trash2 size={11} />
+                        <span>ล้างประวัติการแชททั้งหมด</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setClearModalType('key')}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 border border-dashed border-amber-300 dark:border-amber-900 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                      >
+                        <Key size={11} />
+                        <span>ล้าง API Key</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-
-             {/* Clear Buttons */}
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => setClearModalType('history')}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 border border-dashed border-rose-300 dark:border-rose-950 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl text-xs font-semibold transition-all cursor-pointer select-none"
-              >
-                <Trash2 size={12} />
-                <span>ล้างประวัติแชท</span>
-              </button>
-              <button
-                onClick={() => setClearModalType('key')}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 border border-dashed border-amber-300 dark:border-amber-950 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-xl text-xs font-semibold transition-all cursor-pointer select-none"
-              >
-                <Key size={12} />
-                <span>ล้าง API Key</span>
-              </button>
             </div>
           </div>
         </aside>
@@ -1971,31 +2217,37 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
               </div>
             </div>
             
-            {/* Mobile indicator showing configs */}
+            {/* Mobile header controls */}
             <div className="md:hidden flex items-center gap-1.5">
-              <select
-                value={AVAILABLE_MODELS.some(m => m.id === selectedModel) ? selectedModel : 'custom'}
-                onChange={(e) => {
-                  if (e.target.value === 'custom') {
-                    handleModelChange(customModelId || 'anthropic/claude-sonnet-5');
-                  } else {
-                    handleModelChange(e.target.value);
-                  }
+              <button
+                type="button"
+                onClick={() => {
+                  setSidebarSettingsOpen(true);
+                  setSidebarTab('key');
+                  setIsMobileHistoryOpen(true);
                 }}
-                className="text-[10px] font-semibold py-1.5 px-2 rounded-lg border border-theme-border-strong bg-theme-surface text-theme-text focus:outline-none cursor-pointer max-w-[120px]"
+                className="p-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 cursor-pointer flex items-center justify-center shrink-0"
+                title="ตั้งค่า API Key"
               >
-                {AVAILABLE_MODELS.map(m => (
-                  <option key={m.id} value={m.id}>{m.tier === 'paid' ? '🔒' : '⚠️'} {m.name}</option>
-                ))}
-                <option value="custom">⚙️ Custom...</option>
-              </select>
+                <Key size={13} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsMobileHistoryOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 text-[10px] font-extrabold cursor-pointer transition-all active:scale-95"
+              >
+                <MessageSquare size={12} />
+                <span>ประวัติ & ตั้งค่า</span>
+              </button>
+
               <button
                 onClick={() => setIsSearchModalOpen(true)}
                 type="button"
-                className="p-1.5 rounded-lg border border-theme-border bg-theme-surface text-indigo-500 hover:text-indigo-600 cursor-pointer flex items-center justify-center shrink-0"
+                className="p-1.5 rounded-xl border border-theme-border bg-theme-surface text-indigo-500 hover:text-indigo-600 cursor-pointer flex items-center justify-center shrink-0"
                 title="ค้นหาโมเดลทั้งหมด"
               >
-                <Globe size={12} />
+                <Globe size={13} />
               </button>
             </div>
           </header>
@@ -2184,30 +2436,39 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
               )}
 
               {/* Image mode: free Flux vs quality Banana — always visible, compact */}
+              {/* Image mode: free Flux vs quality Banana — balanced responsive panel */}
               {drawMode && (
-                <div className="mb-2 space-y-1.5 animate-fade-in text-xs">
-                  <div className="rounded-2xl border border-violet-500/25 bg-violet-500/5 dark:bg-violet-950/15 px-2.5 py-2 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 font-extrabold text-violet-600 dark:text-violet-300 text-[10px] uppercase tracking-wide shrink-0">
-                        <Palette size={12} />
-                        สร้างรูป
-                      </span>
-                      {drawSourceText && (
-                        <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md">
-                          📎 จากแชท
+                <div className="mb-2.5 space-y-1.5 animate-fade-in text-xs">
+                  <div className="rounded-2xl border border-violet-500/25 bg-gradient-to-r from-violet-500/10 via-violet-500/5 to-transparent dark:from-violet-950/30 dark:via-violet-950/15 dark:to-transparent p-3 space-y-2.5 shadow-sm">
+                    {/* Header line */}
+                    <div className="flex items-center justify-between gap-2 border-b border-violet-500/10 pb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1.5 font-black text-violet-600 dark:text-violet-300 text-xs uppercase tracking-wide shrink-0">
+                          <Palette size={14} className="text-violet-500 animate-pulse" />
+                          สร้างรูปภาพ
                         </span>
-                      )}
-                      <span className="text-[10px] text-theme-text-muted">
-                        {drawIntent === 'infographic' ? 'Infographic' : drawIntent === 'thai_text' ? 'ข้อความไทย' : 'ภาพประกอบ'}
-                        {' · '}{fluxRatio}
-                      </span>
-                      <div className="flex items-center gap-1 ml-auto shrink-0">
+                        {drawSourceText && (
+                          <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                            📎 อ้างอิงจากแชท
+                          </span>
+                        )}
+                        <span className="text-[10px] font-semibold text-theme-text-muted bg-theme-surface/70 border border-theme-border/50 px-2 py-0.5 rounded-full">
+                          {drawIntent === 'infographic' ? '📊 Infographic' : drawIntent === 'thai_text' ? '🇹🇭 ข้อความไทย' : '🎨 ภาพประกอบ'} · {fluxRatio}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => setImageSettingsOpen((v) => !v)}
-                          className="px-2 py-1 rounded-lg text-[10px] font-bold border border-theme-border/80 text-theme-text-secondary hover:text-theme-text cursor-pointer"
+                          className={cn(
+                            "px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer",
+                            imageSettingsOpen
+                              ? "border-violet-400 bg-violet-500/15 text-violet-700 dark:text-violet-200"
+                              : "border-theme-border/80 bg-theme-surface/70 text-theme-text-secondary hover:text-theme-text"
+                          )}
                         >
-                          {imageSettingsOpen ? 'ซ่อน' : 'เพิ่มเติม'}
+                          {imageSettingsOpen ? 'ซ่อนตั้งค่า' : '⚙️ ตั้งค่าเพิ่มเติม'}
                         </button>
                         <button
                           type="button"
@@ -2216,96 +2477,112 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                             setImageSettingsOpen(false);
                             setDrawSourceText('');
                           }}
-                          className="px-2 py-1 rounded-lg text-[10px] font-bold border border-theme-border text-theme-text-muted hover:text-theme-text cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg text-[10px] font-bold border border-theme-border/70 bg-theme-surface/50 text-theme-text-muted hover:text-rose-500 hover:border-rose-300 transition-all cursor-pointer"
                         >
-                          ปิด
+                          ✕ ปิด
                         </button>
                       </div>
                     </div>
 
-                    {/* Primary choice: Free vs Quality — compact chips */}
-                    <div className="flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        disabled={isGenerating}
-                        onClick={() => applyDrawPath('free_flux')}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-extrabold transition-all cursor-pointer select-none",
-                          drawEngine === 'flux_cf'
-                            ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-400/30"
-                            : "border-theme-border/70 bg-theme-surface/80 text-theme-text-secondary hover:border-emerald-400/40"
-                        )}
-                      >
-                        ฟรี · Flux
-                        <span className="text-[8px] font-bold opacity-80">ไม่เสีย image</span>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isGenerating}
-                        onClick={() => applyDrawPath('quality', { intent: drawIntent })}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-extrabold transition-all cursor-pointer select-none",
-                          drawEngine === 'openrouter'
-                            ? "border-violet-400/60 bg-violet-500/15 text-violet-800 dark:text-violet-200 ring-1 ring-violet-400/30"
-                            : "border-theme-border/70 bg-theme-surface/80 text-theme-text-secondary hover:border-violet-400/40"
-                        )}
-                      >
-                        คมชัด · Banana
-                        <span className="text-[8px] font-bold opacity-80">API Key</span>
-                      </button>
-                    </div>
+                    {/* Responsive Grid: Left = Engine Choice, Right = Compact Aspect Ratios */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                      {/* Left: Engine Selection */}
+                      <div className="md:col-span-5 space-y-1">
+                        <span className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider block">
+                          เอนจินสร้างภาพ
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={isGenerating}
+                            onClick={() => applyDrawPath('free_flux')}
+                            className={cn(
+                              "flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-bold transition-all cursor-pointer select-none",
+                              drawEngine === 'flux_cf'
+                                ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 ring-1 ring-emerald-400/30 shadow-xs"
+                                : "border-theme-border/70 bg-theme-surface/70 text-theme-text-secondary hover:border-emerald-400/40"
+                            )}
+                          >
+                            <span>⚡ ฟรี · Flux</span>
+                            <span className="text-[8px] opacity-75 font-normal hidden sm:inline">(ไม่เสีย credit)</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isGenerating}
+                            onClick={() => applyDrawPath('quality', { intent: drawIntent })}
+                            className={cn(
+                              "flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-bold transition-all cursor-pointer select-none",
+                              drawEngine === 'openrouter'
+                                ? "border-violet-400/70 bg-violet-500/15 text-violet-800 dark:text-violet-200 ring-1 ring-violet-400/30 shadow-xs"
+                                : "border-theme-border/70 bg-theme-surface/70 text-theme-text-secondary hover:border-violet-400/40"
+                            )}
+                          >
+                            <span>✨ คมชัด · Banana</span>
+                            <span className="text-[8px] opacity-75 font-normal hidden sm:inline">(API Key)</span>
+                          </button>
+                        </div>
+                      </div>
 
-                    {/* Aspect ratio — visual chips (Google Flow style) */}
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wide">สัดส่วนภาพ</span>
-                      <div className="flex flex-wrap gap-1">
-                        {ASPECT_RATIO_CHIPS.map((ar) => {
-                          const active = fluxRatio === ar.id;
-                          return (
-                            <button
-                              key={ar.id}
-                              type="button"
-                              title={ar.hint}
-                              disabled={isGenerating}
-                              onClick={() => setFluxRatio(ar.id)}
-                              className={cn(
-                                "inline-flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1.5 py-1.5 rounded-xl border transition-all cursor-pointer select-none",
-                                active
-                                  ? "border-violet-400/70 bg-theme-surface shadow-sm ring-1 ring-violet-400/25"
-                                  : "border-theme-border/60 bg-theme-surface/50 hover:border-theme-border-strong text-theme-text-muted"
-                              )}
-                            >
-                              <span
+                      {/* Right: Aspect Ratio selection */}
+                      <div className="md:col-span-7 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-bold text-theme-text-muted uppercase tracking-wider block">
+                            สัดส่วนภาพ
+                          </span>
+                          {fluxRatio && (
+                            <span className="text-[9px] font-semibold text-violet-600 dark:text-violet-300">
+                              {ASPECT_RATIO_CHIPS.find(a => a.id === fluxRatio)?.hint}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {ASPECT_RATIO_CHIPS.map((ar) => {
+                            const active = fluxRatio === ar.id;
+                            return (
+                              <button
+                                key={ar.id}
+                                type="button"
+                                title={ar.hint}
+                                disabled={isGenerating}
+                                onClick={() => setFluxRatio(ar.id)}
                                 className={cn(
-                                  "rounded-[3px] border-2",
-                                  active ? "border-violet-500 bg-violet-500/10" : "border-theme-text-muted/50 bg-transparent"
+                                  "inline-flex items-center gap-1.5 px-2 py-1 rounded-xl border text-[10px] font-bold transition-all cursor-pointer select-none shrink-0",
+                                  active
+                                    ? "border-violet-500/80 bg-violet-500/20 text-violet-700 dark:text-violet-200 ring-1 ring-violet-400/30 shadow-xs"
+                                    : "border-theme-border/60 bg-theme-surface/60 text-theme-text-muted hover:border-theme-border-strong hover:text-theme-text"
                                 )}
-                                style={{ width: ar.frameW, height: ar.frameH }}
-                                aria-hidden
-                              />
-                              <span className={cn(
-                                "text-[9px] font-bold tabular-nums",
-                                active ? "text-violet-600 dark:text-violet-300" : "text-theme-text-muted"
-                              )}>
-                                {ar.label}
-                              </span>
-                            </button>
-                          );
-                        })}
+                              >
+                                <span
+                                  className={cn(
+                                    "rounded-[2px] border transition-colors shrink-0",
+                                    active ? "border-violet-500 bg-violet-500/40" : "border-theme-text-muted/60 bg-transparent"
+                                  )}
+                                  style={{ width: ar.frameW, height: ar.frameH }}
+                                  aria-hidden
+                                />
+                                <span>{ar.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
-                    {drawEngine === 'flux_cf' && (
-                      <p className="text-[9px] text-emerald-700 dark:text-emerald-300/90 leading-relaxed px-0.5">
-                        ✓ เลือก <strong>ฟรี</strong> แล้ว — ไม่ต้องใช้เครดิต image บน OpenRouter · ตัวอักษรไทยบนภาพอาจเพี้ยน
-                      </p>
-                    )}
-                    {drawEngine === 'openrouter' && (
-                      <p className="text-[9px] text-violet-700 dark:text-violet-300/90 leading-relaxed px-0.5">
-                        ✓ เลือก <strong>คมชัด</strong> แล้ว — {getImagePreset(openrouterImageModel)?.shortName || openrouterImageModel}
-                        {!apiKey.trim() && ' · ยังไม่มี API Key ด้านซ้าย'}
-                      </p>
-                    )}
+                    {/* Notice line */}
+                    <div className="pt-0.5">
+                      {drawEngine === 'flux_cf' && (
+                        <p className="text-[9px] text-emerald-700 dark:text-emerald-300/90 leading-relaxed px-0.5 flex items-center gap-1 font-medium">
+                          <span>✓ เลือก <strong>ฟรี</strong> แล้ว — ไม่ต้องใช้เครดิต image บน OpenRouter</span>
+                          <span className="text-theme-text-muted text-[8px]">(ตัวอักษรไทยบนภาพอาจเพี้ยน)</span>
+                        </p>
+                      )}
+                      {drawEngine === 'openrouter' && (
+                        <p className="text-[9px] text-violet-700 dark:text-violet-300/90 leading-relaxed px-0.5 flex items-center gap-1 font-medium">
+                          <span>✓ เลือก <strong>คมชัด</strong> แล้ว — {getImagePreset(openrouterImageModel)?.shortName || openrouterImageModel}</span>
+                          {!apiKey.trim() && <span className="text-amber-600 dark:text-amber-400 font-semibold">· ⚠️ ยังไม่มี API Key ด้านซ้าย</span>}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {imageSettingsOpen && (
@@ -2730,6 +3007,18 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                   >
                     ทั้งหมด
                   </button>
+                  <button
+                    type="button"
+                    data-active={modelCategoryFilter === 'favorites'}
+                    onClick={() => setModelCategoryFilter(modelCategoryFilter === 'favorites' ? 'all' : 'favorites')}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer",
+                      "border-amber-300/80 text-amber-600 dark:text-amber-300 data-[active=true]:bg-amber-500/15 data-[active=true]:border-amber-400 data-[active=true]:text-amber-800 dark:data-[active=true]:text-amber-100"
+                    )}
+                  >
+                    <Star size={12} className={cn(modelCategoryFilter === 'favorites' && "fill-amber-400 text-amber-400")} />
+                    โปรด ({favoriteModelIds.length})
+                  </button>
                   {(Object.keys(MODEL_CATEGORY_META) as ModelCategory[]).map((cat) => {
                     const meta = MODEL_CATEGORY_META[cat];
                     const Icon = meta.Icon;
@@ -2804,79 +3093,105 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                   </button>
                 </div>
               ) : (
-                filteredSearchModels.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      handleModelChange(m.id);
-                      setCustomModelId(m.id);
-                      setIsSearchModalOpen(false);
-                      setSearchQuery('');
-                      setModelCategoryFilter('all');
-                      setModelTierFilter('all');
-                    }}
-                    className="w-full text-left px-4 py-3.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors rounded-xl flex flex-col gap-2 group cursor-pointer border border-transparent hover:border-indigo-100 dark:hover:border-indigo-500/10"
-                  >
-                    <div className="flex items-start justify-between w-full gap-3">
-                      <span className="text-sm font-bold group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug">
-                        {m.name}
-                      </span>
-                      <span className={`shrink-0 mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold ${
-                        m.tier === 'paid' 
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25' 
-                          : 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/25'
-                      }`}>
-                        {m.tier === 'paid' ? 'Paid' : 'Free'}
-                      </span>
-                    </div>
-                    <span className="text-[11px] font-mono text-theme-text-muted select-all">
-                      {m.id}
-                    </span>
-                    {/* Capability badges */}
-                    {m.categories?.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {m.categories
-                          .filter((c) => c !== 'general' || m.categories.length === 1)
-                          .slice(0, 5)
-                          .map((c) => {
-                            const meta = MODEL_CATEGORY_META[c];
-                            if (!meta) return null;
-                            const Icon = meta.Icon;
-                            return (
+                filteredSearchModels.map((m) => {
+                  const isFav = favoriteModelIds.includes(m.id);
+                  return (
+                    <div
+                      key={m.id}
+                      className="w-full text-left px-4 py-3 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors rounded-xl flex items-start gap-3 group border border-transparent hover:border-indigo-100 dark:hover:border-indigo-500/10"
+                    >
+                      <button
+                        type="button"
+                        title={isFav ? "ถอดออกจากโมเดลโปรด" : "เพิ่มเป็นโมเดลโปรด"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavoriteModel(m.id);
+                        }}
+                        className="mt-0.5 p-1 rounded-lg text-theme-text-muted hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer shrink-0"
+                      >
+                        <Star
+                          size={16}
+                          className={cn(
+                            isFav ? "fill-amber-400 text-amber-400" : "opacity-40 hover:opacity-100"
+                          )}
+                        />
+                      </button>
+
+                      <div
+                        onClick={() => {
+                          handleModelChange(m.id);
+                          setCustomModelId(m.id);
+                          setIsSearchModalOpen(false);
+                          setSearchQuery('');
+                          setModelCategoryFilter('all');
+                          setModelTierFilter('all');
+                        }}
+                        className="flex-1 min-w-0 cursor-pointer space-y-1.5"
+                      >
+                        <div className="flex items-start justify-between w-full gap-3">
+                          <span className="text-sm font-bold group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug truncate">
+                            {m.name}
+                          </span>
+                          <span className={`shrink-0 mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold ${
+                            m.tier === 'paid' 
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25' 
+                              : 'bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/25'
+                          }`}>
+                            {m.tier === 'paid' ? 'Paid' : 'Free'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-mono text-theme-text-muted select-all truncate">
+                            {m.id}
+                          </span>
+                        </div>
+                        {/* Capability badges */}
+                        {m.categories?.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {m.categories
+                              .filter((c) => c !== 'general' || m.categories.length === 1)
+                              .slice(0, 5)
+                              .map((c) => {
+                                const meta = MODEL_CATEGORY_META[c];
+                                if (!meta) return null;
+                                const Icon = meta.Icon;
+                                return (
+                                  <span
+                                    key={c}
+                                    title={meta.hint}
+                                    className={cn(
+                                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border",
+                                      meta.badgeClass
+                                    )}
+                                  >
+                                    <Icon size={11} />
+                                    {meta.shortLabel}
+                                  </span>
+                                );
+                              })}
+                            {m.categories.includes('general') && m.categories.length > 1 && (
                               <span
-                                key={c}
-                                title={meta.hint}
+                                title={MODEL_CATEGORY_META.general.hint}
                                 className={cn(
                                   "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border",
-                                  meta.badgeClass
+                                  MODEL_CATEGORY_META.general.badgeClass
                                 )}
                               >
-                                <Icon size={11} />
-                                {meta.shortLabel}
+                                <MessagesSquare size={11} />
+                                ทั่วไป
                               </span>
-                            );
-                          })}
-                        {m.categories.includes('general') && m.categories.length > 1 && (
-                          <span
-                            title={MODEL_CATEGORY_META.general.hint}
-                            className={cn(
-                              "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border",
-                              MODEL_CATEGORY_META.general.badgeClass
                             )}
-                          >
-                            <MessagesSquare size={11} />
-                            ทั่วไป
-                          </span>
+                          </div>
+                        )}
+                        {m.description && (
+                          <p className="text-xs text-theme-text-secondary leading-relaxed line-clamp-2">
+                            {m.description}
+                          </p>
                         )}
                       </div>
-                    )}
-                    {m.description && (
-                      <p className="text-xs text-theme-text-secondary leading-relaxed line-clamp-2">
-                        {m.description}
-                      </p>
-                    )}
-                  </button>
-                ))
+                    </div>
+                  );
+                })
               )}
             </div>
 
@@ -2957,6 +3272,277 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* MOBILE SLIDE-OVER DRAWER: HISTORY & SETTINGS */}
+      {isMobileHistoryOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-4/5 max-w-xs h-full bg-theme-surface dark:bg-theme-bg-page border-r border-theme-border flex flex-col p-4 space-y-3 shadow-2xl animate-in slide-in-from-left duration-200">
+            <div className="flex items-center justify-between border-b border-theme-border/60 pb-3">
+              <span className="font-bold text-xs uppercase tracking-wider text-theme-text flex items-center gap-1.5">
+                <MessageSquare size={14} className="text-indigo-500" />
+                ประวัติ & ตั้งค่าแชท
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsMobileHistoryOpen(false)}
+                className="p-1 rounded-lg text-theme-text-muted hover:text-theme-text cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Create New Chat */}
+            <button
+              type="button"
+              onClick={() => {
+                handleCreateNewChat();
+                setIsMobileHistoryOpen(false);
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus size={15} />
+              <span>สร้างแชทใหม่</span>
+            </button>
+
+            {/* Sessions List */}
+            <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar pr-1">
+              <div className="text-[10px] font-bold text-theme-text-muted uppercase tracking-wider mb-1 mt-1">ประวัติการสนทนา</div>
+              {sessions.length === 0 ? (
+                <div className="text-xs text-theme-text-muted text-center py-6 font-mono italic">ไม่มีประวัติการแชท</div>
+              ) : (
+                sessions.map((s) => {
+                  const isActive = s.id === activeSessionId;
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => {
+                        setActiveSessionId(s.id);
+                        setIsMobileHistoryOpen(false);
+                      }}
+                      className={cn(
+                        "flex items-center justify-between p-2.5 rounded-xl text-xs font-semibold cursor-pointer transition-all border group relative",
+                        isActive
+                          ? "bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                          : "border-transparent hover:bg-theme-surface-tertiary text-theme-text-secondary"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <MessageSquare size={13} className="shrink-0 opacity-70" />
+                        <span className="truncate">{s.title}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteSession(s.id, e)}
+                        className="hover:text-rose-500 p-1 rounded transition-opacity shrink-0"
+                        title="ลบบทสนทนา"
+                      >
+                        <Trash size={12} />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Mobile Settings Drawer Footer */}
+            <div className="pt-3 border-t border-theme-border/60 space-y-2 text-xs">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-theme-text-muted uppercase">เลือกโมเดล AI</label>
+                <select
+                  value={
+                    SMART_PRESETS.some((p) => p.id === selectedModel)
+                      ? selectedModel
+                      : favoriteModelsList.some((m) => m.id === selectedModel)
+                      ? selectedModel
+                      : 'custom'
+                  }
+                  onChange={(e) => {
+                    if (e.target.value === 'custom') {
+                      handleModelChange(customModelId || 'anthropic/claude-3.5-sonnet');
+                    } else {
+                      handleModelChange(e.target.value);
+                    }
+                  }}
+                  className="w-full text-xs font-semibold py-1.5 px-2 rounded-xl border border-theme-border bg-theme-surface text-theme-text"
+                >
+                  <optgroup label="🤖 Preset มาตรฐาน">
+                    {SMART_PRESETS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={`⭐ โมเดลโปรด (${favoriteModelsList.length})`}>
+                    {favoriteModelsList.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.tier === 'paid' ? '🔒' : '⚠️'} {m.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="⚙️ Custom">
+                    <option value="custom">พิมพ์กำหนดเอง (Custom ID)...</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              {/* Mobile Thinking Effort Selector */}
+              <div className="flex items-center justify-between text-[10px] pt-1">
+                <span className="font-bold text-theme-text-muted">ระดับความคิด:</span>
+                <div className="flex gap-1">
+                  {(['low', 'medium', 'high'] as const).map((lvl) => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => handleThinkingLevelChange(lvl)}
+                      className={cn(
+                        "px-2 py-0.5 rounded-lg text-[9px] font-bold border transition-all cursor-pointer",
+                        thinkingLevel === lvl
+                          ? "bg-violet-500/15 border-violet-400 text-violet-600 dark:text-violet-300"
+                          : "border-theme-border/60 bg-theme-surface text-theme-text-muted"
+                      )}
+                    >
+                      {lvl === 'low' ? '⚡ เร็ว' : lvl === 'medium' ? '⚖️ สมดุล' : '🧠 คิดลึก'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Collapsible API Key & Data Management Drawer for Mobile */}
+              <div className="pt-2 border-t border-theme-border/40 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setSidebarSettingsOpen((v) => !v)}
+                  className="w-full flex items-center justify-between py-1.5 px-2.5 rounded-xl border border-theme-border/70 bg-theme-surface/70 text-theme-text-secondary text-[10px] font-bold transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Key size={12} className={apiKey ? "text-emerald-500" : "text-amber-500"} />
+                    <span className="truncate">
+                      {apiKey ? 'API Key: บันทึกแล้ว 🟢' : 'ยังไม่ได้ใส่ API Key 🔴'}
+                    </span>
+                  </div>
+                  <span className="text-indigo-500 dark:text-indigo-400 text-[9px] shrink-0 font-extrabold">
+                    {sidebarSettingsOpen ? '▲ ซ่อน' : '⚙️ จัดการ / ล้าง'}
+                  </span>
+                </button>
+
+                {sidebarSettingsOpen && (
+                  <div className="p-2.5 rounded-xl border border-theme-border/70 bg-theme-surface/90 space-y-2.5 animate-fade-in text-xs">
+                    {/* Mini Tabs */}
+                    <div className="flex border-b border-theme-border/50 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => setSidebarTab('key')}
+                        className={cn(
+                          "flex-1 text-[10px] font-bold py-1 text-center border-b-2 transition-all cursor-pointer",
+                          sidebarTab === 'key'
+                            ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                            : "border-transparent text-theme-text-muted hover:text-theme-text"
+                        )}
+                      >
+                        🔑 API Key
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSidebarTab('data')}
+                        className={cn(
+                          "flex-1 text-[10px] font-bold py-1 text-center border-b-2 transition-all cursor-pointer",
+                          sidebarTab === 'data'
+                            ? "border-rose-500 text-rose-600 dark:text-rose-400"
+                            : "border-transparent text-theme-text-muted hover:text-theme-text"
+                        )}
+                      >
+                        🧹 ล้างข้อมูล
+                      </button>
+                    </div>
+
+                    {/* Tab 1: API Key Entry */}
+                    {sidebarTab === 'key' && (
+                      <div className="space-y-1.5 pt-0.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[9px] font-bold text-theme-text-muted uppercase">OpenRouter Key</label>
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingKey(!isEditingKey)}
+                            className="text-[9px] font-bold text-indigo-500 hover:text-indigo-600"
+                          >
+                            {isEditingKey ? 'ยกเลิก' : (apiKey ? 'แก้ไข' : 'ใส่คีย์')}
+                          </button>
+                        </div>
+
+                        {isEditingKey ? (
+                          <div className="flex gap-1">
+                            <div className="relative flex-1">
+                              <input
+                                type={showApiKey ? 'text' : 'password'}
+                                value={apiKey}
+                                onChange={(e) => setApiKey(e.target.value)}
+                                placeholder="sk-or-v1-..."
+                                className="w-full text-[11px] font-mono py-1.5 pl-2.5 pr-7 rounded-lg border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowApiKey(!showApiKey)}
+                                className="absolute right-2 top-1.5 text-theme-text-muted hover:text-theme-text"
+                              >
+                                {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleSaveApiKey}
+                              className="px-2.5 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-[10px] font-bold transition-all shrink-0 cursor-pointer"
+                            >
+                              บันทึก
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-theme-surface-secondary/50 border border-theme-border/50">
+                            <Key size={12} className="text-emerald-500 shrink-0" />
+                            <span className="text-[9px] font-mono text-theme-text-secondary truncate flex-1">
+                              {apiKey ? '••••••••••••••••••••••••••••' : 'ยังไม่ได้ตั้งค่าคีย์'}
+                            </span>
+                            <div className={cn("w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse", !apiKey && "bg-slate-400")} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Tab 2: Clear Data */}
+                    {sidebarTab === 'data' && (
+                      <div className="space-y-1.5 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setClearModalType('history');
+                            setIsMobileHistoryOpen(false);
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 border border-dashed border-rose-300 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          <Trash2 size={11} />
+                          <span>ล้างประวัติการแชททั้งหมด</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setClearModalType('key');
+                            setIsMobileHistoryOpen(false);
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 border border-dashed border-amber-300 dark:border-amber-900 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                        >
+                          <Key size={11} />
+                          <span>ล้าง API Key</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1" onClick={() => setIsMobileHistoryOpen(false)} />
         </div>
       )}
     </AppLayout>

@@ -949,26 +949,39 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               to="/calendar"
               className={({ isActive }) =>
                 cn(
-                  "flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-h-[48px] min-w-[56px]",
+                  "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-h-[48px] min-w-[50px]",
                   isActive ? "text-indigo-500 font-bold" : "text-theme-text-muted hover:text-theme-text"
                 )
               }
             >
-              <Calendar size={20} />
-              <span className="text-[10px] mt-0.5">{t('nav.calendar', { defaultValue: 'ปฏิทิน' })}</span>
+              <Calendar size={19} />
+              <span className="text-[9.5px] mt-0.5">{t('nav.calendar', { defaultValue: 'ปฏิทิน' })}</span>
+            </NavLink>
+
+            <NavLink
+              to="/ai-chat"
+              className={({ isActive }) =>
+                cn(
+                  "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-h-[48px] min-w-[50px]",
+                  isActive ? "text-violet-500 font-bold" : "text-theme-text-muted hover:text-theme-text"
+                )
+              }
+            >
+              <MessageSquare size={19} className="text-violet-500" />
+              <span className="text-[9.5px] mt-0.5 font-bold text-violet-600 dark:text-violet-400">AI Chat</span>
             </NavLink>
 
             <NavLink
               to="/reports"
               className={({ isActive }) =>
                 cn(
-                  "flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all min-h-[48px] min-w-[56px]",
+                  "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-h-[48px] min-w-[50px]",
                   isActive ? "text-indigo-500 font-bold" : "text-theme-text-muted hover:text-theme-text"
                 )
               }
             >
-              <FileText size={20} />
-              <span className="text-[10px] mt-0.5">{t('nav.reports', { defaultValue: 'รายงาน' })}</span>
+              <FileText size={19} />
+              <span className="text-[9.5px] mt-0.5">{t('nav.reports', { defaultValue: 'รายงาน' })}</span>
             </NavLink>
 
             <NavLink
