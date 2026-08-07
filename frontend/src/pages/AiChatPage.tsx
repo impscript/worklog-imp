@@ -2430,7 +2430,7 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                                   <span>สร้างภาพประกอบจากข้อความนี้ ▾</span>
                                 </button>
                               ) : (
-                                <div className="inline-flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-theme-surface border border-indigo-500/40 shadow-md animate-fade-in text-[10px] font-bold">
+                                <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-theme-surface border border-indigo-500/30 shadow-lg text-[10px] font-bold animate-fade-in">
                                   {/* Option 1: Free Flux Illustration */}
                                   <button
                                     type="button"
@@ -2438,11 +2438,11 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                                       setExpandedMsgId(null);
                                       handleCreateImageFromMessage(m.content, 'illustration', 'flux_cf');
                                     }}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 transition-all cursor-pointer"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 transition-all cursor-pointer shrink-0 active:scale-95"
                                     title="สร้างภาพประกอบฟรี ด้วย Flux Cloudflare (ไม่ใช้ API Key)"
                                   >
-                                    <Sparkles size={11} className="text-emerald-500" />
-                                    <span>🪄 ภาพประกอบ (ฟรี)</span>
+                                    <Sparkles size={12} className="text-emerald-500 shrink-0" />
+                                    <span>ภาพประกอบ (ฟรี)</span>
                                   </button>
 
                                   {/* Option 2: Paid High Quality Illustration */}
@@ -2452,11 +2452,11 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                                       setExpandedMsgId(null);
                                       handleCreateImageFromMessage(m.content, 'illustration', 'openrouter');
                                     }}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 transition-all cursor-pointer"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 transition-all cursor-pointer shrink-0 active:scale-95"
                                     title="สร้างภาพประกอบทั่วไปแบบคมชัด ด้วย Nano Banana / OpenRouter (ใช้ API Key)"
                                   >
-                                    <Palette size={11} className="text-amber-500" />
-                                    <span>💎 ภาพประกอบ (คมชัด · Paid)</span>
+                                    <Palette size={12} className="text-amber-500 shrink-0" />
+                                    <span>ภาพประกอบ (คมชัด · Paid)</span>
                                   </button>
 
                                   {/* Option 3: Paid Infographic Poster */}
@@ -2466,21 +2466,21 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
                                       setExpandedMsgId(null);
                                       handleCreateImageFromMessage(m.content, 'infographic', 'openrouter');
                                     }}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-500/30 transition-all cursor-pointer"
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-500/30 transition-all cursor-pointer shrink-0 active:scale-95"
                                     title="สร้างโปสเตอร์ Infographic สรุปข้อมูล ด้วย Nano Banana (ใช้ API Key)"
                                   >
-                                    <FileText size={11} className="text-violet-500" />
-                                    <span>📊 Infographic (คมชัด · Paid)</span>
+                                    <FileText size={12} className="text-violet-500 shrink-0" />
+                                    <span>Infographic (คมชัด · Paid)</span>
                                   </button>
 
                                   {/* Close button */}
                                   <button
                                     type="button"
                                     onClick={() => setExpandedMsgId(null)}
-                                    className="p-1 rounded-lg hover:bg-theme-surface-secondary text-theme-text-muted transition-all cursor-pointer"
+                                    className="p-1 rounded-lg hover:bg-theme-surface-secondary text-theme-text-muted transition-all cursor-pointer shrink-0 ml-auto"
                                     title="ปิดเมนู"
                                   >
-                                    <X size={12} />
+                                    <X size={13} />
                                   </button>
                                 </div>
                               )}
