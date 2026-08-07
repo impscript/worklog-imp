@@ -9,7 +9,7 @@ import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import ImportICSModal from '../components/modals/ImportICSModal';
 import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
 import { compressImage } from '../lib/image-compressor';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 // Generate Time Options in 15-minute intervals (00:00 to 24:00 - 24 Hours)
@@ -77,11 +77,21 @@ function addMinutesToTime(timeStr: string, mins: number): string {
   return `${newH}:${newM}`;
 }
 
+function parseTimeToMinutes(timeStr: string): number | null {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+  const clean = timeStr.trim();
+  const parts = clean.split(':');
+  if (parts.length !== 2) return null;
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (isNaN(h) || isNaN(m) || h < 0 || h > 24 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
 function calculateSegmentHours(startTime: string, endTime: string, deductLunch = false): number {
-  const [startH, startM] = startTime.split(':').map(Number);
-  const [endH, endM] = endTime.split(':').map(Number);
-  const startMinutes = startH * 60 + startM;
-  const endMinutes = endH * 60 + endM;
+  const startMinutes = parseTimeToMinutes(startTime);
+  const endMinutes = parseTimeToMinutes(endTime);
+  if (startMinutes === null || endMinutes === null) return 0;
 
   let totalMinutes = endMinutes - startMinutes;
   if (totalMinutes < 0) totalMinutes = 0;
@@ -96,7 +106,8 @@ function calculateSegmentHours(startTime: string, endTime: string, deductLunch =
     }
   }
 
-  return Math.round((totalMinutes / 60) * 100) / 100;
+  const res = Math.round((totalMinutes / 60) * 100) / 100;
+  return isNaN(res) ? 0 : res;
 }
 
 function splitEntriesWithOT(
@@ -109,10 +120,9 @@ function splitEntriesWithOT(
   const formatDate = (d: Date) => d.toISOString().split('T')[0];
   const entries: SplitEntry[] = [];
 
-  const [startH, startM] = startTime.split(':').map(Number);
-  const [endH, endM] = endTime.split(':').map(Number);
-  const startMinutes = startH * 60 + startM;
-  const endMinutes = endH * 60 + endM;
+  const startMinutes = parseTimeToMinutes(startTime);
+  const endMinutes = parseTimeToMinutes(endTime);
+  if (startMinutes === null || endMinutes === null) return [];
 
   const crossesMidnight = endMinutes < startMinutes || (endMinutes === startMinutes && startMinutes > 0);
   const endOfWorkday = getEndOfWorkdayTime(workDate, isHoliday);
@@ -308,6 +318,7 @@ function findSmartTimeSlot(hoursNeeded: number, existingEntries: any[]): { start
 export default function LogWorkPage() {
   const { showToast } = useNotification();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const [session] = useState(() => JSON.parse(localStorage.getItem('worklog_session') || '{}'));
 
@@ -534,12 +545,12 @@ export default function LogWorkPage() {
 
   // Synchronize URL parameter when search changes
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const dateParam = params.get('date');
     if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
       setDate(dateParam);
     }
-  }, [window.location.search]);
+  }, [location.search]);
 
   // Load unique user list and default selection
   useEffect(() => {
@@ -933,12 +944,8 @@ export default function LogWorkPage() {
         .select('*')
         .eq('user_id', userId)
         .eq('work_date', date);
-      if (active) {
-        if (logs) {
-          setExistingEntries(logs);
-        } else {
-          setExistingEntries([]);
-        }
+      if (active && logs) {
+        setExistingEntries(logs);
       }
 
       // 2. Check if weekend or holiday
@@ -1270,94 +1277,40 @@ export default function LogWorkPage() {
     }
   }, [selectedProjectKey, module, projectType, allowedProjects]);
 
-  // Resets
-  useEffect(() => {
-    setSelectedRoleOperator('');
-    setProjectType('');
-    setSelectedProjectKey('');
-  }, [selectedHolding]);
-
-  useEffect(() => {
-    setProjectType('');
-    setSelectedProjectKey('');
-  }, [selectedRoleOperator]);
-
-  useEffect(() => {
-    setSelectedProjectKey('');
-  }, [projectType]);
-
-  useEffect(() => {
-    setModule('');
-    setActionName('');
-    setBu('');
-    setDepartment('');
-  }, [selectedProjectKey]);
-
-  // Reset all selections when switching simulated user
-  useEffect(() => {
-    setSelectedHolding('');
-    setSelectedRoleOperator('');
-    setProjectType('');
-    setSelectedProjectKey('');
-    setModule('');
-    setActionName('');
-    setBu('');
-    setDepartment('');
-  }, [selectedUser]);
-
-  // Auto-select if only 1 option available
+  // Consolidated single-pass auto-selection for cascaded form fields
   useEffect(() => {
     if (availableHoldings.length === 1 && !selectedHolding) {
       setSelectedHolding(availableHoldings[0]);
-    }
-  }, [availableHoldings, selectedHolding]);
-
-  useEffect(() => {
-    if (availableRoleOperators.length === 1 && !selectedRoleOperator) {
+    } else if (selectedHolding && availableRoleOperators.length === 1 && !selectedRoleOperator) {
       setSelectedRoleOperator(availableRoleOperators[0]);
-    }
-  }, [availableRoleOperators, selectedRoleOperator]);
-
-  useEffect(() => {
-    if (availableProjectTypes.length === 1 && !projectType) {
+    } else if (selectedHolding && selectedRoleOperator && availableProjectTypes.length === 1 && !projectType) {
       setProjectType(availableProjectTypes[0]);
-    }
-  }, [availableProjectTypes, projectType]);
-
-  useEffect(() => {
-    if (availableProjects.length === 1 && !selectedProjectKey) {
+    } else if (projectType && availableProjects.length === 1 && !selectedProjectKey) {
       setSelectedProjectKey(availableProjects[0].value);
-    }
-  }, [availableProjects, selectedProjectKey]);
-
-  useEffect(() => {
-    if (availableModules.length === 1 && !module) {
+    } else if (selectedProjectKey && availableModules.length === 1 && !module) {
       setModule(availableModules[0]);
-    }
-  }, [availableModules, module]);
-
-  // Auto-select Action if only 1 option is available
-  useEffect(() => {
-    if (availableActions.length === 1 && !actionName) {
+    } else if (projectType && availableActions.length === 1 && !actionName) {
       setActionName(availableActions[0]);
     }
-  }, [availableActions, actionName]);
 
-  // Auto-select Business Unit (BU) if only 1 option is available
-  useEffect(() => {
     const buOpts = noModuleMode ? availableBUs : availableBUsForModule;
     if (buOpts.length === 1 && !bu) {
       setBu(buOpts[0]);
     }
-  }, [noModuleMode, availableBUs, availableBUsForModule, bu]);
-
-  // Auto-select Target Department if only 1 option is available
-  useEffect(() => {
     const deptOpts = noModuleMode ? availableDepts : availableDeptsForModule;
     if (deptOpts.length === 1 && !department) {
       setDepartment(deptOpts[0]);
     }
-  }, [noModuleMode, availableDepts, availableDeptsForModule, department]);
+  }, [
+    availableHoldings, selectedHolding,
+    availableRoleOperators, selectedRoleOperator,
+    availableProjectTypes, projectType,
+    availableProjects, selectedProjectKey,
+    availableModules, module,
+    availableActions, actionName,
+    noModuleMode, availableBUs, availableBUsForModule, bu,
+    availableDepts, availableDeptsForModule, department
+  ]);
 
   // Calculate live preview calculations (Overlap, Normal, OT, Implied OT)
   const preview = useMemo(() => {
@@ -1379,7 +1332,10 @@ export default function LogWorkPage() {
       };
     }
 
-    if (!startTime || !endTime) {
+    const startMins = parseTimeToMinutes(startTime);
+    const endMins = parseTimeToMinutes(endTime);
+
+    if (startMins === null || endMins === null) {
       return {
         duration: 0,
         normalHours: 0,
@@ -1391,22 +1347,14 @@ export default function LogWorkPage() {
       };
     }
 
-    const [sH, sM] = startTime.split(':').map(Number);
-    const [eH, eM] = endTime.split(':').map(Number);
-
-    const startMins = sH * 60 + sM;
-    const endMins = eH * 60 + eM;
-
     // 1. Time overlap check
     let isOverlap = false;
     let overlappingEvent = '';
 
     for (const entry of existingEntries) {
-      // Parse database start/end times ("08:00:00" -> "08:00")
-      const [eSH, eSM] = entry.start_time.split(':').map(Number);
-      const [eEH, eEM] = entry.end_time.split(':').map(Number);
-      const eStart = eSH * 60 + eSM;
-      const eEnd = eEH * 60 + eEM;
+      const eStart = parseTimeToMinutes(entry.start_time);
+      const eEnd = parseTimeToMinutes(entry.end_time);
+      if (eStart === null || eEnd === null) continue;
 
       if (startMins < eEnd && endMins > eStart) {
         isOverlap = true;
@@ -1834,6 +1782,46 @@ export default function LogWorkPage() {
     }
   };
 
+  const handleSelectHolding = (h: string) => {
+    const next = selectedHolding === h ? '' : h;
+    setSelectedHolding(next);
+    setSelectedRoleOperator('');
+    setProjectType('');
+    setSelectedProjectKey('');
+    setModule('');
+    setActionName('');
+    setBu('');
+    setDepartment('');
+  };
+
+  const handleSelectRoleOperator = (r: string) => {
+    const next = selectedRoleOperator === r ? '' : r;
+    setSelectedRoleOperator(next);
+    setProjectType('');
+    setSelectedProjectKey('');
+    setModule('');
+    setActionName('');
+    setBu('');
+    setDepartment('');
+  };
+
+  const handleSelectProjectType = (type: string) => {
+    setProjectType(type);
+    setSelectedProjectKey('');
+    setModule('');
+    setActionName('');
+    setBu('');
+    setDepartment('');
+  };
+
+  const handleSelectProjectKey = (key: string) => {
+    setSelectedProjectKey(key);
+    setModule('');
+    setActionName('');
+    setBu('');
+    setDepartment('');
+  };
+
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto">
@@ -1956,7 +1944,7 @@ export default function LogWorkPage() {
                         <button
                           key={h}
                           type="button"
-                          onClick={() => setSelectedHolding(isSelected ? '' : h)}
+                          onClick={() => handleSelectHolding(h)}
                           className={cn(
                             "px-4 py-2 text-xs font-bold rounded-full transition-all duration-200 border flex items-center gap-1.5 active:scale-95 shadow-sm",
                             isSelected
@@ -1990,7 +1978,7 @@ export default function LogWorkPage() {
                         <button
                           key={r}
                           type="button"
-                          onClick={() => setSelectedRoleOperator(isSelected ? '' : r)}
+                          onClick={() => handleSelectRoleOperator(r)}
                           className={cn(
                             "px-4 py-2 text-xs font-bold rounded-full transition-all duration-200 border flex items-center gap-1.5 active:scale-95 shadow-sm",
                             isSelected
@@ -2013,7 +2001,7 @@ export default function LogWorkPage() {
               <DropdownField 
                 label="Project Type" 
                 value={projectType} 
-                onChange={setProjectType} 
+                onChange={handleSelectProjectType} 
                 options={availableProjectTypes}
                 disabled={!selectedRoleOperator}
                 placeholder="Select Type"
@@ -2021,7 +2009,7 @@ export default function LogWorkPage() {
               <SearchableCombobox
                 label="Project Name"
                 value={selectedProjectKey}
-                onChange={setSelectedProjectKey}
+                onChange={handleSelectProjectKey}
                 options={availableProjects}
                 disabled={!projectType}
                 placeholder="Search project..."
@@ -2887,7 +2875,7 @@ function SearchableCombobox({
 
         {/* Dropdown list */}
         {isOpen && !disabled && (
-          <div className="absolute z-50 mt-1 w-full bg-theme-surface-modal border border-theme-border dark:border-theme-border rounded-xl shadow-2xl shadow-black/40 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="absolute z-50 mt-1 w-full bg-theme-surface-modal border border-theme-border dark:border-theme-border rounded-xl shadow-2xl shadow-black/40 overflow-hidden">
             {/* Result count hint */}
             {query && (
               <div className="px-4 pt-2.5 pb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
@@ -2994,7 +2982,7 @@ function TimeSelectInput({
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 mt-1 max-h-48 overflow-y-auto w-full bg-theme-surface-modal border border-theme-border dark:border-theme-border rounded-xl shadow-2xl overflow-x-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute z-50 mt-1 max-h-48 overflow-y-auto w-full bg-theme-surface-modal border border-theme-border dark:border-theme-border rounded-xl shadow-2xl overflow-x-hidden">
           <div className="py-1">
             {options.map((opt) => (
               <button
