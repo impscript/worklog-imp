@@ -202,11 +202,15 @@ function mapOpenRouterModel(m: any): ModelInfo {
   const isFree = promptPrice === 0 || String(m.id || '').endsWith(':free');
   const categories = categorizeOpenRouterModel(m);
   const ctxK = m.context_length ? (m.context_length / 1000).toFixed(0) : '?';
+  const isGuardrail = /guardrail|content-safety|moderation|embedding|rerank|tts|stt|whisper/i.test(m.id || '');
+
   return {
     id: m.id,
     name: m.name || m.id,
     tier: isFree ? 'free' : 'paid',
-    description: `${m.description || ''} (Context: ${ctxK}k)`,
+    description: isGuardrail
+      ? `⚠️ โมเดลกรองเนื้อหา/Moderation (ไม่ใช่โมเดลสนทนาทั่วไป · แนะนำใช้ Gemini/Claude)`
+      : `${m.description || ''} (Context: ${ctxK}k)`,
     privacy: isFree
       ? '⚠️ ความปลอดภัยทั่วไป: ข้อมูลอาจถูกรวบรวมเพื่อใช้พัฒนาคุณภาพบริการ'
       : '🔒 ปลอดภัยสูงสุด: มีนโยบาย Data Privacy ไม่นำข้อมูล API ไปฝึกสอนโมเดลต่อ',
@@ -1584,6 +1588,12 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         });
       }
 
+      // Add Model Identity System instruction so AI models don't hallucinate "I am ChatGPT" when asked identity
+      messagesToSend.unshift({
+        role: 'system',
+        content: `You are an AI assistant executing via model ID "${requestModel}" on OpenRouter API. If the user asks what model you are using or who created you, state clearly that you are running as model "${requestModel}". Respond in Thai when the user writes in Thai.`
+      });
+
       const openRouterHeaders = {
         "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": window.location.origin,
@@ -1644,6 +1654,7 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         /no endpoints found/i.test(msg) || /not found/i.test(msg) || /model.*(unavailable|retired)/i.test(msg);
 
       // Try preferred model, then fallbacks when OpenRouter has no endpoints
+      const preferredInitialModel = requestModel;
       const modelsToTry = chatModelFallbackChain(requestModel);
       let response: Response | null = null;
       let lastErrMsg = '';
@@ -1680,6 +1691,20 @@ Describe layout, style, lighting. Output ONLY the prompt.`;
         throw new Error(
           lastErrMsg ||
             'ไม่พบ endpoint ของโมเดลที่เลือก (มักเกิดกับ free เก่าที่ปิดแล้ว) — เลือก Gemini 2.5 Flash หรือ openrouter/free'
+        );
+      }
+
+      // If fallback model was used, update selectedModel state so UI header & dropdown stay in sync!
+      if (
+        requestModel !== preferredInitialModel &&
+        selectedModel !== 'openrouter/free' &&
+        selectedModel !== 'auto_paid_smart'
+      ) {
+        setSelectedModel(requestModel);
+        localStorage.setItem('openrouter_chat_model', requestModel);
+        showToast(
+          `⚠️ สลับโมเดลเป็น "${requestModel}" อัตโนมัติ (เนื่องจาก ${preferredInitialModel} ไม่พร้อมใช้งาน)`,
+          'warning'
         );
       }
 
