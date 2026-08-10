@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, FileText, UploadCloud, Trash2, ExternalLink, 
   Layers, Shield, Calendar, FileCode, HardDrive, Check, RefreshCw, File
@@ -63,6 +64,10 @@ export default function ProjectDocumentsModal({
   const [documentUrl, setDocumentUrl] = useState('');
   const [versionLabel, setVersionLabel] = useState('v1.0');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Confirm Delete State
+  const [deletingDocTarget, setDeletingDocTarget] = useState<{ id: string; docName: string } | null>(null);
+  const [isDeletingDoc, setIsDeletingDoc] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast } = useNotification();
@@ -205,20 +210,27 @@ export default function ProjectDocumentsModal({
     }
   };
 
-  const handleDeleteDocument = async (docId: string, docName: string) => {
-    if (!confirm(`คุณต้องการลบเอกสาร "${docName}" ใช่หรือไม่?`)) return;
+  const handleStartDeleteDocument = (docId: string, docName: string) => {
+    setDeletingDocTarget({ id: docId, docName });
+  };
 
+  const handleConfirmDeleteDocument = async () => {
+    if (!deletingDocTarget) return;
+    setIsDeletingDoc(true);
     try {
       const { error } = await supabase
         .from('tb_project_documents')
         .delete()
-        .eq('id', docId);
+        .eq('id', deletingDocTarget.id);
 
       if (error) throw error;
-      showToast(`ลบเอกสาร "${docName}" เรียบร้อยแล้ว`, 'success');
-      setDocuments(prev => prev.filter(d => d.id !== docId));
+      showToast(`ลบเอกสาร "${deletingDocTarget.docName}" เรียบร้อยแล้ว`, 'success');
+      setDocuments(prev => prev.filter(d => d.id !== deletingDocTarget.id));
+      setDeletingDocTarget(null);
     } catch (err: any) {
       showToast('ไม่สามารถลบเอกสารได้: ' + err.message, 'error');
+    } finally {
+      setIsDeletingDoc(false);
     }
   };
 
@@ -226,9 +238,9 @@ export default function ProjectDocumentsModal({
     ? documents
     : documents.filter(d => d.category === activeCategory);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-theme-surface dark:bg-theme-surface-modal border border-theme-border/80 rounded-3xl w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 md:p-6 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-theme-surface dark:bg-theme-surface-modal border border-theme-border/80 rounded-3xl w-full max-w-4xl my-auto max-h-[90vh] shadow-2xl flex flex-col overflow-hidden">
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-theme-border/60 flex items-center justify-between bg-theme-surface-tertiary/40">
@@ -488,7 +500,7 @@ export default function ProjectDocumentsModal({
                       </a>
 
                       <button
-                        onClick={() => handleDeleteDocument(doc.id, doc.file_name)}
+                        onClick={() => handleStartDeleteDocument(doc.id, doc.file_name)}
                         className="p-1.5 rounded-lg text-rose-500/70 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                         title="ลบเอกสารนี้"
                       >
@@ -503,6 +515,42 @@ export default function ProjectDocumentsModal({
 
         </div>
 
+        {/* Confirm Delete Document Modal Popup */}
+        {deletingDocTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-theme-surface border border-theme-border rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 mx-auto flex items-center justify-center">
+                <Trash2 size={24} />
+              </div>
+              
+              <div>
+                <h4 className="text-lg font-bold text-theme-text">ยืนยันการลบเอกสาร</h4>
+                <p className="text-xs text-theme-text-secondary mt-1">
+                  คุณต้องการลบเอกสาร <span className="font-bold text-rose-400">"{deletingDocTarget.docName}"</span> ใช่หรือไม่?
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingDocTarget(null)}
+                  className="flex-1 py-2.5 bg-theme-surface-secondary border border-theme-border hover:bg-theme-surface-tertiary text-theme-text-secondary rounded-xl text-xs font-semibold transition-all"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteDocument}
+                  disabled={isDeletingDoc}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/25"
+                >
+                  {isDeletingDoc ? 'กำลังลบ...' : 'ลบเอกสาร'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-6 py-3 border-t border-theme-border/60 bg-theme-surface-secondary/40 text-[11px] text-theme-text-muted flex justify-between items-center">
           <span>รวมเอกสารทั้งหมด {documents.length} รายการ</span>
@@ -515,6 +563,7 @@ export default function ProjectDocumentsModal({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

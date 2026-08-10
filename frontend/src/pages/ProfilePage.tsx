@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Shield, Award, Calendar, BookOpen, CalendarRange, CheckCircle2, XCircle, RefreshCw, Edit } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { LogOut, Shield, Award, Calendar, BookOpen, CalendarRange, CheckCircle2, XCircle, RefreshCw, Edit, Key, Lock, ShieldCheck, ShieldAlert, List, Clock } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { googleCalendar } from '../lib/google-calendar';
+import { setSuperAdminPin, clearSuperAdminPin } from '../lib/security-pin';
+import SecretAccessLogsModal from '../components/modals/SecretAccessLogsModal';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -32,6 +35,20 @@ export default function ProfilePage() {
   const [editRoleStartDate, setEditRoleStartDate] = useState('');
   const [editManagerName, setEditManagerName] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // SuperAdmin PIN States
+  const [hasPinSet, setHasPinSet] = useState(false);
+  const [pinUpdatedAt, setPinUpdatedAt] = useState<string | null>(null);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [isConfirmResetModalOpen, setIsConfirmResetModalOpen] = useState(false);
+  const [isClearingPin, setIsClearingPin] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [confirmPinInput, setConfirmPinInput] = useState('');
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [isSavingPin, setIsSavingPin] = useState(false);
+
+  // Secret Access Audit Logs Modal
+  const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
 
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
@@ -161,7 +178,7 @@ export default function ProfilePage() {
         // 3. Fetch Google Calendar Settings & HR profile details from DB (including nickname, position, and full_name)
         const { data: dbUser } = await supabase
           .from('users')
-          .select('gcal_sync_enabled, gcal_email, gcal_calendar_id, full_name, nickname, position, employee_level, role_start_date, company_name, manager_name, active_workspace_id')
+          .select('gcal_sync_enabled, gcal_email, gcal_calendar_id, full_name, nickname, position, employee_level, role_start_date, company_name, manager_name, active_workspace_id, security_pin_hash, security_pin_updated_at, role')
           .eq('id', sessionData.id)
           .maybeSingle();
 
@@ -185,6 +202,8 @@ export default function ProfilePage() {
           setGcalEmail(dbUser.gcal_email || '');
           setGcalCalendarId(dbUser.gcal_calendar_id || 'primary');
           setGcalConnected(dbUser.gcal_sync_enabled || false);
+          setHasPinSet(!!dbUser.security_pin_hash);
+          setPinUpdatedAt(dbUser.security_pin_updated_at || null);
           
           // Merge DB profile details into session state so it's easily accessible in rendering
           setSession((prev: any) => ({
@@ -196,6 +215,7 @@ export default function ProfilePage() {
             role_start_date: dbUser.role_start_date,
             company_name: dbUser.company_name,
             manager_name: dbUser.manager_name,
+            role: dbUser.role || prev.role,
             activeWorkspaceId: dbUser.active_workspace_id,
             workspaceName,
             workspaceInviteCode
@@ -215,6 +235,55 @@ export default function ProfilePage() {
 
     loadProfileData();
   }, [navigate]);
+
+  const handleSavePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError(null);
+    if (!pinInput || pinInput.length !== 6 || !/^\d{6}$/.test(pinInput)) {
+      setPinError('กรุณากรอก Security PIN เป็นตัวเลข 6 หลักเท่านั้น');
+      return;
+    }
+    if (pinInput !== confirmPinInput) {
+      setPinError('PIN ตัวเลขทั้งสองช่องไม่ตรงกัน');
+      return;
+    }
+    setIsSavingPin(true);
+    try {
+      const res = await setSuperAdminPin(session.id, pinInput);
+      if (res.success) {
+        setHasPinSet(true);
+        setIsPinModalOpen(false);
+        setPinInput('');
+        setConfirmPinInput('');
+        setToastMessage('ตั้งค่า 6-Digit Security PIN เรียบร้อยแล้ว!');
+        setTimeout(() => setToastMessage(null), 4000);
+      } else {
+        setPinError(res.message);
+      }
+    } catch (err: any) {
+      setPinError(err.message || 'ไม่สามารถบันทึก PIN ได้');
+    } finally {
+      setIsSavingPin(false);
+    }
+  };
+
+  const handleConfirmResetPin = async () => {
+    setIsClearingPin(true);
+    try {
+      const res = await clearSuperAdminPin(session.id);
+      if (res.success) {
+        setHasPinSet(false);
+        setPinUpdatedAt(new Date().toISOString());
+        setIsConfirmResetModalOpen(false);
+        setToastMessage('ยกเลิก PIN เรียบร้อยแล้ว!');
+        setTimeout(() => setToastMessage(null), 4000);
+      }
+    } catch (err: any) {
+      setToastMessage('เกิดข้อผิดพลาดในการยกเลิก PIN');
+    } finally {
+      setIsClearingPin(false);
+    }
+  };
 
   const handleOpenEditModal = () => {
     if (!session) return;
@@ -513,7 +582,7 @@ export default function ProfilePage() {
                                 setToastMessage('คัดลอก Workspace ID สำเร็จ! / Copied Workspace ID!');
                                 setTimeout(() => setToastMessage(null), 3000);
                               }}
-                              className="bg-slate-800 hover:bg-slate-700 text-theme-text-secondary text-xs font-bold px-3 py-1.5 rounded-lg border border-theme-border transition-all active:scale-95 w-fit"
+                              className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition-all active:scale-95 w-fit shadow-sm"
                             >
                               Copy Full ID
                             </button>
@@ -687,7 +756,7 @@ export default function ProfilePage() {
                     />
                     <button
                       onClick={() => handleSaveCalendarId(gcalCalendarId)}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-theme-text font-bold text-xs px-4 py-2 rounded-xl transition-all active:scale-95 flex items-center justify-center font-semibold"
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all active:scale-95 flex items-center justify-center shadow-sm"
                     >
                       Save
                     </button>
@@ -723,7 +792,7 @@ export default function ProfilePage() {
                       {isTokenExpired && (
                         <button
                           onClick={handleConnectGCal}
-                          className="flex-1 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-theme-text text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/25"
+                          className="flex-1 inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-amber-600/25"
                         >
                           <RefreshCw size={16} />
                           <span>Re-authorize Session</span>
@@ -731,7 +800,7 @@ export default function ProfilePage() {
                       )}
                       <button
                         onClick={handleDisconnectGCal}
-                        className={`inline-flex items-center justify-center gap-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 ${isTokenExpired ? "w-auto" : "w-full"}`}
+                        className={`inline-flex items-center justify-center gap-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 ${isTokenExpired ? "w-auto" : "w-full"}`}
                       >
                         <XCircle size={16} />
                         <span>{isTokenExpired ? "Disconnect" : "Disconnect Google Account"}</span>
@@ -741,7 +810,7 @@ export default function ProfilePage() {
                     <button
                       onClick={handleConnectGCal}
                       disabled={isSyncing}
-                      className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-theme-text text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-600/25 disabled:opacity-50"
+                      className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-4 py-3 rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-600/25 disabled:opacity-50"
                     >
                       {isSyncing ? (
                         <RefreshCw size={16} className="animate-spin" />
@@ -755,7 +824,111 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+
+          {/* SuperAdmin Security Vault PIN Section */}
+          <div className="bg-theme-surface border border-theme-border rounded-3xl p-6 md:p-8 space-y-6 shadow-xl mt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-600 dark:text-amber-400">
+                  <Key size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-theme-text flex items-center gap-2">
+                    <span>SuperAdmin Secrets Vault PIN</span>
+                    {hasPinSet ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                        <ShieldCheck size={12} /> Active
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                        <ShieldAlert size={12} /> Not Set
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-theme-text-secondary mt-1">
+                    กำหนด 6-Digit PIN ส่วนตัวเพื่ออนุญาตให้ทีมงานปลดล็อกเข้าถึง Secrets Vault (ระบบจะบันทึก Audit Log โดยระบุชื่อท่าน)
+                  </p>
+                  {pinUpdatedAt && (
+                    <p className="text-[11px] font-mono text-amber-700 dark:text-amber-400 font-semibold mt-1 flex items-center gap-1">
+                      <Clock size={12} />
+                      <span>อัปเดต PIN ล่าสุดเมื่อ: {new Date(pinUpdatedAt).toLocaleString('th-TH')}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => setIsLogsModalOpen(true)}
+                  className="px-4 py-2.5 bg-theme-surface-secondary hover:bg-theme-surface-tertiary border border-theme-border text-theme-text font-semibold rounded-xl text-xs flex items-center gap-2 transition-all shadow-sm"
+                >
+                  <List size={16} className="text-indigo-600 dark:text-indigo-400" />
+                  <span>ดู Audit Logs</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setPinError(null);
+                    setPinInput('');
+                    setConfirmPinInput('');
+                    setIsPinModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-amber-600/20 transition-all active:scale-95"
+                >
+                  <Lock size={16} />
+                  <span>{hasPinSet ? 'อัปเดต / เปลี่ยน PIN' : 'ตั้งค่า 6-Digit PIN'}</span>
+                </button>
+
+                {hasPinSet && (
+                  <button
+                    onClick={() => setIsConfirmResetModalOpen(true)}
+                    className="px-3 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-400 font-bold rounded-xl text-xs transition-all"
+                    title="Reset / ยกเลิก PIN"
+                  >
+                    Reset PIN
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* Confirm Reset PIN Modal Popup */}
+        {isConfirmResetModalOpen && createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-theme-surface border border-theme-border rounded-3xl w-full max-w-md p-6 md:p-8 shadow-2xl relative text-center space-y-4 animate-in zoom-in-95 duration-200">
+              <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 mx-auto flex items-center justify-center">
+                <ShieldAlert size={28} />
+              </div>
+              
+              <div>
+                <h3 className="text-xl font-extrabold text-theme-text">ยืนยันการ Reset Security PIN</h3>
+                <p className="text-xs text-theme-text-secondary mt-2 leading-relaxed">
+                  คุณแน่ใจหรือไม่ที่จะยกเลิก / Reset 6-Digit PIN นี้? สมาชิกในทีมจะไม่สามารถใช้ PIN นี้ปลดล็อกเข้าถึงคลัง Secrets ได้จนกว่าคุณจะกำหนด PIN ใหม่
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-theme-border/80 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmResetModalOpen(false)}
+                  className="flex-1 py-2.5 bg-theme-surface-secondary border border-theme-border hover:bg-theme-surface-tertiary text-theme-text-secondary rounded-xl text-xs font-semibold transition-all"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmResetPin}
+                  disabled={isClearingPin}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/25"
+                >
+                  {isClearingPin ? 'กำลัง Reset...' : 'ยืนยัน Reset PIN'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
         {/* Floating Toast Notification */}
         {toastMessage && (
@@ -765,9 +938,89 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {/* Set / Change SuperAdmin PIN Modal */}
+        {isPinModalOpen && createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-theme-surface border border-theme-border rounded-3xl w-full max-w-md p-6 md:p-8 shadow-2xl relative animate-in zoom-in-95 duration-200">
+              <h3 className="text-xl font-bold text-theme-text mb-2 flex items-center gap-2">
+                <Key className="text-amber-400" size={22} />
+                <span>{hasPinSet ? 'อัปเดต SuperAdmin PIN' : 'ตั้งค่า 6-Digit Security PIN'}</span>
+              </h3>
+              <p className="text-xs text-theme-text-secondary mb-6">
+                กำหนดรหัสผ่านตัวเลข 6 หลักเพื่อใช้งานยืนยันสิทธิ์แก่ทีมงานเมื่อต้องการเข้าถึง Production Secrets
+              </p>
+
+              {pinError && (
+                <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-semibold flex items-center gap-2">
+                  <ShieldAlert size={16} className="shrink-0" />
+                  <span>{pinError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSavePin} className="space-y-4">
+                <div>
+                  <label className="text-[10px] text-theme-text-secondary uppercase tracking-widest font-extrabold block mb-1.5">
+                    Security PIN (ตัวเลข 6 หลัก)
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    pattern="\d{6}"
+                    value={pinInput}
+                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="• • • • • •"
+                    className="w-full bg-theme-surface-secondary border border-theme-border focus:border-amber-500 rounded-xl px-4 py-3 text-center text-xl font-mono tracking-widest text-theme-text focus:outline-none transition-colors"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-theme-text-secondary uppercase tracking-widest font-extrabold block mb-1.5">
+                    ยืนยัน Security PIN อีกครั้ง
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    pattern="\d{6}"
+                    value={confirmPinInput}
+                    onChange={(e) => setConfirmPinInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="• • • • • •"
+                    className="w-full bg-theme-surface-secondary border border-theme-border focus:border-amber-500 rounded-xl px-4 py-3 text-center text-xl font-mono tracking-widest text-theme-text focus:outline-none transition-colors"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-theme-border/80 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setIsPinModalOpen(false)}
+                    className="px-4 py-2 bg-theme-surface-secondary border border-theme-border hover:bg-theme-surface-tertiary text-theme-text-secondary rounded-xl text-sm font-semibold transition-all"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingPin}
+                    className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {isSavingPin ? 'กำลังบันทึก...' : 'บันทึก PIN'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Audit Logs Modal */}
+        <SecretAccessLogsModal
+          isOpen={isLogsModalOpen}
+          onClose={() => setIsLogsModalOpen(false)}
+        />
+
         {/* Edit Profile Modal */}
-        {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+        {isEditModalOpen && createPortal(
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
             <div className="bg-theme-surface border border-theme-border rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl relative animate-in zoom-in-95 duration-200">
               <h3 className="text-xl font-bold text-theme-text mb-4 flex items-center gap-2">
                 <Edit className="text-indigo-600 dark:text-indigo-400" size={20} />
@@ -865,7 +1118,8 @@ export default function ProfilePage() {
                 </div>
               </form>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
       </div>

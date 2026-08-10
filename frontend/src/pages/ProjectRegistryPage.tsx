@@ -1177,7 +1177,12 @@ export default function ProjectRegistryPage() {
             project_name: docsModalProject.project_name,
             workspace_id: docsModalProject.workspace_id || ''
           }}
-          sessionUser={null}
+          sessionUser={(() => {
+            try {
+              const s = localStorage.getItem('worklog_session');
+              return s ? JSON.parse(s) : null;
+            } catch { return null; }
+          })()}
         />
       )}
 
@@ -1191,7 +1196,12 @@ export default function ProjectRegistryPage() {
             project_name: secretsModalProject.project_name,
             workspace_id: secretsModalProject.workspace_id || ''
           }}
-          sessionUser={null}
+          sessionUser={(() => {
+            try {
+              const s = localStorage.getItem('worklog_session');
+              return s ? JSON.parse(s) : null;
+            } catch { return null; }
+          })()}
         />
       )}
 

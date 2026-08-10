@@ -480,7 +480,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {!isSharedView && (
         <aside 
           className={cn(
-            "fixed inset-y-0 left-0 z-50 w-64 bg-theme-surface-secondary/80 dark:bg-theme-bg-page/80 backdrop-blur-xl border-r border-theme-border/80 flex flex-col transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 pt-[env(safe-area-inset-top,0px)] md:pt-0",
+            "fixed inset-y-0 left-0 z-30 w-64 bg-theme-surface-secondary/80 dark:bg-theme-bg-page/80 backdrop-blur-xl border-r border-theme-border/80 flex flex-col transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 pt-[env(safe-area-inset-top,0px)] md:pt-0",
             isSidebarOpen ? "translate-x-0" : "-translate-x-full",
             isCollapsed ? "md:w-20" : "md:w-64"
           )}
@@ -520,7 +520,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
           
-
 
           {/* Grouped Navigation */}
           <nav className="flex-1 px-4 py-2 space-y-1.5 overflow-y-auto mt-2">
@@ -599,10 +598,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gradient-to-b from-theme-surface-secondary via-theme-surface to-theme-surface-secondary dark:from-theme-bg-page dark:via-theme-bg-page/70 dark:to-theme-bg-page relative z-10">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gradient-to-b from-theme-surface-secondary via-theme-surface to-theme-surface-secondary dark:from-theme-bg-page dark:via-theme-bg-page/70 dark:to-theme-bg-page relative z-0">
         
         {/* Header */}
-        <header className="pt-[env(safe-area-inset-top,0px)] min-h-[calc(4rem+env(safe-area-inset-top,0px))] flex-shrink-0 flex items-center justify-between px-4 md:px-8 border-b border-theme-border/50 bg-theme-surface/80 dark:bg-theme-surface/25 backdrop-blur-md relative z-20">
+        <header className="pt-[env(safe-area-inset-top,0px)] min-h-[calc(4rem+env(safe-area-inset-top,0px))] flex-shrink-0 flex items-center justify-between px-4 md:px-8 border-b border-theme-border/50 bg-theme-surface/80 dark:bg-theme-surface/25 backdrop-blur-md relative z-[1]">
           {/* Mobile menu button & breadcrumbs */}
           {!isSharedView ? (
             <div className="flex items-center gap-3">
@@ -633,19 +632,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={() => { setWorkspaceSearch(''); setIsWorkspacePickerOpen(true); }}
-                className="flex items-center gap-1.5 bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-xl shadow-sm hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                className="flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/30 px-2.5 py-1.5 rounded-xl shadow-sm hover:bg-rose-500/20 transition-colors cursor-pointer shrink-0"
                 title={user.workspaceName || 'เลือก Workspace'}
               >
-                <Shield size={12} className="text-rose-400 shrink-0" />
-                <span className="hidden sm:inline text-[9px] font-black uppercase text-rose-400 tracking-wider whitespace-nowrap">
+                <Shield size={12} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                <span className="hidden sm:inline text-[9px] font-black uppercase text-rose-600 dark:text-rose-400 tracking-wider whitespace-nowrap">
                   ADMIN:
                 </span>
-                <span className="text-[10px] font-bold text-rose-300 max-w-[90px] sm:max-w-[130px] truncate">
+                <span className="text-[10px] font-extrabold text-rose-700 dark:text-rose-300 max-w-[90px] sm:max-w-[130px] truncate">
                   {user.workspaceName
                     ? user.workspaceName.replace('Improvement & Digital Innovation', 'IMP&IT').replace('Management Operating System', 'MOS')
                     : (user.activeWorkspaceId ? user.workspaceInviteCode || 'WS' : 'Global')}
                 </span>
-                <ChevronsUpDown size={11} className="shrink-0 text-rose-400" />
+                <ChevronsUpDown size={11} className="shrink-0 text-rose-600 dark:text-rose-400" />
               </button>
             )}
 
@@ -657,16 +656,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               let colorClass = '';
               if (isGlobalAdmin) {
                 label = 'Super Admin';
-                colorClass = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+                colorClass = 'text-rose-700 dark:text-rose-400 bg-rose-500/15 border-rose-500/30';
               } else if (wsRole === 'admin') {
                 label = 'WS Admin';
-                colorClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+                colorClass = 'text-amber-700 dark:text-amber-400 bg-amber-500/15 border-amber-500/30';
               } else if (wsRole === 'manager') {
                 label = 'Manager';
-                colorClass = 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20';
+                colorClass = 'text-indigo-700 dark:text-indigo-400 bg-indigo-500/15 border-indigo-500/30';
               } else if (wsRole === 'user' || user.activeWorkspaceId) {
                 label = 'Member';
-                colorClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+                colorClass = 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/15 border-emerald-500/30';
               }
               if (!label) return null;
               return (

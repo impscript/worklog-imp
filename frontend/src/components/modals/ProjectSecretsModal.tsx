@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, Key, Eye, EyeOff, Copy, Trash2, Check, 
   RefreshCw, Lock, FileCode, Edit2, ShieldAlert
@@ -6,6 +7,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 import { cn } from '../../lib/utils';
+import { verifySuperAdminPin, logSecretAccess } from '../../lib/security-pin';
 
 export interface ProjectSecret {
   id: string;
@@ -54,6 +56,17 @@ export default function ProjectSecretsModal({
   const [visibleSecretIds, setVisibleSecretIds] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // SuperAdmin PIN Verification States
+  const [isPinVerified, setIsPinVerified] = useState(false);
+  const [authorizedBySuperadminId, setAuthorizedBySuperadminId] = useState<string | undefined>(undefined);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+
+  // Confirm Delete State
+  const [deletingSecretTarget, setDeletingSecretTarget] = useState<{ id: string; keyName: string } | null>(null);
+  const [isDeletingSecret, setIsDeletingSecret] = useState(false);
+
   // Form states
   const [editingSecretId, setEditingSecretId] = useState<string | null>(null);
   const [secretKey, setSecretKey] = useState('');
@@ -91,28 +104,102 @@ export default function ProjectSecretsModal({
   useEffect(() => {
     if (isOpen && project?.id) {
       fetchSecrets();
+    } else {
+      setIsPinVerified(false);
+      setAuthorizedBySuperadminId(undefined);
+      setPinInput('');
+      setPinError(null);
     }
   }, [isOpen, project?.id]);
 
   if (!isOpen) return null;
 
-  const toggleVisibility = (id: string) => {
+  const handleVerifyPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError(null);
+    if (!pinInput || pinInput.length !== 6) {
+      setPinError('กรุณากรอก PIN 6 หลัก');
+      return;
+    }
+
+    setIsVerifyingPin(true);
+    try {
+      const res = await verifySuperAdminPin(pinInput);
+      if (res.valid) {
+        setIsPinVerified(true);
+        setAuthorizedBySuperadminId(res.superadminId);
+        showToast(`ปลดล็อก Secrets Vault สำเร็จ (อนุมัติโดย SuperAdmin: ${res.superadminName})`, 'success');
+        
+        await logSecretAccess({
+          projectId: project.id,
+          workspaceId: project.workspace_id,
+          userId: sessionUser?.id || '',
+          authorizedBySuperadminId: res.superadminId,
+          actionType: 'OPEN_VAULT',
+          status: 'SUCCESS'
+        });
+      } else {
+        setPinError(res.error || 'Security PIN ไม่ถูกต้อง');
+        await logSecretAccess({
+          projectId: project.id,
+          workspaceId: project.workspace_id,
+          userId: sessionUser?.id || '',
+          actionType: 'OPEN_VAULT',
+          status: 'FAILED_PIN'
+        });
+      }
+    } catch (err: any) {
+      setPinError('เกิดข้อผิดพลาดในการตรวจสอบ PIN');
+    } finally {
+      setIsVerifyingPin(false);
+    }
+  };
+
+  const toggleVisibility = (id: string, sec?: ProjectSecret) => {
     setVisibleSecretIds(prev => {
       const next = new Set(prev);
+      const isNowVisible = !next.has(id);
       if (next.has(id)) {
         next.delete(id);
       } else {
         next.add(id);
       }
+
+      if (isNowVisible && sec) {
+        logSecretAccess({
+          projectId: project.id,
+          workspaceId: project.workspace_id,
+          userId: sessionUser?.id || '',
+          authorizedBySuperadminId,
+          actionType: 'REVEAL_SECRET',
+          secretKey: sec.secret_key,
+          environment: sec.environment,
+          status: 'SUCCESS'
+        });
+      }
+
       return next;
     });
   };
 
-  const handleCopy = (text: string, id: string, label: string) => {
+  const handleCopy = (text: string, id: string, label: string, sec?: ProjectSecret) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     showToast(`คัดลอก ${label} แล้ว!`, 'success');
     setTimeout(() => setCopiedId(null), 2000);
+
+    if (sec) {
+      logSecretAccess({
+        projectId: project.id,
+        workspaceId: project.workspace_id,
+        userId: sessionUser?.id || '',
+        authorizedBySuperadminId,
+        actionType: 'COPY_SECRET',
+        secretKey: sec.secret_key,
+        environment: sec.environment,
+        status: 'SUCCESS'
+      });
+    }
   };
 
   const handleCopyEnvBlock = () => {
@@ -128,6 +215,16 @@ export default function ProjectSecretsModal({
     const envLines = targetSecrets.map(s => `# ${s.note ? `${s.secret_key}: ${s.note}` : s.secret_key}\n${s.secret_key}=${s.secret_value}`).join('\n\n');
     navigator.clipboard.writeText(envLines);
     showToast(`คัดลอกบล็อก .env (${targetSecrets.length} รายการ) ลงคลิปบอร์ดแล้ว!`, 'success');
+
+    logSecretAccess({
+      projectId: project.id,
+      workspaceId: project.workspace_id,
+      userId: sessionUser?.id || '',
+      authorizedBySuperadminId,
+      actionType: 'COPY_ENV_BLOCK',
+      environment: activeEnv,
+      status: 'SUCCESS'
+    });
   };
 
   const handleSaveSecret = async (e: React.FormEvent) => {
@@ -205,20 +302,27 @@ export default function ProjectSecretsModal({
     setNote('');
   };
 
-  const handleDeleteSecret = async (id: string, keyName: string) => {
-    if (!confirm(`คุณต้องการลบ Secret "${keyName}" ใช่หรือไม่?`)) return;
+  const handleStartDeleteSecret = (id: string, keyName: string) => {
+    setDeletingSecretTarget({ id, keyName });
+  };
 
+  const handleConfirmDeleteSecret = async () => {
+    if (!deletingSecretTarget) return;
+    setIsDeletingSecret(true);
     try {
       const { error } = await supabase
         .from('tb_project_secrets')
         .delete()
-        .eq('id', id);
+        .eq('id', deletingSecretTarget.id);
 
       if (error) throw error;
-      showToast(`ลบ Secret "${keyName}" สำเร็จ`, 'success');
-      setSecrets(prev => prev.filter(s => s.id !== id));
+      showToast(`ลบ Secret "${deletingSecretTarget.keyName}" สำเร็จ`, 'success');
+      setSecrets(prev => prev.filter(s => s.id !== deletingSecretTarget.id));
+      setDeletingSecretTarget(null);
     } catch (err: any) {
       showToast('ไม่สามารถลบ Secret ได้: ' + err.message, 'error');
+    } finally {
+      setIsDeletingSecret(false);
     }
   };
 
@@ -226,9 +330,64 @@ export default function ProjectSecretsModal({
     ? secrets
     : secrets.filter(s => s.environment === activeEnv);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-theme-surface dark:bg-theme-surface-modal border border-theme-border/80 rounded-3xl w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 md:p-6 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+      <div className="bg-theme-surface dark:bg-theme-surface-modal border border-theme-border/80 rounded-3xl w-full max-w-4xl my-auto max-h-[90vh] shadow-2xl flex flex-col overflow-hidden relative">
+        
+        {/* PIN Verification Overlay Modal */}
+        {!isPinVerified && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-theme-surface border border-theme-border rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mx-auto flex items-center justify-center">
+                <Lock size={24} />
+              </div>
+              <div>
+                <h4 className="text-lg font-bold text-theme-text">SuperAdmin Verification</h4>
+                <p className="text-xs text-theme-text-secondary mt-1">
+                  กรุณากรอก 6-Digit Security PIN ของ SuperAdmin เพื่อเปิดใช้งานคลัง Secrets
+                </p>
+              </div>
+
+              {pinError && (
+                <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-semibold flex items-center justify-center gap-1.5">
+                  <ShieldAlert size={14} />
+                  <span>{pinError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleVerifyPin} className="space-y-4">
+                <input
+                  type="password"
+                  maxLength={6}
+                  pattern="\d{6}"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="• • • • • •"
+                  className="w-full bg-theme-surface-secondary border border-theme-border focus:border-amber-500 rounded-xl px-4 py-3 text-center text-2xl font-mono tracking-widest text-theme-text focus:outline-none transition-colors"
+                  autoFocus
+                  required
+                />
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 py-2.5 bg-theme-surface-secondary border border-theme-border hover:bg-theme-surface-tertiary text-theme-text-secondary rounded-xl text-xs font-semibold transition-all"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isVerifyingPin || pinInput.length !== 6}
+                    className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-lg shadow-amber-600/25"
+                  >
+                    {isVerifyingPin ? 'กำลังตรวจ...' : 'ยืนยัน PIN'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-theme-border/60 flex items-center justify-between bg-theme-surface-tertiary/40">
@@ -450,7 +609,7 @@ export default function ProjectSecretsModal({
 
                       <button
                         type="button"
-                        onClick={() => toggleVisibility(sec.id)}
+                        onClick={() => toggleVisibility(sec.id, sec)}
                         className="p-1.5 rounded-lg text-theme-text-muted hover:text-theme-text hover:bg-theme-surface transition-colors"
                         title={isVisible ? "ซ่อนค่าวาลิว" : "แสดงค่าวาลิว"}
                       >
@@ -459,7 +618,7 @@ export default function ProjectSecretsModal({
 
                       <button
                         type="button"
-                        onClick={() => handleCopy(sec.secret_value, sec.id, sec.secret_key)}
+                        onClick={() => handleCopy(sec.secret_value, sec.id, sec.secret_key, sec)}
                         className="p-1.5 rounded-lg text-indigo-400 hover:bg-indigo-500/10 transition-colors"
                         title="Copy Secret Value"
                       >
@@ -477,7 +636,7 @@ export default function ProjectSecretsModal({
 
                       <button
                         type="button"
-                        onClick={() => handleDeleteSecret(sec.id, sec.secret_key)}
+                        onClick={() => handleStartDeleteSecret(sec.id, sec.secret_key)}
                         className="p-1.5 rounded-lg text-rose-500/70 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                         title="ลบ Secret นี้"
                       >
@@ -492,6 +651,42 @@ export default function ProjectSecretsModal({
 
         </div>
 
+        {/* Confirm Delete Secret Modal Popup */}
+        {deletingSecretTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-theme-surface border border-theme-border rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 mx-auto flex items-center justify-center">
+                <Trash2 size={24} />
+              </div>
+              
+              <div>
+                <h4 className="text-lg font-bold text-theme-text">ยืนยันการลบ Secret</h4>
+                <p className="text-xs text-theme-text-secondary mt-1">
+                  คุณต้องการลบ Secret <span className="font-mono font-bold text-rose-400">"{deletingSecretTarget.keyName}"</span> ใช่หรือไม่?
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingSecretTarget(null)}
+                  className="flex-1 py-2.5 bg-theme-surface-secondary border border-theme-border hover:bg-theme-surface-tertiary text-theme-text-secondary rounded-xl text-xs font-semibold transition-all"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteSecret}
+                  disabled={isDeletingSecret}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/25"
+                >
+                  {isDeletingSecret ? 'กำลังลบ...' : 'ลบ Secret'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-6 py-3 border-t border-theme-border/60 bg-theme-surface-secondary/40 text-[11px] text-theme-text-muted flex justify-between items-center">
           <span>รวม Secret ทั้งหมด {secrets.length} รายการ</span>
@@ -504,6 +699,7 @@ export default function ProjectSecretsModal({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
