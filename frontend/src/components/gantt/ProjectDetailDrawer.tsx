@@ -157,7 +157,10 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     (u) => !teamList.some((t) => t.user_id === u.id || t.user_name.toLowerCase() === u.name.toLowerCase())
   );
 
-  // Auto-rebalance Target % across remaining members to always equal 100%
+  // Helper to round to nearest 5%
+  const roundToNearest5 = (val: number) => Math.round(val / 5) * 5;
+
+  // Auto-rebalance Target % across remaining members to always equal 100% (in 5% steps)
   const handleUpdateTeamTargetPercent = (changedIndex: number, newPercent: number) => {
     const n = teamList.length;
     if (n <= 1) {
@@ -165,7 +168,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
       return;
     }
 
-    const clampedVal = Math.max(0, Math.min(100, Math.round(newPercent)));
+    const clampedVal = Math.max(0, Math.min(100, roundToNearest5(newPercent)));
     const remainingBudget = Math.max(0, 100 - clampedVal);
 
     const otherMembers = teamList.filter((_, idx) => idx !== changedIndex);
@@ -182,9 +185,9 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
       let calculated: number;
       if (currentOthersSum > 0) {
         const currentVal = Number(m.target_contribution_percent) || 0;
-        calculated = Math.round((currentVal / currentOthersSum) * remainingBudget);
+        calculated = roundToNearest5((currentVal / currentOthersSum) * remainingBudget);
       } else {
-        calculated = Math.round(remainingBudget / (n - 1));
+        calculated = roundToNearest5(remainingBudget / (n - 1));
       }
 
       return {
@@ -193,7 +196,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
       };
     });
 
-    // Ensure exact 100% sum
+    // Ensure exact 100% sum in 5% steps
     const currentTotal = updated.reduce(
       (sum, m) => sum + (Number(m.target_contribution_percent) || 0),
       0
@@ -210,7 +213,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     setTeamList(updated);
   };
 
-  // Equal Split Helper (50/50, 33/33/34, 25/25/25/25, etc.)
+  // Equal Split Helper in 5% steps (50/50, 35/35/30, 25/25/25/25, etc.)
   const handleEqualSplitTargetPercent = () => {
     const n = teamList.length;
     if (n === 0) return;
@@ -219,19 +222,30 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
       return;
     }
 
-    const basePercent = Math.floor(100 / n);
-    const remainder = 100 - basePercent * n;
+    const rawPerPerson = 100 / n;
+    const basePercent = roundToNearest5(rawPerPerson);
 
-    const updated = teamList.map((m, idx) => ({
+    const updated = teamList.map((m) => ({
       ...m,
-      target_contribution_percent: idx === 0 ? basePercent + remainder : basePercent,
+      target_contribution_percent: basePercent,
     }));
 
+    // Reconcile remaining 5% difference
+    const curTotal = basePercent * n;
+    let diff = 100 - curTotal;
+    let i = 0;
+    while (diff !== 0 && i < n) {
+      const step = diff > 0 ? 5 : -5;
+      updated[i].target_contribution_percent += step;
+      diff -= step;
+      i = (i + 1) % n;
+    }
+
     setTeamList(updated);
-    showToast('จัดสรรสัดส่วน Target % ให้ทุกคนเท่ากันเรียบร้อย (รวม 100%)', 'info');
+    showToast('จัดสรรสัดส่วน Target % ทีละ 5% ให้ทุกคนเรียบร้อย (รวม 100%)', 'info');
   };
 
-  // Add new member to team list from dropdown selection
+  // Add new member to team list from dropdown selection (in 5% steps)
   const handleAddTeamMember = () => {
     if (!selectedNewUserId) return;
     const userObj = availableUsers.find((u) => u.id === selectedNewUserId);
@@ -249,28 +263,50 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
 
     const nextList = [...teamList, newMember];
     const n = nextList.length;
-    const basePercent = Math.floor(100 / n);
-    const remainder = 100 - basePercent * n;
-    const balanced = nextList.map((m, idx) => ({
+    const rawPerPerson = 100 / n;
+    const basePercent = roundToNearest5(rawPerPerson);
+
+    const balanced = nextList.map((m) => ({
       ...m,
-      target_contribution_percent: idx === 0 ? basePercent + remainder : basePercent,
+      target_contribution_percent: basePercent,
     }));
+
+    const curTotal = basePercent * n;
+    let diff = 100 - curTotal;
+    let i = 0;
+    while (diff !== 0 && i < n) {
+      const step = diff > 0 ? 5 : -5;
+      balanced[i].target_contribution_percent += step;
+      diff -= step;
+      i = (i + 1) % n;
+    }
 
     setTeamList(balanced);
     setSelectedNewUserId('');
-    showToast(`เพิ่ม ${newMember.user_name} ในทีมเรียบร้อย (จัดสรรสัดส่วนรวม 100%)`, 'success');
+    showToast(`เพิ่ม ${newMember.user_name} ในทีมเรียบร้อย (สัดส่วน 5% รวม 100%)`, 'success');
   };
 
   const handleRemoveTeamMember = (index: number) => {
     const remaining = teamList.filter((_, idx) => idx !== index);
     if (remaining.length > 0) {
       const n = remaining.length;
-      const basePercent = Math.floor(100 / n);
-      const remainder = 100 - basePercent * n;
-      const balanced = remaining.map((m, idx) => ({
+      const rawPerPerson = 100 / n;
+      const basePercent = roundToNearest5(rawPerPerson);
+
+      const balanced = remaining.map((m) => ({
         ...m,
-        target_contribution_percent: idx === 0 ? basePercent + remainder : basePercent,
+        target_contribution_percent: basePercent,
       }));
+
+      const curTotal = basePercent * n;
+      let diff = 100 - curTotal;
+      let i = 0;
+      while (diff !== 0 && i < n) {
+        const step = diff > 0 ? 5 : -5;
+        balanced[i].target_contribution_percent += step;
+        diff -= step;
+        i = (i + 1) % n;
+      }
       setTeamList(balanced);
     } else {
       setTeamList([]);
@@ -799,7 +835,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                           type="range"
                           min="0"
                           max="100"
-                          step="1"
+                          step="5"
                           value={tm.target_contribution_percent}
                           onChange={(e) =>
                             handleUpdateTeamTargetPercent(idx, Number(e.target.value))
