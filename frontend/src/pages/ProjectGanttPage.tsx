@@ -33,6 +33,9 @@ export default function ProjectGanttPage() {
   const [selectedHealth, setSelectedHealth] = useState<ProjectHealth | 'all'>('all');
   const [zoomLevel, setZoomLevel] = useState<GanttZoomLevel>('month');
 
+  // Load active workspace name from session
+  const [workspaceName, setWorkspaceName] = useState<string>('');
+
   // Load Projects from Supabase
   const loadProjects = useCallback(async () => {
     setIsLoading(true);
@@ -48,9 +51,54 @@ export default function ProjectGanttPage() {
     }
   }, [showToast]);
 
-  // Load Users list for Lead & Team assignments
+  // Load Users list for Lead & Team assignments scoped by active workspace
   const loadUsers = useCallback(async () => {
     try {
+      const sessionStr = localStorage.getItem('worklog_session');
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
+      const activeWsId = session?.activeWorkspaceId;
+      if (session?.workspaceName) {
+        setWorkspaceName(session.workspaceName);
+      }
+
+      if (activeWsId) {
+        const { data: memData } = await supabase
+          .from('workspace_users')
+          .select(`
+            user_id,
+            role,
+            users (
+              id,
+              full_name,
+              nickname,
+              email
+            )
+          `)
+          .eq('workspace_id', activeWsId);
+
+        interface RawMemberRecord {
+          user_id: string;
+          users?: { id?: string; full_name?: string | null; nickname?: string | null; email?: string | null } | null;
+        }
+
+        if (memData && memData.length > 0) {
+          const usersList = (memData as unknown as RawMemberRecord[])
+            .map((m) => {
+              const u = m.users;
+              if (!u) return null;
+              return {
+                id: u.id || m.user_id,
+                name: u.full_name || u.nickname || u.email?.split('@')[0] || 'ผู้ใช้งาน',
+                email: u.email || undefined,
+              };
+            })
+            .filter(Boolean);
+          setAvailableUsers(usersList as { id: string; name: string; email?: string }[]);
+          return;
+        }
+      }
+
+      // Fallback if no workspace members found or superadmin
       const { data } = await supabase.from('users').select('id, full_name, email').limit(200);
       if (data) {
         interface RawUserEntry {
@@ -156,11 +204,16 @@ export default function ProjectGanttPage() {
               <FolderKanban size={20} />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-black text-theme-text tracking-tight flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black text-theme-text tracking-tight flex items-center gap-2 flex-wrap">
                 <span>แผนภูมิแกนต์และพอร์ตโฟลิโอโครงการ</span>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                   Gantt Roadmap & Value Realization
                 </span>
+                {workspaceName && (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    🏢 {workspaceName}
+                  </span>
+                )}
               </h1>
               <p className="text-xs text-theme-text-secondary">
                 ติดตาม Timeline กำหนดเสร็จ, หัวหน้าทีม & สัดส่วน Contribution (Target vs Actual), และผลประหยัดต้นทุน 4 มิติ

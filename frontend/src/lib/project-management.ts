@@ -214,14 +214,29 @@ export function calculateTotalSavings(savings?: Partial<ProjectCostSavings> | nu
 }
 
 /**
+ * Helper to get currently active workspace ID from session
+ */
+export function getActiveWorkspaceId(): string | null {
+  try {
+    const sessionStr = localStorage.getItem('worklog_session');
+    const session = sessionStr ? JSON.parse(sessionStr) : null;
+    return session?.activeWorkspaceId || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch all projects for Gantt Roadmap view with team members, milestones, and cost savings
  */
 export async function fetchGanttProjects(workspaceId?: string | null): Promise<GanttProject[]> {
   try {
-    // 1. Fetch Projects from tb_project_registry
+    const activeWsId = workspaceId !== undefined ? workspaceId : getActiveWorkspaceId();
+
+    // 1. Fetch Projects from tb_project_registry scoped by workspace
     let query = supabase.from('tb_project_registry').select('*').order('created_at', { ascending: false });
-    if (workspaceId) {
-      query = query.eq('workspace_id', workspaceId);
+    if (activeWsId) {
+      query = query.eq('workspace_id', activeWsId);
     }
     const { data: rawProjects, error: projErr } = await query;
     if (projErr) throw projErr;
@@ -407,6 +422,8 @@ export async function saveTeamMemberContributions(
   workspaceId: string | null | undefined,
   teamList: TeamMemberContribution[]
 ) {
+  const activeWsId = workspaceId !== undefined && workspaceId !== null ? workspaceId : getActiveWorkspaceId();
+
   // First, delete current team mappings for this project
   const { error: delErr } = await supabase
     .from('tb_project_team_contribution')
@@ -419,7 +436,7 @@ export async function saveTeamMemberContributions(
 
   const rows = teamList.map((tm) => ({
     project_id: projectId,
-    workspace_id: workspaceId || null,
+    workspace_id: activeWsId || null,
     user_id: tm.user_id,
     user_name: tm.user_name,
     role_in_project: tm.role_in_project,
@@ -442,6 +459,8 @@ export async function saveProjectMilestones(
   workspaceId: string | null | undefined,
   milestones: ProjectMilestone[]
 ) {
+  const activeWsId = workspaceId !== undefined && workspaceId !== null ? workspaceId : getActiveWorkspaceId();
+
   const { error: delErr } = await supabase
     .from('tb_project_milestones')
     .delete()
@@ -453,7 +472,7 @@ export async function saveProjectMilestones(
 
   const rows = milestones.map((m, idx) => ({
     project_id: projectId,
-    workspace_id: workspaceId || null,
+    workspace_id: activeWsId || null,
     milestone_name: m.milestone_name,
     start_date: m.start_date || null,
     due_date: m.due_date || null,
@@ -478,13 +497,14 @@ export async function saveProjectCostSavings(
   workspaceId: string | null | undefined,
   savingsData: Partial<ProjectCostSavings>
 ) {
+  const activeWsId = workspaceId !== undefined && workspaceId !== null ? workspaceId : getActiveWorkspaceId();
   const indirectRate = savingsData.indirect_hourly_rate || 350;
   const indirectHours = savingsData.indirect_manhour_saved_annual || 0;
   const indirectAnnual = indirectHours * indirectRate;
 
   const payload = {
     project_id: projectId,
-    workspace_id: workspaceId || null,
+    workspace_id: activeWsId || null,
     direct_savings_annual: savingsData.direct_savings_annual || 0,
     direct_savings_notes: savingsData.direct_savings_notes || null,
     indirect_manhour_saved_annual: indirectHours,
