@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Filter, Calendar, RefreshCw, Plus } from 'lucide-react';
+import { Search, Filter, Calendar, RefreshCw, Plus, FolderTree, List, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { ProjectStatus, ProjectHealth } from '../../lib/project-management';
 import { cn } from '../../lib/utils';
 
@@ -23,6 +23,10 @@ interface GanttFilterToolbarProps {
   onRefresh: () => void;
   isLoading: boolean;
   onOpenCreateProject?: () => void;
+  isTreeView: boolean;
+  onToggleTreeView: (tree: boolean) => void;
+  onExpandAll?: () => void;
+  onCollapseAll?: () => void;
 }
 
 export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
@@ -43,13 +47,17 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   onRefresh,
   isLoading,
   onOpenCreateProject,
+  isTreeView,
+  onToggleTreeView,
+  onExpandAll,
+  onCollapseAll,
 }) => {
   return (
     <div className="p-4 rounded-3xl border border-theme-border/70 bg-theme-surface/80 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm mb-5 space-y-3.5 select-none">
-      {/* Top Row: Search + Zoom Pills + Action Buttons */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      {/* Top Row: Search + View Hierarchy Toggle + Zoom Pills + Action Buttons */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
         {/* Search Bar */}
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative flex-1 min-w-[200px]">
           <Search size={15} className="absolute left-3.5 top-3 text-theme-text-muted" />
           <input
             type="text"
@@ -60,10 +68,42 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           />
         </div>
 
+        {/* View Mode: Tree Hierarchy vs Flat List */}
+        <div className="flex items-center gap-1 bg-theme-surface-secondary/70 p-1 rounded-2xl border border-theme-border/60 shrink-0 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => onToggleTreeView(true)}
+            className={cn(
+              'px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1',
+              isTreeView
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-theme-text-muted hover:text-theme-text'
+            )}
+            title="จัดกลุ่มโครงการหลัก > โมดูลย่อย (Parent-Child Tree)"
+          >
+            <FolderTree size={13} />
+            <span>ลำดับชั้น (แม่-ลูก)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggleTreeView(false)}
+            className={cn(
+              'px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1',
+              !isTreeView
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-theme-text-muted hover:text-theme-text'
+            )}
+            title="แสดงรายการโครงการทั้งหมดแบบ Flat List"
+          >
+            <List size={13} />
+            <span>ทั้งหมด (Flat)</span>
+          </button>
+        </div>
+
         {/* Zoom Controls (Month / Quarter / Year) */}
         <div className="flex items-center gap-1.5 bg-theme-surface-secondary/70 p-1 rounded-2xl border border-theme-border/60 shrink-0 self-start sm:self-auto">
           <span className="text-[10px] font-bold text-theme-text-muted px-2 flex items-center gap-1">
-            <Calendar size={12} /> มุมมอง:
+            <Calendar size={12} /> ซูม:
           </span>
           {(['month', 'quarter', 'year'] as const).map((z) => (
             <button
@@ -77,13 +117,34 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
                   : 'text-theme-text-muted hover:text-theme-text'
               )}
             >
-              {z === 'month' ? 'รายเดือน' : z === 'quarter' ? 'รายไตรมาส' : 'รายปี'}
+              {z === 'month' ? 'เดือน' : z === 'quarter' ? 'ไตรมาส' : 'ปี'}
             </button>
           ))}
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Tree Expand/Collapse All + Refresh + Actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isTreeView && onExpandAll && onCollapseAll && (
+            <div className="flex items-center gap-1 bg-theme-surface-secondary/50 p-1 rounded-2xl border border-theme-border/60">
+              <button
+                type="button"
+                onClick={onExpandAll}
+                className="p-1.5 rounded-xl hover:bg-theme-surface text-theme-text-muted hover:text-indigo-600 transition-colors cursor-pointer"
+                title="กางโมดูลย่อยทั้งหมด (Expand All)"
+              >
+                <ChevronsUpDown size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={onCollapseAll}
+                className="p-1.5 rounded-xl hover:bg-theme-surface text-theme-text-muted hover:text-indigo-600 transition-colors cursor-pointer"
+                title="หุบโมดูลย่อยทั้งหมด (Collapse All)"
+              >
+                <ChevronsDownUp size={14} />
+              </button>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={onRefresh}

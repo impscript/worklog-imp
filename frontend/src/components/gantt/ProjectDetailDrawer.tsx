@@ -71,7 +71,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
 
   // Tab 2: Team Contributions State
   const [teamList, setTeamList] = useState<TeamMemberContribution[]>(project.team_contributions || []);
-  const [newMemberName, setNewMemberName] = useState('');
+  const [selectedNewUserId, setSelectedNewUserId] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<TeamRole>('developer');
 
   // Tab 3: Cost Savings State
@@ -115,20 +115,22 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   // Team Target % Total Validation
   const totalTargetPercent = teamList.reduce((acc, curr) => acc + (Number(curr.target_contribution_percent) || 0), 0);
 
-  // Add new member to team list
+  // Selectable users that are not already added to the team
+  const selectableUsers = availableUsers.filter(
+    (u) => !teamList.some((t) => t.user_id === u.id || t.user_name.toLowerCase() === u.name.toLowerCase())
+  );
+
+  // Add new member to team list from dropdown selection
   const handleAddTeamMember = () => {
-    if (!newMemberName.trim()) return;
-    const existing = teamList.find((t) => t.user_name.toLowerCase() === newMemberName.trim().toLowerCase());
-    if (existing) {
-      showToast('สมาชิกคนนี้อยู่ในรายชื่อแล้ว', 'warning');
-      return;
-    }
+    if (!selectedNewUserId) return;
+    const userObj = availableUsers.find((u) => u.id === selectedNewUserId);
+    if (!userObj) return;
 
     const defaultTarget = Math.max(0, 100 - totalTargetPercent);
     const newMember: TeamMemberContribution = {
       project_id: project.id,
-      user_id: `manual_${Date.now()}`,
-      user_name: newMemberName.trim(),
+      user_id: userObj.id,
+      user_name: userObj.name,
       role_in_project: newMemberRole,
       target_contribution_percent: defaultTarget > 0 ? defaultTarget : 10,
       actual_contribution_percent: 0,
@@ -136,7 +138,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     };
 
     setTeamList([...teamList, newMember]);
-    setNewMemberName('');
+    setSelectedNewUserId('');
     showToast(`เพิ่ม ${newMember.user_name} ในทีมเรียบร้อย`, 'success');
   };
 
@@ -504,33 +506,28 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <input
-                    type="text"
-                    value={headLeadName}
-                    onChange={(e) => setHeadLeadName(e.target.value)}
-                    placeholder="พิมพ์ชื่อหัวหน้าโครงการ..."
-                    className="py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 font-bold"
-                  />
-                  {availableUsers.length > 0 && (
-                    <select
-                      onChange={(e) => {
-                        const u = availableUsers.find((user) => user.id === e.target.value);
-                        if (u) {
-                          setHeadLeadId(u.id);
-                          setHeadLeadName(u.name);
-                        }
-                      }}
-                      className="py-2 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs cursor-pointer"
-                    >
-                      <option value="">-- เลือกจากรายชื่อผู้ใช้ --</option>
-                      {availableUsers.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                <div>
+                  <select
+                    value={headLeadId || (availableUsers.find((u) => u.name === headLeadName)?.id || '')}
+                    onChange={(e) => {
+                      const selected = availableUsers.find((u) => u.id === e.target.value);
+                      if (selected) {
+                        setHeadLeadId(selected.id);
+                        setHeadLeadName(selected.name);
+                      } else {
+                        setHeadLeadId('');
+                        setHeadLeadName('');
+                      }
+                    }}
+                    className="w-full py-2.5 px-3 rounded-2xl border border-indigo-500/40 bg-theme-surface text-theme-text font-bold text-xs focus:outline-none focus:border-indigo-500 shadow-xs cursor-pointer"
+                  >
+                    <option value="">-- เลือกหัวหน้าโครงการจากสมาชิกในทีม (Head / Project Lead) --</option>
+                    {availableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        👑 {u.name} {u.email ? `(${u.email})` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -565,19 +562,24 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                 </p>
               </div>
 
-              {/* Add Member Bar */}
+              {/* Add Member Dropdown Bar */}
               <div className="p-3.5 rounded-2xl border border-theme-border bg-theme-surface flex flex-wrap sm:flex-nowrap items-center gap-2">
-                <input
-                  type="text"
-                  value={newMemberName}
-                  onChange={(e) => setNewMemberName(e.target.value)}
-                  placeholder="พิมพ์ชื่อสมาชิกใหม่..."
-                  className="flex-1 min-w-[140px] py-1.5 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs focus:outline-none focus:border-indigo-500"
-                />
+                <select
+                  value={selectedNewUserId}
+                  onChange={(e) => setSelectedNewUserId(e.target.value)}
+                  className="flex-1 min-w-[180px] py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-semibold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="">-- เลือกสมาชิกที่จะเพิ่มเข้าทีม --</option>
+                  {selectableUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      👤 {u.name} {u.email ? `(${u.email})` : ''}
+                    </option>
+                  ))}
+                </select>
                 <select
                   value={newMemberRole}
                   onChange={(e) => setNewMemberRole(e.target.value as TeamRole)}
-                  className="py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs cursor-pointer shrink-0"
+                  className="py-2 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs cursor-pointer shrink-0 font-bold"
                 >
                   <option value="developer">💻 Developer</option>
                   <option value="qa">🧪 QA / Tester</option>
@@ -588,8 +590,14 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                 </select>
                 <button
                   type="button"
+                  disabled={!selectedNewUserId}
                   onClick={handleAddTeamMember}
-                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors shrink-0 cursor-pointer"
+                  className={cn(
+                    'px-4 py-2 rounded-xl font-bold text-xs transition-all shrink-0 select-none',
+                    selectedNewUserId
+                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer'
+                      : 'bg-theme-surface-secondary text-theme-text-muted cursor-not-allowed border border-theme-border'
+                  )}
                 >
                   + เพิ่มทีม
                 </button>
@@ -1080,6 +1088,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
         onClose={() => setIsMilestoneModalOpen(false)}
         milestone={editingMilestone}
         onSave={handleSaveMilestone}
+        availableUsers={availableUsers}
       />
     </>
   );

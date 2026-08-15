@@ -69,6 +69,8 @@ export interface GanttProject {
   project_slug?: string;
   description?: string | null;
   workspace_id?: string | null;
+  parent_project_id?: string | null;
+  parent_name?: string | null;
   status: ProjectStatus;
   project_type: string;
   owner_holding?: string | null;
@@ -83,9 +85,35 @@ export interface GanttProject {
   team_contributions: TeamMemberContribution[];
   milestones: ProjectMilestone[];
   cost_savings?: ProjectCostSavings | null;
+  children?: GanttProject[];
   // Computed metrics
   total_worklog_hours: number;
   total_savings_annual: number;
+}
+
+/**
+ * Builds a hierarchical parent > child tree from a flat list of Gantt projects
+ */
+export function buildGanttTree(projects: GanttProject[]): GanttProject[] {
+  const map = new Map<string, GanttProject>();
+  const roots: GanttProject[] = [];
+
+  projects.forEach((p) => {
+    map.set(p.id, { ...p, children: [] });
+  });
+
+  projects.forEach((p) => {
+    const node = map.get(p.id)!;
+    if (p.parent_project_id && map.has(p.parent_project_id)) {
+      const parent = map.get(p.parent_project_id)!;
+      if (!parent.children) parent.children = [];
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+
+  return roots;
 }
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, { label: string; color: string; bg: string; dot: string }> = {
@@ -234,7 +262,7 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
     const activeWsId = workspaceId !== undefined ? workspaceId : getActiveWorkspaceId();
 
     // 1. Fetch Projects from tb_project_registry scoped by workspace
-    let query = supabase.from('tb_project_registry').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('tb_project_registry').select('*, parent:parent_project_id(project_name)').order('created_at', { ascending: false });
     if (activeWsId) {
       query = query.eq('workspace_id', activeWsId);
     }
@@ -361,6 +389,8 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
         project_slug: p.project_slug,
         description: p.description,
         workspace_id: p.workspace_id,
+        parent_project_id: p.parent_project_id || null,
+        parent_name: (p.parent && typeof p.parent === 'object' ? p.parent.project_name : null) || null,
         status,
         project_type: p.project_type || 'web_app',
         owner_holding: p.owner_holding,

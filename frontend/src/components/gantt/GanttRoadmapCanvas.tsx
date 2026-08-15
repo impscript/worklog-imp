@@ -3,11 +3,15 @@ import {
   User,
   DollarSign,
   ChevronRight,
+  ChevronDown,
   FolderOpen,
+  FolderTree,
+  Layers,
 } from 'lucide-react';
 import type { GanttProject, ProjectStatus } from '../../lib/project-management';
 import {
   PROJECT_HEALTH_LABELS,
+  buildGanttTree,
 } from '../../lib/project-management';
 import { cn } from '../../lib/utils';
 import type { GanttZoomLevel } from './GanttFilterToolbar';
@@ -15,6 +19,9 @@ import type { GanttZoomLevel } from './GanttFilterToolbar';
 interface GanttRoadmapCanvasProps {
   projects: GanttProject[];
   zoomLevel: GanttZoomLevel;
+  isTreeView: boolean;
+  expandedProjectIds: Set<string>;
+  onToggleExpandProject: (id: string) => void;
   onSelectProject: (project: GanttProject) => void;
   selectedProjectId?: string | null;
 }
@@ -26,9 +33,20 @@ interface TimelineSpan {
   columns: { label: string; subLabel?: string; startDate: Date; endDate: Date; days: number }[];
 }
 
+interface RenderableGanttRow {
+  project: GanttProject;
+  depth: number;
+  hasChildren: boolean;
+  isExpanded: boolean;
+  childCount: number;
+}
+
 export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
   projects,
   zoomLevel,
+  isTreeView,
+  expandedProjectIds,
+  onToggleExpandProject,
   onSelectProject,
   selectedProjectId,
 }) => {
@@ -124,20 +142,74 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
   const dayWidthPx = zoomLevel === 'month' ? 4.5 : zoomLevel === 'quarter' ? 2.5 : 1.2;
   const timelineCanvasWidth = Math.max(800, timelineSpan.totalDays * dayWidthPx);
 
-  const getStatusBgColor = (status: ProjectStatus) => {
+  // Flatten Hierarchical Tree into Renderable Rows
+  const renderableRows = useMemo((): RenderableGanttRow[] => {
+    if (!isTreeView) {
+      return projects.map((p) => ({
+        project: p,
+        depth: 0,
+        hasChildren: false,
+        isExpanded: false,
+        childCount: 0,
+      }));
+    }
+
+    const tree = buildGanttTree(projects);
+    const rows: RenderableGanttRow[] = [];
+
+    const traverse = (node: GanttProject, depth: number) => {
+      const hasChildren = Boolean(node.children && node.children.length > 0);
+      const isExpanded = expandedProjectIds.has(node.id);
+      const childCount = node.children ? node.children.length : 0;
+
+      rows.push({
+        project: node,
+        depth,
+        hasChildren,
+        isExpanded,
+        childCount,
+      });
+
+      if (hasChildren && isExpanded && node.children) {
+        node.children.forEach((child) => traverse(child, depth + 1));
+      }
+    };
+
+    tree.forEach((root) => traverse(root, 0));
+    return rows;
+  }, [projects, isTreeView, expandedProjectIds]);
+
+  const getStatusBgColor = (status: ProjectStatus, depth: number) => {
+    if (depth > 0) {
+      switch (status) {
+        case 'planning':
+          return 'bg-blue-400/90 hover:bg-blue-500 border-blue-300';
+        case 'in_progress':
+          return 'bg-amber-400/90 hover:bg-amber-500 border-amber-300';
+        case 'testing':
+          return 'bg-purple-400/90 hover:bg-purple-500 border-purple-300';
+        case 'completed':
+          return 'bg-emerald-400/90 hover:bg-emerald-500 border-emerald-300';
+        case 'on_hold':
+          return 'bg-slate-400/90 hover:bg-slate-500 border-slate-300';
+        default:
+          return 'bg-indigo-400/90 hover:bg-indigo-500 border-indigo-300';
+      }
+    }
+
     switch (status) {
       case 'planning':
-        return 'bg-blue-500 hover:bg-blue-600 border-blue-400';
+        return 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 border-blue-400';
       case 'in_progress':
-        return 'bg-amber-500 hover:bg-amber-600 border-amber-400';
+        return 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 border-amber-400';
       case 'testing':
-        return 'bg-purple-500 hover:bg-purple-600 border-purple-400';
+        return 'bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 border-purple-400';
       case 'completed':
-        return 'bg-emerald-500 hover:bg-emerald-600 border-emerald-400';
+        return 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 border-emerald-400';
       case 'on_hold':
-        return 'bg-slate-500 hover:bg-slate-600 border-slate-400';
+        return 'bg-gradient-to-r from-slate-600 to-slate-500 hover:from-slate-700 hover:to-slate-600 border-slate-400';
       default:
-        return 'bg-indigo-500 hover:bg-indigo-600 border-indigo-400';
+        return 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 border-indigo-400';
     }
   };
 
@@ -165,11 +237,11 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
           <div className="flex border-b border-theme-border/80 bg-theme-surface-secondary/70 backdrop-blur-md sticky top-0 z-20 text-xs font-bold text-theme-text">
             {/* Frozen Left Header */}
             <div className="w-80 sm:w-96 px-4 py-3 border-r border-theme-border/80 shrink-0 sticky left-0 z-30 bg-theme-surface-secondary/90 backdrop-blur-md flex items-center justify-between shadow-xs">
-              <span className="flex items-center gap-1.5 uppercase tracking-wider text-[11px] text-theme-text-muted">
-                <FolderOpen size={14} className="text-indigo-500" />
-                โครงการ / หัวหน้าทีม / สุขภาพ
+              <span className="flex items-center gap-1.5 uppercase tracking-wider text-[11px] text-theme-text-muted font-black">
+                <FolderTree size={14} className="text-indigo-500" />
+                {isTreeView ? 'โครงสร้างโครงการ (Parent > Child)' : 'โครงการ / หัวหน้าทีม / สุขภาพ'}
               </span>
-              <span className="text-[10px] text-theme-text-muted">({projects.length} รายการ)</span>
+              <span className="text-[10px] text-theme-text-muted">({renderableRows.length} รายการ)</span>
             </div>
 
             {/* Timeline Scale Headers */}
@@ -206,9 +278,10 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
               </div>
             )}
 
-            {projects.map((p) => {
+            {renderableRows.map(({ project: p, depth, hasChildren, isExpanded, childCount }) => {
               const isSelected = p.id === selectedProjectId;
               const healthMeta = PROJECT_HEALTH_LABELS[p.project_health];
+              const isChild = depth > 0;
 
               // Calculate Gantt Bar Offset and Width
               const startTime = p.start_date
@@ -238,25 +311,71 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                   onClick={() => onSelectProject(p)}
                   className={cn(
                     'flex items-stretch hover:bg-indigo-500/5 transition-colors cursor-pointer group',
-                    isSelected && 'bg-indigo-500/10'
+                    isSelected && 'bg-indigo-500/10',
+                    isChild && 'bg-slate-50/40 dark:bg-slate-900/20'
                   )}
                 >
                   {/* Left Sticky Column */}
-                  <div className="w-80 sm:w-96 px-4 py-3 border-r border-theme-border/80 shrink-0 sticky left-0 z-10 bg-theme-surface/95 dark:bg-theme-bg-page/95 backdrop-blur-md flex flex-col justify-center gap-1.5 shadow-xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-extrabold text-xs text-theme-text group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate">
-                        {p.project_name}
-                      </span>
-                      <ChevronRight size={14} className="text-theme-text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+                  <div className="w-80 sm:w-96 px-4 py-2.5 border-r border-theme-border/80 shrink-0 sticky left-0 z-10 bg-theme-surface/95 dark:bg-theme-bg-page/95 backdrop-blur-md flex flex-col justify-center gap-1 shadow-xs">
+                    <div className="flex items-center justify-between gap-1.5 min-w-0">
+                      <div
+                        className="flex items-center gap-1.5 min-w-0 flex-1"
+                        style={{ paddingLeft: depth > 0 ? `${depth * 18}px` : undefined }}
+                      >
+                        {/* Expand / Collapse Button for Parent */}
+                        {hasChildren && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleExpandProject(p.id);
+                            }}
+                            className="p-1 rounded-lg hover:bg-indigo-500/15 text-theme-text-muted hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
+                          >
+                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </button>
+                        )}
+
+                        {/* Child Indent Indicator */}
+                        {isChild && (
+                          <span className="text-indigo-400/80 font-mono text-[11px] shrink-0">
+                            ↳
+                          </span>
+                        )}
+
+                        <span
+                          className={cn(
+                            'truncate transition-colors',
+                            isChild
+                              ? 'text-[11px] font-semibold text-theme-text-secondary group-hover:text-indigo-600 dark:group-hover:text-indigo-400'
+                              : 'text-xs font-black text-theme-text group-hover:text-indigo-600 dark:group-hover:text-indigo-400'
+                          )}
+                        >
+                          {p.project_name}
+                        </span>
+                      </div>
+
+                      <ChevronRight size={13} className="text-theme-text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                    <div
+                      className="flex items-center gap-1.5 flex-wrap text-[10px]"
+                      style={{ paddingLeft: depth > 0 ? `${depth * 18 + 14}px` : undefined }}
+                    >
+                      {/* Sub-module Count Pill for Parent */}
+                      {hasChildren && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 text-[9.5px]">
+                          <Layers size={10} />
+                          <span>{childCount} โมดูลย่อย</span>
+                        </span>
+                      )}
+
                       {/* Team / Holding Badges */}
-                      <span className="px-2 py-0.5 rounded-md font-bold bg-theme-surface-secondary text-theme-text border border-theme-border/60">
+                      <span className="px-1.5 py-0.5 rounded-md font-bold bg-theme-surface-secondary text-theme-text border border-theme-border/60 text-[9.5px]">
                         {p.owner_team || 'IMP'}
                       </span>
                       {p.owner_holding && (
-                        <span className="px-1.5 py-0.5 rounded-md font-semibold text-theme-text-muted border border-theme-border/40 truncate max-w-[90px]">
+                        <span className="px-1.5 py-0.5 rounded-md font-semibold text-theme-text-muted border border-theme-border/40 truncate max-w-[80px] text-[9.5px]">
                           {p.owner_holding}
                         </span>
                       )}
@@ -264,7 +383,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                       {/* Health Indicator Badge */}
                       <span
                         className={cn(
-                          'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold border',
+                          'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold border text-[9.5px]',
                           healthMeta.badge
                         )}
                       >
@@ -273,9 +392,9 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                       </span>
 
                       {/* Head Lead Avatar/Name */}
-                      <div className="inline-flex items-center gap-1 text-theme-text-muted ml-auto font-semibold">
-                        <User size={11} className="text-indigo-500" />
-                        <span className="truncate max-w-[80px]">
+                      <div className="inline-flex items-center gap-1 text-theme-text-muted ml-auto font-semibold text-[9.5px]">
+                        <User size={10} className="text-indigo-500" />
+                        <span className="truncate max-w-[70px]">
                           {p.head_lead_name || (p.team_contributions[0]?.user_name) || 'ยังไม่ระบุ'}
                         </span>
                       </div>
@@ -300,7 +419,10 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
 
                     {/* Gantt Bar */}
                     <div
-                      className="relative h-8 rounded-xl shadow-md flex items-center px-2.5 transition-all group-hover:scale-[1.01] overflow-hidden"
+                      className={cn(
+                        'relative rounded-xl shadow-md flex items-center px-2.5 transition-all group-hover:scale-[1.01] overflow-hidden',
+                        isChild ? 'h-6.5' : 'h-8'
+                      )}
                       style={{
                         left: `${barStartPercent}%`,
                         width: `${barWidthPercent}%`,
@@ -309,8 +431,8 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                       {/* Base Bar Fill */}
                       <div
                         className={cn(
-                          'absolute inset-0 border transition-colors opacity-90',
-                          getStatusBgColor(p.status)
+                          'absolute inset-0 border transition-colors opacity-95',
+                          getStatusBgColor(p.status, depth)
                         )}
                       />
 
@@ -337,7 +459,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                       )}
 
                       {/* Bar Content Label */}
-                      <div className="relative z-10 flex items-center justify-between w-full text-white font-extrabold text-[11px] gap-2 min-w-0 drop-shadow-xs">
+                      <div className="relative z-10 flex items-center justify-between w-full text-white font-extrabold text-[10.5px] gap-2 min-w-0 drop-shadow-xs">
                         <span className="truncate">
                           {p.status.toUpperCase()} · {p.progress_percent}%
                         </span>

@@ -25,13 +25,15 @@ export default function ProjectGanttPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [availableUsers, setAvailableUsers] = useState<{ id: string; name: string; email?: string }[]>([]);
 
-  // Filter State
+  // Filter & Hierarchy State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('all');
   const [selectedHolding, setSelectedHolding] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | 'all'>('all');
   const [selectedHealth, setSelectedHealth] = useState<ProjectHealth | 'all'>('all');
   const [zoomLevel, setZoomLevel] = useState<GanttZoomLevel>('month');
+  const [isTreeView, setIsTreeView] = useState<boolean>(true);
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
 
   // Load active workspace name from session
   const [workspaceName, setWorkspaceName] = useState<string>('');
@@ -42,6 +44,9 @@ export default function ProjectGanttPage() {
     try {
       const data = await fetchGanttProjects();
       setProjects(data);
+      // Auto-expand all parent projects with children by default
+      const parentsWithChildren = data.filter((p) => data.some((child) => child.parent_project_id === p.id));
+      setExpandedProjectIds(new Set(parentsWithChildren.map((p) => p.id)));
     } catch (err: unknown) {
       const e = err as { message?: string };
       console.error('Failed to load Gantt projects:', err);
@@ -129,6 +134,8 @@ export default function ProjectGanttPage() {
         ]);
         if (isMounted) {
           setProjects(projData);
+          const parentsWithChildren = projData.filter((p) => projData.some((child) => child.parent_project_id === p.id));
+          setExpandedProjectIds(new Set(parentsWithChildren.map((p) => p.id)));
           setIsLoading(false);
         }
       } catch (err: unknown) {
@@ -194,6 +201,26 @@ export default function ProjectGanttPage() {
     setIsDrawerOpen(true);
   };
 
+  const handleToggleExpandProject = (id: string) => {
+    setExpandedProjectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleExpandAll = () => {
+    setExpandedProjectIds(new Set(projects.map((p) => p.id)));
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedProjectIds(new Set());
+  };
+
   return (
     <AppLayout>
       <div className="space-y-5 animate-fade-in pb-12">
@@ -236,7 +263,7 @@ export default function ProjectGanttPage() {
         {/* Executive Summary Top Cards */}
         <ExecutiveSummaryKPIs projects={projects} />
 
-        {/* Filter Toolbar with Zoom controls */}
+        {/* Filter Toolbar with Tree View & Zoom controls */}
         <GanttFilterToolbar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -254,6 +281,10 @@ export default function ProjectGanttPage() {
           teamsList={teamsList}
           onRefresh={loadProjects}
           isLoading={isLoading}
+          isTreeView={isTreeView}
+          onToggleTreeView={setIsTreeView}
+          onExpandAll={handleExpandAll}
+          onCollapseAll={handleCollapseAll}
         />
 
         {/* Main Gantt Roadmap Canvas */}
@@ -266,6 +297,9 @@ export default function ProjectGanttPage() {
           <GanttRoadmapCanvas
             projects={filteredProjects}
             zoomLevel={zoomLevel}
+            isTreeView={isTreeView}
+            expandedProjectIds={expandedProjectIds}
+            onToggleExpandProject={handleToggleExpandProject}
             onSelectProject={handleSelectProject}
             selectedProjectId={selectedProjectId}
           />
@@ -276,9 +310,9 @@ export default function ProjectGanttPage() {
           <div className="flex items-start gap-3">
             <ShieldCheck size={20} className="text-emerald-500 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
-              <span className="font-bold text-theme-text">ความยืดหยุ่นและการทำงานแบบ Hybrid (Best Practices):</span>
+              <span className="font-bold text-theme-text">โครงสร้างโครงการและการทำงานแบบ Hybrid (Best Practices):</span>
               <p className="text-[11px] leading-relaxed">
-                ระบบคำนวณ Actual % จากชั่วโมง Worklog จริงให้อัตโนมัติ พร้อมช่อง **Manual Adjustment** ให้ปรับแก้ไขได้ด้วยมือในกรณีที่งานไม่ได้ลง Worklog ครบถ้วน
+                จัดกลุ่มโครงการเป็น Parent (โครงการหลัก) ➔ Child (โมดูลย่อย) เพื่อรวมศูนย์ตัวเลข Save Cost และหัวหน้าทีมไว้ที่โครงการหลัก พร้อมดึงสมาชิกในทีมจาก Dropdown ได้สะดวกรวดเร็ว
               </p>
             </div>
           </div>

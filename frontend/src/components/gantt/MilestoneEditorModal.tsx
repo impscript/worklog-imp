@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Flag } from 'lucide-react';
+import { X, Flag, User } from 'lucide-react';
 import type { ProjectMilestone } from '../../lib/project-management';
 
 interface MilestoneEditorModalProps {
@@ -7,24 +7,28 @@ interface MilestoneEditorModalProps {
   onClose: () => void;
   milestone: ProjectMilestone | null;
   onSave: (milestone: ProjectMilestone) => void;
+  availableUsers?: { id: string; name: string; email?: string }[];
 }
 
 interface MilestoneFormContentProps {
   milestone: ProjectMilestone | null;
   onClose: () => void;
   onSave: (milestone: ProjectMilestone) => void;
+  availableUsers: { id: string; name: string; email?: string }[];
 }
 
 const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
   milestone,
   onClose,
   onSave,
+  availableUsers,
 }) => {
   const [name, setName] = useState(milestone?.milestone_name || '');
   const [startDate, setStartDate] = useState(milestone?.start_date || new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(milestone?.due_date || '');
   const [status, setStatus] = useState<ProjectMilestone['status']>(milestone?.status || 'in_progress');
   const [progress, setProgress] = useState(milestone?.progress_percent || 0);
+  const [assignedUserId, setAssignedUserId] = useState(milestone?.assigned_user_id || '');
   const [assignedUser, setAssignedUser] = useState(milestone?.assigned_user_name || '');
   const [notes, setNotes] = useState(milestone?.notes || '');
 
@@ -40,6 +44,7 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
       due_date: dueDate || null,
       status,
       progress_percent: Number(progress) || 0,
+      assigned_user_id: assignedUserId || null,
       assigned_user_name: assignedUser.trim() || null,
       sequence_order: milestone?.sequence_order || 0,
       notes: notes.trim() || null,
@@ -99,7 +104,7 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as ProjectMilestone['status'])}
-            className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-purple-500"
+            className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-purple-500 cursor-pointer"
           >
             <option value="planning">Planning (วางแผน)</option>
             <option value="in_progress">In Progress (กำลังทำ)</option>
@@ -123,18 +128,33 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
         </div>
       </div>
 
-      {/* Assigned User */}
+      {/* Assigned User Dropdown */}
       <div className="space-y-1">
-        <label className="block font-bold text-theme-text text-[11px] uppercase tracking-wider">
-          ผู้รับผิดชอบหลัก
+        <label className="block font-bold text-theme-text text-[11px] uppercase tracking-wider flex items-center gap-1">
+          <User size={13} className="text-purple-500" />
+          ผู้รับผิดชอบหลัก (Assignee)
         </label>
-        <input
-          type="text"
-          value={assignedUser}
-          onChange={(e) => setAssignedUser(e.target.value)}
-          placeholder="เช่น คุณสมชาย (Dev Lead)..."
-          className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-purple-500"
-        />
+        <select
+          value={assignedUserId || (availableUsers.find((u) => u.name === assignedUser)?.id || '')}
+          onChange={(e) => {
+            const selected = availableUsers.find((u) => u.id === e.target.value);
+            if (selected) {
+              setAssignedUserId(selected.id);
+              setAssignedUser(selected.name);
+            } else {
+              setAssignedUserId('');
+              setAssignedUser('');
+            }
+          }}
+          className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-purple-500 font-semibold cursor-pointer"
+        >
+          <option value="">-- เลือกผู้รับผิดชอบจากสมาชิกในทีม --</option>
+          {availableUsers.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name} {u.email ? `(${u.email})` : ''}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Notes */}
@@ -176,6 +196,7 @@ export const MilestoneEditorModal: React.FC<MilestoneEditorModalProps> = ({
   onClose,
   milestone,
   onSave,
+  availableUsers = [],
 }) => {
   if (!isOpen) return null;
 
@@ -210,6 +231,7 @@ export const MilestoneEditorModal: React.FC<MilestoneEditorModalProps> = ({
           milestone={milestone}
           onClose={onClose}
           onSave={onSave}
+          availableUsers={availableUsers}
         />
       </div>
     </div>
