@@ -433,15 +433,36 @@ export async function updateProjectGanttOverview(
     project_health?: ProjectHealth;
   }
 ) {
+  // Try full update with Gantt fields
   const { error } = await supabase
     .from('tb_project_registry')
     .update({
       ...payload,
+      go_live_date: payload.due_date, // sync with legacy go_live_date
       updated_at: new Date().toISOString(),
     })
     .eq('id', projectId);
 
-  if (error) throw error;
+  if (error) {
+    // If due_date column is not yet in schema cache (migration pending), fallback to legacy columns
+    if (error.message && (error.message.includes('due_date') || error.message.includes('schema cache'))) {
+      const legacyPayload: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (payload.due_date !== undefined) legacyPayload.go_live_date = payload.due_date;
+      if (payload.owner_team !== undefined) legacyPayload.owner_team = payload.owner_team;
+      if (payload.owner_holding !== undefined) legacyPayload.owner_holding = payload.owner_holding;
+
+      const { error: fallbackErr } = await supabase
+        .from('tb_project_registry')
+        .update(legacyPayload)
+        .eq('id', projectId);
+
+      if (fallbackErr) throw fallbackErr;
+      return;
+    }
+    throw error;
+  }
 }
 
 /**
