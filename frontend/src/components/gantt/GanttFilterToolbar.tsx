@@ -19,6 +19,9 @@ interface GanttFilterToolbarProps {
   onStatusChange: (status: ProjectStatus | 'all') => void;
   selectedHealth: ProjectHealth | 'all';
   onHealthChange: (health: ProjectHealth | 'all') => void;
+  selectedUser: string;
+  onUserChange: (userId: string) => void;
+  usersList: { id: string; name: string; email?: string }[];
   zoomLevel: GanttZoomLevel;
   onZoomChange: (zoom: GanttZoomLevel) => void;
   holdingsList: string[];
@@ -46,6 +49,9 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   onStatusChange,
   selectedHealth,
   onHealthChange,
+  selectedUser,
+  onUserChange,
+  usersList,
   zoomLevel,
   onZoomChange,
   holdingsList,
@@ -254,12 +260,27 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           <option value="completed">✅ Completed (เสร็จสิ้น)</option>
         </select>
 
+        {/* Member / Assignee Filter (Lead or Team Member) */}
+        <select
+          value={selectedUser}
+          onChange={(e) => onUserChange(e.target.value)}
+          className="text-xs font-semibold py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer max-w-[180px] truncate"
+        >
+          <option value="all">👥 สมาชิกทุกคน (All)</option>
+          {usersList.map((u) => (
+            <option key={u.id} value={u.id}>
+              👤 {u.name}
+            </option>
+          ))}
+        </select>
+
         {/* Active Filters Clear */}
         {(selectedYear !== currentYear ||
           selectedTeam !== 'all' ||
           selectedHolding !== 'all' ||
           selectedStatus !== 'all' ||
           selectedHealth !== 'all' ||
+          selectedUser !== 'all' ||
           searchQuery.trim()) && (
           <button
             type="button"
@@ -269,6 +290,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
               onHoldingChange('all');
               onStatusChange('all');
               onHealthChange('all');
+              onUserChange('all');
               onSearchChange('');
             }}
             className="text-[11px] font-bold text-rose-500 hover:underline px-2 cursor-pointer ml-auto"

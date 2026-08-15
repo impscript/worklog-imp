@@ -36,6 +36,7 @@ export default function ProjectGanttPage() {
   const [selectedHolding, setSelectedHolding] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | 'all'>('all');
   const [selectedHealth, setSelectedHealth] = useState<ProjectHealth | 'all'>('all');
+  const [selectedUser, setSelectedUser] = useState<string>('all');
   const [zoomLevel, setZoomLevel] = useState<GanttZoomLevel>('month');
   const [isTreeView, setIsTreeView] = useState<boolean>(true);
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
@@ -180,9 +181,12 @@ export default function ProjectGanttPage() {
     return getAvailableProjectYears(projects);
   }, [projects]);
 
-  // Filtered Projects with Date Overlap and Tree preservation
+  // Filtered Projects with Date Overlap, Member matching and Tree preservation
   const filteredProjects = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
+
+    const selectedUserObj = selectedUser !== 'all' ? availableUsers.find((u) => u.id === selectedUser) : null;
+    const targetUserName = selectedUserObj?.name.toLowerCase() || '';
 
     const directlyMatchingProjects = projects.filter((p) => {
       if (!isProjectInYear(p, selectedYear)) return false;
@@ -190,6 +194,19 @@ export default function ProjectGanttPage() {
       if (selectedHolding !== 'all' && (p.owner_holding || '') !== selectedHolding) return false;
       if (selectedStatus !== 'all' && p.status !== selectedStatus) return false;
       if (selectedHealth !== 'all' && p.project_health !== selectedHealth) return false;
+
+      // Filter by Member (Lead or Team Contribution)
+      if (selectedUser !== 'all') {
+        const isLead =
+          p.head_lead_user_id === selectedUser ||
+          (targetUserName && (p.head_lead_name || '').toLowerCase().includes(targetUserName));
+        const isTeamMember = p.team_contributions?.some(
+          (tm) =>
+            tm.user_id === selectedUser ||
+            (targetUserName && (tm.user_name || '').toLowerCase().includes(targetUserName))
+        );
+        if (!isLead && !isTeamMember) return false;
+      }
 
       if (!q) return true;
       return (
@@ -215,7 +232,18 @@ export default function ProjectGanttPage() {
     });
 
     return Array.from(finalSet);
-  }, [projects, selectedYear, searchQuery, selectedTeam, selectedHolding, selectedStatus, selectedHealth, isTreeView]);
+  }, [
+    projects,
+    selectedYear,
+    searchQuery,
+    selectedTeam,
+    selectedHolding,
+    selectedStatus,
+    selectedHealth,
+    selectedUser,
+    availableUsers,
+    isTreeView,
+  ]);
 
   const selectedProject = useMemo(() => {
     return projects.find((p) => p.id === selectedProjectId) || null;
@@ -303,6 +331,9 @@ export default function ProjectGanttPage() {
           onStatusChange={setSelectedStatus}
           selectedHealth={selectedHealth}
           onHealthChange={setSelectedHealth}
+          selectedUser={selectedUser}
+          onUserChange={setSelectedUser}
+          usersList={availableUsers}
           zoomLevel={zoomLevel}
           onZoomChange={setZoomLevel}
           holdingsList={holdingsList}

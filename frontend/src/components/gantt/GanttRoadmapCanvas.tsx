@@ -11,10 +11,41 @@ import {
 import type { GanttProject, ProjectStatus } from '../../lib/project-management';
 import {
   PROJECT_HEALTH_LABELS,
+  TEAM_ROLE_LABELS,
   buildGanttTree,
 } from '../../lib/project-management';
 import { cn } from '../../lib/utils';
 import type { GanttZoomLevel } from './GanttFilterToolbar';
+
+function getInitials(name: string): string {
+  if (!name) return '?';
+  const clean = name.replace(/^(นาย|นางสาว|นาง|คุณ|ดร\.|dr\.|mr\.|ms\.|mrs\.)\s*/i, '').trim();
+  const parts = clean.split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0].slice(0, 1) + parts[1].slice(0, 1)).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
+}
+
+function getAvatarColor(name: string): string {
+  if (!name) return 'bg-slate-600 text-white';
+  const colors = [
+    'bg-indigo-600 text-white',
+    'bg-violet-600 text-white',
+    'bg-emerald-600 text-white',
+    'bg-amber-600 text-white',
+    'bg-cyan-600 text-white',
+    'bg-rose-600 text-white',
+    'bg-teal-600 text-white',
+    'bg-blue-600 text-white',
+    'bg-fuchsia-600 text-white',
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
 
 interface GanttRoadmapCanvasProps {
   projects: GanttProject[];
@@ -320,7 +351,8 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                   )}
                 >
                   {/* Left Sticky Column */}
-                  <div className="w-80 sm:w-96 px-4 py-2.5 border-r border-theme-border/80 shrink-0 sticky left-0 z-10 bg-theme-surface/95 dark:bg-theme-bg-page/95 backdrop-blur-md flex flex-col justify-center gap-1 shadow-xs">
+                  <div className="w-88 sm:w-[410px] px-3.5 py-2 border-r border-theme-border/80 shrink-0 sticky left-0 z-10 bg-theme-surface/95 dark:bg-theme-bg-page/95 backdrop-blur-md flex flex-col justify-center gap-1.5 shadow-xs">
+                    {/* Line 1: Name + Lead Avatar */}
                     <div className="flex items-center justify-between gap-1.5 min-w-0">
                       <div
                         className="flex items-center gap-1.5 min-w-0 flex-1"
@@ -359,49 +391,98 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                         </span>
                       </div>
 
-                      <ChevronRight size={13} className="text-theme-text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                      {/* Head Lead Avatar Badge */}
+                      {p.head_lead_name ? (
+                        <div
+                          className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-theme-text select-none cursor-default"
+                          title={`👑 หัวหน้าโครงการ (Lead): ${p.head_lead_name}`}
+                        >
+                          <div className={cn('w-4.5 h-4.5 rounded-full flex items-center justify-center font-black text-[8.5px] shadow-xs shrink-0', getAvatarColor(p.head_lead_name))}>
+                            {getInitials(p.head_lead_name)}
+                          </div>
+                          <span className="text-[10px] font-extrabold text-amber-700 dark:text-amber-300 truncate max-w-[85px]">
+                            {p.head_lead_name.split(/\s+/)[0]}
+                          </span>
+                        </div>
+                      ) : (
+                        <div
+                          className="text-[9px] font-medium text-theme-text-muted/50 shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-dashed border-theme-border/50 select-none"
+                          title="ยังไม่ได้กำหนดหัวหน้าโครงการ"
+                        >
+                          <User size={9} />
+                          <span>ยังไม่ระบุ Lead</span>
+                        </div>
+                      )}
                     </div>
 
+                    {/* Line 2: Badges + Team Contribution Avatar Stack */}
                     <div
-                      className="flex items-center gap-1.5 flex-wrap text-[10px]"
+                      className="flex items-center justify-between gap-1.5 text-[10px]"
                       style={{ paddingLeft: depth > 0 ? `${depth * 18 + 14}px` : undefined }}
                     >
-                      {/* Sub-module Count Pill for Parent */}
-                      {hasChildren && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 text-[9.5px]">
-                          <Layers size={10} />
-                          <span>{childCount} โมดูลย่อย</span>
-                        </span>
-                      )}
-
-                      {/* Team / Holding Badges */}
-                      <span className="px-1.5 py-0.5 rounded-md font-bold bg-theme-surface-secondary text-theme-text border border-theme-border/60 text-[9.5px]">
-                        {p.owner_team || 'IMP'}
-                      </span>
-                      {p.owner_holding && (
-                        <span className="px-1.5 py-0.5 rounded-md font-semibold text-theme-text-muted border border-theme-border/40 truncate max-w-[80px] text-[9.5px]">
-                          {p.owner_holding}
-                        </span>
-                      )}
-
-                      {/* Health Indicator Badge */}
-                      <span
-                        className={cn(
-                          'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold border text-[9.5px]',
-                          healthMeta.badge
+                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                        {/* Sub-module Count Pill for Parent */}
+                        {hasChildren && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 text-[9.5px]">
+                            <Layers size={10} />
+                            <span>{childCount} โมดูลย่อย</span>
+                          </span>
                         )}
-                      >
-                        <span>{healthMeta.icon}</span>
-                        <span>{healthMeta.label}</span>
-                      </span>
 
-                      {/* Head Lead Avatar/Name */}
-                      <div className="inline-flex items-center gap-1 text-theme-text-muted ml-auto font-semibold text-[9.5px]">
-                        <User size={10} className="text-indigo-500" />
-                        <span className="truncate max-w-[70px]">
-                          {p.head_lead_name || (p.team_contributions[0]?.user_name) || 'ยังไม่ระบุ'}
+                        {/* Team / Holding Badges */}
+                        <span className="px-1.5 py-0.5 rounded-md font-bold bg-theme-surface-secondary text-theme-text border border-theme-border/60 text-[9.5px]">
+                          {p.owner_team || 'IMP'}
+                        </span>
+                        {p.owner_holding && (
+                          <span className="px-1.5 py-0.5 rounded-md font-semibold text-theme-text-muted border border-theme-border/40 truncate max-w-[70px] text-[9.5px]">
+                            {p.owner_holding}
+                          </span>
+                        )}
+
+                        {/* Health Indicator Badge */}
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold border text-[9.5px]',
+                            healthMeta.badge
+                          )}
+                        >
+                          <span>{healthMeta.icon}</span>
+                          <span>{healthMeta.label}</span>
                         </span>
                       </div>
+
+                      {/* Team Overlapping Avatar Stack */}
+                      {p.team_contributions.length > 0 ? (
+                        <div
+                          className="flex items-center -space-x-1.5 shrink-0 pl-1 select-none"
+                          title={`ทีมงาน (${p.team_contributions.length} คน):\n${p.team_contributions.map(t => `${t.user_name} (${t.target_contribution_percent}%)`).join('\n')}`}
+                        >
+                          {p.team_contributions.slice(0, 3).map((tm, tIdx) => (
+                            <div
+                              key={tIdx}
+                              className={cn(
+                                'w-5 h-5 rounded-full flex items-center justify-center font-bold text-[8.5px] ring-1.5 ring-theme-surface dark:ring-theme-bg-page shadow-xs shrink-0 cursor-default',
+                                getAvatarColor(tm.user_name)
+                              )}
+                              title={`${tm.user_name} (${TEAM_ROLE_LABELS[tm.role_in_project] || tm.role_in_project}, Target: ${tm.target_contribution_percent}%)`}
+                            >
+                              {getInitials(tm.user_name)}
+                            </div>
+                          ))}
+                          {p.team_contributions.length > 3 && (
+                            <div
+                              className="w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center font-bold text-[8px] ring-1.5 ring-theme-surface dark:ring-theme-bg-page shadow-xs shrink-0 cursor-default"
+                              title={`และสมาชิกอีก ${p.team_contributions.length - 3} คน`}
+                            >
+                              +{p.team_contributions.length - 3}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-[9px] text-theme-text-muted/50 shrink-0">
+                          ยังไม่มีทีม
+                        </div>
+                      )}
                     </div>
                   </div>
 
