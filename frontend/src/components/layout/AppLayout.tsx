@@ -530,7 +530,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 {t('nav.myWork')}
               </h3>
             )}
-            <NavItem to="/" icon={<LayoutDashboard size={18} />} label={t('nav.dashboard')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/" icon={<LayoutDashboard size={18} />} label={t('nav.dashboard')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} end />
             <NavItem to="/log" icon={<PlusCircle size={18} />} label={t('nav.logWork')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/calendar" icon={<Calendar size={18} />} label={t('nav.calendar')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/profile" icon={<User size={18} />} label={t('nav.profile')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
@@ -553,8 +553,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             )}
             {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
               <>
-                <NavItem to="/projects" icon={<FolderTree size={18} />} label={t('nav.projects')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
-                <NavItem to="/projects/gantt" icon={<FolderKanban size={18} />} label="Gantt Roadmap" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+                <NavItem to="/projects" icon={<FolderTree size={18} />} label={t('nav.projects')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} end />
+                <NavItem to="/projects/gantt" icon={<FolderKanban size={18} />} label="Gantt Roadmap" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} end />
               </>
             )}
             {(user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && user?.role !== 'admin' && (
