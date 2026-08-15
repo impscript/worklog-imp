@@ -19,6 +19,7 @@ import type { GanttZoomLevel } from './GanttFilterToolbar';
 interface GanttRoadmapCanvasProps {
   projects: GanttProject[];
   zoomLevel: GanttZoomLevel;
+  selectedYear?: number | 'all';
   isTreeView: boolean;
   expandedProjectIds: Set<string>;
   onToggleExpandProject: (id: string) => void;
@@ -44,6 +45,7 @@ interface RenderableGanttRow {
 export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
   projects,
   zoomLevel,
+  selectedYear = 'all',
   isTreeView,
   expandedProjectIds,
   onToggleExpandProject,
@@ -52,25 +54,27 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Compute overall timeline bounds across all projects or default to current year
+  // Compute overall timeline bounds across all projects or anchor to selected year
   const timelineSpan = useMemo((): TimelineSpan => {
     const now = new Date();
     const currentYear = now.getFullYear();
+    const targetYear = selectedYear && selectedYear !== 'all' ? selectedYear : currentYear;
 
-    let minTime = new Date(currentYear, 0, 1).getTime();
-    let maxTime = new Date(currentYear, 11, 31).getTime();
+    let minTime = new Date(targetYear, 0, 1).getTime();
+    let maxTime = new Date(targetYear, 11, 31).getTime();
 
-    // Check min & max dates among projects
-    projects.forEach((p) => {
-      if (p.start_date) {
-        const sTime = new Date(p.start_date).getTime();
-        if (!isNaN(sTime) && sTime < minTime) minTime = sTime;
-      }
-      if (p.due_date) {
-        const dTime = new Date(p.due_date).getTime();
-        if (!isNaN(dTime) && dTime > maxTime) maxTime = dTime;
-      }
-    });
+    if (selectedYear === 'all') {
+      projects.forEach((p) => {
+        if (p.start_date) {
+          const sTime = new Date(p.start_date).getTime();
+          if (!isNaN(sTime) && sTime < minTime) minTime = sTime;
+        }
+        if (p.due_date) {
+          const dTime = new Date(p.due_date).getTime();
+          if (!isNaN(dTime) && dTime > maxTime) maxTime = dTime;
+        }
+      });
+    }
 
     // Expand bounds with padding
     const startDate = new Date(minTime);
@@ -125,7 +129,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
     }
 
     return { startDate, endDate, totalDays, columns };
-  }, [projects, zoomLevel]);
+  }, [projects, zoomLevel, selectedYear]);
 
   // Today position in %
   const todayPositionPercent = useMemo(() => {

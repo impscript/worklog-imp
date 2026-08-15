@@ -8,6 +8,9 @@ export type GanttZoomLevel = 'month' | 'quarter' | 'year';
 interface GanttFilterToolbarProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  selectedYear: number | 'all';
+  onYearChange: (year: number | 'all') => void;
+  availableYears: number[];
   selectedTeam: string;
   onTeamChange: (team: string) => void;
   selectedHolding: string;
@@ -32,6 +35,9 @@ interface GanttFilterToolbarProps {
 export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   searchQuery,
   onSearchChange,
+  selectedYear,
+  onYearChange,
+  availableYears,
   selectedTeam,
   onTeamChange,
   selectedHolding,
@@ -52,6 +58,8 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   onExpandAll,
   onCollapseAll,
 }) => {
+  const currentYear = new Date().getFullYear();
+
   return (
     <div className="p-4 rounded-3xl border border-theme-border/70 bg-theme-surface/80 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm mb-5 space-y-3.5 select-none">
       {/* Top Row: Search + View Hierarchy Toggle + Zoom Pills + Action Buttons */}
@@ -173,6 +181,23 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           <Filter size={13} /> ตัวกรอง:
         </span>
 
+        {/* Year Filter */}
+        <select
+          value={String(selectedYear)}
+          onChange={(e) => {
+            const val = e.target.value;
+            onYearChange(val === 'all' ? 'all' : Number(val));
+          }}
+          className="text-xs font-bold py-1.5 px-2.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
+        >
+          <option value="all">🌐 ทุกช่วงปี (All Years)</option>
+          {availableYears.map((y) => (
+            <option key={y} value={String(y)}>
+              📅 ปี {y} {y === currentYear ? '(ปีปัจจุบัน)' : y > currentYear ? '(แผนล่วงหน้า)' : '(ย้อนหลัง)'}
+            </option>
+          ))}
+        </select>
+
         {/* Team Filter */}
         <select
           value={selectedTeam}
@@ -228,7 +253,8 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
         </select>
 
         {/* Active Filters Clear */}
-        {(selectedTeam !== 'all' ||
+        {(selectedYear !== currentYear ||
+          selectedTeam !== 'all' ||
           selectedHolding !== 'all' ||
           selectedStatus !== 'all' ||
           selectedHealth !== 'all' ||
@@ -236,6 +262,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           <button
             type="button"
             onClick={() => {
+              onYearChange(currentYear);
               onTeamChange('all');
               onHoldingChange('all');
               onStatusChange('all');
@@ -244,7 +271,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
             }}
             className="text-[11px] font-bold text-rose-500 hover:underline px-2 cursor-pointer ml-auto"
           >
-            ล้างตัวกรองทั้งหมด
+            รีเซ็ตตัวกรอง
           </button>
         )}
       </div>

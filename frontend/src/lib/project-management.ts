@@ -223,6 +223,61 @@ export function calculateProjectHealth(
 }
 
 /**
+ * Checks if a project's active timeline overlaps with a given calendar year.
+ */
+export function isProjectInYear(project: GanttProject, year: number | 'all'): boolean {
+  if (year === 'all') return true;
+
+  const yearStart = new Date(year, 0, 1, 0, 0, 0).getTime();
+  const yearEnd = new Date(year, 11, 31, 23, 59, 59).getTime();
+
+  let pStart = yearStart;
+  if (project.start_date) {
+    const parsed = new Date(project.start_date).getTime();
+    if (!isNaN(parsed)) pStart = parsed;
+  }
+
+  let pDue = yearEnd;
+  if (project.due_date) {
+    const parsed = new Date(project.due_date).getTime();
+    if (!isNaN(parsed)) pDue = parsed;
+  } else {
+    // If no due date, project defaults to 30 days after start_date
+    pDue = pStart + 30 * 86400000;
+  }
+
+  // Intersect condition: [pStart, pDue] overlaps with [yearStart, yearEnd]
+  return pStart <= yearEnd && pDue >= yearStart;
+}
+
+/**
+ * Extracts all unique years from projects plus surrounding window (current year ± 2)
+ */
+export function getAvailableProjectYears(projects: GanttProject[]): number[] {
+  const currentYear = new Date().getFullYear();
+  const yearSet = new Set<number>([
+    currentYear - 2,
+    currentYear - 1,
+    currentYear,
+    currentYear + 1,
+    currentYear + 2,
+  ]);
+
+  projects.forEach((p) => {
+    if (p.start_date) {
+      const y = new Date(p.start_date).getFullYear();
+      if (!isNaN(y) && y >= 2000 && y <= 2100) yearSet.add(y);
+    }
+    if (p.due_date) {
+      const y = new Date(p.due_date).getFullYear();
+      if (!isNaN(y) && y >= 2000 && y <= 2100) yearSet.add(y);
+    }
+  });
+
+  return Array.from(yearSet).sort((a, b) => b - a); // Descending (e.g. 2028, 2027, 2026, 2025, 2024)
+}
+
+/**
  * Computes Total Annual Savings from 4-Dimension Cost Savings
  */
 export function calculateTotalSavings(savings?: Partial<ProjectCostSavings> | null): number {
@@ -446,7 +501,7 @@ export async function updateProjectGanttOverview(
   if (error) {
     // If due_date column is not yet in schema cache (migration pending), fallback to legacy columns
     if (error.message && (error.message.includes('due_date') || error.message.includes('schema cache'))) {
-      const legacyPayload: Record<string, any> = {
+      const legacyPayload: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       };
       if (payload.due_date !== undefined) legacyPayload.go_live_date = payload.due_date;

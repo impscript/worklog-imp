@@ -7,7 +7,11 @@ import type {
   ProjectStatus,
   ProjectHealth,
 } from '../lib/project-management';
-import { fetchGanttProjects } from '../lib/project-management';
+import {
+  fetchGanttProjects,
+  isProjectInYear,
+  getAvailableProjectYears,
+} from '../lib/project-management';
 import { ExecutiveSummaryKPIs } from '../components/gantt/ExecutiveSummaryKPIs';
 import { GanttFilterToolbar, type GanttZoomLevel } from '../components/gantt/GanttFilterToolbar';
 import { GanttRoadmapCanvas } from '../components/gantt/GanttRoadmapCanvas';
@@ -27,6 +31,7 @@ export default function ProjectGanttPage() {
 
   // Filter & Hierarchy State
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedYear, setSelectedYear] = useState<number | 'all'>(new Date().getFullYear());
   const [selectedTeam, setSelectedTeam] = useState('all');
   const [selectedHolding, setSelectedHolding] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | 'all'>('all');
@@ -172,10 +177,17 @@ export default function ProjectGanttPage() {
     return Array.from(set);
   }, [projects]);
 
-  // Filtered Projects
+  // Available Project Years (Descending)
+  const availableYears = useMemo(() => {
+    return getAvailableProjectYears(projects);
+  }, [projects]);
+
+  // Filtered Projects with Date Overlap and Tree preservation
   const filteredProjects = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    return projects.filter((p) => {
+
+    const directlyMatchingProjects = projects.filter((p) => {
+      if (!isProjectInYear(p, selectedYear)) return false;
       if (selectedTeam !== 'all' && (p.owner_team || 'IMP') !== selectedTeam) return false;
       if (selectedHolding !== 'all' && (p.owner_holding || '') !== selectedHolding) return false;
       if (selectedStatus !== 'all' && p.status !== selectedStatus) return false;
@@ -190,7 +202,22 @@ export default function ProjectGanttPage() {
         (p.owner_team || '').toLowerCase().includes(q)
       );
     });
-  }, [projects, searchQuery, selectedTeam, selectedHolding, selectedStatus, selectedHealth]);
+
+    if (!isTreeView) return directlyMatchingProjects;
+
+    // In tree mode, ensure parents of matching children are also kept in the list
+    const matchingIds = new Set(directlyMatchingProjects.map((p) => p.id));
+    const finalSet = new Set(directlyMatchingProjects);
+
+    directlyMatchingProjects.forEach((p) => {
+      if (p.parent_project_id && !matchingIds.has(p.parent_project_id)) {
+        const parent = projects.find((item) => item.id === p.parent_project_id);
+        if (parent) finalSet.add(parent);
+      }
+    });
+
+    return Array.from(finalSet);
+  }, [projects, selectedYear, searchQuery, selectedTeam, selectedHolding, selectedStatus, selectedHealth, isTreeView]);
 
   const selectedProject = useMemo(() => {
     return projects.find((p) => p.id === selectedProjectId) || null;
@@ -260,13 +287,16 @@ export default function ProjectGanttPage() {
           </div>
         </div>
 
-        {/* Executive Summary Top Cards */}
-        <ExecutiveSummaryKPIs projects={projects} />
+        {/* Executive Summary Top Cards (Scoped to Filtered Projects) */}
+        <ExecutiveSummaryKPIs projects={filteredProjects} />
 
-        {/* Filter Toolbar with Tree View & Zoom controls */}
+        {/* Filter Toolbar with Year, Tree View & Zoom controls */}
         <GanttFilterToolbar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
+          selectedYear={selectedYear}
+          onYearChange={setSelectedYear}
+          availableYears={availableYears}
           selectedTeam={selectedTeam}
           onTeamChange={setSelectedTeam}
           selectedHolding={selectedHolding}
@@ -297,6 +327,7 @@ export default function ProjectGanttPage() {
           <GanttRoadmapCanvas
             projects={filteredProjects}
             zoomLevel={zoomLevel}
+            selectedYear={selectedYear}
             isTreeView={isTreeView}
             expandedProjectIds={expandedProjectIds}
             onToggleExpandProject={handleToggleExpandProject}
