@@ -49,9 +49,8 @@ export default function ProjectGanttPage() {
     try {
       const data = await fetchGanttProjects();
       setProjects(data);
-      // Auto-expand all parent projects with children by default
-      const parentsWithChildren = data.filter((p) => data.some((child) => child.parent_project_id === p.id));
-      setExpandedProjectIds(new Set(parentsWithChildren.map((p) => p.id)));
+      // Default: Keep child sub-projects collapsed for clean executive overview
+      setExpandedProjectIds(new Set());
     } catch (err: unknown) {
       const e = err as { message?: string };
       console.error('Failed to load Gantt projects:', err);
@@ -139,8 +138,7 @@ export default function ProjectGanttPage() {
         ]);
         if (isMounted) {
           setProjects(projData);
-          const parentsWithChildren = projData.filter((p) => projData.some((child) => child.parent_project_id === p.id));
-          setExpandedProjectIds(new Set(parentsWithChildren.map((p) => p.id)));
+          setExpandedProjectIds(new Set());
           setIsLoading(false);
         }
       } catch (err: unknown) {
