@@ -12,6 +12,7 @@ import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MigratePage from './pages/MigratePage';
 import ProjectRegistryPage from './pages/ProjectRegistryPage';
+import ProjectGanttPage from './pages/ProjectGanttPage';
 import PublicWorklogPage from './pages/PublicWorklogPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import TeamPage from './pages/TeamPage';
@@ -80,6 +81,8 @@ function App() {
           <Route path="/ai-chat" element={<ProtectedRoute><AiChatPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
           <Route path="/projects" element={<ProtectedRoute><ProjectRegistryPage /></ProtectedRoute>} />
+          <Route path="/projects/gantt" element={<ProtectedRoute><ProjectGanttPage /></ProtectedRoute>} />
+          <Route path="/projects/roadmap" element={<ProtectedRoute><ProjectGanttPage /></ProtectedRoute>} />
           <Route path="/team" element={<ProtectedRoute><TeamPage /></ProtectedRoute>} />
           <Route path="/workspaces" element={<ProtectedRoute><WorkspacesPage /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

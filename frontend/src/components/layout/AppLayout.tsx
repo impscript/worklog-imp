@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, Sun, Moon, FolderTree, FolderKanban, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase, ensureValidSupabaseSession } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
@@ -332,7 +332,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
       navigate('/');
     }
-    if (path === '/projects' && !(isSuperAdmin || isWorkspaceAdmin || isWorkspaceManager)) {
+    if ((path === '/projects' || path === '/projects/gantt' || path === '/projects/roadmap') && !(isSuperAdmin || isWorkspaceAdmin || isWorkspaceManager)) {
       showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
       navigate('/');
     }
@@ -552,7 +552,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <NavItem to="/team" icon={<User size={18} />} label={t('nav.team')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
             {(user?.role === 'admin' || user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && (
-              <NavItem to="/projects" icon={<FolderTree size={18} />} label={t('nav.projects')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+              <>
+                <NavItem to="/projects" icon={<FolderTree size={18} />} label={t('nav.projects')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+                <NavItem to="/projects/gantt" icon={<FolderKanban size={18} />} label="Gantt Roadmap" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+              </>
             )}
             {(user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && user?.role !== 'admin' && (
               <NavItem to="/admin" icon={<Database size={18} />} label={t('nav.admin')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />

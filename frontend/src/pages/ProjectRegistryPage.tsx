@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Search, ExternalLink, FolderTree, Calendar,
+  Plus, Search, ExternalLink, FolderTree, FolderKanban, Calendar,
   ChevronDown, ChevronRight, Edit2, Trash2, X, Save,
   Check, Clock, Activity, Users, FileText, FileCode,
   FolderOpen, Layers, Building2,
@@ -492,6 +493,7 @@ function ProjectCard({
 
 /* ── Main Component ── */
 export default function ProjectRegistryPage() {
+  const navigate = useNavigate();
   const { showToast, showConfirm } = useNotification();
 
   /* ── State ── */
@@ -924,8 +926,16 @@ export default function ProjectRegistryPage() {
           </div>
           <div className="flex items-center gap-2.5">
             <button
+              onClick={() => navigate('/projects/gantt')}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs md:text-sm font-bold text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 bg-indigo-50/50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 shadow-sm transition-all active:scale-95 cursor-pointer"
+              title="เปิดดูแผนภูมิแกนต์และพอร์ตโฟลิโอ"
+            >
+              <FolderKanban size={16} />
+              <span>Gantt Roadmap</span>
+            </button>
+            <button
               onClick={() => setIsExportNotesOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs md:text-sm font-bold text-theme-text border border-theme-border bg-theme-surface-secondary hover:bg-theme-surface-tertiary shadow-sm transition-all active:scale-95"
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs md:text-sm font-bold text-theme-text border border-theme-border bg-theme-surface-secondary hover:bg-theme-surface-tertiary shadow-sm transition-all active:scale-95 cursor-pointer"
               title="สรุปและส่งออก Notes ทั้งหมด"
             >
               <FileText size={16} className="text-indigo-600 dark:text-indigo-400" />
@@ -933,7 +943,7 @@ export default function ProjectRegistryPage() {
             </button>
             <button
               onClick={openAddModal}
-              className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-500/25 transition-all active:scale-95"
+              className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-500/25 transition-all active:scale-95 cursor-pointer"
             >
               <Plus size={16} />
               <span>Add Project</span>
