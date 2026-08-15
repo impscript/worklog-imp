@@ -28,55 +28,27 @@ import {
   saveTeamMemberContributions,
   saveProjectMilestones,
   saveProjectCostSavings,
+  getUserAvatarUrl,
+  getUiAvatarFallbackUrl,
 } from '../../lib/project-management';
 import { MilestoneEditorModal } from './MilestoneEditorModal';
 import { ConfirmDialogModal } from '../modals/ConfirmDialogModal';
 import { cn } from '../../lib/utils';
 import { useNotification } from '../../context/NotificationContext';
 
-function getInitials(name: string): string {
-  if (!name) return '?';
-  const clean = name.replace(/^(นาย|นางสาว|นาง|คุณ|ดร\.|dr\.|mr\.|ms\.|mrs\.)\s*/i, '').trim();
-  const parts = clean.split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0].slice(0, 1) + parts[1].slice(0, 1)).toUpperCase();
-  }
-  return clean.slice(0, 2).toUpperCase();
-}
-
-function getAvatarColor(name: string): string {
-  if (!name) return 'bg-slate-600 text-white';
-  const colors = [
-    'bg-indigo-600 text-white',
-    'bg-violet-600 text-white',
-    'bg-emerald-600 text-white',
-    'bg-amber-600 text-white',
-    'bg-cyan-600 text-white',
-    'bg-rose-600 text-white',
-    'bg-teal-600 text-white',
-    'bg-blue-600 text-white',
-    'bg-fuchsia-600 text-white',
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
-}
-
 interface ProjectDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   project: GanttProject | null;
   onProjectUpdated: () => void;
-  availableUsers?: { id: string; name: string; email?: string }[];
+  availableUsers?: { id: string; name: string; email?: string; emp_id?: string }[];
 }
 
 interface ProjectDetailDrawerContentProps {
   project: GanttProject;
   onClose: () => void;
   onProjectUpdated: () => void;
-  availableUsers: { id: string; name: string; email?: string }[];
+  availableUsers: { id: string; name: string; email?: string; emp_id?: string }[];
 }
 
 const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
@@ -737,13 +709,18 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
 
                 {headLeadName && (
                   <div className="flex items-center gap-2 pt-0.5">
-                    <div
-                      className={cn(
-                        'w-6 h-6 rounded-full flex items-center justify-center font-black text-[10px] text-white shadow-xs shrink-0 select-none',
-                        getAvatarColor(headLeadName)
-                      )}
-                    >
-                      {getInitials(headLeadName)}
+                    <div className="w-6 h-6 rounded-full overflow-hidden ring-1.5 ring-indigo-500/40 shadow-xs shrink-0 bg-slate-200 dark:bg-slate-700 select-none">
+                      <img
+                        src={getUserAvatarUrl(
+                          headLeadName,
+                          availableUsers.find((u) => u.name === headLeadName || u.id === headLeadId)?.emp_id
+                        )}
+                        alt={headLeadName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = getUiAvatarFallbackUrl(headLeadName, '6366f1');
+                        }}
+                      />
                     </div>
                     <span className="text-xs font-extrabold text-indigo-700 dark:text-indigo-300">
                       👑 {headLeadName} <span className="text-[10px] font-medium text-theme-text-muted">(หัวหน้าโครงการที่เลือก)</span>
@@ -851,13 +828,18 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       {/* Top: Avatar, Name, Role, Delete */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <div
-                            className={cn(
-                              'w-8 h-8 rounded-2xl flex items-center justify-center font-black text-xs text-white shadow-xs shrink-0 select-none',
-                              getAvatarColor(tm.user_name)
-                            )}
-                          >
-                            {getInitials(tm.user_name)}
+                          <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-indigo-500/20 shadow-sm shrink-0 bg-slate-200 dark:bg-slate-700 select-none">
+                            <img
+                              src={getUserAvatarUrl(
+                                tm.user_name,
+                                tm.emp_id || availableUsers.find((u) => u.name === tm.user_name || u.id === tm.user_id)?.emp_id
+                              )}
+                              alt={tm.user_name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = getUiAvatarFallbackUrl(tm.user_name, '6366f1');
+                              }}
+                            />
                           </div>
                           <div>
                             <div className="flex items-center gap-2">

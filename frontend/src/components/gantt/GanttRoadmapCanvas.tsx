@@ -13,39 +13,11 @@ import {
   PROJECT_HEALTH_LABELS,
   TEAM_ROLE_LABELS,
   buildGanttTree,
+  getUserAvatarUrl,
+  getUiAvatarFallbackUrl,
 } from '../../lib/project-management';
 import { cn } from '../../lib/utils';
 import type { GanttZoomLevel } from './GanttFilterToolbar';
-
-function getInitials(name: string): string {
-  if (!name) return '?';
-  const clean = name.replace(/^(นาย|นางสาว|นาง|คุณ|ดร\.|dr\.|mr\.|ms\.|mrs\.)\s*/i, '').trim();
-  const parts = clean.split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0].slice(0, 1) + parts[1].slice(0, 1)).toUpperCase();
-  }
-  return clean.slice(0, 2).toUpperCase();
-}
-
-function getAvatarColor(name: string): string {
-  if (!name) return 'bg-slate-600 text-white';
-  const colors = [
-    'bg-indigo-600 text-white',
-    'bg-violet-600 text-white',
-    'bg-emerald-600 text-white',
-    'bg-amber-600 text-white',
-    'bg-cyan-600 text-white',
-    'bg-rose-600 text-white',
-    'bg-teal-600 text-white',
-    'bg-blue-600 text-white',
-    'bg-fuchsia-600 text-white',
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
-}
 
 interface GanttRoadmapCanvasProps {
   projects: GanttProject[];
@@ -397,8 +369,15 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                           className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-theme-text select-none cursor-default"
                           title={`👑 หัวหน้าโครงการ (Lead): ${p.head_lead_name}`}
                         >
-                          <div className={cn('w-4.5 h-4.5 rounded-full flex items-center justify-center font-black text-[8.5px] shadow-xs shrink-0', getAvatarColor(p.head_lead_name))}>
-                            {getInitials(p.head_lead_name)}
+                          <div className="w-4.5 h-4.5 rounded-full overflow-hidden ring-1 ring-amber-400/80 shadow-xs shrink-0 bg-slate-200 dark:bg-slate-700">
+                            <img
+                              src={getUserAvatarUrl(p.head_lead_name, p.head_lead_emp_id)}
+                              alt={p.head_lead_name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = getUiAvatarFallbackUrl(p.head_lead_name, 'f59e0b');
+                              }}
+                            />
                           </div>
                           <span className="text-[10px] font-extrabold text-amber-700 dark:text-amber-300 truncate max-w-[85px]">
                             {p.head_lead_name.split(/\s+/)[0]}
@@ -460,13 +439,17 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                           {p.team_contributions.slice(0, 3).map((tm, tIdx) => (
                             <div
                               key={tIdx}
-                              className={cn(
-                                'w-5 h-5 rounded-full flex items-center justify-center font-bold text-[8.5px] ring-1.5 ring-theme-surface dark:ring-theme-bg-page shadow-xs shrink-0 cursor-default',
-                                getAvatarColor(tm.user_name)
-                              )}
+                              className="w-5 h-5 rounded-full overflow-hidden ring-1.5 ring-theme-surface dark:ring-theme-bg-page shadow-xs shrink-0 bg-slate-200 dark:bg-slate-700 cursor-default"
                               title={`${tm.user_name} (${TEAM_ROLE_LABELS[tm.role_in_project] || tm.role_in_project}, Target: ${tm.target_contribution_percent}%)`}
                             >
-                              {getInitials(tm.user_name)}
+                              <img
+                                src={getUserAvatarUrl(tm.user_name, tm.emp_id)}
+                                alt={tm.user_name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = getUiAvatarFallbackUrl(tm.user_name, '6366f1');
+                                }}
+                              />
                             </div>
                           ))}
                           {p.team_contributions.length > 3 && (

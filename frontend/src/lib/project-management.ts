@@ -9,6 +9,7 @@ export interface TeamMemberContribution {
   project_id: string;
   user_id: string;
   user_name: string;
+  emp_id?: string | null;
   role_in_project: TeamRole;
   target_contribution_percent: number; // e.g. 40.0
   manual_actual_hours?: number | null; // manual adjust if worklog wasn't logged
@@ -80,6 +81,7 @@ export interface GanttProject {
   progress_percent: number;
   head_lead_user_id?: string | null;
   head_lead_name?: string | null;
+  head_lead_emp_id?: string | null;
   project_health: ProjectHealth;
   // Related lists
   team_contributions: TeamMemberContribution[];
@@ -89,6 +91,26 @@ export interface GanttProject {
   // Computed metrics
   total_worklog_hours: number;
   total_savings_annual: number;
+}
+
+/**
+ * Resolves the corporate face photo URL from WMS with fallback to UI-Avatars
+ */
+export function getUserAvatarUrl(name?: string | null, empId?: string | null): string {
+  if (empId && empId.trim() && empId.trim() !== 'N/A') {
+    return `https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID=${empId.trim()}`;
+  }
+  const cleanName = (name || 'User')
+    .replace(/^(นาย|นางสาว|นาง|คุณ|ดร\.|dr\.|mr\.|ms\.|mrs\.)\s*/i, '')
+    .trim();
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=6366f1&color=fff&bold=true`;
+}
+
+export function getUiAvatarFallbackUrl(name?: string | null, bg = '6366f1'): string {
+  const cleanName = (name || 'User')
+    .replace(/^(นาย|นางสาว|นาง|คุณ|ดร\.|dr\.|mr\.|ms\.|mrs\.)\s*/i, '')
+    .trim();
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=${bg}&color=fff&bold=true`;
 }
 
 /**
@@ -372,26 +394,46 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
 
     const projectIds = rawProjects.map((p) => p.id);
 
-    // 2. Fetch Team Contributions
+    // 2. Fetch Users Map for resolving corporate employee photo (emp_id)
+    const { data: usersData } = await supabase
+      .from('users')
+      .select('id, emp_id, full_name, nickname');
+
+    const userMapById = new Map<string, { emp_id?: string; full_name?: string }>();
+    const userMapByName = new Map<string, string>(); // lowercase name -> emp_id
+
+    (usersData || []).forEach((u) => {
+      if (u.id) {
+        userMapById.set(u.id, { emp_id: u.emp_id || undefined, full_name: u.full_name || undefined });
+      }
+      if (u.full_name && u.emp_id) {
+        userMapByName.set(u.full_name.toLowerCase().trim(), u.emp_id);
+      }
+      if (u.nickname && u.emp_id) {
+        userMapByName.set(u.nickname.toLowerCase().trim(), u.emp_id);
+      }
+    });
+
+    // 3. Fetch Team Contributions
     const { data: teamData } = await supabase
       .from('tb_project_team_contribution')
       .select('*')
       .in('project_id', projectIds);
 
-    // 3. Fetch Milestones
+    // 4. Fetch Milestones
     const { data: milestonesData } = await supabase
       .from('tb_project_milestones')
       .select('*')
       .in('project_id', projectIds)
       .order('sequence_order', { ascending: true });
 
-    // 4. Fetch Cost Savings
+    // 5. Fetch Cost Savings
     const { data: savingsData } = await supabase
       .from('tb_project_cost_savings')
       .select('*')
       .in('project_id', projectIds);
 
-    // 5. Fetch Actual Worklog Hours grouped by project_name and user_id / employee_name
+    // 6. Fetch Actual Worklog Hours grouped by project_name and user_id / employee_name
     const projectNames = rawProjects.map((p) => p.project_name);
     const { data: worklogs } = await supabase
       .from('col_worklog')
@@ -420,7 +462,7 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
       pSummary.userHours.set(userKey, (pSummary.userHours.get(userKey) || 0) + hours);
     });
 
-    // 6. Assemble Full Gantt Projects
+    // 7. Assemble Full Gantt Projects
     const projects: GanttProject[] = rawProjects.map((p) => {
       const pTeam = (teamData || []).filter((t) => t.project_id === p.id);
       const pMilestones = (milestonesData || []).filter((m) => m.project_id === p.id);
@@ -449,11 +491,17 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
           computedActualPercent = parseFloat(((effectiveHours / totalWorklogHours) * 100).toFixed(1));
         }
 
+        const memberEmpId =
+          (tm.user_id ? userMapById.get(tm.user_id)?.emp_id : null) ||
+          (tm.user_name ? userMapByName.get(tm.user_name.toLowerCase().trim()) : null) ||
+          null;
+
         return {
           id: tm.id,
           project_id: tm.project_id,
           user_id: tm.user_id,
           user_name: tm.user_name || 'ทีมงาน',
+          emp_id: memberEmpId,
           role_in_project: tm.role_in_project || 'developer',
           target_contribution_percent: parseFloat(tm.target_contribution_percent || 0),
           manual_actual_hours: tm.manual_actual_hours,
@@ -482,6 +530,11 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
       const projectHealth = calculateProjectHealth(startDate, dueDate, progressPercent, status);
       const totalSavingsAnnual = calculateTotalSavings(pSavings);
 
+      const leadEmpId =
+        (p.head_lead_user_id ? userMapById.get(p.head_lead_user_id)?.emp_id : null) ||
+        (p.head_lead_name ? userMapByName.get(p.head_lead_name.toLowerCase().trim()) : null) ||
+        null;
+
       return {
         id: p.id,
         project_name: p.project_name,
@@ -499,6 +552,7 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
         progress_percent: progressPercent,
         head_lead_user_id: p.head_lead_user_id,
         head_lead_name: p.head_lead_name,
+        head_lead_emp_id: leadEmpId,
         project_health: projectHealth,
         team_contributions: teamContributions,
         milestones: pMilestones,

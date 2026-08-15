@@ -79,6 +79,7 @@ export default function ProjectGanttPage() {
             role,
             users (
               id,
+              emp_id,
               full_name,
               nickname,
               email
@@ -88,7 +89,7 @@ export default function ProjectGanttPage() {
 
         interface RawMemberRecord {
           user_id: string;
-          users?: { id?: string; full_name?: string | null; nickname?: string | null; email?: string | null } | null;
+          users?: { id?: string; emp_id?: string | null; full_name?: string | null; nickname?: string | null; email?: string | null } | null;
         }
 
         if (memData && memData.length > 0) {
@@ -100,27 +101,31 @@ export default function ProjectGanttPage() {
                 id: u.id || m.user_id,
                 name: u.full_name || u.nickname || u.email?.split('@')[0] || 'ผู้ใช้งาน',
                 email: u.email || undefined,
+                emp_id: u.emp_id || undefined,
               };
             })
             .filter(Boolean);
-          setAvailableUsers(usersList as { id: string; name: string; email?: string }[]);
+          setAvailableUsers(usersList as { id: string; name: string; email?: string; emp_id?: string }[]);
           return;
         }
       }
 
       // Fallback if no workspace members found or superadmin
-      const { data } = await supabase.from('users').select('id, full_name, email').limit(200);
+      const { data } = await supabase.from('users').select('id, emp_id, full_name, nickname, email').limit(200);
       if (data) {
         interface RawUserEntry {
           id: string;
+          emp_id?: string | null;
           full_name?: string | null;
+          nickname?: string | null;
           email?: string | null;
         }
         setAvailableUsers(
           (data as RawUserEntry[]).map((u) => ({
             id: u.id,
-            name: u.full_name || u.email?.split('@')[0] || 'ผู้ใช้งาน',
+            name: u.full_name || u.nickname || u.email?.split('@')[0] || 'ผู้ใช้งาน',
             email: u.email || undefined,
+            emp_id: u.emp_id || undefined,
           }))
         );
       }
