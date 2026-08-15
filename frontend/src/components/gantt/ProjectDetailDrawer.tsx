@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   X,
   Save,
@@ -30,6 +30,7 @@ import {
   saveProjectCostSavings,
 } from '../../lib/project-management';
 import { MilestoneEditorModal } from './MilestoneEditorModal';
+import { ConfirmDialogModal } from '../modals/ConfirmDialogModal';
 import { cn } from '../../lib/utils';
 import { useNotification } from '../../context/NotificationContext';
 
@@ -100,6 +101,10 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [editingMilestone, setEditingMilestone] = useState<ProjectMilestone | null>(null);
   const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
 
+  // Confirmation Modals State
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [showVerificationSignoffModal, setShowVerificationSignoffModal] = useState(false);
+
   // Computed Savings Summary
   const computedIndirectAnnual = indirectHours * indirectRate;
   const currentTotalSavings = calculateTotalSavings({
@@ -114,6 +119,38 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
 
   // Team Target % Total Validation
   const totalTargetPercent = teamList.reduce((acc, curr) => acc + (Number(curr.target_contribution_percent) || 0), 0);
+
+  // Detect Unsaved Dirty Changes
+  const isDirty = useMemo(() => {
+    if (startDate !== (project.start_date || '')) return true;
+    if (dueDate !== (project.due_date || '')) return true;
+    if (status !== (project.status || 'in_progress')) return true;
+    if (progress !== (project.progress_percent || 0)) return true;
+    if (ownerTeam !== (project.owner_team || 'IMP')) return true;
+    if (ownerHolding !== (project.owner_holding || '')) return true;
+    if (headLeadId !== (project.head_lead_user_id || '')) return true;
+    if (headLeadName !== (project.head_lead_name || '')) return true;
+    if (JSON.stringify(teamList) !== JSON.stringify(project.team_contributions || [])) return true;
+    if (JSON.stringify(milestonesList) !== JSON.stringify(project.milestones || [])) return true;
+    if (directSavings !== (Number(cs?.direct_savings_annual) || 0)) return true;
+    if (indirectHours !== (Number(cs?.indirect_manhour_saved_annual) || 0)) return true;
+    if (avoidanceSavings !== (Number(cs?.avoidance_savings_annual) || 0)) return true;
+    if (supportSavings !== (Number(cs?.support_savings_annual) || 0)) return true;
+    if (verificationStatus !== (cs?.verification_status || 'draft')) return true;
+    return false;
+  }, [
+    startDate, dueDate, status, progress, ownerTeam, ownerHolding, headLeadId, headLeadName,
+    teamList, milestonesList, directSavings, indirectHours, avoidanceSavings, supportSavings,
+    verificationStatus, project, cs
+  ]);
+
+  const handleRequestClose = () => {
+    if (isDirty) {
+      setShowDiscardModal(true);
+    } else {
+      onClose();
+    }
+  };
 
   // Selectable users that are not already added to the team
   const selectableUsers = availableUsers.filter(
@@ -167,8 +204,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     setMilestonesList(milestonesList.filter((_, idx) => idx !== index));
   };
 
-  // Master Save Handler
-  const handleSaveAll = async () => {
+  // Master Save Execution
+  const executeSaveAll = async () => {
     setIsSaving(true);
     try {
       // 1. Save Project Overview
@@ -221,6 +258,14 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     }
   };
 
+  const handleSaveClick = () => {
+    if (verificationStatus === 'verified' && cs?.verification_status !== 'verified') {
+      setShowVerificationSignoffModal(true);
+    } else {
+      void executeSaveAll();
+    }
+  };
+
   return (
     <>
       <div className="fixed inset-y-0 right-0 z-40 w-full sm:w-[540px] lg:w-[680px] bg-theme-surface/95 dark:bg-theme-bg-page/95 backdrop-blur-2xl border-l border-theme-border/80 shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 text-theme-text select-none">
@@ -244,7 +289,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
             <button
               type="button"
               disabled={isSaving}
-              onClick={handleSaveAll}
+              onClick={handleSaveClick}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-xs shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer select-none"
             >
               {isSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
@@ -252,7 +297,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleRequestClose}
               className="p-2 rounded-2xl hover:bg-theme-surface-secondary text-theme-text-muted hover:text-theme-text transition-colors cursor-pointer"
             >
               <X size={18} />
@@ -1074,7 +1119,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
           <button
             type="button"
             disabled={isSaving}
-            onClick={handleSaveAll}
+            onClick={handleSaveClick}
             className="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer select-none"
           >
             {isSaving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
@@ -1089,6 +1134,33 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
         milestone={editingMilestone}
         onSave={handleSaveMilestone}
         availableUsers={availableUsers}
+      />
+
+      {/* Discard Unsaved Changes Confirmation Modal */}
+      <ConfirmDialogModal
+        isOpen={showDiscardModal}
+        onClose={() => setShowDiscardModal(false)}
+        onConfirm={onClose}
+        title="มีข้อมูลที่ยังไม่ได้บันทึก"
+        message="คุณได้ทำการแก้ไขข้อมูลโครงการนี้ หากปิดตอนนี้ การเปลี่ยนแปลงทั้งหมดจะไม่ถูกบันทึก"
+        description="ต้องการยกเลิกการแก้ไขและปิดหน้าต่างใช่หรือไม่?"
+        confirmText="ละทิ้งการแก้ไข (Discard)"
+        cancelText="แก้ไขต่อ (Keep Editing)"
+        variant="warning"
+      />
+
+      {/* Verification Sign-off Confirmation Modal */}
+      <ConfirmDialogModal
+        isOpen={showVerificationSignoffModal}
+        onClose={() => setShowVerificationSignoffModal(false)}
+        onConfirm={executeSaveAll}
+        title="ยืนยันการรับรองตัวเลขผลประหยัด (Sign-off Verified Savings)"
+        message={`คุณกำลังจะรับรองตัวเลขผลประหยัดต้นทุนรวม ฿${currentTotalSavings.toLocaleString()} / ปี ให้มีสถานะเป็น "Verified (รับรองแล้ว)"`}
+        description="การรับรองนี้จะถูกใช้เป็นหลักฐานทางการเงินและ Audit โปรดตรวจสอบว่ามีสูตรและเอกสารอ้างอิงครบถ้วน"
+        confirmText="ยืนยันการรับรองและบันทึก"
+        cancelText="ตรวจสอบอีกครั้ง"
+        variant="success"
+        isLoading={isSaving}
       />
     </>
   );
