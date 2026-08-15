@@ -34,6 +34,36 @@ import { ConfirmDialogModal } from '../modals/ConfirmDialogModal';
 import { cn } from '../../lib/utils';
 import { useNotification } from '../../context/NotificationContext';
 
+function getInitials(name: string): string {
+  if (!name) return '?';
+  const clean = name.replace(/^(นาย|นางสาว|นาง|คุณ|ดร\.|dr\.|mr\.|ms\.|mrs\.)\s*/i, '').trim();
+  const parts = clean.split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0].slice(0, 1) + parts[1].slice(0, 1)).toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase();
+}
+
+function getAvatarColor(name: string): string {
+  if (!name) return 'bg-slate-600 text-white';
+  const colors = [
+    'bg-indigo-600 text-white',
+    'bg-violet-600 text-white',
+    'bg-emerald-600 text-white',
+    'bg-amber-600 text-white',
+    'bg-cyan-600 text-white',
+    'bg-rose-600 text-white',
+    'bg-teal-600 text-white',
+    'bg-blue-600 text-white',
+    'bg-fuchsia-600 text-white',
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
 interface ProjectDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -704,6 +734,22 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                     ))}
                   </select>
                 </div>
+
+                {headLeadName && (
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <div
+                      className={cn(
+                        'w-6 h-6 rounded-full flex items-center justify-center font-black text-[10px] text-white shadow-xs shrink-0 select-none',
+                        getAvatarColor(headLeadName)
+                      )}
+                    >
+                      {getInitials(headLeadName)}
+                    </div>
+                    <span className="text-xs font-extrabold text-indigo-700 dark:text-indigo-300">
+                      👑 {headLeadName} <span className="text-[10px] font-medium text-theme-text-muted">(หัวหน้าโครงการที่เลือก)</span>
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Total Target Contribution Gauge */}
@@ -802,22 +848,35 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       key={idx}
                       className="p-4 rounded-3xl border border-theme-border bg-theme-surface space-y-3 shadow-xs"
                     >
-                      {/* Top: Name, Role, Delete */}
+                      {/* Top: Avatar, Name, Role, Delete */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-xs text-theme-text">
-                            {tm.user_name}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-theme-surface-secondary text-theme-text border border-theme-border/60">
-                            {TEAM_ROLE_LABELS[tm.role_in_project] || tm.role_in_project}
-                          </span>
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={cn(
+                              'w-8 h-8 rounded-2xl flex items-center justify-center font-black text-xs text-white shadow-xs shrink-0 select-none',
+                              getAvatarColor(tm.user_name)
+                            )}
+                          >
+                            {getInitials(tm.user_name)}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-xs text-theme-text">
+                                {tm.user_name}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-theme-surface-secondary text-theme-text border border-theme-border/60">
+                                {TEAM_ROLE_LABELS[tm.role_in_project] || tm.role_in_project}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleRemoveTeamMember(idx)}
-                          className="p-1 rounded-lg text-theme-text-muted hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-xl text-theme-text-muted hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          title="ลบออกจากทีม"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
 
