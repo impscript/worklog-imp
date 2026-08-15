@@ -250,6 +250,8 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           <option value="on_track">🟢 On Track (ตามแผน)</option>
           <option value="at_risk">🟡 At Risk (เสี่ยงล่าช้า)</option>
           <option value="delayed">🔴 Delayed (เกินกำหนด)</option>
+          <option value="on_hold">⏸️ On Hold (พักโครงการ)</option>
+          <option value="completed">✅ Completed (เสร็จสิ้น)</option>
         </select>
 
         {/* Active Filters Clear */}

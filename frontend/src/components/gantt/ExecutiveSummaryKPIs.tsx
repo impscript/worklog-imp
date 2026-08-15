@@ -8,8 +8,9 @@ interface ExecutiveSummaryKPIsProps {
 
 export const ExecutiveSummaryKPIs: React.FC<ExecutiveSummaryKPIsProps> = ({ projects }) => {
   const totalProjects = projects.length;
-  const activeCount = projects.filter((p) => p.status === 'in_progress' || p.status === 'planning').length;
+  const activeCount = projects.filter((p) => p.status === 'in_progress' || p.status === 'planning' || p.status === 'testing').length;
   const completedCount = projects.filter((p) => p.status === 'completed').length;
+  const onHoldCount = projects.filter((p) => p.status === 'on_hold').length;
   const delayedCount = projects.filter((p) => p.project_health === 'delayed').length;
 
   // Cost Savings Sums
@@ -52,6 +53,14 @@ export const ExecutiveSummaryKPIs: React.FC<ExecutiveSummaryKPIsProps> = ({ proj
             <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
               ✓ สำเร็จ {completedCount}
             </span>
+            {onHoldCount > 0 && (
+              <>
+                <span>·</span>
+                <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                  ⏸️ พัก {onHoldCount}
+                </span>
+              </>
+            )}
             {delayedCount > 0 && (
               <>
                 <span>·</span>

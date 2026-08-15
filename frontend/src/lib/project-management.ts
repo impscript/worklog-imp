@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
-export type ProjectStatus = 'planning' | 'in_progress' | 'testing' | 'completed' | 'on_hold';
-export type ProjectHealth = 'on_track' | 'at_risk' | 'delayed';
+export type ProjectStatus = 'planning' | 'in_progress' | 'testing' | 'completed' | 'on_hold' | 'inactive' | 'sunset' | 'retired';
+export type ProjectHealth = 'on_track' | 'at_risk' | 'delayed' | 'on_hold' | 'completed' | 'planning' | 'archived';
 export type TeamRole = 'lead' | 'developer' | 'qa' | 'uiux' | 'consultant' | 'support' | 'other';
 
 export interface TeamMemberContribution {
@@ -147,6 +147,24 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatus, { label: string; color
     bg: 'bg-slate-500/10 border-slate-500/30 text-slate-700 dark:text-slate-300',
     dot: 'bg-slate-400',
   },
+  inactive: {
+    label: 'Inactive',
+    color: 'text-stone-600 dark:text-stone-400',
+    bg: 'bg-stone-500/10 border-stone-500/30 text-stone-700 dark:text-stone-300',
+    dot: 'bg-stone-400',
+  },
+  sunset: {
+    label: 'Sunset',
+    color: 'text-zinc-600 dark:text-zinc-400',
+    bg: 'bg-zinc-500/10 border-zinc-500/30 text-zinc-700 dark:text-zinc-300',
+    dot: 'bg-zinc-400',
+  },
+  retired: {
+    label: 'Retired',
+    color: 'text-neutral-600 dark:text-neutral-400',
+    bg: 'bg-neutral-500/10 border-neutral-500/30 text-neutral-700 dark:text-neutral-300',
+    dot: 'bg-neutral-400',
+  },
 };
 
 export const PROJECT_HEALTH_LABELS: Record<ProjectHealth, { label: string; badge: string; icon: string }> = {
@@ -165,6 +183,26 @@ export const PROJECT_HEALTH_LABELS: Record<ProjectHealth, { label: string; badge
     badge: 'bg-rose-500/15 border-rose-500/30 text-rose-700 dark:text-rose-300',
     icon: '🔴',
   },
+  on_hold: {
+    label: 'On Hold',
+    badge: 'bg-slate-500/15 border-slate-500/30 text-slate-700 dark:text-slate-300',
+    icon: '⏸️',
+  },
+  completed: {
+    label: 'Completed',
+    badge: 'bg-blue-500/15 border-blue-500/30 text-blue-700 dark:text-blue-300',
+    icon: '✅',
+  },
+  planning: {
+    label: 'Planning',
+    badge: 'bg-purple-500/15 border-purple-500/30 text-purple-700 dark:text-purple-300',
+    icon: '🗓️',
+  },
+  archived: {
+    label: 'Archived',
+    badge: 'bg-stone-500/15 border-stone-500/30 text-stone-700 dark:text-stone-300',
+    icon: '📦',
+  },
 };
 
 export const TEAM_ROLE_LABELS: Record<TeamRole, string> = {
@@ -178,7 +216,7 @@ export const TEAM_ROLE_LABELS: Record<TeamRole, string> = {
 };
 
 /**
- * Calculates Project Health based on Due Date and Progress
+ * Calculates Project Health based on Status, Due Date, and Progress
  */
 export function calculateProjectHealth(
   startDateStr?: string | null,
@@ -186,7 +224,13 @@ export function calculateProjectHealth(
   progressPercent: number = 0,
   status: ProjectStatus = 'in_progress'
 ): ProjectHealth {
-  if (status === 'completed') return 'on_track';
+  // 1. Specific lifecycle statuses override pace
+  if (status === 'on_hold') return 'on_hold';
+  if (status === 'completed') return 'completed';
+  if (status === 'sunset' || status === 'retired' || status === 'inactive') return 'archived';
+  if (status === 'planning') return 'planning';
+
+  // 2. Active execution schedule health check
   if (!dueDateStr) return 'on_track';
 
   const now = new Date();
