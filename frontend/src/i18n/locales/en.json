@@ -64,6 +64,8 @@
     "aiChat": "AI Chat",
     "admin": "Admin",
     "projects": "Projects",
+    "projectTree": "Project Structure",
+    "ganttRoadmap": "Gantt Roadmap",
     "team": "Team",
     "workspaces": "Workspaces",
     "profile": "Profile",

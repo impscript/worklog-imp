@@ -64,6 +64,8 @@
     "aiChat": "AI Chat",
     "admin": "Admin",
     "projects": "โครงการ",
+    "projectTree": "โครงสร้างโครงการ",
+    "ganttRoadmap": "แผนงาน Gantt (Roadmap)",
     "team": "ทีม",
     "workspaces": "Workspaces",
     "profile": "โปรไฟล์",
