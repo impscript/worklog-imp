@@ -32,6 +32,7 @@ export default function ProjectGanttPage() {
   // Filter & Hierarchy State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState<number | 'all'>(new Date().getFullYear());
+  const [selectedProjectType, setSelectedProjectType] = useState<string>('all');
   const [selectedTeam, setSelectedTeam] = useState('all');
   const [selectedHolding, setSelectedHolding] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | 'all'>('all');
@@ -164,6 +165,16 @@ export default function ProjectGanttPage() {
     };
   }, [loadUsers, showToast]);
 
+  
+  // Unique Project Types for filter options
+  const projectTypesList = useMemo(() => {
+    const set = new Set<string>(['Project', 'Support MA', 'Support Go-Live', 'Upgrade', 'Management']);
+    projects.forEach((p) => {
+      if (p.worklog_project_type) set.add(p.worklog_project_type);
+    });
+    return Array.from(set);
+  }, [projects]);
+
   // Unique Holdings & Teams for filter options
   const holdingsList = useMemo(() => {
     const set = new Set<string>();
@@ -195,6 +206,21 @@ export default function ProjectGanttPage() {
 
     const directlyMatchingProjects = projects.filter((p) => {
       if (!isProjectInYear(p, selectedYear)) return false;
+      
+      // Project Type Filter (Unified Mode: Project vs Support)
+      if (selectedProjectType !== 'all') {
+        const pType = (p.worklog_project_type || 'Project').toLowerCase();
+        if (selectedProjectType === 'type_project') {
+          if (pType !== 'project' && pType !== 'upgrade') return false;
+        } else if (selectedProjectType === 'type_support') {
+          if (!pType.includes('support') && !pType.includes('ma')) return false;
+        } else if (selectedProjectType === 'type_management') {
+          if (!pType.includes('manage')) return false;
+        } else {
+          if ((p.worklog_project_type || '') !== selectedProjectType) return false;
+        }
+      }
+
       if (selectedTeam !== 'all' && (p.owner_team || 'IMP') !== selectedTeam) return false;
       if (selectedHolding !== 'all' && (p.owner_holding || '') !== selectedHolding) return false;
       if (selectedStatus !== 'all' && p.status !== selectedStatus) return false;
@@ -328,6 +354,9 @@ export default function ProjectGanttPage() {
           selectedYear={selectedYear}
           onYearChange={setSelectedYear}
           availableYears={availableYears}
+          selectedProjectType={selectedProjectType}
+          onProjectTypeChange={setSelectedProjectType}
+          projectTypesList={projectTypesList}
           selectedTeam={selectedTeam}
           onTeamChange={setSelectedTeam}
           selectedHolding={selectedHolding}

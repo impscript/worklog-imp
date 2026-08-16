@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Save,
@@ -30,11 +30,13 @@ import {
   saveProjectCostSavings,
   getUserAvatarUrl,
   getUiAvatarFallbackUrl,
+  getProjectTypeMeta,
 } from '../../lib/project-management';
 import { MilestoneEditorModal } from './MilestoneEditorModal';
 import { ConfirmDialogModal } from '../modals/ConfirmDialogModal';
 import { cn } from '../../lib/utils';
 import { useNotification } from '../../context/NotificationContext';
+import { supabase } from '../../lib/supabase';
 
 interface ProjectDetailDrawerProps {
   isOpen: boolean;
@@ -68,6 +70,63 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [progress, setProgress] = useState(project.progress_percent || 0);
   const [ownerTeam, setOwnerTeam] = useState(project.owner_team || 'IMP');
   const [ownerHolding, setOwnerHolding] = useState(project.owner_holding || '');
+  const [worklogProjectType, setWorklogProjectType] = useState(project.worklog_project_type || 'Project');
+  const [masterHoldings, setMasterHoldings] = useState<string[]>([]);
+  const [masterProjectTypes, setMasterProjectTypes] = useState<string[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchMasterData = async () => {
+      try {
+        const sessionStr = localStorage.getItem('worklog_session');
+        const session = sessionStr ? JSON.parse(sessionStr) : null;
+        const workspaceId = session?.activeWorkspaceId;
+
+        // Fetch holdings from tb_master_holding
+        let holdingQuery = supabase.from('tb_master_holding').select('holding_name');
+        if (workspaceId) {
+          holdingQuery = holdingQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+        }
+        const { data: hData } = await holdingQuery.order('holding_name');
+        if (isMounted && hData && hData.length > 0) {
+          setMasterHoldings(hData.map((d: any) => d.holding_name).filter(Boolean));
+        }
+
+        // Fetch project types from tb_master_project_type
+        let typeQuery = supabase.from('tb_master_project_type').select('type_name');
+        if (workspaceId) {
+          typeQuery = typeQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+        }
+        const { data: tData } = await typeQuery.order('type_name');
+        if (isMounted && tData && tData.length > 0) {
+          setMasterProjectTypes(tData.map((d: any) => d.type_name).filter(Boolean));
+        }
+      } catch (err) {
+        console.warn('Failed to load master holding or project types in drawer:', err);
+      }
+    };
+    void fetchMasterData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const availableHoldings = useMemo(() => {
+    const defaults = ['Double A', 'Real Estate', 'All Holding', 'Logistic', 'Power', 'NPS', 'IMP', 'IT'];
+    const set = new Set<string>(defaults);
+    masterHoldings.forEach((h) => set.add(h));
+    if (ownerHolding) set.add(ownerHolding);
+    return Array.from(set).sort();
+  }, [masterHoldings, ownerHolding]);
+
+  const availableProjectTypes = useMemo(() => {
+    const defaults = ['Project', 'Support MA', 'Support Go-Live', 'Upgrade', 'Management'];
+    const set = new Set<string>(defaults);
+    masterProjectTypes.forEach((t) => set.add(t));
+    if (worklogProjectType) set.add(worklogProjectType);
+    return Array.from(set).sort();
+  }, [masterProjectTypes, worklogProjectType]);
+
   const [headLeadId, setHeadLeadId] = useState(project.head_lead_user_id || '');
   const [headLeadName, setHeadLeadName] = useState(project.head_lead_name || '');
   const [milestonesList, setMilestonesList] = useState<ProjectMilestone[]>(project.milestones || []);
@@ -130,6 +189,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     if (progress !== (project.progress_percent || 0)) return true;
     if (ownerTeam !== (project.owner_team || 'IMP')) return true;
     if (ownerHolding !== (project.owner_holding || '')) return true;
+    if (worklogProjectType !== (project.worklog_project_type || 'Project')) return true;
     if (headLeadId !== (project.head_lead_user_id || '')) return true;
     if (headLeadName !== (project.head_lead_name || '')) return true;
     if (JSON.stringify(teamList) !== JSON.stringify(project.team_contributions || [])) return true;
@@ -141,7 +201,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     if (verificationStatus !== (cs?.verification_status || 'draft')) return true;
     return false;
   }, [
-    startDate, dueDate, status, progress, ownerTeam, ownerHolding, headLeadId, headLeadName,
+    startDate, dueDate, status, progress, ownerTeam, ownerHolding, worklogProjectType, headLeadId, headLeadName,
     teamList, milestonesList, directSavings, indirectHours, avoidanceSavings, supportSavings,
     verificationStatus, project, cs
   ]);
@@ -348,6 +408,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
         progress_percent: Number(progress),
         owner_team: ownerTeam,
         owner_holding: ownerHolding || null,
+        worklog_project_type: worklogProjectType || null,
         head_lead_user_id: headLeadId || null,
         head_lead_name: headLeadName || null,
       });
@@ -572,15 +633,59 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                   </div>
                   <div className="space-y-1">
                     <label className="block font-bold text-theme-text-muted text-[10px] uppercase">
-                      Holding
+                      Holding (กลุ่มธุรกิจ / บริษัท)
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={ownerHolding}
                       onChange={(e) => setOwnerHolding(e.target.value)}
-                      placeholder="เช่น Double A, Logistic..."
-                      className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500"
-                    />
+                      className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer font-medium"
+                    >
+                      <option value="">-- ไม่ระบุ / None --</option>
+                      {availableHoldings.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block font-bold text-theme-text-muted text-[10px] uppercase">
+                      ประเภทงาน (Project / Support Type)
+                    </label>
+                    <select
+                      value={worklogProjectType}
+                      onChange={(e) => setWorklogProjectType(e.target.value)}
+                      className="w-full py-2 px-3 rounded-xl border border-indigo-500/40 bg-indigo-500/10 text-indigo-800 dark:text-indigo-200 focus:outline-none focus:border-indigo-500 cursor-pointer font-bold"
+                    >
+                      {availableProjectTypes.map((t) => {
+                        const meta = getProjectTypeMeta(t);
+                        return (
+                          <option key={t} value={t}>
+                            {meta.icon} {t}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block font-bold text-theme-text-muted text-[10px] uppercase">
+                      หมวดหมู่การแสดงผล (Visual Category)
+                    </label>
+                    <div className="py-2 px-3 rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text flex items-center gap-1.5 font-bold">
+                      {(() => {
+                        const meta = getProjectTypeMeta(worklogProjectType);
+                        return (
+                          <>
+                            <span>{meta.icon}</span>
+                            <span>{meta.category === 'project' ? 'โครงการพัฒนา (Project)' : meta.category === 'support' ? 'งานดูแลระบบ (Support MA)' : meta.label}</span>
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
               </div>

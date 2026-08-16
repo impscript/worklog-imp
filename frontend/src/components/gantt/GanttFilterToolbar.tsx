@@ -11,6 +11,9 @@ interface GanttFilterToolbarProps {
   selectedYear: number | 'all';
   onYearChange: (year: number | 'all') => void;
   availableYears: number[];
+  selectedProjectType: string;
+  onProjectTypeChange: (type: string) => void;
+  projectTypesList: string[];
   selectedTeam: string;
   onTeamChange: (team: string) => void;
   selectedHolding: string;
@@ -41,6 +44,9 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   selectedYear,
   onYearChange,
   availableYears,
+  selectedProjectType,
+  onProjectTypeChange,
+  projectTypesList,
   selectedTeam,
   onTeamChange,
   selectedHolding,
@@ -187,6 +193,25 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           <Filter size={13} /> ตัวกรอง:
         </span>
 
+        
+        {/* Project Type Filter (Project vs Support) */}
+        <select
+          value={selectedProjectType}
+          onChange={(e) => onProjectTypeChange(e.target.value)}
+          className="text-xs font-bold py-1.5 px-2.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
+          title="กรองประเภทโครงการ / งานดูแลระบบ"
+        >
+          <option value="all">🎯 ทุกประเภทงาน (All Types)</option>
+          <option value="type_project">🚀 โครงการพัฒนา (Project / Upgrade)</option>
+          <option value="type_support">🛠️ งานดูแลระบบ (Support MA / Go-Live)</option>
+          <option value="type_management">📋 บริหารจัดการ (Management)</option>
+          {projectTypesList.map((t) => (
+            <option key={t} value={t}>
+              📌 {t}
+            </option>
+          ))}
+        </select>
+
         {/* Year Filter */}
         <select
           value={String(selectedYear)}
@@ -275,7 +300,8 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
         </select>
 
         {/* Active Filters Clear */}
-        {(selectedYear !== currentYear ||
+        {(selectedProjectType !== 'all' ||
+          selectedYear !== currentYear ||
           selectedTeam !== 'all' ||
           selectedHolding !== 'all' ||
           selectedStatus !== 'all' ||
@@ -285,6 +311,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           <button
             type="button"
             onClick={() => {
+              onProjectTypeChange('all');
               onYearChange(currentYear);
               onTeamChange('all');
               onHoldingChange('all');

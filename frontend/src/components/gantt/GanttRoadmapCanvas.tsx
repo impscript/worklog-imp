@@ -15,6 +15,7 @@ import {
   buildGanttTree,
   getUserAvatarUrl,
   getUiAvatarFallbackUrl,
+  getProjectTypeMeta,
 } from '../../lib/project-management';
 import { cn } from '../../lib/utils';
 import type { GanttZoomLevel } from './GanttFilterToolbar';
@@ -407,6 +408,24 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                             <span>{childCount} โมดูลย่อย</span>
                           </span>
                         )}
+
+                        
+                        {/* Project Type Badge (Project vs Support) */}
+                        {(() => {
+                          const typeMeta = getProjectTypeMeta(p.worklog_project_type);
+                          return (
+                            <span
+                              className={cn(
+                                'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-extrabold border text-[9.5px] select-none',
+                                typeMeta.badge
+                              )}
+                              title={`ประเภทงาน: ${typeMeta.label}`}
+                            >
+                              <span>{typeMeta.icon}</span>
+                              <span>{typeMeta.label}</span>
+                            </span>
+                          );
+                        })()}
 
                         {/* Team / Holding Badges */}
                         <span className="px-1.5 py-0.5 rounded-md font-bold bg-theme-surface-secondary text-theme-text border border-theme-border/60 text-[9.5px]">

@@ -65,6 +65,7 @@ export interface ProjectCostSavings {
 }
 
 export interface GanttProject {
+  worklog_project_type?: string | null;
   id: string;
   project_name: string;
   project_slug?: string;
@@ -116,6 +117,78 @@ export function getUiAvatarFallbackUrl(name?: string | null, bg = '6366f1'): str
 /**
  * Builds a hierarchical parent > child tree from a flat list of Gantt projects
  */
+
+export const PROJECT_TYPE_META: Record<
+  string,
+  { label: string; icon: string; badge: string; category: 'project' | 'support' | 'management' | 'other' }
+> = {
+  Project: {
+    label: 'Project',
+    icon: '🚀',
+    badge: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30',
+    category: 'project',
+  },
+  Upgrade: {
+    label: 'Upgrade',
+    icon: '⚡',
+    badge: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
+    category: 'project',
+  },
+  'Support MA': {
+    label: 'Support MA',
+    icon: '🛠️',
+    badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+    category: 'support',
+  },
+  'Support Go-Live': {
+    label: 'Support Go-Live',
+    icon: '🚀',
+    badge: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+    category: 'support',
+  },
+  Management: {
+    label: 'Management',
+    icon: '📋',
+    badge: 'bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30',
+    category: 'management',
+  },
+};
+
+export function getProjectTypeMeta(type?: string | null) {
+  if (!type) {
+    return {
+      label: 'Project',
+      icon: '🚀',
+      badge: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30',
+      category: 'project' as const,
+    };
+  }
+  if (PROJECT_TYPE_META[type]) return PROJECT_TYPE_META[type];
+  const lower = type.toLowerCase();
+  if (lower.includes('support') || lower.includes('ma') || lower.includes('routine')) {
+    return {
+      label: type,
+      icon: '🛠️',
+      badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+      category: 'support' as const,
+    };
+  }
+  if (lower.includes('manage')) {
+    return {
+      label: type,
+      icon: '📋',
+      badge: 'bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30',
+      category: 'management' as const,
+    };
+  }
+  return {
+    label: type,
+    icon: '🚀',
+    badge: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30',
+    category: 'project' as const,
+  };
+}
+
 export function buildGanttTree(projects: GanttProject[]): GanttProject[] {
   const map = new Map<string, GanttProject>();
   const roots: GanttProject[] = [];
@@ -545,6 +618,7 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
         parent_name: (p.parent && typeof p.parent === 'object' ? p.parent.project_name : null) || null,
         status,
         project_type: p.project_type || 'web_app',
+        worklog_project_type: p.worklog_project_type || null,
         owner_holding: p.owner_holding,
         owner_team: p.owner_team,
         start_date: startDate,
@@ -583,6 +657,7 @@ export async function updateProjectGanttOverview(
     head_lead_name?: string | null;
     owner_team?: string | null;
     owner_holding?: string | null;
+    worklog_project_type?: string | null;
     project_health?: ProjectHealth;
   }
 ) {
@@ -605,6 +680,7 @@ export async function updateProjectGanttOverview(
       if (payload.due_date !== undefined) legacyPayload.go_live_date = payload.due_date;
       if (payload.owner_team !== undefined) legacyPayload.owner_team = payload.owner_team;
       if (payload.owner_holding !== undefined) legacyPayload.owner_holding = payload.owner_holding;
+      if (payload.worklog_project_type !== undefined) legacyPayload.worklog_project_type = payload.worklog_project_type;
 
       const { error: fallbackErr } = await supabase
         .from('tb_project_registry')

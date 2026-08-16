@@ -12,6 +12,14 @@ export const ExecutiveSummaryKPIs: React.FC<ExecutiveSummaryKPIsProps> = ({ proj
   const completedCount = projects.filter((p) => p.status === 'completed').length;
   const onHoldCount = projects.filter((p) => p.status === 'on_hold').length;
   const delayedCount = projects.filter((p) => p.project_health === 'delayed').length;
+  const projectCount = projects.filter((p) => {
+    const t = (p.worklog_project_type || 'Project').toLowerCase();
+    return t === 'project' || t === 'upgrade';
+  }).length;
+  const supportCount = projects.filter((p) => {
+    const t = (p.worklog_project_type || '').toLowerCase();
+    return t.includes('support') || t.includes('ma');
+  }).length;
 
   // Cost Savings Sums
   let totalSavings = 0;
@@ -45,9 +53,16 @@ export const ExecutiveSummaryKPIs: React.FC<ExecutiveSummaryKPIsProps> = ({ proj
           <div className="text-2xl sm:text-3xl font-black text-theme-text tracking-tight">
             {totalProjects} <span className="text-xs font-semibold text-theme-text-muted">โครงการ</span>
           </div>
-          <div className="flex items-center gap-2 mt-2 text-[11px] font-bold">
+          <div className="flex items-center gap-1.5 mt-2 text-[10.5px] font-bold flex-wrap">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+              🚀 Project {projectCount}
+            </span>
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+              🛠️ Support {supportCount}
+            </span>
+            <span className="text-theme-text-muted">·</span>
             <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-              🟢 กำลังทำ {activeCount}
+              🟢 ทำอยู่ {activeCount}
             </span>
             <span>·</span>
             <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
