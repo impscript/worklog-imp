@@ -27,20 +27,32 @@ export default function ProjectGanttPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
-  const [availableUsers, setAvailableUsers] = useState<{ id: string; name: string; email?: string }[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<{ id: string; name: string; email?: string; emp_id?: string }[]>([]);
 
   // Filter & Hierarchy State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState<number | 'all'>(new Date().getFullYear());
-  const [selectedProjectType, setSelectedProjectType] = useState<string>('all');
-  const [selectedTeam, setSelectedTeam] = useState('all');
-  const [selectedHolding, setSelectedHolding] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | 'all'>('all');
-  const [selectedHealth, setSelectedHealth] = useState<ProjectHealth | 'all'>('all');
-  const [selectedUser, setSelectedUser] = useState<string>('all');
+  const [selectedProjectTypes, setSelectedProjectTypes] = useState<string[]>([]);
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  const [selectedHoldings, setSelectedHoldings] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<ProjectStatus[]>([]);
+  const [selectedHealths, setSelectedHealths] = useState<ProjectHealth[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [zoomLevel, setZoomLevel] = useState<GanttZoomLevel>('month');
   const [isTreeView, setIsTreeView] = useState<boolean>(true);
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
+
+  // Reset All Filters Helper
+  const handleResetAllFilters = useCallback(() => {
+    setSearchQuery('');
+    setSelectedYear(new Date().getFullYear());
+    setSelectedProjectTypes([]);
+    setSelectedTeams([]);
+    setSelectedHoldings([]);
+    setSelectedStatuses([]);
+    setSelectedHealths([]);
+    setSelectedUsers([]);
+  }, []);
 
   // Load active workspace name from session
   const [workspaceName, setWorkspaceName] = useState<string>('');
@@ -94,79 +106,57 @@ export default function ProjectGanttPage() {
         }
 
         if (memData && memData.length > 0) {
-          const usersList = (memData as unknown as RawMemberRecord[])
-            .map((m) => {
-              const u = m.users;
-              if (!u) return null;
-              return {
-                id: u.id || m.user_id,
-                name: u.full_name || u.nickname || u.email?.split('@')[0] || 'ผู้ใช้งาน',
-                email: u.email || undefined,
-                emp_id: u.emp_id || undefined,
-              };
-            })
-            .filter(Boolean);
-          setAvailableUsers(usersList as { id: string; name: string; email?: string; emp_id?: string }[]);
+          const list: { id: string; name: string; email?: string; emp_id?: string }[] = [];
+          (memData as unknown as RawMemberRecord[]).forEach((m) => {
+            const u = m.users;
+            if (!u) return;
+            const displayName = u.nickname
+              ? `${u.full_name || ''} (${u.nickname})`.trim()
+              : u.full_name || u.email || 'User';
+            list.push({
+              id: m.user_id,
+              name: displayName,
+              email: u.email || undefined,
+              emp_id: u.emp_id || undefined,
+            });
+          });
+
+          setAvailableUsers(list);
           return;
         }
       }
 
-      // Fallback if no workspace members found or superadmin
-      const { data } = await supabase.from('users').select('id, emp_id, full_name, nickname, email').limit(200);
+      // Fallback: Global users
+      const { data } = await supabase
+        .from('users')
+        .select('id, full_name, nickname, email, emp_id')
+        .order('full_name');
+
       if (data) {
-        interface RawUserEntry {
-          id: string;
-          emp_id?: string | null;
-          full_name?: string | null;
-          nickname?: string | null;
-          email?: string | null;
-        }
-        setAvailableUsers(
-          (data as RawUserEntry[]).map((u) => ({
+        const globalList: { id: string; name: string; email?: string; emp_id?: string }[] = data.map((u: { id: string; full_name?: string | null; nickname?: string | null; email?: string | null; emp_id?: string | null }) => {
+          const displayName = u.nickname
+            ? `${u.full_name || ''} (${u.nickname})`.trim()
+            : u.full_name || u.email || 'User';
+          return {
             id: u.id,
-            name: u.full_name || u.nickname || u.email?.split('@')[0] || 'ผู้ใช้งาน',
+            name: displayName,
             email: u.email || undefined,
             emp_id: u.emp_id || undefined,
-          }))
-        );
+          };
+        });
+        setAvailableUsers(globalList);
       }
     } catch (err) {
-      console.warn('Could not load users list for assignment:', err);
+      console.error('Failed to load users for Gantt:', err);
     }
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    const initData = async () => {
-      try {
-        const [projData] = await Promise.all([
-          fetchGanttProjects(),
-          loadUsers(),
-        ]);
-        if (isMounted) {
-          setProjects(projData);
-          setExpandedProjectIds(new Set());
-          setIsLoading(false);
-        }
-      } catch (err: unknown) {
-        if (isMounted) {
-          const e = err as { message?: string };
-          console.error('Failed to load Gantt projects:', err);
-          showToast(`โหลดข้อมูลไม่สำเร็จ: ${e.message || 'Error'}`, 'error');
-          setIsLoading(false);
-        }
-      }
-    };
+    void loadProjects();
+    void loadUsers();
+  }, [loadProjects, loadUsers]);
 
-    void initData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [loadUsers, showToast]);
-
-  
-  // Unique Project Types for filter options
+  // Unique Project Types
   const projectTypesList = useMemo(() => {
     const set = new Set<string>(['Project', 'Support MA', 'Support Go-Live', 'Upgrade', 'Management']);
     projects.forEach((p) => {
@@ -197,48 +187,64 @@ export default function ProjectGanttPage() {
     return getAvailableProjectYears(projects);
   }, [projects]);
 
-  // Filtered Projects with Date Overlap, Member matching and Tree preservation
+  // Filtered Projects with Multi-Select Filters and Date Overlap
   const filteredProjects = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-
-    const selectedUserObj = selectedUser !== 'all' ? availableUsers.find((u) => u.id === selectedUser) : null;
-    const targetUserName = selectedUserObj?.name.toLowerCase() || '';
 
     const directlyMatchingProjects = projects.filter((p) => {
       if (!isProjectInYear(p, selectedYear)) return false;
       
-      // Project Type Filter (Unified Mode: Project vs Support)
-      if (selectedProjectType !== 'all') {
+      // 1. Multi-Select Project Types Filter
+      if (selectedProjectTypes.length > 0) {
         const pType = (p.worklog_project_type || 'Project').toLowerCase();
-        if (selectedProjectType === 'type_project') {
-          if (pType !== 'project' && pType !== 'upgrade') return false;
-        } else if (selectedProjectType === 'type_support') {
-          if (!pType.includes('support') && !pType.includes('ma')) return false;
-        } else if (selectedProjectType === 'type_management') {
-          if (!pType.includes('manage')) return false;
-        } else {
-          if ((p.worklog_project_type || '') !== selectedProjectType) return false;
-        }
+        const matchesAnyType = selectedProjectTypes.some((selected) => {
+          const sLower = selected.toLowerCase();
+          return pType === sLower || (p.worklog_project_type || '').toLowerCase() === sLower;
+        });
+        if (!matchesAnyType) return false;
       }
 
-      if (selectedTeam !== 'all' && (p.owner_team || 'IMP') !== selectedTeam) return false;
-      if (selectedHolding !== 'all' && (p.owner_holding || '') !== selectedHolding) return false;
-      if (selectedStatus !== 'all' && p.status !== selectedStatus) return false;
-      if (selectedHealth !== 'all' && p.project_health !== selectedHealth) return false;
-
-      // Filter by Member (Lead or Team Contribution)
-      if (selectedUser !== 'all') {
-        const isLead =
-          p.head_lead_user_id === selectedUser ||
-          (targetUserName && (p.head_lead_name || '').toLowerCase().includes(targetUserName));
-        const isTeamMember = p.team_contributions?.some(
-          (tm) =>
-            tm.user_id === selectedUser ||
-            (targetUserName && (tm.user_name || '').toLowerCase().includes(targetUserName))
-        );
-        if (!isLead && !isTeamMember) return false;
+      // 2. Multi-Select Teams Filter
+      if (selectedTeams.length > 0) {
+        const pTeam = p.owner_team || 'IMP';
+        if (!selectedTeams.includes(pTeam)) return false;
       }
 
+      // 3. Multi-Select Holdings Filter
+      if (selectedHoldings.length > 0) {
+        const pHolding = p.owner_holding || '';
+        if (!selectedHoldings.includes(pHolding)) return false;
+      }
+
+      // 4. Multi-Select Status Filter
+      if (selectedStatuses.length > 0) {
+        if (!selectedStatuses.includes(p.status)) return false;
+      }
+
+      // 5. Multi-Select Health Filter
+      if (selectedHealths.length > 0) {
+        if (!selectedHealths.includes(p.project_health)) return false;
+      }
+
+      // 6. Multi-Select Member / User Filter
+      if (selectedUsers.length > 0) {
+        const isUserMatch = selectedUsers.some((uid) => {
+          const uObj = availableUsers.find((u) => u.id === uid);
+          const targetName = uObj?.name.toLowerCase() || '';
+          const isLead =
+            p.head_lead_user_id === uid ||
+            (targetName && (p.head_lead_name || '').toLowerCase().includes(targetName));
+          const isTeamMember = p.team_contributions?.some(
+            (tm) =>
+              tm.user_id === uid ||
+              (targetName && (tm.user_name || '').toLowerCase().includes(targetName))
+          );
+          return isLead || isTeamMember;
+        });
+        if (!isUserMatch) return false;
+      }
+
+      // 7. Search Text Match
       if (!q) return true;
       return (
         p.project_name.toLowerCase().includes(q) ||
@@ -267,11 +273,12 @@ export default function ProjectGanttPage() {
     projects,
     selectedYear,
     searchQuery,
-    selectedTeam,
-    selectedHolding,
-    selectedStatus,
-    selectedHealth,
-    selectedUser,
+    selectedProjectTypes,
+    selectedTeams,
+    selectedHoldings,
+    selectedStatuses,
+    selectedHealths,
+    selectedUsers,
     availableUsers,
     isTreeView,
   ]);
@@ -354,19 +361,19 @@ export default function ProjectGanttPage() {
           selectedYear={selectedYear}
           onYearChange={setSelectedYear}
           availableYears={availableYears}
-          selectedProjectType={selectedProjectType}
-          onProjectTypeChange={setSelectedProjectType}
+          selectedProjectTypes={selectedProjectTypes}
+          onProjectTypesChange={setSelectedProjectTypes}
           projectTypesList={projectTypesList}
-          selectedTeam={selectedTeam}
-          onTeamChange={setSelectedTeam}
-          selectedHolding={selectedHolding}
-          onHoldingChange={setSelectedHolding}
-          selectedStatus={selectedStatus}
-          onStatusChange={setSelectedStatus}
-          selectedHealth={selectedHealth}
-          onHealthChange={setSelectedHealth}
-          selectedUser={selectedUser}
-          onUserChange={setSelectedUser}
+          selectedTeams={selectedTeams}
+          onTeamsChange={setSelectedTeams}
+          selectedHoldings={selectedHoldings}
+          onHoldingsChange={setSelectedHoldings}
+          selectedStatuses={selectedStatuses}
+          onStatusesChange={setSelectedStatuses}
+          selectedHealths={selectedHealths}
+          onHealthsChange={setSelectedHealths}
+          selectedUsers={selectedUsers}
+          onUsersChange={setSelectedUsers}
           usersList={availableUsers}
           zoomLevel={zoomLevel}
           onZoomChange={setZoomLevel}
@@ -378,6 +385,7 @@ export default function ProjectGanttPage() {
           onToggleTreeView={setIsTreeView}
           onExpandAll={handleExpandAll}
           onCollapseAll={handleCollapseAll}
+          onResetAllFilters={handleResetAllFilters}
         />
 
         {/* Main Gantt Roadmap Canvas */}

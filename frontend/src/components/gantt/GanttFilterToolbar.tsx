@@ -1,7 +1,30 @@
 import React from 'react';
-import { Search, Filter, Calendar, RefreshCw, Plus, FolderTree, List, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  Calendar,
+  RefreshCw,
+  Plus,
+  FolderTree,
+  List,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  RotateCcw,
+  X,
+  Layers,
+  Building2,
+  Globe,
+  Activity,
+  HeartPulse,
+  Users,
+} from 'lucide-react';
 import type { ProjectStatus, ProjectHealth } from '../../lib/project-management';
 import { cn } from '../../lib/utils';
+import {
+  MultiSelectFilter,
+  type MultiSelectOption,
+  type MultiSelectPreset,
+} from '../common/MultiSelectFilter';
 
 export type GanttZoomLevel = 'month' | 'quarter' | 'year';
 
@@ -11,19 +34,19 @@ interface GanttFilterToolbarProps {
   selectedYear: number | 'all';
   onYearChange: (year: number | 'all') => void;
   availableYears: number[];
-  selectedProjectType: string;
-  onProjectTypeChange: (type: string) => void;
+  selectedProjectTypes: string[];
+  onProjectTypesChange: (types: string[]) => void;
   projectTypesList: string[];
-  selectedTeam: string;
-  onTeamChange: (team: string) => void;
-  selectedHolding: string;
-  onHoldingChange: (holding: string) => void;
-  selectedStatus: ProjectStatus | 'all';
-  onStatusChange: (status: ProjectStatus | 'all') => void;
-  selectedHealth: ProjectHealth | 'all';
-  onHealthChange: (health: ProjectHealth | 'all') => void;
-  selectedUser: string;
-  onUserChange: (userId: string) => void;
+  selectedTeams: string[];
+  onTeamsChange: (teams: string[]) => void;
+  selectedHoldings: string[];
+  onHoldingsChange: (holdings: string[]) => void;
+  selectedStatuses: ProjectStatus[];
+  onStatusesChange: (statuses: ProjectStatus[]) => void;
+  selectedHealths: ProjectHealth[];
+  onHealthsChange: (healths: ProjectHealth[]) => void;
+  selectedUsers: string[];
+  onUsersChange: (userIds: string[]) => void;
   usersList: { id: string; name: string; email?: string }[];
   zoomLevel: GanttZoomLevel;
   onZoomChange: (zoom: GanttZoomLevel) => void;
@@ -36,6 +59,7 @@ interface GanttFilterToolbarProps {
   onToggleTreeView: (tree: boolean) => void;
   onExpandAll?: () => void;
   onCollapseAll?: () => void;
+  onResetAllFilters: () => void;
 }
 
 export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
@@ -44,19 +68,19 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   selectedYear,
   onYearChange,
   availableYears,
-  selectedProjectType,
-  onProjectTypeChange,
+  selectedProjectTypes,
+  onProjectTypesChange,
   projectTypesList,
-  selectedTeam,
-  onTeamChange,
-  selectedHolding,
-  onHoldingChange,
-  selectedStatus,
-  onStatusChange,
-  selectedHealth,
-  onHealthChange,
-  selectedUser,
-  onUserChange,
+  selectedTeams,
+  onTeamsChange,
+  selectedHoldings,
+  onHoldingsChange,
+  selectedStatuses,
+  onStatusesChange,
+  selectedHealths,
+  onHealthsChange,
+  selectedUsers,
+  onUsersChange,
   usersList,
   zoomLevel,
   onZoomChange,
@@ -69,8 +93,108 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   onToggleTreeView,
   onExpandAll,
   onCollapseAll,
+  onResetAllFilters,
 }) => {
   const currentYear = new Date().getFullYear();
+
+  // Project Types Options & Presets
+  const projectTypeOptions: MultiSelectOption[] = React.useMemo(() => {
+    return projectTypesList.map((t) => ({
+      value: t,
+      label: t,
+      icon: (
+        <span>
+          {t === 'Project' || t === 'Upgrade'
+            ? '🚀'
+            : t.toLowerCase().includes('support')
+            ? '🛠️'
+            : '📋'}
+        </span>
+      ),
+    }));
+  }, [projectTypesList]);
+
+  const projectTypePresets: MultiSelectPreset[] = React.useMemo(
+    () => [
+      {
+        label: 'โครงการพัฒนา',
+        icon: '🚀',
+        values: ['Project', 'Upgrade'].filter((v) => projectTypesList.includes(v)),
+      },
+      {
+        label: 'งานดูแลระบบ',
+        icon: '🛠️',
+        values: ['Support MA', 'Support Go-Live'].filter((v) => projectTypesList.includes(v)),
+      },
+      {
+        label: 'บริหารจัดการ',
+        icon: '📋',
+        values: ['Management'].filter((v) => projectTypesList.includes(v)),
+      },
+    ],
+    [projectTypesList]
+  );
+
+  // Teams Options
+  const teamOptions: MultiSelectOption[] = React.useMemo(() => {
+    return teamsList.map((t) => ({
+      value: t,
+      label: t,
+    }));
+  }, [teamsList]);
+
+  // Holdings Options
+  const holdingOptions: MultiSelectOption[] = React.useMemo(() => {
+    return holdingsList.map((h) => ({
+      value: h,
+      label: h,
+    }));
+  }, [holdingsList]);
+
+  // Status Options
+  const statusOptions: MultiSelectOption[] = React.useMemo(
+    () => [
+      { value: 'planning', label: 'Planning (วางแผน)', icon: '🔵' },
+      { value: 'in_progress', label: 'In Progress (กำลังพัฒนา)', icon: '🟡' },
+      { value: 'testing', label: 'Testing / UAT (ทดสอบ)', icon: '🟣' },
+      { value: 'completed', label: 'Completed (เสร็จสิ้น)', icon: '🟢' },
+      { value: 'on_hold', label: 'On Hold (พักงาน)', icon: '⚪' },
+    ],
+    []
+  );
+
+  // Health Options
+  const healthOptions: MultiSelectOption[] = React.useMemo(
+    () => [
+      { value: 'on_track', label: 'On Track (ตามแผน)', icon: '🟢' },
+      { value: 'at_risk', label: 'At Risk (เสี่ยงล่าช้า)', icon: '🟡' },
+      { value: 'delayed', label: 'Delayed (เกินกำหนด)', icon: '🔴' },
+      { value: 'on_hold', label: 'On Hold (พักโครงการ)', icon: '⏸️' },
+      { value: 'completed', label: 'Completed (เสร็จสิ้น)', icon: '✅' },
+    ],
+    []
+  );
+
+  // Users Options
+  const userOptions: MultiSelectOption[] = React.useMemo(() => {
+    return usersList.map((u) => ({
+      value: u.id,
+      label: u.name,
+      description: u.email,
+      icon: <span>👤</span>,
+    }));
+  }, [usersList]);
+
+  // Check if any filter is active
+  const hasActiveFilters =
+    selectedProjectTypes.length > 0 ||
+    selectedTeams.length > 0 ||
+    selectedHoldings.length > 0 ||
+    selectedStatuses.length > 0 ||
+    selectedHealths.length > 0 ||
+    selectedUsers.length > 0 ||
+    selectedYear !== currentYear ||
+    Boolean(searchQuery.trim());
 
   return (
     <div className="p-4 rounded-3xl border border-theme-border/70 bg-theme-surface/80 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm mb-5 space-y-3.5 select-none">
@@ -187,32 +311,13 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
         </div>
       </div>
 
-      {/* Bottom Row: Filter Dropdowns */}
+      {/* Bottom Row: Multi-Select Filter Popovers */}
       <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-theme-border/40 text-xs">
         <span className="text-[11px] font-bold text-theme-text-muted flex items-center gap-1 pr-1">
           <Filter size={13} /> ตัวกรอง:
         </span>
 
-        
-        {/* Project Type Filter (Project vs Support) */}
-        <select
-          value={selectedProjectType}
-          onChange={(e) => onProjectTypeChange(e.target.value)}
-          className="text-xs font-bold py-1.5 px-2.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
-          title="กรองประเภทโครงการ / งานดูแลระบบ"
-        >
-          <option value="all">🎯 ทุกประเภทงาน (All Types)</option>
-          <option value="type_project">🚀 โครงการพัฒนา (Project / Upgrade)</option>
-          <option value="type_support">🛠️ งานดูแลระบบ (Support MA / Go-Live)</option>
-          <option value="type_management">📋 บริหารจัดการ (Management)</option>
-          {projectTypesList.map((t) => (
-            <option key={t} value={t}>
-              📌 {t}
-            </option>
-          ))}
-        </select>
-
-        {/* Year Filter */}
+        {/* Year Filter (Single select) */}
         <select
           value={String(selectedYear)}
           onChange={(e) => {
@@ -229,103 +334,221 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           ))}
         </select>
 
-        {/* Team Filter */}
-        <select
-          value={selectedTeam}
-          onChange={(e) => onTeamChange(e.target.value)}
-          className="text-xs font-semibold py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer"
-        >
-          <option value="all">🏢 ทุกทีม (All Teams)</option>
-          {teamsList.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+        {/* 1. Multi-Select: Project Types */}
+        <MultiSelectFilter
+          label="ประเภทงาน"
+          defaultAllLabel="🎯 ทุกประเภทงาน"
+          icon={<Layers size={13} />}
+          options={projectTypeOptions}
+          selectedValues={selectedProjectTypes}
+          onChange={onProjectTypesChange}
+          presets={projectTypePresets}
+          searchPlaceholder="ค้นหาประเภทงาน..."
+        />
 
-        {/* Holding Filter */}
-        <select
-          value={selectedHolding}
-          onChange={(e) => onHoldingChange(e.target.value)}
-          className="text-xs font-semibold py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer"
-        >
-          <option value="all">🌐 ทุก Holding</option>
-          {holdingsList.map((h) => (
-            <option key={h} value={h}>
-              {h}
-            </option>
-          ))}
-        </select>
+        {/* 2. Multi-Select: Teams */}
+        <MultiSelectFilter
+          label="ทีม"
+          defaultAllLabel="🏢 ทุกทีม"
+          icon={<Building2 size={13} />}
+          options={teamOptions}
+          selectedValues={selectedTeams}
+          onChange={onTeamsChange}
+          searchPlaceholder="ค้นหาทีม..."
+        />
 
-        {/* Status Filter */}
-        <select
-          value={selectedStatus}
-          onChange={(e) => onStatusChange(e.target.value as ProjectStatus | 'all')}
-          className="text-xs font-semibold py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer"
-        >
-          <option value="all">📊 ทุกสถานะ (All Statuses)</option>
-          <option value="planning">🔵 Planning</option>
-          <option value="in_progress">🟡 In Progress</option>
-          <option value="testing">🟣 Testing / UAT</option>
-          <option value="completed">🟢 Completed</option>
-          <option value="on_hold">⚪ On Hold</option>
-        </select>
+        {/* 3. Multi-Select: Holdings */}
+        <MultiSelectFilter
+          label="Holding"
+          defaultAllLabel="🌐 ทุก Holding"
+          icon={<Globe size={13} />}
+          options={holdingOptions}
+          selectedValues={selectedHoldings}
+          onChange={onHoldingsChange}
+          searchPlaceholder="ค้นหา Holding..."
+        />
 
-        {/* Health Filter */}
-        <select
-          value={selectedHealth}
-          onChange={(e) => onHealthChange(e.target.value as ProjectHealth | 'all')}
-          className="text-xs font-semibold py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer"
-        >
-          <option value="all">❤️ ทุกระดับสุขภาพ</option>
-          <option value="on_track">🟢 On Track (ตามแผน)</option>
-          <option value="at_risk">🟡 At Risk (เสี่ยงล่าช้า)</option>
-          <option value="delayed">🔴 Delayed (เกินกำหนด)</option>
-          <option value="on_hold">⏸️ On Hold (พักโครงการ)</option>
-          <option value="completed">✅ Completed (เสร็จสิ้น)</option>
-        </select>
+        {/* 4. Multi-Select: Status */}
+        <MultiSelectFilter
+          label="สถานะ"
+          defaultAllLabel="📊 ทุกสถานะ"
+          icon={<Activity size={13} />}
+          options={statusOptions}
+          selectedValues={selectedStatuses}
+          onChange={(vals) => onStatusesChange(vals as ProjectStatus[])}
+          searchPlaceholder="ค้นหาสถานะ..."
+        />
 
-        {/* Member / Assignee Filter (Lead or Team Member) */}
-        <select
-          value={selectedUser}
-          onChange={(e) => onUserChange(e.target.value)}
-          className="text-xs font-semibold py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer max-w-[180px] truncate"
-        >
-          <option value="all">👥 สมาชิกทุกคน (All)</option>
-          {usersList.map((u) => (
-            <option key={u.id} value={u.id}>
-              👤 {u.name}
-            </option>
-          ))}
-        </select>
+        {/* 5. Multi-Select: Health */}
+        <MultiSelectFilter
+          label="สุขภาพ"
+          defaultAllLabel="❤️ ทุกระดับสุขภาพ"
+          icon={<HeartPulse size={13} />}
+          options={healthOptions}
+          selectedValues={selectedHealths}
+          onChange={(vals) => onHealthsChange(vals as ProjectHealth[])}
+          searchPlaceholder="ค้นหาระดับสุขภาพ..."
+        />
 
-        {/* Active Filters Clear */}
-        {(selectedProjectType !== 'all' ||
-          selectedYear !== currentYear ||
-          selectedTeam !== 'all' ||
-          selectedHolding !== 'all' ||
-          selectedStatus !== 'all' ||
-          selectedHealth !== 'all' ||
-          selectedUser !== 'all' ||
-          searchQuery.trim()) && (
+        {/* 6. Multi-Select: Users / Assignees */}
+        <MultiSelectFilter
+          label="สมาชิก"
+          defaultAllLabel="👥 สมาชิกทุกคน"
+          icon={<Users size={13} />}
+          options={userOptions}
+          selectedValues={selectedUsers}
+          onChange={onUsersChange}
+          searchPlaceholder="ค้นหาชื่อสมาชิก..."
+          align="right"
+        />
+
+        {/* Reset All Filters Button */}
+        {hasActiveFilters && (
           <button
             type="button"
-            onClick={() => {
-              onProjectTypeChange('all');
-              onYearChange(currentYear);
-              onTeamChange('all');
-              onHoldingChange('all');
-              onStatusChange('all');
-              onHealthChange('all');
-              onUserChange('all');
-              onSearchChange('');
-            }}
-            className="text-[11px] font-bold text-rose-500 hover:underline px-2 cursor-pointer ml-auto"
+            onClick={onResetAllFilters}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 px-2.5 py-1 rounded-xl transition-colors cursor-pointer ml-auto"
+            title="ล้างตัวกรองทั้งหมด"
           >
-            รีเซ็ตตัวกรอง
+            <RotateCcw size={12} />
+            <span>ล้างตัวกรอง</span>
           </button>
         )}
       </div>
+
+      {/* Active Filter Chips / Badges Row */}
+      {hasActiveFilters && (
+        <div className="flex flex-wrap items-center gap-1.5 pt-1.5 text-xs animate-fade-in border-t border-theme-border/20">
+          <span className="text-[10px] font-bold uppercase text-theme-text-muted tracking-wider mr-1">
+            กำลังกรอง:
+          </span>
+
+          {/* Project Types Chips */}
+          {selectedProjectTypes.map((type) => (
+            <span
+              key={`chip-pt-${type}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 shadow-xs"
+            >
+              <span>📌 {type}</span>
+              <button
+                type="button"
+                onClick={() => onProjectTypesChange(selectedProjectTypes.filter((t) => t !== type))}
+                className="hover:bg-indigo-500/30 rounded-full p-0.5 transition-colors cursor-pointer"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+
+          {/* Teams Chips */}
+          {selectedTeams.map((team) => (
+            <span
+              key={`chip-team-${team}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/30 shadow-xs"
+            >
+              <span>🏢 {team}</span>
+              <button
+                type="button"
+                onClick={() => onTeamsChange(selectedTeams.filter((t) => t !== team))}
+                className="hover:bg-violet-500/30 rounded-full p-0.5 transition-colors cursor-pointer"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+
+          {/* Holdings Chips */}
+          {selectedHoldings.map((h) => (
+            <span
+              key={`chip-h-${h}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 shadow-xs"
+            >
+              <span>🌐 {h}</span>
+              <button
+                type="button"
+                onClick={() => onHoldingsChange(selectedHoldings.filter((item) => item !== h))}
+                className="hover:bg-blue-500/30 rounded-full p-0.5 transition-colors cursor-pointer"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+
+          {/* Status Chips */}
+          {selectedStatuses.map((st) => (
+            <span
+              key={`chip-st-${st}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-xs"
+            >
+              <span>
+                {st === 'planning'
+                  ? '🔵 Planning'
+                  : st === 'in_progress'
+                  ? '🟡 In Progress'
+                  : st === 'testing'
+                  ? '🟣 Testing'
+                  : st === 'completed'
+                  ? '🟢 Completed'
+                  : '⚪ On Hold'}
+              </span>
+              <button
+                type="button"
+                onClick={() => onStatusesChange(selectedStatuses.filter((item) => item !== st))}
+                className="hover:bg-amber-500/30 rounded-full p-0.5 transition-colors cursor-pointer"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+
+          {/* Health Chips */}
+          {selectedHealths.map((he) => (
+            <span
+              key={`chip-he-${he}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shadow-xs"
+            >
+              <span>
+                {he === 'on_track'
+                  ? '🟢 On Track'
+                  : he === 'at_risk'
+                  ? '🟡 At Risk'
+                  : he === 'delayed'
+                  ? '🔴 Delayed'
+                  : he === 'on_hold'
+                  ? '⏸️ On Hold'
+                  : '✅ Completed'}
+              </span>
+              <button
+                type="button"
+                onClick={() => onHealthsChange(selectedHealths.filter((item) => item !== he))}
+                className="hover:bg-emerald-500/30 rounded-full p-0.5 transition-colors cursor-pointer"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+
+          {/* Users Chips */}
+          {selectedUsers.map((uid) => {
+            const u = usersList.find((item) => item.id === uid);
+            return (
+              <span
+                key={`chip-u-${uid}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-pink-500/15 text-pink-700 dark:text-pink-300 border border-pink-500/30 shadow-xs"
+              >
+                <span>👤 {u?.name || uid}</span>
+                <button
+                  type="button"
+                  onClick={() => onUsersChange(selectedUsers.filter((item) => item !== uid))}
+                  className="hover:bg-pink-500/30 rounded-full p-0.5 transition-colors cursor-pointer"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
