@@ -118,7 +118,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
   }, [selectedValues, options]);
 
   return (
-    <div className={cn('relative inline-block text-left', className)} ref={containerRef}>
+    <div className={cn('relative inline-block text-left', isOpen ? 'z-50' : 'z-10', className)} ref={containerRef}>
       {/* Trigger Button */}
       <button
         type="button"

@@ -199,7 +199,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
     Boolean(searchQuery.trim());
 
   return (
-    <div className="p-4 rounded-3xl border border-theme-border/70 bg-theme-surface/80 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm mb-5 space-y-3.5 select-none">
+    <div className="relative z-30 p-4 rounded-3xl border border-theme-border/70 bg-theme-surface/80 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm mb-5 space-y-3.5 select-none">
       {/* Top Row: Search + View Hierarchy Toggle + Zoom Pills + Action Buttons */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
         {/* Search Bar */}
