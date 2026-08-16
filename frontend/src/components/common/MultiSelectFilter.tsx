@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Check, ChevronDown, X, Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/utils';
 
 export interface MultiSelectOption {
@@ -37,10 +38,11 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
   selectedValues,
   onChange,
   presets,
-  searchPlaceholder = 'ค้นหาตัวเลือก...',
+  searchPlaceholder,
   className,
   align = 'left',
 }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -127,16 +129,16 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
             ? 'bg-indigo-50/90 dark:bg-indigo-500/15 border-indigo-500/40 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20'
             : 'border-theme-border bg-theme-surface text-theme-text hover:bg-theme-surface-secondary hover:border-theme-border/80'
         )}
-        title={selectedValues.length > 0 ? `${label} (${selectedValues.length} รายการ)` : label}
+        title={selectedValues.length > 0 ? `${label} (${selectedValues.length})` : label}
       >
         {icon && <span className="shrink-0 text-theme-text-muted">{icon}</span>}
         
         <span className="truncate max-w-[150px]">
           {selectedValues.length === 0
-            ? defaultAllLabel || `ทุก${label}`
+            ? defaultAllLabel || label
             : selectedValues.length === 1
             ? singleSelectedLabel
-            : `${label}`}
+            : label}
         </span>
 
         {selectedValues.length > 1 && (
@@ -186,7 +188,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
                     : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10'
                 )}
               >
-                เลือกทั้งหมด
+                {t('gantt.filters.selectAll')}
               </button>
 
               <button
@@ -200,7 +202,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
                     : 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10'
                 )}
               >
-                ล้าง
+                {t('gantt.filters.clear')}
               </button>
             </div>
           </div>
@@ -243,7 +245,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={searchPlaceholder}
+                placeholder={searchPlaceholder || t('gantt.filters.searchOption')}
                 className="w-full text-xs py-1.5 pl-7 pr-6 rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500"
               />
               {search && (
@@ -262,7 +264,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
           <div className="max-h-[220px] overflow-y-auto space-y-0.5 pr-0.5 custom-scrollbar">
             {filteredOptions.length === 0 ? (
               <div className="py-4 text-center text-xs text-theme-text-muted">
-                ไม่พบตัวเลือกที่ค้นหา
+                {t('gantt.filters.noOptionsFound')}
               </div>
             ) : (
               filteredOptions.map((option) => {
@@ -328,15 +330,15 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
           <div className="pt-1.5 border-t border-theme-border/60 flex items-center justify-between">
             <span className="text-[10.5px] text-theme-text-muted">
               {selectedValues.length === 0
-                ? 'เลือกทั้งหมดเป็นค่าเริ่มต้น'
-                : `เลือกแล้ว ${selectedValues.length} รายการ`}
+                ? t('gantt.filters.defaultAll')
+                : t('gantt.filters.selectedCount', { count: selectedValues.length })}
             </span>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
               className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer"
             >
-              เสร็จสิ้น
+              {t('gantt.filters.done')}
             </button>
           </div>
         </div>

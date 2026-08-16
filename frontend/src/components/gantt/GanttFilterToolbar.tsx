@@ -18,6 +18,7 @@ import {
   HeartPulse,
   Users,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ProjectStatus, ProjectHealth } from '../../lib/project-management';
 import { cn } from '../../lib/utils';
 import {
@@ -95,18 +96,19 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   onCollapseAll,
   onResetAllFilters,
 }) => {
+  const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
 
   // Project Types Options & Presets
   const projectTypeOptions: MultiSelectOption[] = React.useMemo(() => {
-    return projectTypesList.map((t) => ({
-      value: t,
-      label: t,
+    return projectTypesList.map((type) => ({
+      value: type,
+      label: type,
       icon: (
         <span>
-          {t === 'Project' || t === 'Upgrade'
+          {type === 'Project' || type === 'Upgrade'
             ? '🚀'
-            : t.toLowerCase().includes('support')
+            : type.toLowerCase().includes('support')
             ? '🛠️'
             : '📋'}
         </span>
@@ -117,29 +119,29 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   const projectTypePresets: MultiSelectPreset[] = React.useMemo(
     () => [
       {
-        label: 'โครงการพัฒนา',
+        label: t('gantt.filters.presetDev'),
         icon: '🚀',
         values: ['Project', 'Upgrade'].filter((v) => projectTypesList.includes(v)),
       },
       {
-        label: 'งานดูแลระบบ',
+        label: t('gantt.filters.presetSupport'),
         icon: '🛠️',
         values: ['Support MA', 'Support Go-Live'].filter((v) => projectTypesList.includes(v)),
       },
       {
-        label: 'บริหารจัดการ',
+        label: t('gantt.filters.presetMgmt'),
         icon: '📋',
         values: ['Management'].filter((v) => projectTypesList.includes(v)),
       },
     ],
-    [projectTypesList]
+    [projectTypesList, t]
   );
 
   // Teams Options
   const teamOptions: MultiSelectOption[] = React.useMemo(() => {
-    return teamsList.map((t) => ({
-      value: t,
-      label: t,
+    return teamsList.map((team) => ({
+      value: team,
+      label: team,
     }));
   }, [teamsList]);
 
@@ -154,11 +156,11 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   // Status Options
   const statusOptions: MultiSelectOption[] = React.useMemo(
     () => [
-      { value: 'planning', label: 'Planning (วางแผน)', icon: '🔵' },
-      { value: 'in_progress', label: 'In Progress (กำลังพัฒนา)', icon: '🟡' },
-      { value: 'testing', label: 'Testing / UAT (ทดสอบ)', icon: '🟣' },
-      { value: 'completed', label: 'Completed (เสร็จสิ้น)', icon: '🟢' },
-      { value: 'on_hold', label: 'On Hold (พักงาน)', icon: '⚪' },
+      { value: 'planning', label: 'Planning', icon: '🔵' },
+      { value: 'in_progress', label: 'In Progress', icon: '🟡' },
+      { value: 'testing', label: 'Testing / UAT', icon: '🟣' },
+      { value: 'completed', label: 'Completed', icon: '🟢' },
+      { value: 'on_hold', label: 'On Hold', icon: '⚪' },
     ],
     []
   );
@@ -166,11 +168,11 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   // Health Options
   const healthOptions: MultiSelectOption[] = React.useMemo(
     () => [
-      { value: 'on_track', label: 'On Track (ตามแผน)', icon: '🟢' },
-      { value: 'at_risk', label: 'At Risk (เสี่ยงล่าช้า)', icon: '🟡' },
-      { value: 'delayed', label: 'Delayed (เกินกำหนด)', icon: '🔴' },
-      { value: 'on_hold', label: 'On Hold (พักโครงการ)', icon: '⏸️' },
-      { value: 'completed', label: 'Completed (เสร็จสิ้น)', icon: '✅' },
+      { value: 'on_track', label: 'On Track', icon: '🟢' },
+      { value: 'at_risk', label: 'At Risk', icon: '🟡' },
+      { value: 'delayed', label: 'Delayed', icon: '🔴' },
+      { value: 'on_hold', label: 'On Hold', icon: '⏸️' },
+      { value: 'completed', label: 'Completed', icon: '✅' },
     ],
     []
   );
@@ -207,7 +209,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="ค้นหาชื่อโครงการ, หัวหน้าทีม, หรือรายละเอียด..."
+            placeholder={t('gantt.filters.searchPlaceholder')}
             className="w-full text-xs sm:text-sm py-2 pl-9 pr-3 rounded-2xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
           />
         </div>
@@ -223,10 +225,10 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-theme-text-muted hover:text-theme-text'
             )}
-            title="จัดกลุ่มโครงการหลัก > โมดูลย่อย (Parent-Child Tree)"
+            title={t('gantt.filters.viewTree')}
           >
             <FolderTree size={13} />
-            <span>ลำดับชั้น (แม่-ลูก)</span>
+            <span>{t('gantt.filters.viewTree')}</span>
           </button>
           <button
             type="button"
@@ -237,17 +239,17 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-theme-text-muted hover:text-theme-text'
             )}
-            title="แสดงรายการโครงการทั้งหมดแบบ Flat List"
+            title={t('gantt.filters.viewFlat')}
           >
             <List size={13} />
-            <span>ทั้งหมด (Flat)</span>
+            <span>{t('gantt.filters.viewFlat')}</span>
           </button>
         </div>
 
         {/* Zoom Controls (Month / Quarter / Year) */}
         <div className="flex items-center gap-1.5 bg-theme-surface-secondary/70 p-1 rounded-2xl border border-theme-border/60 shrink-0 self-start sm:self-auto">
           <span className="text-[10px] font-bold text-theme-text-muted px-2 flex items-center gap-1">
-            <Calendar size={12} /> ซูม:
+            <Calendar size={12} /> {t('gantt.filters.zoom')}
           </span>
           {(['month', 'quarter', 'year'] as const).map((z) => (
             <button
@@ -261,7 +263,11 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
                   : 'text-theme-text-muted hover:text-theme-text'
               )}
             >
-              {z === 'month' ? 'เดือน' : z === 'quarter' ? 'ไตรมาส' : 'ปี'}
+              {z === 'month'
+                ? t('gantt.filters.month')
+                : z === 'quarter'
+                ? t('gantt.filters.quarter')
+                : t('gantt.filters.year')}
             </button>
           ))}
         </div>
@@ -274,7 +280,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
                 type="button"
                 onClick={onExpandAll}
                 className="p-1.5 rounded-xl hover:bg-theme-surface text-theme-text-muted hover:text-indigo-600 transition-colors cursor-pointer"
-                title="กางโมดูลย่อยทั้งหมด (Expand All)"
+                title={t('gantt.filters.expandAll')}
               >
                 <ChevronsUpDown size={14} />
               </button>
@@ -282,7 +288,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
                 type="button"
                 onClick={onCollapseAll}
                 className="p-1.5 rounded-xl hover:bg-theme-surface text-theme-text-muted hover:text-indigo-600 transition-colors cursor-pointer"
-                title="หุบโมดูลย่อยทั้งหมด (Collapse All)"
+                title={t('gantt.filters.collapseAll')}
               >
                 <ChevronsDownUp size={14} />
               </button>
@@ -293,7 +299,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
             type="button"
             onClick={onRefresh}
             className="p-2 rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text-muted hover:text-theme-text transition-all cursor-pointer"
-            title="รีเฟรชข้อมูล"
+            title={t('gantt.filters.refresh')}
           >
             <RefreshCw size={15} className={cn(isLoading && 'animate-spin text-indigo-500')} />
           </button>
@@ -305,7 +311,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
             >
               <Plus size={15} />
-              <span>สร้างโครงการใหม่</span>
+              <span>{t('gantt.filters.createProject')}</span>
             </button>
           )}
         </div>
@@ -314,7 +320,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
       {/* Bottom Row: Multi-Select Filter Popovers */}
       <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-theme-border/40 text-xs">
         <span className="text-[11px] font-bold text-theme-text-muted flex items-center gap-1 pr-1">
-          <Filter size={13} /> ตัวกรอง:
+          <Filter size={13} /> {t('gantt.filters.filterLabel')}
         </span>
 
         {/* Year Filter (Single select) */}
@@ -326,79 +332,73 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           }}
           className="text-xs font-bold py-1.5 px-2.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
         >
-          <option value="all">🌐 ทุกช่วงปี (All Years)</option>
+          <option value="all">🌐 {t('gantt.filters.allYears')}</option>
           {availableYears.map((y) => (
             <option key={y} value={String(y)}>
-              📅 ปี {y} {y === currentYear ? '(ปีปัจจุบัน)' : y > currentYear ? '(แผนล่วงหน้า)' : '(ย้อนหลัง)'}
+              📅 {t('gantt.filters.yearLabel')} {y} {y === currentYear ? t('gantt.filters.currentYear') : y > currentYear ? t('gantt.filters.futureYear') : t('gantt.filters.pastYear')}
             </option>
           ))}
         </select>
 
         {/* 1. Multi-Select: Project Types */}
         <MultiSelectFilter
-          label="ประเภทงาน"
-          defaultAllLabel="🎯 ทุกประเภทงาน"
+          label={t('gantt.filters.projectType')}
+          defaultAllLabel={`🎯 ${t('gantt.filters.allProjectTypes')}`}
           icon={<Layers size={13} />}
           options={projectTypeOptions}
           selectedValues={selectedProjectTypes}
           onChange={onProjectTypesChange}
           presets={projectTypePresets}
-          searchPlaceholder="ค้นหาประเภทงาน..."
         />
 
         {/* 2. Multi-Select: Teams */}
         <MultiSelectFilter
-          label="ทีม"
-          defaultAllLabel="🏢 ทุกทีม"
+          label={t('gantt.filters.team')}
+          defaultAllLabel={`🏢 ${t('gantt.filters.allTeams')}`}
           icon={<Building2 size={13} />}
           options={teamOptions}
           selectedValues={selectedTeams}
           onChange={onTeamsChange}
-          searchPlaceholder="ค้นหาทีม..."
         />
 
         {/* 3. Multi-Select: Holdings */}
         <MultiSelectFilter
-          label="Holding"
-          defaultAllLabel="🌐 ทุก Holding"
+          label={t('gantt.filters.holding')}
+          defaultAllLabel={`🌐 ${t('gantt.filters.allHoldings')}`}
           icon={<Globe size={13} />}
           options={holdingOptions}
           selectedValues={selectedHoldings}
           onChange={onHoldingsChange}
-          searchPlaceholder="ค้นหา Holding..."
         />
 
         {/* 4. Multi-Select: Status */}
         <MultiSelectFilter
-          label="สถานะ"
-          defaultAllLabel="📊 ทุกสถานะ"
+          label={t('gantt.filters.status')}
+          defaultAllLabel={`📊 ${t('gantt.filters.allStatuses')}`}
           icon={<Activity size={13} />}
           options={statusOptions}
           selectedValues={selectedStatuses}
           onChange={(vals) => onStatusesChange(vals as ProjectStatus[])}
-          searchPlaceholder="ค้นหาสถานะ..."
         />
 
         {/* 5. Multi-Select: Health */}
         <MultiSelectFilter
-          label="สุขภาพ"
-          defaultAllLabel="❤️ ทุกระดับสุขภาพ"
+          label={t('gantt.filters.health')}
+          defaultAllLabel={`❤️ ${t('gantt.filters.allHealths')}`}
           icon={<HeartPulse size={13} />}
           options={healthOptions}
           selectedValues={selectedHealths}
           onChange={(vals) => onHealthsChange(vals as ProjectHealth[])}
-          searchPlaceholder="ค้นหาระดับสุขภาพ..."
         />
 
         {/* 6. Multi-Select: Users / Assignees */}
         <MultiSelectFilter
-          label="สมาชิก"
-          defaultAllLabel="👥 สมาชิกทุกคน"
+          label={t('gantt.filters.member')}
+          defaultAllLabel={`👥 ${t('gantt.filters.allMembers')}`}
           icon={<Users size={13} />}
           options={userOptions}
           selectedValues={selectedUsers}
           onChange={onUsersChange}
-          searchPlaceholder="ค้นหาชื่อสมาชิก..."
           align="right"
         />
 
@@ -408,10 +408,10 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
             type="button"
             onClick={onResetAllFilters}
             className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 px-2.5 py-1 rounded-xl transition-colors cursor-pointer ml-auto"
-            title="ล้างตัวกรองทั้งหมด"
+            title={t('gantt.filters.resetAll')}
           >
             <RotateCcw size={12} />
-            <span>ล้างตัวกรอง</span>
+            <span>{t('gantt.filters.resetAll')}</span>
           </button>
         )}
       </div>
@@ -420,7 +420,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
       {hasActiveFilters && (
         <div className="flex flex-wrap items-center gap-1.5 pt-1.5 text-xs animate-fade-in border-t border-theme-border/20">
           <span className="text-[10px] font-bold uppercase text-theme-text-muted tracking-wider mr-1">
-            กำลังกรอง:
+            {t('gantt.filters.filteringBy')}
           </span>
 
           {/* Project Types Chips */}

@@ -8,6 +8,7 @@ import {
   FolderTree,
   Layers,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { GanttProject, ProjectStatus } from '../../lib/project-management';
 import {
   PROJECT_HEALTH_LABELS,
@@ -56,6 +57,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
   onSelectProject,
   selectedProjectId,
 }) => {
+  const { t, i18n } = useTranslation();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Compute overall timeline bounds across all projects or anchor to selected year
@@ -92,6 +94,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
 
     // Generate columns based on zoom level
     const columns: TimelineSpan['columns'] = [];
+    const locale = i18n.language === 'en' ? 'en-US' : 'th-TH';
 
     if (zoomLevel === 'month') {
       const cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
@@ -99,7 +102,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
         const colStart = new Date(cur);
         const colEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 0);
         const days = Math.round((colEnd.getTime() - colStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        const monthName = colStart.toLocaleDateString('th-TH', { month: 'short', year: '2-digit' });
+        const monthName = colStart.toLocaleDateString(locale, { month: 'short', year: '2-digit' });
         columns.push({ label: monthName, startDate: colStart, endDate: colEnd, days });
         cur.setMonth(cur.getMonth() + 1);
       }
@@ -133,7 +136,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
     }
 
     return { startDate, endDate, totalDays, columns };
-  }, [projects, zoomLevel, selectedYear]);
+  }, [projects, zoomLevel, selectedYear, i18n.language]);
 
   // Today position in %
   const todayPositionPercent = useMemo(() => {
@@ -225,9 +228,9 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
     return (
       <div className="p-12 text-center rounded-3xl border border-dashed border-theme-border/80 bg-theme-surface/40 text-theme-text-muted space-y-3">
         <FolderOpen size={36} className="mx-auto opacity-30 text-indigo-500" />
-        <h3 className="font-bold text-sm text-theme-text">ไม่พบโครงการตามเงื่อนไขที่เลือก</h3>
+        <h3 className="font-bold text-sm text-theme-text">{t('gantt.canvas.noProjects')}</h3>
         <p className="text-xs max-w-sm mx-auto">
-          ลองปรับตัวกรองทีม Holding หรือค้นหาด้วยคำค้นอื่น เพื่อแสดงแผนภูมิแกนต์
+          {t('gantt.canvas.noProjectsDesc')}
         </p>
       </div>
     );
@@ -247,9 +250,9 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
             <div className="w-80 sm:w-96 px-4 py-3 border-r border-theme-border/80 shrink-0 sticky left-0 z-30 bg-theme-surface-secondary/90 backdrop-blur-md flex items-center justify-between shadow-xs">
               <span className="flex items-center gap-1.5 uppercase tracking-wider text-[11px] text-theme-text-muted font-black">
                 <FolderTree size={14} className="text-indigo-500" />
-                {isTreeView ? 'โครงสร้างโครงการ (Parent > Child)' : 'โครงการ / หัวหน้าทีม / สุขภาพ'}
+                {isTreeView ? t('gantt.canvas.projectAndModules') : t('gantt.canvas.timeline')}
               </span>
-              <span className="text-[10px] text-theme-text-muted">({renderableRows.length} รายการ)</span>
+              <span className="text-[10px] text-theme-text-muted">({renderableRows.length})</span>
             </div>
 
             {/* Timeline Scale Headers */}
@@ -280,7 +283,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                 }}
               >
                 <div className="bg-rose-500 text-white font-bold text-[9px] px-1.5 py-0.5 rounded-full shadow-md shrink-0 -translate-x-1/2">
-                  วันนี้
+                  {t('gantt.canvas.today')}
                 </div>
                 <div className="w-[1.5px] flex-1 bg-rose-500/80 border-r border-dashed border-rose-500/60 shadow-xs" />
               </div>
@@ -368,7 +371,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                       {p.head_lead_name ? (
                         <div
                           className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-theme-text select-none cursor-default"
-                          title={`👑 หัวหน้าโครงการ (Lead): ${p.head_lead_name}`}
+                          title={`${t('gantt.canvas.lead')}: ${p.head_lead_name}`}
                         >
                           <div className="w-4.5 h-4.5 rounded-full overflow-hidden ring-1 ring-amber-400/80 shadow-xs shrink-0 bg-slate-200 dark:bg-slate-700">
                             <img
@@ -387,10 +390,10 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                       ) : (
                         <div
                           className="text-[9px] font-medium text-theme-text-muted/50 shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-dashed border-theme-border/50 select-none"
-                          title="ยังไม่ได้กำหนดหัวหน้าโครงการ"
+                          title={t('gantt.canvas.unassigned')}
                         >
                           <User size={9} />
-                          <span>ยังไม่ระบุ Lead</span>
+                          <span>{t('gantt.canvas.unassigned')}</span>
                         </div>
                       )}
                     </div>
@@ -405,11 +408,10 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                         {hasChildren && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 text-[9.5px]">
                             <Layers size={10} />
-                            <span>{childCount} โมดูลย่อย</span>
+                            <span>{childCount}</span>
                           </span>
                         )}
 
-                        
                         {/* Project Type Badge (Project vs Support) */}
                         {(() => {
                           const typeMeta = getProjectTypeMeta(p.worklog_project_type);
@@ -419,7 +421,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                                 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-extrabold border text-[9.5px] select-none',
                                 typeMeta.badge
                               )}
-                              title={`ประเภทงาน: ${typeMeta.label}`}
+                              title={`${t('gantt.filters.projectType')}: ${typeMeta.label}`}
                             >
                               <span>{typeMeta.icon}</span>
                               <span>{typeMeta.label}</span>
@@ -453,7 +455,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                       {p.team_contributions.length > 0 ? (
                         <div
                           className="flex items-center -space-x-1.5 shrink-0 pl-1 select-none"
-                          title={`ทีมงาน (${p.team_contributions.length} คน):\n${p.team_contributions.map(t => `${t.user_name} (${t.target_contribution_percent}%)`).join('\n')}`}
+                          title={`${t('gantt.drawer.tabTeam')} (${p.team_contributions.length}):\n${p.team_contributions.map(item => `${item.user_name} (${item.target_contribution_percent}%)`).join('\n')}`}
                         >
                           {p.team_contributions.slice(0, 3).map((tm, tIdx) => (
                             <div
@@ -474,7 +476,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                           {p.team_contributions.length > 3 && (
                             <div
                               className="w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center font-bold text-[8px] ring-1.5 ring-theme-surface dark:ring-theme-bg-page shadow-xs shrink-0 cursor-default"
-                              title={`และสมาชิกอีก ${p.team_contributions.length - 3} คน`}
+                              title={`+${p.team_contributions.length - 3}`}
                             >
                               +{p.team_contributions.length - 3}
                             </div>
@@ -482,7 +484,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                         </div>
                       ) : (
                         <div className="text-[9px] text-theme-text-muted/50 shrink-0">
-                          ยังไม่มีทีม
+                          {t('gantt.canvas.unassigned')}
                         </div>
                       )}
                     </div>
@@ -554,7 +556,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                         {p.total_savings_annual > 0 && (
                           <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-950/40 text-emerald-200 border border-emerald-400/40 text-[9px] font-mono shrink-0">
                             <DollarSign size={10} />
-                            <span>{(p.total_savings_annual / 1000).toFixed(0)}k/ปี</span>
+                            <span>{(p.total_savings_annual / 1000).toFixed(0)}k/{t('gantt.filters.year')}</span>
                           </span>
                         )}
                       </div>

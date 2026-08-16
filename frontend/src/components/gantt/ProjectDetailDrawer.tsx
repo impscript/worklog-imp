@@ -36,6 +36,7 @@ import { MilestoneEditorModal } from './MilestoneEditorModal';
 import { ConfirmDialogModal } from '../modals/ConfirmDialogModal';
 import { cn } from '../../lib/utils';
 import { useNotification } from '../../context/NotificationContext';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 
 interface ProjectDetailDrawerProps {
@@ -59,6 +60,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   onProjectUpdated,
   availableUsers,
 }) => {
+  const { t } = useTranslation();
   const { showToast } = useNotification();
   const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'savings'>('overview');
   const [isSaving, setIsSaving] = useState(false);
@@ -439,13 +441,13 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
         verification_status: verificationStatus,
       });
 
-      showToast('บันทึกข้อมูลโครงการสำเร็จเรียบร้อย! 🎉', 'success');
+      showToast(t('gantt.drawer.saveSuccess'), 'success');
       onProjectUpdated();
       onClose();
     } catch (err: unknown) {
       const e = err as { message?: string };
       console.error('Failed to update project:', err);
-      showToast(`บันทึกไม่สำเร็จ: ${e.message || 'เกิดข้อผิดพลาด'}`, 'error');
+      showToast(`${t('gantt.drawer.saveError')}${e.message || 'Error'}`, 'error');
     } finally {
       setIsSaving(false);
     }
@@ -486,7 +488,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-xs shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer select-none"
             >
               {isSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-              <span>บันทึก</span>
+              <span>{isSaving ? t('gantt.drawer.saving') : t('gantt.drawer.saveBtn')}</span>
             </button>
             <button
               type="button"
@@ -511,7 +513,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
             )}
           >
             <Calendar size={14} />
-            <span>1. ภาพรวม & Milestones</span>
+            <span>{t('gantt.drawer.tabOverview')}</span>
           </button>
           <button
             type="button"
@@ -524,7 +526,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
             )}
           >
             <Users size={14} />
-            <span>2. ทีม & สัดส่วน Contribution ({teamList.length})</span>
+            <span>{t('gantt.drawer.tabTeam')} ({teamList.length})</span>
           </button>
           <button
             type="button"
@@ -537,7 +539,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
             )}
           >
             <DollarSign size={14} />
-            <span>3. Save Cost 4 มิติ (฿)</span>
+            <span>{t('gantt.drawer.tabSavings')}</span>
           </button>
         </div>
 
@@ -1425,11 +1427,10 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
         isOpen={showDiscardModal}
         onClose={() => setShowDiscardModal(false)}
         onConfirm={onClose}
-        title="มีข้อมูลที่ยังไม่ได้บันทึก"
-        message="คุณได้ทำการแก้ไขข้อมูลโครงการนี้ หากปิดตอนนี้ การเปลี่ยนแปลงทั้งหมดจะไม่ถูกบันทึก"
-        description="ต้องการยกเลิกการแก้ไขและปิดหน้าต่างใช่หรือไม่?"
-        confirmText="ละทิ้งการแก้ไข (Discard)"
-        cancelText="แก้ไขต่อ (Keep Editing)"
+        title={t('gantt.drawer.discardTitle')}
+        message={t('gantt.drawer.discardDesc')}
+        confirmText={t('gantt.drawer.discard')}
+        cancelText={t('gantt.drawer.stay')}
         variant="warning"
       />
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import AppLayout from '../components/layout/AppLayout';
 import { useNotification } from '../context/NotificationContext';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import type {
   GanttProject,
@@ -20,6 +21,7 @@ import { FolderKanban, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function ProjectGanttPage() {
+  const { t } = useTranslation();
   const { showToast } = useNotification();
   const navigate = useNavigate();
 
@@ -68,11 +70,11 @@ export default function ProjectGanttPage() {
     } catch (err: unknown) {
       const e = err as { message?: string };
       console.error('Failed to load Gantt projects:', err);
-      showToast(`โหลดข้อมูลไม่สำเร็จ: ${e.message || 'Error'}`, 'error');
+      showToast(`${t('gantt.loadError')}${e.message || 'Error'}`, 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   // Load Users list for Lead & Team assignments scoped by active workspace
   const loadUsers = useCallback(async () => {
@@ -323,9 +325,9 @@ export default function ProjectGanttPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black text-theme-text tracking-tight flex items-center gap-2 flex-wrap">
-                <span>แผนภูมิแกนต์และพอร์ตโฟลิโอโครงการ</span>
+                <span>{t('gantt.title')}</span>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                  Gantt Roadmap & Value Realization
+                  {t('gantt.badge')}
                 </span>
                 {workspaceName && (
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -334,7 +336,7 @@ export default function ProjectGanttPage() {
                 )}
               </h1>
               <p className="text-xs text-theme-text-secondary">
-                ติดตาม Timeline กำหนดเสร็จ, หัวหน้าทีม & สัดส่วน Contribution (Target vs Actual), และผลประหยัดต้นทุน 4 มิติ
+                {t('gantt.subtitle')}
               </p>
             </div>
           </div>
@@ -346,7 +348,7 @@ export default function ProjectGanttPage() {
               onClick={() => navigate('/projects')}
               className="px-3.5 py-2 rounded-2xl border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text font-bold text-xs transition-all cursor-pointer select-none"
             >
-              📋 ทะเบียนโครงการ (Registry)
+              📋 {t('gantt.registryBtn')}
             </button>
           </div>
         </div>
@@ -392,7 +394,7 @@ export default function ProjectGanttPage() {
         {isLoading ? (
           <div className="p-16 text-center rounded-3xl border border-theme-border/60 bg-theme-surface/40 animate-pulse space-y-3">
             <RefreshCw size={28} className="mx-auto text-indigo-500 animate-spin" />
-            <p className="text-xs font-bold text-theme-text-muted">กำลังประมวลผล Timeline และชั่วโมง Worklog...</p>
+            <p className="text-xs font-bold text-theme-text-muted">{t('gantt.loading')}</p>
           </div>
         ) : (
           <GanttRoadmapCanvas

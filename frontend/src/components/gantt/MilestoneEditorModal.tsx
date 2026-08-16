@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Flag, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ProjectMilestone } from '../../lib/project-management';
 
 interface MilestoneEditorModalProps {
@@ -23,6 +24,7 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
   onSave,
   availableUsers,
 }) => {
+  const { t } = useTranslation();
   const [name, setName] = useState(milestone?.milestone_name || '');
   const [startDate, setStartDate] = useState(milestone?.start_date || new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(milestone?.due_date || '');
@@ -57,14 +59,14 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
       {/* Milestone Name */}
       <div className="space-y-1">
         <label className="block font-bold text-theme-text text-[11px] uppercase tracking-wider">
-          ชื่อ Milestone *
+          {t('gantt.milestoneModal.name')}
         </label>
         <input
           type="text"
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="เช่น Phase 1: ออกแบบ DB และ API..."
+          placeholder={t('gantt.milestoneModal.namePlaceholder')}
           className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-purple-500"
         />
       </div>
@@ -73,7 +75,7 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
       <div className="grid grid-cols-2 gap-2.5">
         <div className="space-y-1">
           <label className="block font-bold text-theme-text-muted text-[10px] uppercase tracking-wider">
-            วันเริ่มต้น
+            {t('gantt.milestoneModal.startDate')}
           </label>
           <input
             type="date"
@@ -84,7 +86,7 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
         </div>
         <div className="space-y-1">
           <label className="block font-bold text-theme-text-muted text-[10px] uppercase tracking-wider">
-            กำหนดเสร็จ (Due Date)
+            {t('gantt.milestoneModal.dueDate')}
           </label>
           <input
             type="date"
@@ -99,22 +101,22 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
       <div className="grid grid-cols-2 gap-2.5">
         <div className="space-y-1">
           <label className="block font-bold text-theme-text-muted text-[10px] uppercase tracking-wider">
-            สถานะ
+            {t('gantt.milestoneModal.status')}
           </label>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as ProjectMilestone['status'])}
             className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-purple-500 cursor-pointer"
           >
-            <option value="planning">Planning (วางแผน)</option>
-            <option value="in_progress">In Progress (กำลังทำ)</option>
-            <option value="completed">Completed (เสร็จสิ้น)</option>
-            <option value="blocked">Blocked (ติดปัญหา)</option>
+            <option value="planning">Planning</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="blocked">Blocked</option>
           </select>
         </div>
         <div className="space-y-1">
           <label className="block font-bold text-theme-text-muted text-[10px] uppercase tracking-wider">
-            ความคืบหน้า ({progress}%)
+            {t('gantt.milestoneModal.progress')} ({progress}%)
           </label>
           <input
             type="range"
@@ -132,7 +134,7 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
       <div className="space-y-1">
         <label className="block font-bold text-theme-text text-[11px] uppercase tracking-wider flex items-center gap-1">
           <User size={13} className="text-purple-500" />
-          ผู้รับผิดชอบหลัก (Assignee)
+          {t('gantt.milestoneModal.assignee')}
         </label>
         <select
           value={assignedUserId || (availableUsers.find((u) => u.name === assignedUser)?.id || '')}
@@ -148,7 +150,7 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
           }}
           className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-purple-500 font-semibold cursor-pointer"
         >
-          <option value="">-- เลือกผู้รับผิดชอบจากสมาชิกในทีม --</option>
+          <option value="">-- {t('gantt.milestoneModal.selectAssignee')} --</option>
           {availableUsers.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name} {u.email ? `(${u.email})` : ''}
@@ -160,13 +162,13 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
       {/* Notes */}
       <div className="space-y-1">
         <label className="block font-bold text-theme-text-muted text-[10px] uppercase tracking-wider">
-          หมายเหตุ / รายละเอียดเพิ่มเติม
+          {t('gantt.milestoneModal.notes')}
         </label>
         <textarea
           rows={2}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="เงื่อนไข หรือสิ่งที่จะส่งมอบ..."
+          placeholder={t('gantt.milestoneModal.notes')}
           className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-purple-500 custom-scrollbar resize-none"
         />
       </div>
@@ -178,13 +180,13 @@ const MilestoneFormContent: React.FC<MilestoneFormContentProps> = ({
           onClick={onClose}
           className="px-3.5 py-1.5 rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text font-bold text-xs cursor-pointer"
         >
-          ยกเลิก
+          {t('gantt.milestoneModal.cancel')}
         </button>
         <button
           type="submit"
           className="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md shadow-purple-500/20 cursor-pointer"
         >
-          บันทึก Milestone
+          {milestone ? t('gantt.milestoneModal.save') : t('gantt.milestoneModal.create')}
         </button>
       </div>
     </form>
@@ -198,6 +200,7 @@ export const MilestoneEditorModal: React.FC<MilestoneEditorModalProps> = ({
   onSave,
   availableUsers = [],
 }) => {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   return (
@@ -211,9 +214,9 @@ export const MilestoneEditorModal: React.FC<MilestoneEditorModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-sm text-theme-text">
-                {milestone ? 'แก้ไข Milestone' : 'เพิ่ม Milestone ใหม่'}
+                {milestone ? t('gantt.milestoneModal.editTitle') : t('gantt.milestoneModal.createTitle')}
               </h3>
-              <p className="text-[11px] text-theme-text-muted">กำหนดเป้าหมายสำคัญของโครงการ</p>
+              <p className="text-[11px] text-theme-text-muted">{t('gantt.drawer.milestonesTitle')}</p>
             </div>
           </div>
           <button
