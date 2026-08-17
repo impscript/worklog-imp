@@ -18,7 +18,17 @@ import ProjectDocumentsModal from '../components/modals/ProjectDocumentsModal';
 import ProjectSecretsModal from '../components/modals/ProjectSecretsModal';
 
 /* ── Types ── */
-type ProjectStatus = 'planning' | 'development' | 'active' | 'inactive' | 'sunset' | 'retired';
+type ProjectStatus =
+  | 'planning'
+  | 'development'
+  | 'in_progress'
+  | 'testing'
+  | 'active'
+  | 'completed'
+  | 'on_hold'
+  | 'inactive'
+  | 'sunset'
+  | 'retired';
 
 interface Project {
   id: string;
@@ -69,11 +79,37 @@ interface WorklogSummary {
   };
 }
 
+interface ProjectRegistryRow extends Project {
+  parent?: { project_name?: string | null } | null;
+}
+
+interface ProjectTypeRow {
+  type_name?: string | null;
+}
+
+interface ProjectCountRow {
+  project_id?: string | null;
+}
+
+interface RegistryWorklogSummaryRow {
+  id: string;
+  project_id?: string | null;
+  module_id?: string | null;
+  work_date?: string | null;
+  created_at?: string | null;
+  action_name?: string | null;
+  description?: string | null;
+}
+
 /* ── Constants ── */
 const STATUS_CONFIG: Record<ProjectStatus, { label: string; color: string; icon: string }> = {
   planning:    { label: 'Planning',    color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-200 dark:border-blue-500/20', icon: '🔵' },
   development: { label: 'Dev',         color: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 border-amber-200 dark:border-amber-500/20', icon: '🟡' },
+  in_progress: { label: 'In Progress', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 border-indigo-200 dark:border-indigo-500/25', icon: '▶' },
+  testing:     { label: 'Testing / UAT', color: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-500/10 dark:text-fuchsia-300 border-fuchsia-200 dark:border-fuchsia-500/25', icon: '◇' },
   active:      { label: 'Active',      color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20', icon: '🟢' },
+  completed:   { label: 'Completed',   color: 'bg-teal-100 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300 border-teal-200 dark:border-teal-500/25', icon: '✓' },
+  on_hold:     { label: 'On Hold',     color: 'bg-slate-100 text-slate-700 dark:bg-slate-500/10 dark:text-slate-300 border-slate-200 dark:border-slate-500/25', icon: 'Ⅱ' },
   inactive:    { label: 'Inactive',    color: 'bg-slate-100 text-slate-600 dark:bg-slate-500/10 dark:text-slate-400 border-slate-200 dark:border-slate-500/20', icon: '⚪' },
   sunset:      { label: 'Sunset',      color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 border-orange-200 dark:border-orange-500/20', icon: '🟠' },
   retired:     { label: 'Retired',     color: 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 border-rose-200 dark:border-rose-500/20', icon: '🔴' },
@@ -89,10 +125,10 @@ const DEFAULT_TEAMS = ['IMP', 'IMP&IT', 'IT'];
 
 /* ── Helpers ── */
 function getStatusIcon(status: ProjectStatus) {
-  return STATUS_CONFIG[status]?.icon || '❓';
+  return STATUS_CONFIG[status]?.icon || '•';
 }
 function getStatusColor(status: ProjectStatus) {
-  return STATUS_CONFIG[status]?.color || '';
+  return STATUS_CONFIG[status]?.color || 'bg-slate-100 text-slate-700 dark:bg-slate-500/10 dark:text-slate-300 border-slate-200 dark:border-slate-500/25';
 }
 export function sanitizeProjectName(name: string): string {
   if (!name) return '';
@@ -123,7 +159,7 @@ function buildTree(projects: Project[]): Project[] {
 
 
 /* ── Types ── */
-const STATUS_ORDER: ProjectStatus[] = ['active', 'development', 'inactive', 'planning', 'sunset', 'retired'];
+const STATUS_ORDER: ProjectStatus[] = ['active', 'in_progress', 'testing', 'development', 'completed', 'on_hold', 'inactive', 'planning', 'sunset', 'retired'];
 
 /* ── StatusBadge (top-level for stable identity) ── */
 function StatusBadge({ status }: { status: ProjectStatus }) {
@@ -192,7 +228,11 @@ function ProjectCard({
           ? 'p-3.5 md:p-4 rounded-xl border border-indigo-200/70 dark:border-indigo-900/50 bg-gradient-to-r from-slate-50/95 via-indigo-50/20 to-purple-50/20 dark:from-slate-900/60 dark:via-indigo-950/30 dark:to-slate-900/60 shadow-sm border-l-[4px]'
           : 'ai-glass-interactive p-4 md:p-5 rounded-2xl border border-theme-border/90 bg-white/95 dark:bg-theme-surface shadow-md shadow-indigo-500/5 border-l-[5px]',
         project.status === 'active'      && 'border-l-emerald-500',
+        project.status === 'in_progress' && 'border-l-indigo-500',
+        project.status === 'testing'     && 'border-l-fuchsia-500',
         project.status === 'development' && 'border-l-amber-500',
+        project.status === 'completed'   && 'border-l-teal-500',
+        project.status === 'on_hold'     && 'border-l-slate-500',
         project.status === 'inactive'    && 'border-l-slate-400',
         project.status === 'sunset'      && 'border-l-orange-500',
         project.status === 'retired'     && 'border-l-rose-500',
@@ -522,6 +562,90 @@ export default function ProjectRegistryPage() {
   const [secretsModalProject, setSecretsModalProject] = useState<Project | null>(null);
 
   /* ── Data Loading ── */
+  const loadProjectStats = useCallback(async (workspaceId?: string | null) => {
+    try {
+      setNotesCountMap({});
+      setDocsCountMap({});
+      setSecretsCountMap({});
+      setWorklogSummary({});
+
+      let notesQuery = supabase.from('tb_project_notes').select('project_id');
+      let docsQuery = supabase.from('tb_project_documents').select('project_id');
+      let secretsQuery = supabase.from('tb_project_secrets').select('project_id');
+      let worklogQuery = supabase
+        .from('col_worklog')
+        .select('id, project_id, module_id, work_date, created_at, action_name, description')
+        .order('work_date', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (workspaceId) {
+        notesQuery = notesQuery.eq('workspace_id', workspaceId);
+        docsQuery = docsQuery.eq('workspace_id', workspaceId);
+        secretsQuery = secretsQuery.eq('workspace_id', workspaceId);
+        worklogQuery = worklogQuery.eq('workspace_id', workspaceId);
+      }
+
+      const [notesRes, docsRes, secretsRes, worklogRes] = await Promise.all([
+        notesQuery,
+        docsQuery,
+        secretsQuery,
+        worklogQuery,
+      ]);
+
+      const countByProjectId = (rows?: ProjectCountRow[] | null) => {
+        const counts: Record<string, number> = {};
+        (rows || []).forEach((row) => {
+          if (row.project_id) counts[row.project_id] = (counts[row.project_id] || 0) + 1;
+        });
+        return counts;
+      };
+
+      if (notesRes.data) setNotesCountMap(countByProjectId(notesRes.data as ProjectCountRow[]));
+      if (docsRes.data) setDocsCountMap(countByProjectId(docsRes.data as ProjectCountRow[]));
+      if (secretsRes.data) setSecretsCountMap(countByProjectId(secretsRes.data as ProjectCountRow[]));
+
+      if (!worklogRes.error && worklogRes.data) {
+        const summary: WorklogSummary = {};
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const count: Record<string, number> = {};
+        const recent: Record<string, number> = {};
+        const logsMap: Record<string, RegistryWorklogSummaryRow[]> = {};
+
+        (worklogRes.data as RegistryWorklogSummaryRow[]).forEach((w) => {
+          const id = w.module_id || w.project_id;
+          if (!id) return;
+
+          count[id] = (count[id] || 0) + 1;
+
+          const createdAt = new Date(w.created_at || w.work_date || '');
+          if (!Number.isNaN(createdAt.getTime()) && createdAt >= thirtyDaysAgo) {
+            recent[id] = (recent[id] || 0) + 1;
+          }
+
+          if (!logsMap[id]) logsMap[id] = [];
+          if (logsMap[id].length < 3) logsMap[id].push(w);
+        });
+
+        Object.keys(count).forEach((id) => {
+          summary[id] = {
+            count: count[id],
+            recent_30d: recent[id] || 0,
+            unique_users: 0,
+            logs: logsMap[id] || [],
+          };
+        });
+
+        setWorklogSummary(summary);
+      } else if (worklogRes.error) {
+        console.warn('Project Registry worklog summary failed:', worklogRes.error.message);
+      }
+    } catch (err) {
+      console.warn('Project Registry background stats failed:', err);
+    }
+  }, []);
+
   const loadProjects = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -529,20 +653,13 @@ export default function ProjectRegistryPage() {
       const session = sessionStr ? JSON.parse(sessionStr) : null;
       const workspaceId = session?.activeWorkspaceId;
 
-      // Load workspace-scoped project types for the form dropdown
-      if (workspaceId) {
-        const { data: typesData } = await supabase
+      const projectTypesPromise = workspaceId
+        ? supabase
           .from('tb_master_project_type')
           .select('type_name')
           .eq('workspace_id', workspaceId)
-          .order('type_name');
-        if (typesData && typesData.length > 0) {
-          setWorkspaceProjectTypes(typesData.map((t: any) => t.type_name));
-        } else {
-          // Generic fallback — neutral names that work for any organization
-          setWorkspaceProjectTypes(['Project', 'Support', 'Management', 'Event', 'Routine', 'Other']);
-        }
-      }
+          .order('type_name')
+        : Promise.resolve({ data: null, error: null });
 
       let query = supabase
         .from('tb_project_registry')
@@ -552,11 +669,20 @@ export default function ProjectRegistryPage() {
         query = query.eq('workspace_id', workspaceId);
       }
 
-      const { data, error } = await query.order('project_name');
+      const [typesRes, projectsRes] = await Promise.all([
+        projectTypesPromise,
+        query.order('project_name'),
+      ]);
 
-      if (error) throw error;
+      if (typesRes.data && typesRes.data.length > 0) {
+        setWorkspaceProjectTypes((typesRes.data as ProjectTypeRow[]).map((t) => t.type_name).filter(Boolean) as string[]);
+      } else {
+        setWorkspaceProjectTypes(['Project', 'Support', 'Management', 'Event', 'Routine', 'Other']);
+      }
 
-      const mapped: Project[] = (data || []).map((p: any) => ({
+      if (projectsRes.error) throw projectsRes.error;
+
+      const mapped: Project[] = ((projectsRes.data || []) as ProjectRegistryRow[]).map((p) => ({
         ...p,
         project_name: sanitizeProjectName(p.project_name),
         parent_name: p.parent?.project_name ? sanitizeProjectName(p.parent.project_name) : null,
@@ -564,113 +690,20 @@ export default function ProjectRegistryPage() {
       }));
 
       setProjects(mapped);
-
-      // Load project notes count summary
-      let notesQuery = supabase
-        .from('tb_project_notes')
-        .select('project_id');
-      if (workspaceId) {
-        notesQuery = notesQuery.eq('workspace_id', workspaceId);
-      }
-      const { data: nData } = await notesQuery;
-      if (nData) {
-        const counts: Record<string, number> = {};
-        nData.forEach((n: any) => {
-          if (n.project_id) {
-            counts[n.project_id] = (counts[n.project_id] || 0) + 1;
-          }
-        });
-        setNotesCountMap(counts);
-      }
-
-      // Load project documents count summary
-      let docsQuery = supabase
-        .from('tb_project_documents')
-        .select('project_id');
-      if (workspaceId) {
-        docsQuery = docsQuery.eq('workspace_id', workspaceId);
-      }
-      const { data: dData } = await docsQuery;
-      if (dData) {
-        const counts: Record<string, number> = {};
-        dData.forEach((d: any) => {
-          if (d.project_id) {
-            counts[d.project_id] = (counts[d.project_id] || 0) + 1;
-          }
-        });
-        setDocsCountMap(counts);
-      }
-
-      // Load project secrets count summary
-      let secretsQuery = supabase
-        .from('tb_project_secrets')
-        .select('project_id');
-      if (workspaceId) {
-        secretsQuery = secretsQuery.eq('workspace_id', workspaceId);
-      }
-      const { data: sData } = await secretsQuery;
-      if (sData) {
-        const counts: Record<string, number> = {};
-        sData.forEach((s: any) => {
-          if (s.project_id) {
-            counts[s.project_id] = (counts[s.project_id] || 0) + 1;
-          }
-        });
-        setSecretsCountMap(counts);
-      }
-
-      // Load worklog summary (aggregated by project_id / module_id for exact mapping)
-      const { data: wData, error: wError } = await supabase
-        .from('col_worklog')
-        .select('*')
-        .order('work_date', { ascending: false })
-        .order('created_at', { ascending: false });
-
-      if (!wError && wData) {
-        const summary: WorklogSummary = {};
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-        const count: Record<string, number> = {};
-        const recent: Record<string, number> = {};
-        const logsMap: Record<string, any[]> = {};
-
-        wData.forEach((w: any) => {
-          const id = w.module_id || w.project_id;
-          if (!id) return;
-
-          count[id] = (count[id] || 0) + 1;
-
-          const createdAt = new Date(w.created_at);
-          if (createdAt >= thirtyDaysAgo) {
-            recent[id] = (recent[id] || 0) + 1;
-          }
-
-          if (!logsMap[id]) {
-            logsMap[id] = [];
-          }
-          logsMap[id].push(w);
-        });
-
-        Object.keys(count).forEach(id => {
-          summary[id] = {
-            count: count[id],
-            recent_30d: recent[id] || 0,
-            unique_users: 0,
-            logs: logsMap[id] || []
-          };
-        });
-
-        setWorklogSummary(summary);
-      }
+      setIsLoading(false);
+      void loadProjectStats(workspaceId);
     } catch (err: any) {
       showToast('โหลดข้อมูลโปรเจคล้มเหลว: ' + (err.message || err), 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [showToast]);
+  }, [loadProjectStats, showToast]);
 
-  useEffect(() => { loadProjects(); }, [loadProjects]);
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      void loadProjects();
+    });
+  }, [loadProjects]);
 
   /* ── Derived Data ── */
   const projectsWithStats = useMemo(() => {
@@ -903,7 +936,26 @@ export default function ProjectRegistryPage() {
   /* ── Stable callbacks for ProjectCard (useCallback avoids unnecessary re-renders) ── */
   const handleEditProject = useCallback((project: Project) => openEditModal(project), []);
   const handleDeleteProject = useCallback((project: Project) => handleDeleteClick(project), []);
-  const handleViewLog = useCallback((log: any) => setSelectedWorklog(log), []);
+  const handleViewLog = useCallback(async (log: any) => {
+    if (!log?.id) {
+      setSelectedWorklog(log);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('col_worklog')
+      .select('*')
+      .eq('id', log.id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Failed to load full worklog detail:', error.message);
+      setSelectedWorklog(log);
+      return;
+    }
+
+    setSelectedWorklog(data || log);
+  }, []);
   const handleOpenNotes = useCallback((project: Project) => setNotesProject(project), []);
 
   /* ── Render ── */
