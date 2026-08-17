@@ -23,6 +23,7 @@ import type {
 } from '../../lib/project-management';
 import {
   TEAM_ROLE_LABELS,
+  calculateGrossSavings,
   calculateTotalSavings,
   updateProjectGanttOverview,
   saveTeamMemberContributions,
@@ -52,6 +53,14 @@ interface ProjectDetailDrawerContentProps {
   onClose: () => void;
   onProjectUpdated: () => void;
   availableUsers: { id: string; name: string; email?: string; emp_id?: string }[];
+}
+
+interface MasterHoldingRow {
+  holding_name?: string | null;
+}
+
+interface MasterProjectTypeRow {
+  type_name?: string | null;
 }
 
 const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
@@ -91,7 +100,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
         }
         const { data: hData } = await holdingQuery.order('holding_name');
         if (isMounted && hData && hData.length > 0) {
-          setMasterHoldings(hData.map((d: any) => d.holding_name).filter(Boolean));
+          setMasterHoldings((hData as MasterHoldingRow[]).map((d) => d.holding_name).filter(Boolean) as string[]);
         }
 
         // Fetch project types from tb_master_project_type
@@ -101,7 +110,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
         }
         const { data: tData } = await typeQuery.order('type_name');
         if (isMounted && tData && tData.length > 0) {
-          setMasterProjectTypes(tData.map((d: any) => d.type_name).filter(Boolean));
+          setMasterProjectTypes((tData as MasterProjectTypeRow[]).map((d) => d.type_name).filter(Boolean) as string[]);
         }
       } catch (err) {
         console.warn('Failed to load master holding or project types in drawer:', err);
@@ -140,6 +149,11 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
 
   // Tab 3: Cost Savings State
   const cs = project.cost_savings;
+  const [directSavingsMode, setDirectSavingsMode] = useState<'cost_reduction' | 'replacement' | 'new_capability'>(
+    cs?.direct_savings_mode || 'cost_reduction'
+  );
+  const [directBaselineCostAnnual, setDirectBaselineCostAnnual] = useState(Number(cs?.direct_baseline_cost_annual) || 0);
+  const [directTargetCostAnnual, setDirectTargetCostAnnual] = useState(Number(cs?.direct_target_cost_annual) || 0);
   const [directSavings, setDirectSavings] = useState(Number(cs?.direct_savings_annual) || 0);
   const [directNotes, setDirectNotes] = useState(cs?.direct_savings_notes || '');
   const [indirectHours, setIndirectHours] = useState(Number(cs?.indirect_manhour_saved_annual) || 0);
@@ -148,7 +162,13 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [avoidanceSavings, setAvoidanceSavings] = useState(Number(cs?.avoidance_savings_annual) || 0);
   const [avoidanceNotes, setAvoidanceNotes] = useState(cs?.avoidance_savings_notes || '');
   const [supportSavings, setSupportSavings] = useState(Number(cs?.support_savings_annual) || 0);
+  const [supportTicketBaselineMonthly, setSupportTicketBaselineMonthly] = useState(Number(cs?.support_ticket_baseline_monthly) || 0);
+  const [supportTicketTargetMonthly, setSupportTicketTargetMonthly] = useState(Number(cs?.support_ticket_target_monthly) || 0);
+  const [supportCostPerTicket, setSupportCostPerTicket] = useState(Number(cs?.support_cost_per_ticket) || 0);
+  const [supportHoursPerTicket, setSupportHoursPerTicket] = useState(Number(cs?.support_hours_per_ticket) || 0);
+  const [supportHourlyRate, setSupportHourlyRate] = useState(Number(cs?.support_hourly_rate) || 350);
   const [supportNotes, setSupportNotes] = useState(cs?.support_savings_notes || '');
+  const [incrementalRunCostAnnual, setIncrementalRunCostAnnual] = useState(Number(cs?.incremental_run_cost_annual) || 0);
   const [manualTotalOverride, setManualTotalOverride] = useState<number | null>(
     cs?.manual_total_savings_override !== undefined ? cs.manual_total_savings_override : null
   );
@@ -169,15 +189,39 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [showVerificationSignoffModal, setShowVerificationSignoffModal] = useState(false);
 
   // Computed Savings Summary
+  const hasDirectCalculator = directBaselineCostAnnual > 0 || directTargetCostAnnual > 0;
+  const computedDirectAnnual = directSavingsMode === 'new_capability'
+    ? 0
+    : hasDirectCalculator
+      ? Math.max(0, directBaselineCostAnnual - directTargetCostAnnual)
+      : directSavings;
   const computedIndirectAnnual = indirectHours * indirectRate;
-  const currentTotalSavings = calculateTotalSavings({
-    direct_savings_annual: directSavings,
+  const supportUnitCost = supportCostPerTicket + (supportHoursPerTicket * supportHourlyRate);
+  const hasSupportCalculator = supportTicketBaselineMonthly > 0 || supportTicketTargetMonthly > 0 || supportUnitCost > 0;
+  const computedSupportAnnual = hasSupportCalculator
+    ? Math.max(0, supportTicketBaselineMonthly - supportTicketTargetMonthly) * 12 * supportUnitCost
+    : supportSavings;
+  const savingsPayloadPreview = {
+    direct_savings_mode: directSavingsMode,
+    direct_baseline_cost_annual: directBaselineCostAnnual,
+    direct_target_cost_annual: directTargetCostAnnual,
+    direct_savings_annual: computedDirectAnnual,
     indirect_manhour_saved_annual: indirectHours,
     indirect_hourly_rate: indirectRate,
     indirect_savings_annual: computedIndirectAnnual,
     avoidance_savings_annual: avoidanceSavings,
-    support_savings_annual: supportSavings,
+    support_savings_annual: computedSupportAnnual,
+    support_ticket_baseline_monthly: supportTicketBaselineMonthly,
+    support_ticket_target_monthly: supportTicketTargetMonthly,
+    support_cost_per_ticket: supportCostPerTicket,
+    support_hours_per_ticket: supportHoursPerTicket,
+    support_hourly_rate: supportHourlyRate,
+    incremental_run_cost_annual: incrementalRunCostAnnual,
     manual_total_savings_override: manualTotalOverride,
+  };
+  const grossAnnualSavings = calculateGrossSavings(savingsPayloadPreview);
+  const currentTotalSavings = calculateTotalSavings({
+    ...savingsPayloadPreview,
   });
 
   // Team Target % Total Validation
@@ -196,15 +240,26 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     if (headLeadName !== (project.head_lead_name || '')) return true;
     if (JSON.stringify(teamList) !== JSON.stringify(project.team_contributions || [])) return true;
     if (JSON.stringify(milestonesList) !== JSON.stringify(project.milestones || [])) return true;
-    if (directSavings !== (Number(cs?.direct_savings_annual) || 0)) return true;
+    if (directSavingsMode !== (cs?.direct_savings_mode || 'cost_reduction')) return true;
+    if (directBaselineCostAnnual !== (Number(cs?.direct_baseline_cost_annual) || 0)) return true;
+    if (directTargetCostAnnual !== (Number(cs?.direct_target_cost_annual) || 0)) return true;
+    if (computedDirectAnnual !== (Number(cs?.direct_savings_annual) || 0)) return true;
     if (indirectHours !== (Number(cs?.indirect_manhour_saved_annual) || 0)) return true;
     if (avoidanceSavings !== (Number(cs?.avoidance_savings_annual) || 0)) return true;
-    if (supportSavings !== (Number(cs?.support_savings_annual) || 0)) return true;
+    if (computedSupportAnnual !== (Number(cs?.support_savings_annual) || 0)) return true;
+    if (supportTicketBaselineMonthly !== (Number(cs?.support_ticket_baseline_monthly) || 0)) return true;
+    if (supportTicketTargetMonthly !== (Number(cs?.support_ticket_target_monthly) || 0)) return true;
+    if (supportCostPerTicket !== (Number(cs?.support_cost_per_ticket) || 0)) return true;
+    if (supportHoursPerTicket !== (Number(cs?.support_hours_per_ticket) || 0)) return true;
+    if (supportHourlyRate !== (Number(cs?.support_hourly_rate) || 350)) return true;
+    if (incrementalRunCostAnnual !== (Number(cs?.incremental_run_cost_annual) || 0)) return true;
     if (verificationStatus !== (cs?.verification_status || 'draft')) return true;
     return false;
   }, [
     startDate, dueDate, status, progress, ownerTeam, ownerHolding, worklogProjectType, headLeadId, headLeadName,
-    teamList, milestonesList, directSavings, indirectHours, avoidanceSavings, supportSavings,
+    teamList, milestonesList, directSavingsMode, directBaselineCostAnnual, directTargetCostAnnual, computedDirectAnnual,
+    indirectHours, avoidanceSavings, computedSupportAnnual, supportTicketBaselineMonthly, supportTicketTargetMonthly,
+    supportCostPerTicket, supportHoursPerTicket, supportHourlyRate, incrementalRunCostAnnual,
     verificationStatus, project, cs
   ]);
 
@@ -423,7 +478,10 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
 
       // 4. Save Cost Savings
       await saveProjectCostSavings(project.id, project.workspace_id, {
-        direct_savings_annual: directSavings,
+        direct_savings_mode: directSavingsMode,
+        direct_baseline_cost_annual: directBaselineCostAnnual,
+        direct_target_cost_annual: directTargetCostAnnual,
+        direct_savings_annual: computedDirectAnnual,
         direct_savings_notes: directNotes,
         indirect_manhour_saved_annual: indirectHours,
         indirect_hourly_rate: indirectRate,
@@ -431,8 +489,14 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
         indirect_savings_notes: indirectNotes,
         avoidance_savings_annual: avoidanceSavings,
         avoidance_savings_notes: avoidanceNotes,
-        support_savings_annual: supportSavings,
+        support_savings_annual: computedSupportAnnual,
+        support_ticket_baseline_monthly: supportTicketBaselineMonthly,
+        support_ticket_target_monthly: supportTicketTargetMonthly,
+        support_cost_per_ticket: supportCostPerTicket,
+        support_hours_per_ticket: supportHoursPerTicket,
+        support_hourly_rate: supportHourlyRate,
         support_savings_notes: supportNotes,
+        incremental_run_cost_annual: incrementalRunCostAnnual,
         manual_total_savings_override: manualTotalOverride,
         baseline_before: baselineBefore,
         target_after: targetAfter,
@@ -1076,9 +1140,27 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                   </span>
                 </div>
 
-                <div className="text-3xl sm:text-4xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
-                  ฿ {currentTotalSavings.toLocaleString('th-TH', { maximumFractionDigits: 0 })}{' '}
-                  <span className="text-xs font-bold text-theme-text-muted">/ ปี</span>
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+                  <div>
+                    <div className={cn(
+                      'text-3xl sm:text-4xl font-black tracking-tight',
+                      currentTotalSavings >= 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-rose-600 dark:text-rose-400'
+                    )}>
+                      ฿ {currentTotalSavings.toLocaleString('th-TH', { maximumFractionDigits: 0 })}{' '}
+                      <span className="text-xs font-bold text-theme-text-muted">/ ปี</span>
+                    </div>
+                    <div className="text-[10px] font-bold text-theme-text-muted mt-1">
+                      Net Annual Benefit = Gross ฿{grossAnnualSavings.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
+                      {' - '}Run Cost ฿{incrementalRunCostAnnual.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
+                    </div>
+                  </div>
+                  {directSavingsMode === 'new_capability' && (
+                    <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
+                      New capability: Direct = 0, claim value via Indirect / Avoidance / Support
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1100,29 +1182,90 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1 sm:col-span-1">
+                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                        รูปแบบ Direct Savings
+                      </label>
+                      <select
+                        value={directSavingsMode}
+                        onChange={(e) => {
+                          const nextMode = e.target.value as 'cost_reduction' | 'replacement' | 'new_capability';
+                          setDirectSavingsMode(nextMode);
+                          if (nextMode === 'new_capability') {
+                            setDirectBaselineCostAnnual(0);
+                            setDirectTargetCostAnnual(0);
+                            setDirectSavings(0);
+                          }
+                        }}
+                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-bold focus:outline-none focus:border-violet-500"
+                      >
+                        <option value="cost_reduction">ลดค่าใช้จ่ายเดิม</option>
+                        <option value="replacement">แทนที่ Vendor / License</option>
+                        <option value="new_capability">ระบบใหม่ ไม่มี baseline cost</option>
+                      </select>
+                    </div>
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
-                        ยอดเงินประหยัดต่อปี (บาท/ปี)
+                        ค่าใช้จ่ายเดิม (บาท/ปี)
                       </label>
                       <input
                         type="number"
                         min="0"
-                        value={directSavings}
-                        onChange={(e) => setDirectSavings(Number(e.target.value))}
-                        placeholder="เช่น 500000"
+                        value={directBaselineCostAnnual}
+                        onChange={(e) => setDirectBaselineCostAnnual(Number(e.target.value))}
+                        disabled={directSavingsMode === 'new_capability'}
+                        placeholder="เช่น 600000"
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-violet-500"
                       />
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
-                        รายละเอียดการลดค่าใช้จ่าย
+                        ค่าใช้จ่ายหลังทำ (บาท/ปี)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={directTargetCostAnnual}
+                        onChange={(e) => setDirectTargetCostAnnual(Number(e.target.value))}
+                        disabled={directSavingsMode === 'new_capability'}
+                        placeholder="เช่น 100000"
+                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-violet-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                        Direct Savings ที่ระบบคำนวณ (บาท/ปี)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={computedDirectAnnual}
+                        onChange={(e) => setDirectSavings(Number(e.target.value))}
+                        disabled={hasDirectCalculator || directSavingsMode === 'new_capability'}
+                        placeholder="กรอกเองเฉพาะกรณีไม่มี before/after"
+                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-violet-500 disabled:opacity-70 disabled:cursor-not-allowed"
+                      />
+                      <p className="text-[10px] text-theme-text-muted">
+                        {directSavingsMode === 'new_capability'
+                          ? 'ระบบใหม่ไม่มีค่าใช้จ่ายเดิมให้หักลบ จึงไม่ claim เป็น Direct Savings'
+                          : 'คำนวณจากค่าใช้จ่ายเดิม - ค่าใช้จ่ายหลังทำ และไม่ให้ติดลบ'}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                        รายละเอียดการลดค่าใช้จ่าย / เหตุผล
                       </label>
                       <input
                         type="text"
                         value={directNotes}
                         onChange={(e) => setDirectNotes(e.target.value)}
-                        placeholder="เช่น ยกเลิก License ระบบเดิม, ย้าย Server..."
+                        placeholder={directSavingsMode === 'new_capability'
+                          ? 'เช่น ระบบใหม่เพื่อ Data Governance / Compliance / Single Source of Truth'
+                          : 'เช่น ยกเลิก License ระบบเดิม, ลดค่า Vendor...'}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-violet-500"
                       />
                     </div>
@@ -1249,31 +1392,147 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
-                        ประหยัดค่าซัพพอร์ต (บาท/ปี)
+                        Ticket เดิม / เดือน
                       </label>
                       <input
                         type="number"
                         min="0"
-                        value={supportSavings}
-                        onChange={(e) => setSupportSavings(Number(e.target.value))}
-                        placeholder="เช่น 150000"
+                        value={supportTicketBaselineMonthly}
+                        onChange={(e) => setSupportTicketBaselineMonthly(Number(e.target.value))}
+                        placeholder="เช่น 120"
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500"
                       />
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
-                        รายละเอียด
+                        Ticket หลังทำ / เดือน
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={supportTicketTargetMonthly}
+                        onChange={(e) => setSupportTicketTargetMonthly(Number(e.target.value))}
+                        placeholder="เช่น 24"
+                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                        Cost / Ticket
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={supportCostPerTicket}
+                        onChange={(e) => setSupportCostPerTicket(Number(e.target.value))}
+                        placeholder="เช่น 200"
+                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                        ชม. / Ticket
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.25"
+                        value={supportHoursPerTicket}
+                        onChange={(e) => setSupportHoursPerTicket(Number(e.target.value))}
+                        placeholder="เช่น 0.5"
+                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                        Rate (บาท/ชม.)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={supportHourlyRate}
+                        onChange={(e) => setSupportHourlyRate(Number(e.target.value))}
+                        placeholder="350"
+                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                        Support Savings ที่ระบบคำนวณ (บาท/ปี)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={computedSupportAnnual}
+                        onChange={(e) => setSupportSavings(Number(e.target.value))}
+                        disabled={hasSupportCalculator}
+                        placeholder="กรอกเองเฉพาะกรณีไม่มี ticket baseline"
+                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500 disabled:opacity-70 disabled:cursor-not-allowed"
+                      />
+                      <p className="text-[10px] text-theme-text-muted">
+                        สูตร: (Ticket เดิม - Ticket หลังทำ) x 12 x (Cost/Ticket + ชม./Ticket x Rate) ต้องมี baseline เดิมจึง claim เป็น savings
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                        รายละเอียด / Claim ปีที่เกี่ยวข้อง
                       </label>
                       <input
                         type="text"
                         value={supportNotes}
                         onChange={(e) => setSupportNotes(e.target.value)}
-                        placeholder="เช่น ลดจำนวน Helpdesk Ticket ลง 80%..."
+                        placeholder="เช่น 2027 Support MA - ลด Helpdesk Ticket ลง 80%"
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-cyan-500"
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Incremental Run Cost */}
+                <div className="p-4 rounded-3xl border border-rose-500/20 bg-rose-500/5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-extrabold text-xs text-theme-text flex items-center gap-1.5">
+                      <RefreshCw size={14} className="text-rose-500" />
+                      Incremental Cost / Run Cost (ต้นทุนเพิ่มหลังระบบใช้งาน)
+                    </h4>
+                    <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                      หักจาก Gross Benefit
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                        ค่าใช้จ่ายเพิ่มต่อปี (บาท/ปี)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={incrementalRunCostAnnual}
+                        onChange={(e) => setIncrementalRunCostAnnual(Number(e.target.value))}
+                        placeholder="เช่น Cloud, License ใหม่, MA รายปี"
+                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-rose-500"
+                      />
+                    </div>
+                    <div className="p-3 rounded-2xl border border-theme-border/70 bg-theme-surface-secondary/40">
+                      <div className="text-[10px] font-bold text-theme-text-muted uppercase">
+                        Net Annual Benefit
+                      </div>
+                      <div className={cn(
+                        'text-xl font-black font-mono mt-1',
+                        currentTotalSavings >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                      )}>
+                        ฿ {currentTotalSavings.toLocaleString('th-TH', { maximumFractionDigits: 0 })} / ปี
+                      </div>
+                      <p className="text-[10px] text-theme-text-muted mt-1">
+                        Gross ฿{grossAnnualSavings.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
+                        {' - '}Run Cost ฿{incrementalRunCostAnnual.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
+                      </p>
                     </div>
                   </div>
                 </div>

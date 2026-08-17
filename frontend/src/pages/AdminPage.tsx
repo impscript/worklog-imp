@@ -1046,6 +1046,8 @@ export default function AdminPage() {
           department: formStructDept,
           project_description: formStructDescription || null
         };
+        if (editRow?.project_id) payload.project_id = editRow.project_id;
+        if (editRow?.module_id) payload.module_id = editRow.module_id;
         if (workspaceId) payload.workspace_id = workspaceId;
         if (editRow) {
           const { error } = await supabase.from('tb_map_project_structure').update(payload).eq('id', editRow.id);
@@ -4494,6 +4496,5 @@ INSTRUCTION:
     </div>
   );
 }
-
 
 

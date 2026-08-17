@@ -154,8 +154,10 @@ export default function ProjectGanttPage() {
   }, []);
 
   useEffect(() => {
-    void loadProjects();
-    void loadUsers();
+    void Promise.resolve().then(() => {
+      void loadProjects();
+      void loadUsers();
+    });
   }, [loadProjects, loadUsers]);
 
   // Unique Project Types
@@ -189,11 +191,11 @@ export default function ProjectGanttPage() {
     return getAvailableProjectYears(projects);
   }, [projects]);
 
-  // Filtered Projects with Multi-Select Filters and Date Overlap
-  const filteredProjects = useMemo(() => {
+  // Projects that truly match the filters and should be counted in KPI / claims.
+  const kpiProjects = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
 
-    const directlyMatchingProjects = projects.filter((p) => {
+    return projects.filter((p) => {
       if (!isProjectInYear(p, selectedYear)) return false;
       
       // 1. Multi-Select Project Types Filter
@@ -256,21 +258,6 @@ export default function ProjectGanttPage() {
         (p.owner_team || '').toLowerCase().includes(q)
       );
     });
-
-    if (!isTreeView) return directlyMatchingProjects;
-
-    // In tree mode, ensure parents of matching children are also kept in the list
-    const matchingIds = new Set(directlyMatchingProjects.map((p) => p.id));
-    const finalSet = new Set(directlyMatchingProjects);
-
-    directlyMatchingProjects.forEach((p) => {
-      if (p.parent_project_id && !matchingIds.has(p.parent_project_id)) {
-        const parent = projects.find((item) => item.id === p.parent_project_id);
-        if (parent) finalSet.add(parent);
-      }
-    });
-
-    return Array.from(finalSet);
   }, [
     projects,
     selectedYear,
@@ -282,8 +269,25 @@ export default function ProjectGanttPage() {
     selectedHealths,
     selectedUsers,
     availableUsers,
-    isTreeView,
   ]);
+
+  // Display rows may include parents for tree context, but those parents must not affect KPI.
+  const displayProjects = useMemo(() => {
+    if (!isTreeView) return kpiProjects;
+
+    // In tree mode, ensure parents of matching children are also kept in the list
+    const matchingIds = new Set(kpiProjects.map((p) => p.id));
+    const finalSet = new Set(kpiProjects);
+
+    kpiProjects.forEach((p) => {
+      if (p.parent_project_id && !matchingIds.has(p.parent_project_id)) {
+        const parent = projects.find((item) => item.id === p.parent_project_id);
+        if (parent) finalSet.add(parent);
+      }
+    });
+
+    return Array.from(finalSet);
+  }, [isTreeView, kpiProjects, projects]);
 
   const selectedProject = useMemo(() => {
     return projects.find((p) => p.id === selectedProjectId) || null;
@@ -354,7 +358,7 @@ export default function ProjectGanttPage() {
         </div>
 
         {/* Executive Summary Top Cards (Scoped to Filtered Projects) */}
-        <ExecutiveSummaryKPIs projects={filteredProjects} />
+        <ExecutiveSummaryKPIs projects={kpiProjects} />
 
         {/* Filter Toolbar with Year, Tree View & Zoom controls */}
         <GanttFilterToolbar
@@ -398,7 +402,7 @@ export default function ProjectGanttPage() {
           </div>
         ) : (
           <GanttRoadmapCanvas
-            projects={filteredProjects}
+            projects={displayProjects}
             zoomLevel={zoomLevel}
             selectedYear={selectedYear}
             isTreeView={isTreeView}
@@ -414,9 +418,9 @@ export default function ProjectGanttPage() {
           <div className="flex items-start gap-3">
             <ShieldCheck size={20} className="text-emerald-500 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
-              <span className="font-bold text-theme-text">โครงสร้างโครงการและการทำงานแบบ Hybrid (Best Practices):</span>
+              <span className="font-bold text-theme-text">โครงสร้าง Project / Support Claim (Best Practices):</span>
               <p className="text-[11px] leading-relaxed">
-                จัดกลุ่มโครงการเป็น Parent (โครงการหลัก) ➔ Child (โมดูลย่อย) เพื่อรวมศูนย์ตัวเลข Save Cost และหัวหน้าทีมไว้ที่โครงการหลัก พร้อมดึงสมาชิกในทีมจาก Dropdown ได้สะดวกรวดเร็ว
+                ใช้ Parent เป็น Product/System กลาง แล้วแยก Implementation Project และ Annual Support MA เป็น Child รายปี เพื่อป้องกันการนับ Save Cost ซ้ำข้ามปี
               </p>
             </div>
           </div>

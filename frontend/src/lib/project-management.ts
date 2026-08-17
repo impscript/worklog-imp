@@ -37,8 +37,11 @@ export interface ProjectMilestone {
 export interface ProjectCostSavings {
   id?: string;
   project_id: string;
+  direct_savings_mode?: 'cost_reduction' | 'replacement' | 'new_capability' | null;
   // 1. Direct Cash Savings (Hard Savings)
   direct_savings_annual: number;
+  direct_baseline_cost_annual?: number | null;
+  direct_target_cost_annual?: number | null;
   direct_savings_notes?: string | null;
   // 2. Indirect Manhour / Productivity Savings
   indirect_manhour_saved_annual: number;
@@ -50,7 +53,13 @@ export interface ProjectCostSavings {
   avoidance_savings_notes?: string | null;
   // 4. Support / Maintenance Savings (OpEx Saved)
   support_savings_annual: number;
+  support_ticket_baseline_monthly?: number | null;
+  support_ticket_target_monthly?: number | null;
+  support_cost_per_ticket?: number | null;
+  support_hours_per_ticket?: number | null;
+  support_hourly_rate?: number | null;
   support_savings_notes?: string | null;
+  incremental_run_cost_annual?: number | null;
   // Manual override if custom calculation
   manual_total_savings_override?: number | null;
   // Calculation details & Audit evidence
@@ -417,22 +426,47 @@ export function getAvailableProjectYears(projects: GanttProject[]): number[] {
 }
 
 /**
- * Computes Total Annual Savings from 4-Dimension Cost Savings
+ * Computes Gross Annual Savings from 4-Dimension Cost Savings
  */
-export function calculateTotalSavings(savings?: Partial<ProjectCostSavings> | null): number {
+export function calculateGrossSavings(savings?: Partial<ProjectCostSavings> | null): number {
   if (!savings) return 0;
   if (savings.manual_total_savings_override !== undefined && savings.manual_total_savings_override !== null && savings.manual_total_savings_override > 0) {
     return Number(savings.manual_total_savings_override);
   }
 
-  const direct = Number(savings.direct_savings_annual) || 0;
+  const directMode = savings.direct_savings_mode || 'cost_reduction';
+  const baselineCost = Number(savings.direct_baseline_cost_annual) || 0;
+  const targetCost = Number(savings.direct_target_cost_annual) || 0;
+  const hasDirectCalculator = baselineCost > 0 || targetCost > 0;
+  const direct = directMode === 'new_capability'
+    ? 0
+    : hasDirectCalculator
+      ? Math.max(0, baselineCost - targetCost)
+      : Number(savings.direct_savings_annual) || 0;
   const indirectHours = Number(savings.indirect_manhour_saved_annual) || 0;
   const rate = Number(savings.indirect_hourly_rate) || 350;
   const indirect = Number(savings.indirect_savings_annual) || (indirectHours * rate);
   const avoidance = Number(savings.avoidance_savings_annual) || 0;
-  const support = Number(savings.support_savings_annual) || 0;
+  const supportBaseline = Number(savings.support_ticket_baseline_monthly) || 0;
+  const supportTarget = Number(savings.support_ticket_target_monthly) || 0;
+  const supportCostPerTicket = Number(savings.support_cost_per_ticket) || 0;
+  const supportHoursPerTicket = Number(savings.support_hours_per_ticket) || 0;
+  const supportHourlyRate = Number(savings.support_hourly_rate) || 350;
+  const supportCostUnit = supportCostPerTicket + (supportHoursPerTicket * supportHourlyRate);
+  const hasSupportCalculator = supportBaseline > 0 || supportTarget > 0 || supportCostUnit > 0;
+  const support = hasSupportCalculator
+    ? Math.max(0, supportBaseline - supportTarget) * 12 * supportCostUnit
+    : Number(savings.support_savings_annual) || 0;
 
   return direct + indirect + avoidance + support;
+}
+
+/**
+ * Computes Net Annual Benefit after incremental run cost.
+ */
+export function calculateTotalSavings(savings?: Partial<ProjectCostSavings> | null): number {
+  if (!savings) return 0;
+  return calculateGrossSavings(savings) - (Number(savings.incremental_run_cost_annual) || 0);
 }
 
 /**
@@ -781,11 +815,33 @@ export async function saveProjectCostSavings(
   const indirectRate = savingsData.indirect_hourly_rate || 350;
   const indirectHours = savingsData.indirect_manhour_saved_annual || 0;
   const indirectAnnual = indirectHours * indirectRate;
+  const directMode = savingsData.direct_savings_mode || 'cost_reduction';
+  const directBaseline = savingsData.direct_baseline_cost_annual || 0;
+  const directTarget = savingsData.direct_target_cost_annual || 0;
+  const hasDirectCalculator = directBaseline > 0 || directTarget > 0;
+  const directAnnual = directMode === 'new_capability'
+    ? 0
+    : hasDirectCalculator
+      ? Math.max(0, directBaseline - directTarget)
+      : savingsData.direct_savings_annual || 0;
+  const supportBaseline = savingsData.support_ticket_baseline_monthly || 0;
+  const supportTarget = savingsData.support_ticket_target_monthly || 0;
+  const supportCostPerTicket = savingsData.support_cost_per_ticket || 0;
+  const supportHoursPerTicket = savingsData.support_hours_per_ticket || 0;
+  const supportHourlyRate = savingsData.support_hourly_rate || 350;
+  const supportCostUnit = supportCostPerTicket + (supportHoursPerTicket * supportHourlyRate);
+  const hasSupportCalculator = supportBaseline > 0 || supportTarget > 0 || supportCostUnit > 0;
+  const supportAnnual = hasSupportCalculator
+    ? Math.max(0, supportBaseline - supportTarget) * 12 * supportCostUnit
+    : savingsData.support_savings_annual || 0;
 
   const payload = {
     project_id: projectId,
     workspace_id: activeWsId || null,
-    direct_savings_annual: savingsData.direct_savings_annual || 0,
+    direct_savings_mode: directMode,
+    direct_baseline_cost_annual: directBaseline,
+    direct_target_cost_annual: directTarget,
+    direct_savings_annual: directAnnual,
     direct_savings_notes: savingsData.direct_savings_notes || null,
     indirect_manhour_saved_annual: indirectHours,
     indirect_hourly_rate: indirectRate,
@@ -793,8 +849,14 @@ export async function saveProjectCostSavings(
     indirect_savings_notes: savingsData.indirect_savings_notes || null,
     avoidance_savings_annual: savingsData.avoidance_savings_annual || 0,
     avoidance_savings_notes: savingsData.avoidance_savings_notes || null,
-    support_savings_annual: savingsData.support_savings_annual || 0,
+    support_savings_annual: supportAnnual,
+    support_ticket_baseline_monthly: supportBaseline,
+    support_ticket_target_monthly: supportTarget,
+    support_cost_per_ticket: supportCostPerTicket,
+    support_hours_per_ticket: supportHoursPerTicket,
+    support_hourly_rate: supportHourlyRate,
     support_savings_notes: savingsData.support_savings_notes || null,
+    incremental_run_cost_annual: savingsData.incremental_run_cost_annual || 0,
     manual_total_savings_override: savingsData.manual_total_savings_override || null,
     baseline_before: savingsData.baseline_before || null,
     target_after: savingsData.target_after || null,
