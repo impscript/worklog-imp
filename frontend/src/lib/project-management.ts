@@ -540,20 +540,19 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
       .select('*')
       .in('project_id', projectIds);
 
-    // 6. Fetch Actual Worklog Hours grouped by project_name and user_id / employee_name
+    // 6. Fetch Actual Worklog Hours grouped by project_name and user_id
     const projectNames = rawProjects.map((p) => p.project_name);
-    const { data: worklogs } = await supabase
+    const { data: worklogs, error: worklogsErr } = await supabase
       .from('col_worklog')
-      .select('project_name, user_id, emp_name, employee_name, total_hours')
+      .select('project_name, user_id, total_hours')
       .in('project_name', projectNames);
+    if (worklogsErr) throw worklogsErr;
 
     // Build worklog aggregation map: projectName -> { totalHours, userHours: { [userIdOrName]: hours } }
     const worklogSummary = new Map<string, { totalHours: number; userHours: Map<string, number> }>();
     interface RawWorklogEntry {
       project_name?: string | null;
       user_id?: string | null;
-      emp_name?: string | null;
-      employee_name?: string | null;
       total_hours?: string | number | null;
     }
     ((worklogs || []) as RawWorklogEntry[]).forEach((w) => {
@@ -565,7 +564,7 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
       const hours = typeof w.total_hours === 'number' ? w.total_hours : parseFloat(String(w.total_hours || 0)) || 0;
       pSummary.totalHours += hours;
 
-      const userKey = (w.user_id || w.emp_name || w.employee_name || 'unknown').toLowerCase();
+      const userKey = (w.user_id || 'unknown').toLowerCase();
       pSummary.userHours.set(userKey, (pSummary.userHours.get(userKey) || 0) + hours);
     });
 
