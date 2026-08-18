@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 import { googleCalendar } from '../../lib/google-calendar';
+import ModalPortal from './ModalPortal';
 
 interface ViewWorklogModalProps {
   isOpen: boolean;
@@ -161,7 +162,8 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
   const breakTimeDisplay = getBreakTimeDisplay();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 print-backdrop print:bg-transparent print:p-0 print:static print:block print:inset-auto">
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 print-backdrop print:bg-transparent print:p-0 print:static print:block print:inset-auto">
       <div className="w-full max-w-3xl bg-theme-surface-modal border border-theme-border rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col print-job-card print:bg-white print:border-none print:shadow-none print:max-h-none print:w-full print:rounded-none">
         
         {/* Modal Header */}
@@ -615,6 +617,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
         </div>
       )}
 
-    </div>
+      </div>
+    </ModalPortal>
   );
 }

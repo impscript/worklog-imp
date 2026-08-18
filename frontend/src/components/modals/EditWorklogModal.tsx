@@ -6,6 +6,12 @@ import { useNotification } from '../../context/NotificationContext';
 import { cn } from '../../lib/utils';
 import { syncWorklogToGCal, googleCalendar } from '../../lib/google-calendar';
 import { compressImage } from '../../lib/image-compressor';
+import ModalPortal from './ModalPortal';
+import {
+  DEFAULT_WORK_END_TIME,
+  DEFAULT_WORK_START_TIME,
+  getNextDefaultTimeRange
+} from '../../lib/worklog-time';
 
 // Generate Time Options (00:00 to 24:00 - 24 Hours)
 // Generate Time Options in 15-minute intervals (00:00 to 24:00 - 24 Hours)
@@ -296,6 +302,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   const { t } = useTranslation();
   const { showToast } = useNotification();
   const [session] = useState(() => JSON.parse(localStorage.getItem('worklog_session') || '{}'));
+  const isTimeCustomizedRef = useRef(false);
 
   // ── Ownership Guard ──────────────────────────────────────────────────────────
   // Only the log's owner can edit. Admins who "view as" another user cannot edit
@@ -304,34 +311,36 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
 
   if (isOpen && log && !isOwner) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-        <div className="w-full max-w-md bg-theme-surface-modal border border-theme-border rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200 text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-            <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+      <ModalPortal>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-theme-surface-modal border border-theme-border rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+              <svg width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            </div>
+            <h3 className="text-lg font-black text-theme-text mb-2">ไม่มีสิทธิ์แก้ไขใบงานนี้</h3>
+            <p className="text-sm text-theme-text-secondary mb-6 leading-relaxed">
+              คุณสามารถแก้ไขได้เฉพาะใบงานบันทึกการทำงานของตัวเองเท่านั้น<br/>
+              <span className="text-[11px] font-mono text-theme-text-muted">(You can only edit your own worklogs.)</span>
+            </p>
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold rounded-xl transition-all active:scale-95"
+            >
+              ปิดหน้าต่าง
+            </button>
           </div>
-          <h3 className="text-lg font-black text-theme-text mb-2">ไม่มีสิทธิ์แก้ไขใบงานนี้</h3>
-          <p className="text-sm text-theme-text-secondary mb-6 leading-relaxed">
-            คุณสามารถแก้ไขได้เฉพาะใบงานบันทึกการทำงานของตัวเองเท่านั้น<br/>
-            <span className="text-[11px] font-mono text-theme-text-muted">(You can only edit your own worklogs.)</span>
-          </p>
-          <button
-            onClick={onClose}
-            className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold rounded-xl transition-all active:scale-95"
-          >
-            ปิดหน้าต่าง
-          </button>
         </div>
-      </div>
+      </ModalPortal>
     );
   }
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Form State
   const [date, setDate] = useState('');
-  const [startTime, setStartTime] = useState('08:00');
-  const [endTime, setEndTime] = useState('17:00');
-  const lastValidStartTime = useRef('08:00');
-  const lastValidEndTime = useRef('17:00');
+  const [startTime, setStartTime] = useState(DEFAULT_WORK_START_TIME);
+  const [endTime, setEndTime] = useState(DEFAULT_WORK_END_TIME);
+  const lastValidStartTime = useRef(DEFAULT_WORK_START_TIME);
+  const lastValidEndTime = useRef(DEFAULT_WORK_END_TIME);
   const [isBreak, setIsBreak] = useState(true);
   const [description, setDescription] = useState('');
   const [dbTemplates, setDbTemplates] = useState<any[]>([
@@ -438,7 +447,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     
     async function loadDropdownData() {
       const targetUserId = log?.user_id || session.id;
-      const workspaceId = session?.activeWorkspaceId;
+      const workspaceId = log?.workspace_id || session?.activeWorkspaceId;
 
       // 1. First fetch user details from DB to build cleanName fallback
       let cleanName = 'Chatchawan';
@@ -535,9 +544,15 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   // Prepopulate form when log changes
   useEffect(() => {
     if (log && isOpen) {
+      const initialStartTime = log.start_time ? log.start_time.slice(0, 5) : DEFAULT_WORK_START_TIME;
+      const initialEndTime = log.end_time ? log.end_time.slice(0, 5) : DEFAULT_WORK_END_TIME;
+
       setDate(log.work_date);
-      setStartTime(log.start_time ? log.start_time.slice(0, 5) : '08:00');
-      setEndTime(log.end_time ? log.end_time.slice(0, 5) : '17:00');
+      setStartTime(initialStartTime);
+      setEndTime(initialEndTime);
+      lastValidStartTime.current = initialStartTime;
+      lastValidEndTime.current = initialEndTime;
+      isTimeCustomizedRef.current = false;
       setIsBreak(log.break_time !== undefined ? log.break_time : true);
       setDescription(log.description || '');
       setIsExplicitOt(log.is_ot);
@@ -576,6 +591,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   useEffect(() => {
     if (!isOpen || !log || !date) return;
 
+    let active = true;
     const currentLogId = log.id;
     const currentUserId = log.user_id;
 
@@ -593,9 +609,21 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         query = query.neq('id', currentLogId);
       }
 
-      const { data: logs } = await query;
+      const { data: logs, error: logsError } = await query;
       
-      if (logs) setExistingEntries(logs);
+      if (!active) return;
+      if (logsError) {
+        console.error('Failed to load daily worklogs for the modal:', logsError);
+      } else if (logs) {
+        setExistingEntries(logs);
+        if (!currentLogId && !isTimeCustomizedRef.current) {
+          const nextDefault = getNextDefaultTimeRange(logs);
+          setStartTime(nextDefault.startTime);
+          setEndTime(nextDefault.endTime);
+          lastValidStartTime.current = nextDefault.startTime;
+          lastValidEndTime.current = nextDefault.endTime;
+        }
+      }
 
       // 2. Check if weekend/holiday
       const d = new Date(date);
@@ -610,6 +638,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
           .eq('date', date)
           .maybeSingle();
         
+        if (!active) return;
         if (holiday) {
           setIsHolidayDate(true);
           setHolidayName(holiday.name);
@@ -620,6 +649,9 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       }
     }
     loadDailyData();
+    return () => {
+      active = false;
+    };
   }, [date, isOpen, log]);
 
   // Handle auto explicit OT triggers on holidays
@@ -1009,7 +1041,7 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
     setIsSubmitting(true);
     const sessionStr = localStorage.getItem('worklog_session');
     const sessionObj = sessionStr ? JSON.parse(sessionStr) : null;
-    const workspaceId = sessionObj?.activeWorkspaceId;
+    const workspaceId = log.workspace_id || sessionObj?.activeWorkspaceId;
 
     try {
       const { ready } = await googleCalendar.checkSessionReady(log.user_id);
@@ -1349,7 +1381,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   if (!isOpen || !log) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-4xl bg-theme-surface-modal border border-theme-border dark:border-theme-border/80 rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
         
         {/* Modal Header */}
@@ -1391,7 +1424,10 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                   <input
                     type="date"
                     value={date}
-                    onChange={(e) => setDate(e.target.value)}
+                    onChange={(e) => {
+                      if (!log.id) isTimeCustomizedRef.current = false;
+                      setDate(e.target.value);
+                    }}
                     className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/90 border border-theme-border dark:border-theme-border rounded-xl py-2.5 pl-10 pr-3 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                   />
                 </div>
@@ -1401,7 +1437,10 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                 <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">เวลาเริ่มงาน</label>
                 <TimeSelectInput
                   value={startTime}
-                  onChange={val => { setStartTime(val); }}
+                  onChange={val => {
+                    isTimeCustomizedRef.current = true;
+                    setStartTime(val);
+                  }}
                   onBlur={val => {
                     const formatted = validateAndFormatTime(val, lastValidStartTime.current);
                     setStartTime(formatted);
@@ -1416,7 +1455,10 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                 <label className="block text-[10px] uppercase font-bold text-theme-text-muted mb-1.5 ml-1">เวลาเลิกงาน</label>
                 <TimeSelectInput
                   value={endTime}
-                  onChange={val => { setEndTime(val); }}
+                  onChange={val => {
+                    isTimeCustomizedRef.current = true;
+                    setEndTime(val);
+                  }}
                   onBlur={val => {
                     const formatted = validateAndFormatTime(val, lastValidEndTime.current);
                     setEndTime(formatted);
@@ -1439,7 +1481,10 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
                   <button
                     key={`edit-adj-${mins}`}
                     type="button"
-                    onClick={() => setEndTime(prev => addMinutesToTime(prev, mins))}
+                    onClick={() => {
+                      isTimeCustomizedRef.current = true;
+                      setEndTime(prev => addMinutesToTime(prev, mins));
+                    }}
                     className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-theme-border/60 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 text-theme-text-secondary hover:text-indigo-400 transition-all cursor-pointer active:scale-95"
                   >
                     {label}
@@ -1838,7 +1883,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ModalPortal>
   );
 }
 
@@ -2026,4 +2072,3 @@ function TimeSelectInput({
     </div>
   );
 }
-

@@ -11,6 +11,12 @@ import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
 import { compressImage } from '../lib/image-compressor';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import {
+  DEFAULT_WORK_END_TIME,
+  DEFAULT_WORK_START_TIME,
+  getNextDefaultTimeRange,
+  parseTimeToMinutes
+} from '../lib/worklog-time';
 
 // Generate Time Options in 15-minute intervals (00:00 to 24:00 - 24 Hours)
 const timeOptions = Array.from({ length: 97 }, (_, i) => {
@@ -19,10 +25,6 @@ const timeOptions = Array.from({ length: 97 }, (_, i) => {
   const val24 = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
   return { label: val24, value: val24 };
 });
-
-const DEFAULT_WORK_START_TIME = '08:00';
-const DEFAULT_WORK_END_TIME = '17:00';
-const NEXT_WORKLOG_GAP_MINUTES = 5;
 
 const validateAndFormatTime = (timeStr: string, fallback: string): string => {
   const clean = timeStr.trim();
@@ -79,49 +81,6 @@ function addMinutesToTime(timeStr: string, mins: number): string {
   const newH = String(Math.floor(totalMins / 60)).padStart(2, '0');
   const newM = String(totalMins % 60).padStart(2, '0');
   return `${newH}:${newM}`;
-}
-
-function parseTimeToMinutes(timeStr: string): number | null {
-  if (!timeStr || typeof timeStr !== 'string') return null;
-  const clean = timeStr.trim();
-  const parts = clean.split(':');
-  if (parts.length < 2 || parts.length > 3) return null;
-  const h = Number(parts[0]);
-  const m = Number(parts[1]);
-  const s = parts.length === 3 ? Number(parts[2]) : 0;
-  if (isNaN(h) || isNaN(m) || isNaN(s) || h < 0 || h > 24 || m < 0 || m > 59 || s < 0 || s >= 60) return null;
-  if (h === 24 && (m > 0 || s > 0)) return null;
-  return h * 60 + m;
-}
-
-function formatMinutesToTime(totalMinutes: number): string {
-  const boundedMinutes = Math.max(0, Math.min(totalMinutes, 24 * 60));
-  const hours = Math.floor(boundedMinutes / 60);
-  const minutes = boundedMinutes % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
-function getNextDefaultTimeRange(entries: Array<{ end_time?: string | null }>): { startTime: string; endTime: string } {
-  const latestEndMinutes = entries.reduce((latest, entry) => {
-    const endMinutes = parseTimeToMinutes(entry.end_time || '');
-    return endMinutes === null ? latest : Math.max(latest, endMinutes);
-  }, -1);
-
-  if (latestEndMinutes < 0) {
-    return { startTime: DEFAULT_WORK_START_TIME, endTime: DEFAULT_WORK_END_TIME };
-  }
-
-  // Keep the suggested entry inside the selected work date at the end-of-day boundary.
-  const nextStartMinutes = Math.min(latestEndMinutes + NEXT_WORKLOG_GAP_MINUTES, (24 * 60) - 1);
-  const defaultEndMinutes = parseTimeToMinutes(DEFAULT_WORK_END_TIME) || 0;
-  const nextEndMinutes = nextStartMinutes < defaultEndMinutes
-    ? defaultEndMinutes
-    : Math.min(nextStartMinutes + 60, 24 * 60);
-
-  return {
-    startTime: formatMinutesToTime(nextStartMinutes),
-    endTime: formatMinutesToTime(nextEndMinutes)
-  };
 }
 
 function calculateSegmentHours(startTime: string, endTime: string, deductLunch = false): number {

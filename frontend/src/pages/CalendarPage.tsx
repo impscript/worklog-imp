@@ -11,6 +11,13 @@ import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
 import WorkspaceSwitcher from '../components/common/WorkspaceSwitcher';
+import ModalPortal from '../components/modals/ModalPortal';
+import {
+  DEFAULT_WORK_END_TIME,
+  DEFAULT_WORK_START_TIME,
+  getNextDefaultTimeRange,
+  parseTimeToMinutes
+} from '../lib/worklog-time';
 
 interface WorklogEntry {
   id: string;
@@ -67,6 +74,7 @@ export default function CalendarPage() {
   const { grants } = useWorkspaceGrants();
   const [usersList, setUsersList] = useState<{id: string; full_name: string; emp_id: string}[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const canCreateWorklog = Boolean(sessionUser && (!selectedUserId || selectedUserId === sessionUser.id));
   const [refreshTrigger, setRefreshTrigger] = 
   useState(0);
   const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
@@ -193,17 +201,6 @@ export default function CalendarPage() {
       return `${startMonth} ${monday.getDate()} – ${sunday.getDate()}, ${startYear}`;
     }
   }, [week1Days, week2Days]);
-
-  // Parse time "HH:MM" or "HH:MM:SS" to minutes
-  const parseTimeToMinutes = (timeStr?: string | null) => {
-    if (!timeStr) return null;
-    const parts = timeStr.split(':');
-    if (parts.length < 2) return null;
-    const hours = parseInt(parts[0], 10);
-    const minutes = parseInt(parts[1], 10);
-    if (isNaN(hours) || isNaN(minutes)) return null;
-    return hours * 60 + minutes;
-  };
 
   const currentTimeTop = ((currentMinutes / 60) - startHourOffset) * hourHeight;
 
@@ -771,7 +768,7 @@ export default function CalendarPage() {
                       🎉 HD
                     </span>
                   )}
-                  {sessionUser && (
+                  {canCreateWorklog && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1633,10 +1630,43 @@ export default function CalendarPage() {
     setSelectedDateEntries(entries.filter((e) => e.work_date === dStr));
   };
 
-  const handleCreateNewLog = (workDate: string) => {
+  const handleCreateNewLog = async (workDate: string) => {
     if (!sessionUser) return;
+
+    const workspaceId = selectedWorkspaceId || sessionUser.activeWorkspaceId;
+    if (!workspaceId || workspaceId === 'N/A') {
+      showToast('กรุณาเลือก Workspace ก่อนสร้างใบงาน', 'error');
+      return;
+    }
+
+    let defaultTimeRange = {
+      startTime: DEFAULT_WORK_START_TIME,
+      endTime: DEFAULT_WORK_END_TIME
+    };
+
+    try {
+      const { data: dailyEntries, error } = await supabase
+        .from('col_worklog')
+        .select('start_time, end_time')
+        .eq('user_id', sessionUser.id)
+        .eq('workspace_id', workspaceId)
+        .eq('work_date', workDate);
+
+      if (error) throw error;
+      defaultTimeRange = getNextDefaultTimeRange(dailyEntries || []);
+    } catch (error: unknown) {
+      const message = error instanceof Error
+        ? error.message
+        : typeof error === 'object' && error !== null && 'message' in error
+          ? String(error.message)
+          : 'Unknown error';
+      console.error('Failed to determine the next Calendar worklog time:', error);
+      showToast(`โหลดเวลาใบงานล่าสุดไม่สำเร็จ ใช้เวลาเริ่มต้น 08:00 แทน: ${message}`, 'warning');
+    }
+
     setEditingLog({
       user_id: sessionUser.id,
+      workspace_id: workspaceId,
       work_date: workDate,
       holding: '',
       department_operator: '',
@@ -1648,8 +1678,8 @@ export default function CalendarPage() {
       is_ot: false,
       is_implied_ot: false,
       bu: '',
-      start_time: '08:00',
-      end_time: '17:00'
+      start_time: defaultTimeRange.startTime,
+      end_time: defaultTimeRange.endTime
     });
   };
 
@@ -2052,13 +2082,15 @@ export default function CalendarPage() {
                       You haven't recorded any tasks for this date.
                     </p>
                   </div>
-                  <button
-                    onClick={() => navigate('/log')}
-                    className="inline-flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 text-theme-text text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
-                  >
-                    <Plus size={14} />
-                    <span>Log Work</span>
-                  </button>
+                  {canCreateWorklog && (
+                    <button
+                      onClick={() => selectedDateStr && handleCreateNewLog(selectedDateStr)}
+                      className="inline-flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 text-theme-text text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md active:scale-95"
+                    >
+                      <Plus size={14} />
+                      <span>Log Work</span>
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -2123,13 +2155,15 @@ export default function CalendarPage() {
                     </div>
                   ))}
                   
-                  <button
-                    onClick={() => navigate('/log')}
-                    className="w-full inline-flex items-center justify-center gap-1.5 bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-400 hover:text-indigo-300 text-xs font-semibold py-3 rounded-xl transition-all active:scale-95"
-                  >
-                    <Plus size={14} />
-                    <span>Add Another Log</span>
-                  </button>
+                  {canCreateWorklog && (
+                    <button
+                      onClick={() => selectedDateStr && handleCreateNewLog(selectedDateStr)}
+                      className="w-full inline-flex items-center justify-center gap-1.5 bg-indigo-500/10 border border-indigo-500/30 hover:border-indigo-500/50 text-indigo-400 hover:text-indigo-300 text-xs font-semibold py-3 rounded-xl transition-all active:scale-95"
+                    >
+                      <Plus size={14} />
+                      <span>Add Another Log</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2161,8 +2195,9 @@ export default function CalendarPage() {
 
       {/* Premium Notification Modal for Calendar Sync */}
       {syncAlert?.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm bg-theme-surface-modal border border-theme-border rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200 text-center relative overflow-hidden">
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="w-full max-w-sm bg-theme-surface-modal border border-theme-border rounded-3xl p-8 shadow-2xl animate-in zoom-in-95 duration-200 text-center relative overflow-hidden">
             {/* Design accents */}
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
             
@@ -2225,8 +2260,9 @@ export default function CalendarPage() {
                 {t('common.acknowledge', { defaultValue: 'รับทราบ' })}
               </button>
             )}
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </AppLayout>
   );
