@@ -20,6 +20,10 @@ const timeOptions = Array.from({ length: 97 }, (_, i) => {
   return { label: val24, value: val24 };
 });
 
+const DEFAULT_WORK_START_TIME = '08:00';
+const DEFAULT_WORK_END_TIME = '17:00';
+const NEXT_WORKLOG_GAP_MINUTES = 5;
+
 const validateAndFormatTime = (timeStr: string, fallback: string): string => {
   const clean = timeStr.trim();
   
@@ -81,11 +85,43 @@ function parseTimeToMinutes(timeStr: string): number | null {
   if (!timeStr || typeof timeStr !== 'string') return null;
   const clean = timeStr.trim();
   const parts = clean.split(':');
-  if (parts.length !== 2) return null;
+  if (parts.length < 2 || parts.length > 3) return null;
   const h = Number(parts[0]);
   const m = Number(parts[1]);
-  if (isNaN(h) || isNaN(m) || h < 0 || h > 24 || m < 0 || m > 59) return null;
+  const s = parts.length === 3 ? Number(parts[2]) : 0;
+  if (isNaN(h) || isNaN(m) || isNaN(s) || h < 0 || h > 24 || m < 0 || m > 59 || s < 0 || s >= 60) return null;
+  if (h === 24 && (m > 0 || s > 0)) return null;
   return h * 60 + m;
+}
+
+function formatMinutesToTime(totalMinutes: number): string {
+  const boundedMinutes = Math.max(0, Math.min(totalMinutes, 24 * 60));
+  const hours = Math.floor(boundedMinutes / 60);
+  const minutes = boundedMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function getNextDefaultTimeRange(entries: Array<{ end_time?: string | null }>): { startTime: string; endTime: string } {
+  const latestEndMinutes = entries.reduce((latest, entry) => {
+    const endMinutes = parseTimeToMinutes(entry.end_time || '');
+    return endMinutes === null ? latest : Math.max(latest, endMinutes);
+  }, -1);
+
+  if (latestEndMinutes < 0) {
+    return { startTime: DEFAULT_WORK_START_TIME, endTime: DEFAULT_WORK_END_TIME };
+  }
+
+  // Keep the suggested entry inside the selected work date at the end-of-day boundary.
+  const nextStartMinutes = Math.min(latestEndMinutes + NEXT_WORKLOG_GAP_MINUTES, (24 * 60) - 1);
+  const defaultEndMinutes = parseTimeToMinutes(DEFAULT_WORK_END_TIME) || 0;
+  const nextEndMinutes = nextStartMinutes < defaultEndMinutes
+    ? defaultEndMinutes
+    : Math.min(nextStartMinutes + 60, 24 * 60);
+
+  return {
+    startTime: formatMinutesToTime(nextStartMinutes),
+    endTime: formatMinutesToTime(nextEndMinutes)
+  };
 }
 
 function calculateSegmentHours(startTime: string, endTime: string, deductLunch = false): number {
@@ -362,10 +398,10 @@ export default function LogWorkPage() {
     const d = String(today.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   });
-  const [startTime, setStartTime] = useState('08:00');
-  const [endTime, setEndTime] = useState('17:00');
-  const lastValidStartTime = useRef('08:00');
-  const lastValidEndTime = useRef('17:00');
+  const [startTime, setStartTime] = useState(DEFAULT_WORK_START_TIME);
+  const [endTime, setEndTime] = useState(DEFAULT_WORK_END_TIME);
+  const lastValidStartTime = useRef(DEFAULT_WORK_START_TIME);
+  const lastValidEndTime = useRef(DEFAULT_WORK_END_TIME);
   const [isBreak, setIsBreak] = useState(true);
   const [description, setDescription] = useState('');
 
@@ -386,6 +422,7 @@ export default function LogWorkPage() {
   }, [description]);
   const [isExplicitOt, setIsExplicitOt] = useState(false);
   const [isTimeCustomized, setIsTimeCustomized] = useState(false);
+  const isTimeCustomizedRef = useRef(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isClassifying, setIsClassifying] = useState(false);
 
@@ -543,14 +580,29 @@ export default function LogWorkPage() {
   const [holidayName, setHolidayName] = useState('');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  const resetTimeDefaults = () => {
+    isTimeCustomizedRef.current = false;
+    setIsTimeCustomized(false);
+    setStartTime(DEFAULT_WORK_START_TIME);
+    setEndTime(DEFAULT_WORK_END_TIME);
+    lastValidStartTime.current = DEFAULT_WORK_START_TIME;
+    lastValidEndTime.current = DEFAULT_WORK_END_TIME;
+  };
+
+  const markTimeCustomized = () => {
+    isTimeCustomizedRef.current = true;
+    setIsTimeCustomized(true);
+  };
+
   // Synchronize URL parameter when search changes
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const dateParam = params.get('date');
-    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) && dateParam !== date) {
+      isTimeCustomizedRef.current = false;
       setDate(dateParam);
     }
-  }, [location.search]);
+  }, [date, location.search]);
 
   // Load unique user list and default selection
   useEffect(() => {
@@ -946,6 +998,14 @@ export default function LogWorkPage() {
         .eq('work_date', date);
       if (active && logs) {
         setExistingEntries(logs);
+        if (!isTimeCustomizedRef.current) {
+          const nextDefault = getNextDefaultTimeRange(logs);
+          setIsTimeCustomized(false);
+          setStartTime(nextDefault.startTime);
+          setEndTime(nextDefault.endTime);
+          lastValidStartTime.current = nextDefault.startTime;
+          lastValidEndTime.current = nextDefault.endTime;
+        }
       }
 
       // 2. Check if weekend or holiday
@@ -1767,9 +1827,7 @@ export default function LogWorkPage() {
       setSelectedActionChannels([]);
       setDurationHours(2);
       setIsBreak(true);
-      setIsTimeCustomized(false);
-      setStartTime('08:00');
-      setEndTime('17:00');
+      resetTimeDefaults();
       setAttachedImages([]);
       
       setRefreshTrigger(prev => prev + 1);
@@ -1900,7 +1958,10 @@ export default function LogWorkPage() {
                 <input 
                   type="date" 
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) => {
+                    resetTimeDefaults();
+                    setDate(e.target.value);
+                  }}
                   className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 />
               </div>
@@ -1910,7 +1971,10 @@ export default function LogWorkPage() {
               <DropdownField
                 label="ผู้ใช้งานจำลองสิทธิ์ / Simulating User"
                 value={selectedUser}
-                onChange={(v) => setSelectedUser(v)}
+                onChange={(v) => {
+                  resetTimeDefaults();
+                  setSelectedUser(v);
+                }}
                 options={allUsers.map((u) => ({
                   value: u,
                   label: `${userDisplayLabels[u] || u}${u.toLowerCase() === (session.nickname || '').split('_')[0].toLowerCase() ? ' (You)' : ''}`
@@ -2202,7 +2266,7 @@ export default function LogWorkPage() {
                         <span className="block text-xs text-theme-text-secondary mb-1">เวลาเริ่มต้น / Start Time</span>
                         <TimeSelectInput 
                           value={startTime}
-                          onChange={val => { setStartTime(val); setIsTimeCustomized(true); }}
+                          onChange={val => { setStartTime(val); markTimeCustomized(); }}
                           onBlur={val => {
                             const formatted = validateAndFormatTime(val, lastValidStartTime.current);
                             setStartTime(formatted);
@@ -2217,7 +2281,7 @@ export default function LogWorkPage() {
                         <span className="block text-xs text-theme-text-secondary mb-1">เวลาสิ้นสุด / End Time</span>
                         <TimeSelectInput 
                           value={endTime}
-                          onChange={val => { setEndTime(val); setIsTimeCustomized(true); }}
+                          onChange={val => { setEndTime(val); markTimeCustomized(); }}
                           onBlur={val => {
                             const formatted = validateAndFormatTime(val, lastValidEndTime.current);
                             setEndTime(formatted);
@@ -2242,7 +2306,7 @@ export default function LogWorkPage() {
                             type="button"
                             onClick={() => {
                               setEndTime(prev => addMinutesToTime(prev, mins));
-                              setIsTimeCustomized(true);
+                              markTimeCustomized();
                             }}
                             className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-theme-border/60 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 text-theme-text-secondary hover:text-indigo-600 dark:hover:text-indigo-400 transition-all cursor-pointer active:scale-95"
                           >
@@ -3010,4 +3074,3 @@ function TimeSelectInput({
     </div>
   );
 }
-
