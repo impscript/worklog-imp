@@ -103,6 +103,19 @@ export interface GanttProject {
   total_savings_annual: number;
 }
 
+export interface ProjectGanttOverviewPayload {
+  start_date?: string | null;
+  due_date?: string | null;
+  progress_percent?: number;
+  status?: ProjectStatus;
+  head_lead_user_id?: string | null;
+  head_lead_name?: string | null;
+  owner_team?: string | null;
+  owner_holding?: string | null;
+  worklog_project_type?: string | null;
+  project_health?: ProjectHealth;
+}
+
 /**
  * Resolves the corporate face photo URL from WMS with fallback to UI-Avatars
  */
@@ -430,7 +443,7 @@ export function getAvailableProjectYears(projects: GanttProject[]): number[] {
  */
 export function calculateGrossSavings(savings?: Partial<ProjectCostSavings> | null): number {
   if (!savings) return 0;
-  if (savings.manual_total_savings_override !== undefined && savings.manual_total_savings_override !== null && savings.manual_total_savings_override > 0) {
+  if (savings.manual_total_savings_override !== undefined && savings.manual_total_savings_override !== null) {
     return Number(savings.manual_total_savings_override);
   }
 
@@ -444,14 +457,14 @@ export function calculateGrossSavings(savings?: Partial<ProjectCostSavings> | nu
       ? Math.max(0, baselineCost - targetCost)
       : Number(savings.direct_savings_annual) || 0;
   const indirectHours = Number(savings.indirect_manhour_saved_annual) || 0;
-  const rate = Number(savings.indirect_hourly_rate) || 350;
+  const rate = Number(savings.indirect_hourly_rate ?? 350);
   const indirect = Number(savings.indirect_savings_annual) || (indirectHours * rate);
   const avoidance = Number(savings.avoidance_savings_annual) || 0;
   const supportBaseline = Number(savings.support_ticket_baseline_monthly) || 0;
   const supportTarget = Number(savings.support_ticket_target_monthly) || 0;
   const supportCostPerTicket = Number(savings.support_cost_per_ticket) || 0;
   const supportHoursPerTicket = Number(savings.support_hours_per_ticket) || 0;
-  const supportHourlyRate = Number(savings.support_hourly_rate) || 350;
+  const supportHourlyRate = Number(savings.support_hourly_rate ?? 350);
   const supportCostUnit = supportCostPerTicket + (supportHoursPerTicket * supportHourlyRate);
   const hasSupportCalculator = supportBaseline > 0 || supportTarget > 0 || supportCostUnit > 0;
   const support = hasSupportCalculator
@@ -502,9 +515,10 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
     const projectIds = rawProjects.map((p) => p.id);
 
     // 2. Fetch Users Map for resolving corporate employee photo (emp_id)
-    const { data: usersData } = await supabase
+    const { data: usersData, error: usersErr } = await supabase
       .from('users')
       .select('id, emp_id, full_name, nickname');
+    if (usersErr) throw usersErr;
 
     const userMapById = new Map<string, { emp_id?: string; full_name?: string }>();
     const userMapByName = new Map<string, string>(); // lowercase name -> emp_id
@@ -522,23 +536,26 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
     });
 
     // 3. Fetch Team Contributions
-    const { data: teamData } = await supabase
+    const { data: teamData, error: teamErr } = await supabase
       .from('tb_project_team_contribution')
       .select('*')
       .in('project_id', projectIds);
+    if (teamErr) throw teamErr;
 
     // 4. Fetch Milestones
-    const { data: milestonesData } = await supabase
+    const { data: milestonesData, error: milestonesErr } = await supabase
       .from('tb_project_milestones')
       .select('*')
       .in('project_id', projectIds)
       .order('sequence_order', { ascending: true });
+    if (milestonesErr) throw milestonesErr;
 
     // 5. Fetch Cost Savings
-    const { data: savingsData } = await supabase
+    const { data: savingsData, error: savingsErr } = await supabase
       .from('tb_project_cost_savings')
       .select('*')
       .in('project_id', projectIds);
+    if (savingsErr) throw savingsErr;
 
     // 6. Fetch Actual Worklog Hours grouped by project_name and user_id
     const projectNames = rawProjects.map((p) => p.project_name);
@@ -677,197 +694,49 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
 }
 
 /**
- * Update Project Roadmap Overview details
+ * Save every editable Gantt drawer section in one database transaction.
  */
-export async function updateProjectGanttOverview(
+export async function saveProjectGanttDetails(
   projectId: string,
-  payload: {
-    start_date?: string | null;
-    due_date?: string | null;
-    progress_percent?: number;
-    status?: ProjectStatus;
-    head_lead_user_id?: string | null;
-    head_lead_name?: string | null;
-    owner_team?: string | null;
-    owner_holding?: string | null;
-    worklog_project_type?: string | null;
-    project_health?: ProjectHealth;
-  }
+  overview: ProjectGanttOverviewPayload,
+  teamList: TeamMemberContribution[],
+  milestones: ProjectMilestone[],
+  savings: Partial<ProjectCostSavings>
 ) {
-  // Try full update with Gantt fields
-  const { error } = await supabase
-    .from('tb_project_registry')
-    .update({
-      ...payload,
-      go_live_date: payload.due_date, // sync with legacy go_live_date
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', projectId);
-
-  if (error) {
-    // If due_date column is not yet in schema cache (migration pending), fallback to legacy columns
-    if (error.message && (error.message.includes('due_date') || error.message.includes('schema cache'))) {
-      const legacyPayload: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
-      if (payload.due_date !== undefined) legacyPayload.go_live_date = payload.due_date;
-      if (payload.owner_team !== undefined) legacyPayload.owner_team = payload.owner_team;
-      if (payload.owner_holding !== undefined) legacyPayload.owner_holding = payload.owner_holding;
-      if (payload.worklog_project_type !== undefined) legacyPayload.worklog_project_type = payload.worklog_project_type;
-
-      const { error: fallbackErr } = await supabase
-        .from('tb_project_registry')
-        .update(legacyPayload)
-        .eq('id', projectId);
-
-      if (fallbackErr) throw fallbackErr;
-      return;
-    }
-    throw error;
+  if (milestones.some((milestone) => !milestone.id)) {
+    throw new Error('A milestone is missing its ID');
   }
-}
 
-/**
- * Save / Upsert Team Member Contributions (with Target % & Manual overrides)
- */
-export async function saveTeamMemberContributions(
-  projectId: string,
-  workspaceId: string | null | undefined,
-  teamList: TeamMemberContribution[]
-) {
-  const activeWsId = workspaceId !== undefined && workspaceId !== null ? workspaceId : getActiveWorkspaceId();
-
-  // First, delete current team mappings for this project
-  const { error: delErr } = await supabase
-    .from('tb_project_team_contribution')
-    .delete()
-    .eq('project_id', projectId);
-
-  if (delErr) console.warn('Clean prior team error:', delErr);
-
-  if (teamList.length === 0) return;
-
-  const rows = teamList.map((tm) => ({
-    project_id: projectId,
-    workspace_id: activeWsId || null,
-    user_id: tm.user_id,
-    user_name: tm.user_name,
-    role_in_project: tm.role_in_project,
-    target_contribution_percent: tm.target_contribution_percent,
-    manual_actual_hours: tm.manual_actual_hours,
-    manual_actual_percent: tm.manual_actual_percent,
-    notes: tm.notes || null,
-    updated_at: new Date().toISOString(),
+  const teamPayload = teamList.map((member) => ({
+    user_id: member.user_id,
+    user_name: member.user_name,
+    role_in_project: member.role_in_project,
+    target_contribution_percent: member.target_contribution_percent,
+    manual_actual_hours: member.manual_actual_hours ?? null,
+    manual_actual_percent: member.manual_actual_percent ?? null,
+    notes: member.notes ?? null,
   }));
 
-  const { error } = await supabase.from('tb_project_team_contribution').insert(rows);
-  if (error) throw error;
-}
-
-/**
- * Save / Upsert Project Milestones
- */
-export async function saveProjectMilestones(
-  projectId: string,
-  workspaceId: string | null | undefined,
-  milestones: ProjectMilestone[]
-) {
-  const activeWsId = workspaceId !== undefined && workspaceId !== null ? workspaceId : getActiveWorkspaceId();
-
-  const { error: delErr } = await supabase
-    .from('tb_project_milestones')
-    .delete()
-    .eq('project_id', projectId);
-
-  if (delErr) console.warn('Clean prior milestones error:', delErr);
-
-  if (milestones.length === 0) return;
-
-  const rows = milestones.map((m, idx) => ({
-    project_id: projectId,
-    workspace_id: activeWsId || null,
-    milestone_name: m.milestone_name,
-    start_date: m.start_date || null,
-    due_date: m.due_date || null,
-    status: m.status || 'in_progress',
-    progress_percent: m.progress_percent || 0,
-    assigned_user_id: m.assigned_user_id || null,
-    assigned_user_name: m.assigned_user_name || null,
-    sequence_order: idx + 1,
-    notes: m.notes || null,
-    updated_at: new Date().toISOString(),
+  const milestonePayload = milestones.map((milestone, index) => ({
+    id: milestone.id,
+    milestone_name: milestone.milestone_name,
+    start_date: milestone.start_date ?? null,
+    due_date: milestone.due_date ?? null,
+    status: milestone.status,
+    progress_percent: milestone.progress_percent,
+    assigned_user_id: milestone.assigned_user_id ?? null,
+    assigned_user_name: milestone.assigned_user_name ?? null,
+    sequence_order: index + 1,
+    notes: milestone.notes ?? null,
   }));
 
-  const { error } = await supabase.from('tb_project_milestones').insert(rows);
-  if (error) throw error;
-}
-
-/**
- * Save / Upsert 4-Dimension Cost Savings
- */
-export async function saveProjectCostSavings(
-  projectId: string,
-  workspaceId: string | null | undefined,
-  savingsData: Partial<ProjectCostSavings>
-) {
-  const activeWsId = workspaceId !== undefined && workspaceId !== null ? workspaceId : getActiveWorkspaceId();
-  const indirectRate = savingsData.indirect_hourly_rate || 350;
-  const indirectHours = savingsData.indirect_manhour_saved_annual || 0;
-  const indirectAnnual = indirectHours * indirectRate;
-  const directMode = savingsData.direct_savings_mode || 'cost_reduction';
-  const directBaseline = savingsData.direct_baseline_cost_annual || 0;
-  const directTarget = savingsData.direct_target_cost_annual || 0;
-  const hasDirectCalculator = directBaseline > 0 || directTarget > 0;
-  const directAnnual = directMode === 'new_capability'
-    ? 0
-    : hasDirectCalculator
-      ? Math.max(0, directBaseline - directTarget)
-      : savingsData.direct_savings_annual || 0;
-  const supportBaseline = savingsData.support_ticket_baseline_monthly || 0;
-  const supportTarget = savingsData.support_ticket_target_monthly || 0;
-  const supportCostPerTicket = savingsData.support_cost_per_ticket || 0;
-  const supportHoursPerTicket = savingsData.support_hours_per_ticket || 0;
-  const supportHourlyRate = savingsData.support_hourly_rate || 350;
-  const supportCostUnit = supportCostPerTicket + (supportHoursPerTicket * supportHourlyRate);
-  const hasSupportCalculator = supportBaseline > 0 || supportTarget > 0 || supportCostUnit > 0;
-  const supportAnnual = hasSupportCalculator
-    ? Math.max(0, supportBaseline - supportTarget) * 12 * supportCostUnit
-    : savingsData.support_savings_annual || 0;
-
-  const payload = {
-    project_id: projectId,
-    workspace_id: activeWsId || null,
-    direct_savings_mode: directMode,
-    direct_baseline_cost_annual: directBaseline,
-    direct_target_cost_annual: directTarget,
-    direct_savings_annual: directAnnual,
-    direct_savings_notes: savingsData.direct_savings_notes || null,
-    indirect_manhour_saved_annual: indirectHours,
-    indirect_hourly_rate: indirectRate,
-    indirect_savings_annual: indirectAnnual,
-    indirect_savings_notes: savingsData.indirect_savings_notes || null,
-    avoidance_savings_annual: savingsData.avoidance_savings_annual || 0,
-    avoidance_savings_notes: savingsData.avoidance_savings_notes || null,
-    support_savings_annual: supportAnnual,
-    support_ticket_baseline_monthly: supportBaseline,
-    support_ticket_target_monthly: supportTarget,
-    support_cost_per_ticket: supportCostPerTicket,
-    support_hours_per_ticket: supportHoursPerTicket,
-    support_hourly_rate: supportHourlyRate,
-    support_savings_notes: savingsData.support_savings_notes || null,
-    incremental_run_cost_annual: savingsData.incremental_run_cost_annual || 0,
-    manual_total_savings_override: savingsData.manual_total_savings_override || null,
-    baseline_before: savingsData.baseline_before || null,
-    target_after: savingsData.target_after || null,
-    calculation_formula: savingsData.calculation_formula || null,
-    ref_proof_url: savingsData.ref_proof_url || null,
-    verification_status: savingsData.verification_status || 'draft',
-    updated_at: new Date().toISOString(),
-  };
-
-  const { error } = await supabase
-    .from('tb_project_cost_savings')
-    .upsert(payload, { onConflict: 'project_id' });
+  const { error } = await supabase.rpc('save_gantt_project_details', {
+    p_project_id: projectId,
+    p_overview: overview,
+    p_team: teamPayload,
+    p_milestones: milestonePayload,
+    p_savings: savings,
+  });
 
   if (error) throw error;
 }

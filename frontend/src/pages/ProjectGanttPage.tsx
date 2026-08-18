@@ -87,7 +87,7 @@ export default function ProjectGanttPage() {
       }
 
       if (activeWsId) {
-        const { data: memData } = await supabase
+        const { data: memData, error: membersError } = await supabase
           .from('workspace_users')
           .select(`
             user_id,
@@ -101,6 +101,7 @@ export default function ProjectGanttPage() {
             )
           `)
           .eq('workspace_id', activeWsId);
+        if (membersError) throw membersError;
 
         interface RawMemberRecord {
           user_id: string;
@@ -129,10 +130,11 @@ export default function ProjectGanttPage() {
       }
 
       // Fallback: Global users
-      const { data } = await supabase
+      const { data, error: usersError } = await supabase
         .from('users')
         .select('id, full_name, nickname, email, emp_id')
         .order('full_name');
+      if (usersError) throw usersError;
 
       if (data) {
         const globalList: { id: string; name: string; email?: string; emp_id?: string }[] = data.map((u: { id: string; full_name?: string | null; nickname?: string | null; email?: string | null; emp_id?: string | null }) => {

@@ -25,10 +25,7 @@ import {
   TEAM_ROLE_LABELS,
   calculateGrossSavings,
   calculateTotalSavings,
-  updateProjectGanttOverview,
-  saveTeamMemberContributions,
-  saveProjectMilestones,
-  saveProjectCostSavings,
+  saveProjectGanttDetails,
   getUserAvatarUrl,
   getUiAvatarFallbackUrl,
   getProjectTypeMeta,
@@ -157,7 +154,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [directSavings, setDirectSavings] = useState(Number(cs?.direct_savings_annual) || 0);
   const [directNotes, setDirectNotes] = useState(cs?.direct_savings_notes || '');
   const [indirectHours, setIndirectHours] = useState(Number(cs?.indirect_manhour_saved_annual) || 0);
-  const [indirectRate, setIndirectRate] = useState(Number(cs?.indirect_hourly_rate) || 350);
+  const [indirectRate, setIndirectRate] = useState(Number(cs?.indirect_hourly_rate ?? 350));
   const [indirectNotes, setIndirectNotes] = useState(cs?.indirect_savings_notes || '');
   const [avoidanceSavings, setAvoidanceSavings] = useState(Number(cs?.avoidance_savings_annual) || 0);
   const [avoidanceNotes, setAvoidanceNotes] = useState(cs?.avoidance_savings_notes || '');
@@ -166,7 +163,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [supportTicketTargetMonthly, setSupportTicketTargetMonthly] = useState(Number(cs?.support_ticket_target_monthly) || 0);
   const [supportCostPerTicket, setSupportCostPerTicket] = useState(Number(cs?.support_cost_per_ticket) || 0);
   const [supportHoursPerTicket, setSupportHoursPerTicket] = useState(Number(cs?.support_hours_per_ticket) || 0);
-  const [supportHourlyRate, setSupportHourlyRate] = useState(Number(cs?.support_hourly_rate) || 350);
+  const [supportHourlyRate, setSupportHourlyRate] = useState(Number(cs?.support_hourly_rate ?? 350));
   const [supportNotes, setSupportNotes] = useState(cs?.support_savings_notes || '');
   const [incrementalRunCostAnnual, setIncrementalRunCostAnnual] = useState(Number(cs?.incremental_run_cost_annual) || 0);
   const [manualTotalOverride, setManualTotalOverride] = useState<number | null>(
@@ -244,23 +241,34 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     if (directBaselineCostAnnual !== (Number(cs?.direct_baseline_cost_annual) || 0)) return true;
     if (directTargetCostAnnual !== (Number(cs?.direct_target_cost_annual) || 0)) return true;
     if (computedDirectAnnual !== (Number(cs?.direct_savings_annual) || 0)) return true;
+    if (directNotes !== (cs?.direct_savings_notes || '')) return true;
     if (indirectHours !== (Number(cs?.indirect_manhour_saved_annual) || 0)) return true;
+    if (indirectRate !== Number(cs?.indirect_hourly_rate ?? 350)) return true;
+    if (indirectNotes !== (cs?.indirect_savings_notes || '')) return true;
     if (avoidanceSavings !== (Number(cs?.avoidance_savings_annual) || 0)) return true;
+    if (avoidanceNotes !== (cs?.avoidance_savings_notes || '')) return true;
     if (computedSupportAnnual !== (Number(cs?.support_savings_annual) || 0)) return true;
     if (supportTicketBaselineMonthly !== (Number(cs?.support_ticket_baseline_monthly) || 0)) return true;
     if (supportTicketTargetMonthly !== (Number(cs?.support_ticket_target_monthly) || 0)) return true;
     if (supportCostPerTicket !== (Number(cs?.support_cost_per_ticket) || 0)) return true;
     if (supportHoursPerTicket !== (Number(cs?.support_hours_per_ticket) || 0)) return true;
-    if (supportHourlyRate !== (Number(cs?.support_hourly_rate) || 350)) return true;
+    if (supportHourlyRate !== Number(cs?.support_hourly_rate ?? 350)) return true;
+    if (supportNotes !== (cs?.support_savings_notes || '')) return true;
     if (incrementalRunCostAnnual !== (Number(cs?.incremental_run_cost_annual) || 0)) return true;
+    if (manualTotalOverride !== (cs?.manual_total_savings_override ?? null)) return true;
+    if (baselineBefore !== (cs?.baseline_before || '')) return true;
+    if (targetAfter !== (cs?.target_after || '')) return true;
+    if (formulaNotes !== (cs?.calculation_formula || '')) return true;
+    if (refProofUrl !== (cs?.ref_proof_url || '')) return true;
     if (verificationStatus !== (cs?.verification_status || 'draft')) return true;
     return false;
   }, [
     startDate, dueDate, status, progress, ownerTeam, ownerHolding, worklogProjectType, headLeadId, headLeadName,
     teamList, milestonesList, directSavingsMode, directBaselineCostAnnual, directTargetCostAnnual, computedDirectAnnual,
-    indirectHours, avoidanceSavings, computedSupportAnnual, supportTicketBaselineMonthly, supportTicketTargetMonthly,
-    supportCostPerTicket, supportHoursPerTicket, supportHourlyRate, incrementalRunCostAnnual,
-    verificationStatus, project, cs
+    directNotes, indirectHours, indirectRate, indirectNotes, avoidanceSavings, avoidanceNotes, computedSupportAnnual,
+    supportTicketBaselineMonthly, supportTicketTargetMonthly, supportCostPerTicket, supportHoursPerTicket,
+    supportHourlyRate, supportNotes, incrementalRunCostAnnual, manualTotalOverride, baselineBefore, targetAfter,
+    formulaNotes, refProofUrl, verificationStatus, project, cs
   ]);
 
   const handleRequestClose = () => {
@@ -445,7 +453,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     if (m.id) {
       setMilestonesList(milestonesList.map((item) => (item.id === m.id ? m : item)));
     } else {
-      setMilestonesList([...milestonesList, { ...m, id: `milestone_${Date.now()}` }]);
+      setMilestonesList([...milestonesList, { ...m, id: crypto.randomUUID() }]);
     }
   };
 
@@ -455,55 +463,71 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
 
   // Master Save Execution
   const executeSaveAll = async () => {
+    if (startDate && dueDate && startDate > dueDate) {
+      showToast('วันเริ่มต้นโครงการต้องไม่อยู่หลังวันกำหนดเสร็จ', 'error');
+      return;
+    }
+
+    const invalidMilestone = milestonesList.find(
+      (milestone) => milestone.start_date && milestone.due_date && milestone.start_date > milestone.due_date
+    );
+    if (invalidMilestone) {
+      showToast(`Milestone "${invalidMilestone.milestone_name}" มีวันเริ่มต้นอยู่หลังวันกำหนดเสร็จ`, 'error');
+      return;
+    }
+
+    if (teamList.length > 0 && Math.abs(totalTargetPercent - 100) > 0.001) {
+      showToast('Target Contribution ของทีมต้องรวมเท่ากับ 100% ก่อนบันทึก', 'error');
+      return;
+    }
+
     setIsSaving(true);
     try {
-      // 1. Save Project Overview
-      await updateProjectGanttOverview(project.id, {
-        start_date: startDate || null,
-        due_date: dueDate || null,
-        status,
-        progress_percent: Number(progress),
-        owner_team: ownerTeam,
-        owner_holding: ownerHolding || null,
-        worklog_project_type: worklogProjectType || null,
-        head_lead_user_id: headLeadId || null,
-        head_lead_name: headLeadName || null,
-      });
-
-      // 2. Save Team Contributions
-      await saveTeamMemberContributions(project.id, project.workspace_id, teamList);
-
-      // 3. Save Milestones
-      await saveProjectMilestones(project.id, project.workspace_id, milestonesList);
-
-      // 4. Save Cost Savings
-      await saveProjectCostSavings(project.id, project.workspace_id, {
-        direct_savings_mode: directSavingsMode,
-        direct_baseline_cost_annual: directBaselineCostAnnual,
-        direct_target_cost_annual: directTargetCostAnnual,
-        direct_savings_annual: computedDirectAnnual,
-        direct_savings_notes: directNotes,
-        indirect_manhour_saved_annual: indirectHours,
-        indirect_hourly_rate: indirectRate,
-        indirect_savings_annual: computedIndirectAnnual,
-        indirect_savings_notes: indirectNotes,
-        avoidance_savings_annual: avoidanceSavings,
-        avoidance_savings_notes: avoidanceNotes,
-        support_savings_annual: computedSupportAnnual,
-        support_ticket_baseline_monthly: supportTicketBaselineMonthly,
-        support_ticket_target_monthly: supportTicketTargetMonthly,
-        support_cost_per_ticket: supportCostPerTicket,
-        support_hours_per_ticket: supportHoursPerTicket,
-        support_hourly_rate: supportHourlyRate,
-        support_savings_notes: supportNotes,
-        incremental_run_cost_annual: incrementalRunCostAnnual,
-        manual_total_savings_override: manualTotalOverride,
-        baseline_before: baselineBefore,
-        target_after: targetAfter,
-        calculation_formula: formulaNotes,
-        ref_proof_url: refProofUrl,
-        verification_status: verificationStatus,
-      });
+      await saveProjectGanttDetails(
+        project.id,
+        {
+          ...(startDate !== (project.start_date || '') ? { start_date: startDate || null } : {}),
+          ...(dueDate !== (project.due_date || '') ? { due_date: dueDate || null } : {}),
+          ...(progress !== (project.progress_percent || 0) ? { progress_percent: Number(progress) } : {}),
+          ...(status !== project.status ? { status } : {}),
+          ...(ownerTeam !== (project.owner_team || 'IMP') ? { owner_team: ownerTeam } : {}),
+          ...(ownerHolding !== (project.owner_holding || '') ? { owner_holding: ownerHolding || null } : {}),
+          ...(worklogProjectType !== (project.worklog_project_type || 'Project')
+            ? { worklog_project_type: worklogProjectType || null }
+            : {}),
+          ...(headLeadId !== (project.head_lead_user_id || '') ? { head_lead_user_id: headLeadId || null } : {}),
+          ...(headLeadName !== (project.head_lead_name || '') ? { head_lead_name: headLeadName || null } : {}),
+        },
+        teamList,
+        milestonesList,
+        {
+          direct_savings_mode: directSavingsMode,
+          direct_baseline_cost_annual: directBaselineCostAnnual,
+          direct_target_cost_annual: directTargetCostAnnual,
+          direct_savings_annual: computedDirectAnnual,
+          direct_savings_notes: directNotes,
+          indirect_manhour_saved_annual: indirectHours,
+          indirect_hourly_rate: indirectRate,
+          indirect_savings_annual: computedIndirectAnnual,
+          indirect_savings_notes: indirectNotes,
+          avoidance_savings_annual: avoidanceSavings,
+          avoidance_savings_notes: avoidanceNotes,
+          support_savings_annual: computedSupportAnnual,
+          support_ticket_baseline_monthly: supportTicketBaselineMonthly,
+          support_ticket_target_monthly: supportTicketTargetMonthly,
+          support_cost_per_ticket: supportCostPerTicket,
+          support_hours_per_ticket: supportHoursPerTicket,
+          support_hourly_rate: supportHourlyRate,
+          support_savings_notes: supportNotes,
+          incremental_run_cost_annual: incrementalRunCostAnnual,
+          manual_total_savings_override: manualTotalOverride,
+          baseline_before: baselineBefore,
+          target_after: targetAfter,
+          calculation_formula: formulaNotes,
+          ref_proof_url: refProofUrl,
+          verification_status: verificationStatus,
+        }
+      );
 
       showToast(t('gantt.drawer.saveSuccess'), 'success');
       onProjectUpdated();
