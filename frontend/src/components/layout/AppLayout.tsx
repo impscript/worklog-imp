@@ -339,10 +339,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
       navigate('/');
     }
-    if (path === '/migrate' && !(isSuperAdmin || isWorkspaceAdmin)) {
-      showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
-      navigate('/');
-    }
     if ((path === '/projects' || path === '/projects/gantt' || path === '/projects/roadmap') && !(isSuperAdmin || isWorkspaceAdmin || isWorkspaceManager)) {
       showToast('ไม่มีสิทธิ์เข้าถึงหน้านี้ / Permission Denied', 'error');
       navigate('/');
@@ -544,6 +540,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <NavItem to="/" icon={<LayoutDashboard size={16} />} label={t('nav.dashboard')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} end />
             <NavItem to="/log" icon={<PlusCircle size={16} />} label={t('nav.logWork')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/calendar" icon={<Calendar size={16} />} label={t('nav.calendar')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/migrate" icon={<UploadCloud size={16} />} label={t('nav.migrate')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
 
             {/* Section 2: Collaboration & Projects */}
             {(user?.activeWorkspaceId || user?.role === 'admin' || !isCollapsed) && (
@@ -1191,8 +1188,7 @@ function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: 
   const location = useLocation();
   const isWorkspacesActive = location.pathname === '/workspaces';
   const isMasterDataActive = location.pathname === '/admin';
-  const isMigrateActive = location.pathname === '/migrate';
-  const isSysAdminActive = isWorkspacesActive || isMasterDataActive || isMigrateActive;
+  const isSysAdminActive = isWorkspacesActive || isMasterDataActive;
 
   const [isSysAdminOpen, setIsSysAdminOpen] = useState(() => isSysAdminActive);
 
@@ -1234,12 +1230,6 @@ function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: 
             label={t('nav.admin')}
             onClick={onNav}
             end
-          />
-          <SubNavItem
-            to="/migrate"
-            icon={<UploadCloud size={13} />}
-            label={t('nav.migrate')}
-            onClick={onNav}
           />
         </NavSubGroup>
       )}

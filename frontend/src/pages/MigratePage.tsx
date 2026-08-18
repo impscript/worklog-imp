@@ -48,8 +48,55 @@ interface PreviewRow {
 interface UserRecord {
   id: string;
   full_name: string;
-  nickname: string;
+  nickname: string | null;
+  department: string | null;
+}
+
+interface MigrateUserSession {
+  id: string;
+  name: string;
+  nickname?: string;
+  department?: string;
+  role: 'user' | 'admin';
+  workspaceRole?: 'admin' | 'manager' | 'user';
+  activeWorkspaceId?: string;
+}
+
+interface BatchImportResult {
+  inserted: number;
+  updated: number;
+  total: number;
+}
+
+interface WorklogImportRow {
+  id: string | null;
+  work_date: string;
+  start_time: string;
+  end_time: string;
+  break_time: boolean;
+  total_hours: number;
+  holding: string;
+  department_operator: string;
+  project_type: string;
+  project_name: string;
+  module: string | null;
+  bu: string;
   department: string;
+  action_name: string;
+  action_channel: string | null;
+  description: string;
+  is_ot: boolean;
+  is_implied_ot: boolean;
+}
+
+interface ProjectStructureRecord {
+  project_name: string;
+  holding: string;
+  department_operator: string;
+  bu: string;
+  department: string;
+  project_type: string | null;
+  module: string | null;
 }
 
 import { useNotification } from '../context/NotificationContext';
@@ -58,7 +105,7 @@ export default function MigratePage() {
   const { showToast } = useNotification();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<MigrateUserSession | null>(null);
 
   // User selection states
   const [usersList, setUsersList] = useState<UserRecord[]>([]);
@@ -98,11 +145,12 @@ export default function MigratePage() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [rowsPerPage, setRowsPerPage] = useState<number>(20);
   const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'warning' | 'error'>('all');
-  const [newProjectsList, setNewProjectsList] = useState<any[]>([]);
+  const [newProjectsList, setNewProjectsList] = useState<ProjectStructureRecord[]>([]);
   const [holidaysList, setHolidaysList] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [importProgress, setImportProgress] = useState<number>(0);
-  const [importStats, setImportStats] = useState<{ success: number; failed: number } | null>(null);
+  const [importStats, setImportStats] = useState<BatchImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Export states
   const [exportStartDate, setExportStartDate] = useState<string>(() => {
@@ -121,13 +169,25 @@ export default function MigratePage() {
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportRecordCount, setExportRecordCount] = useState<number | null>(null);
 
+  const canSelectTeamMembers = currentUser?.role === 'admin'
+    || currentUser?.workspaceRole === 'admin'
+    || currentUser?.workspaceRole === 'manager';
+
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
     if (!sessionStr) {
       navigate('/login');
       return;
     }
-    const user = JSON.parse(sessionStr);
+    let user: MigrateUserSession;
+    try {
+      user = JSON.parse(sessionStr) as MigrateUserSession;
+    } catch {
+      localStorage.removeItem('worklog_session');
+      navigate('/login');
+      return;
+    }
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentUser(user);
     setSelectedImportUserId(user.id);
@@ -135,26 +195,85 @@ export default function MigratePage() {
 
     // Load project list to validate project names
     async function loadMasterData() {
-      const { data } = await supabase.from('tb_map_project_structure').select('project_name, holding, department_operator, bu, department, project_type, module');
+      let canManageTeamImports = user.role === 'admin';
+      if (user.activeWorkspaceId) {
+        const { data: membership, error: membershipError } = await supabase
+          .from('workspace_users')
+          .select('role')
+          .eq('workspace_id', user.activeWorkspaceId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (membershipError) {
+          showToast(`ตรวจสอบสิทธิ์ Workspace ไม่สำเร็จ: ${membershipError.message}`, 'error');
+        } else if (membership) {
+          const workspaceRole = membership.role as 'admin' | 'manager' | 'user';
+          canManageTeamImports = canManageTeamImports
+            || workspaceRole === 'admin'
+            || workspaceRole === 'manager';
+          setCurrentUser({ ...user, workspaceRole });
+        }
+      }
+
+      const { data, error: projectsError } = await supabase
+        .from('tb_map_project_structure')
+        .select('project_name, holding, department_operator, bu, department, project_type, module');
+      if (projectsError) {
+        showToast(`โหลดข้อมูลโครงการไม่สำเร็จ: ${projectsError.message}`, 'error');
+      }
       if (data) {
         setNewProjectsList(data);
       }
-      const { data: holidayData } = await supabase.from('tb_master_holiday').select('date');
+      const { data: holidayData, error: holidaysError } = await supabase
+        .from('tb_master_holiday')
+        .select('date');
+      if (holidaysError) {
+        showToast(`โหลดข้อมูลวันหยุดไม่สำเร็จ: ${holidaysError.message}`, 'error');
+      }
       if (holidayData) {
         setHolidaysList(holidayData.map(h => h.date));
       }
-      // Load all users for selection dropdowns filtered by active workspace
-      let userQuery = supabase.from('users').select('id, full_name, nickname, department');
-      if (user.activeWorkspaceId) {
-        userQuery = userQuery.eq('active_workspace_id', user.activeWorkspaceId);
-      }
-      const { data: usersData } = await userQuery.order('full_name');
-      if (usersData) {
-        setUsersList(usersData);
+      // Members can import/export only themselves. Managers and admins can
+      // select actual workspace members, regardless of each user's active workspace.
+      if (canManageTeamImports && user.activeWorkspaceId) {
+        const { data: memberRows, error: membersError } = await supabase
+          .from('workspace_users')
+          .select(`
+            user_id,
+            users (
+              id,
+              full_name,
+              nickname,
+              department
+            )
+          `)
+          .eq('workspace_id', user.activeWorkspaceId);
+        if (membersError) {
+          showToast(`โหลดรายชื่อสมาชิก Workspace ไม่สำเร็จ: ${membersError.message}`, 'error');
+        } else if (memberRows) {
+          interface WorkspaceMemberRow {
+            user_id: string;
+            users?: UserRecord | null;
+          }
+          const members = (memberRows as unknown as WorkspaceMemberRow[])
+            .flatMap(row => row.users ? [{ ...row.users, id: row.user_id }] : [])
+            .sort((a, b) => a.full_name.localeCompare(b.full_name));
+          setUsersList(members);
+        }
+      } else {
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('id, full_name, nickname, department')
+          .eq('id', user.id)
+          .order('full_name');
+        if (usersError) {
+          showToast(`โหลดข้อมูลผู้ใช้งานไม่สำเร็จ: ${usersError.message}`, 'error');
+        } else if (usersData) {
+          setUsersList(usersData as UserRecord[]);
+        }
       }
     }
     loadMasterData();
-  }, [navigate]);
+  }, [navigate, showToast]);
 
   useEffect(() => {
     if (!selectedImportUserId) {
@@ -163,16 +282,25 @@ export default function MigratePage() {
       return;
     }
     async function fetchExistingIds() {
-      const { data } = await supabase
+      let query = supabase
         .from('col_worklog')
         .select('id')
         .eq('user_id', selectedImportUserId);
+      if (currentUser?.activeWorkspaceId) {
+        query = query.eq('workspace_id', currentUser.activeWorkspaceId);
+      }
+      const { data, error } = await query;
+      if (error) {
+        showToast(`ตรวจสอบ Worklog เดิมไม่สำเร็จ: ${error.message}`, 'error');
+        setExistingImportUserIds(new Set());
+        return;
+      }
       if (data) {
-        setExistingImportUserIds(new Set(data.map((r: any) => r.id)));
+        setExistingImportUserIds(new Set(data.map((row: { id: string }) => row.id)));
       }
     }
     fetchExistingIds();
-  }, [selectedImportUserId]);
+  }, [currentUser?.activeWorkspaceId, selectedImportUserId, showToast]);
 
   // CSV Parsing function
   const parseCSV = (text: string) => {
@@ -233,6 +361,8 @@ export default function MigratePage() {
 
     setCsvHeaders(headers);
     setCsvData(rows);
+    setImportStats(null);
+    setImportError(null);
 
     // Auto-map headers
     const newMappings = { ...mappings };
@@ -633,6 +763,7 @@ export default function MigratePage() {
     setCurrentPage(1);
     setStatusFilter('all');
     setImportStats(null);
+    setImportError(null);
     setImportProgress(0);
   };
 
@@ -716,6 +847,14 @@ export default function MigratePage() {
   // Handle CSV Import
   const handleImport = async () => {
     if (previewRows.length === 0 || isProcessing) return;
+    if (!currentUser?.activeWorkspaceId || !selectedImportUserId) {
+      showToast('กรุณาเลือก Workspace และผู้รับข้อมูลก่อนนำเข้า', 'error');
+      return;
+    }
+    if (previewRows.length > 1000) {
+      showToast('นำเข้าได้สูงสุด 1,000 แถวต่อหนึ่ง batch', 'error');
+      return;
+    }
     const errors = previewRows.filter(r => r.status === 'error');
     if (errors.length > 0) {
       showToast(`Please fix the ${errors.length} error(s) before importing.`, 'error');
@@ -723,17 +862,12 @@ export default function MigratePage() {
     }
 
     setIsProcessing(true);
-    setImportProgress(0);
+    setImportProgress(10);
     setImportStats(null);
+    setImportError(null);
 
-    let successCount = 0;
-    let failedCount = 0;
-
-    for (let i = 0; i < previewRows.length; i++) {
-      const row = previewRows[i];
-
-      const dbRecord: any = {
-        user_id: selectedImportUserId || currentUser.id,
+    const importRows: WorklogImportRow[] = previewRows.map((row) => ({
+        id: row.id,
         work_date: row.work_date,
         start_time: row.start_time.includes(':') && row.start_time.split(':').length === 2 ? `${row.start_time}:00` : row.start_time,
         end_time: row.end_time.includes(':') && row.end_time.split(':').length === 2 ? `${row.end_time}:00` : row.end_time,
@@ -747,77 +881,80 @@ export default function MigratePage() {
         bu: row.bu || '-',
         department: row.department || '-',
         action_name: row.action_name || fallbackAction,
+        action_channel: row.action_channel,
         description: row.description || '',
         is_ot: row.is_ot,
         is_implied_ot: false,
-        channel: row.action_channel || 'CSV Import',
-        workspace_id: currentUser?.activeWorkspaceId
-      };
+      }));
 
-      if (row.id) {
-        dbRecord.id = row.id;
+    try {
+      const { data, error } = await supabase.rpc('import_worklogs_batch_secure', {
+        p_workspace_id: currentUser.activeWorkspaceId,
+        p_target_user_id: selectedImportUserId,
+        p_rows: importRows,
+      });
+
+      if (error) throw error;
+
+      const result = data as BatchImportResult | null;
+      if (!result || result.total !== previewRows.length) {
+        throw new Error('จำนวนแถวที่ฐานข้อมูลบันทึกไม่ตรงกับ batch ที่ส่ง');
       }
 
-      let query;
-      if (row.id) {
-        query = supabase.from('col_worklog').upsert([dbRecord], { onConflict: 'id' });
-      } else {
-        query = supabase.from('col_worklog').insert([dbRecord]);
-      }
-
-      const { error } = await query;
-
-      if (error) {
-        console.error('Failed to import/upsert row:', error, dbRecord);
-        failedCount++;
-      } else {
-        successCount++;
-      }
-
-      setImportProgress(Math.round(((i + 1) / previewRows.length) * 100));
+      setImportProgress(100);
+      setImportStats(result);
+      setExistingImportUserIds(prev => {
+        const next = new Set(prev);
+        previewRows.forEach(row => {
+          if (row.id) next.add(row.id);
+        });
+        return next;
+      });
+      showToast(`นำเข้าสำเร็จ ${result.total} รายการ`, 'success');
+    } catch (error: unknown) {
+      const message = error instanceof Error
+        ? error.message
+        : typeof error === 'object' && error !== null && 'message' in error
+          ? String(error.message)
+          : 'ไม่สามารถนำเข้า Worklog ได้';
+      console.error('Batch worklog import failed:', error);
+      setImportProgress(0);
+      setImportError(message);
+      showToast(`นำเข้าไม่สำเร็จ: ${message}`, 'error');
+    } finally {
+      setIsProcessing(false);
     }
-
-    // Refresh existing import user IDs
-    if (selectedImportUserId) {
-      const { data } = await supabase
-        .from('col_worklog')
-        .select('id')
-        .eq('user_id', selectedImportUserId);
-      if (data) {
-        setExistingImportUserIds(new Set(data.map((r: any) => r.id)));
-      }
-    }
-
-    setImportStats({ success: successCount, failed: failedCount });
-    setIsProcessing(false);
-
-    // Refresh master view if needed
-    setCsvData([]);
-    setFileName('');
   };
 
   // Preview export count when params change
   useEffect(() => {
-    if (!selectedExportUserId) {
+    const activeWorkspaceId = currentUser?.activeWorkspaceId;
+    if (!selectedExportUserId || !activeWorkspaceId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setExportRecordCount(null);
       return;
     }
     async function countExport() {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from('col_worklog')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', selectedExportUserId)
+        .eq('workspace_id', activeWorkspaceId)
         .gte('work_date', exportStartDate)
         .lte('work_date', exportEndDate);
+      if (error) {
+        setExportRecordCount(null);
+        showToast(`ตรวจสอบข้อมูล Export ไม่สำเร็จ: ${error.message}`, 'error');
+        return;
+      }
       setExportRecordCount(count ?? 0);
     }
     countExport();
-  }, [selectedExportUserId, exportStartDate, exportEndDate]);
+  }, [currentUser?.activeWorkspaceId, selectedExportUserId, exportStartDate, exportEndDate, showToast]);
 
   // CSV Export function
   const handleExport = async () => {
-    if (!selectedExportUserId || isExporting) return;
+    if (!selectedExportUserId || !currentUser?.activeWorkspaceId || isExporting) return;
     setIsExporting(true);
 
     try {
@@ -825,6 +962,7 @@ export default function MigratePage() {
         .from('col_worklog')
         .select('*')
         .eq('user_id', selectedExportUserId)
+        .eq('workspace_id', currentUser.activeWorkspaceId)
         .gte('work_date', exportStartDate)
         .lte('work_date', exportEndDate)
         .order('work_date', { ascending: true });
@@ -865,7 +1003,7 @@ export default function MigratePage() {
 
       const csvRows = [csvHeadersList.join(',')];
 
-      data.forEach((row: any) => {
+      data.forEach((row: Record<string, unknown>) => {
         const values = csvHeadersList.map(header => {
           let val = row[header];
           if (val === null || val === undefined) {
@@ -933,7 +1071,7 @@ export default function MigratePage() {
             <span>Data Migration (Import & Export CSV)</span>
           </h1>
           <p className="text-sm text-theme-text-secondary mt-1">
-            Easily import historical work entries from custom CSV backups or export your current logged work activities.
+            Batch import work notes from CSV. Team members import their own logs; managers and admins can import for their workspace team.
           </p>
         </div>
 
@@ -950,10 +1088,15 @@ export default function MigratePage() {
                   <User size={16} className="text-indigo-400" />
                   <span>Import Target User</span>
                 </h3>
-                <p className="text-xs text-theme-text-secondary mb-3">Select which employee this CSV data will be imported for.</p>
+                <p className="text-xs text-theme-text-secondary mb-3">
+                  {canSelectTeamMembers
+                    ? 'Select which workspace member this CSV data will be imported for.'
+                    : 'Your CSV will be imported only into your own Worklog account.'}
+                </p>
                 <select
                   value={selectedImportUserId}
                   onChange={(e) => setSelectedImportUserId(e.target.value)}
+                  disabled={!canSelectTeamMembers}
                   className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl px-3 py-2.5 text-sm font-medium text-theme-text focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                 >
                   <option value="">-- Select Employee --</option>
@@ -1525,6 +1668,21 @@ export default function MigratePage() {
                         />
                       </div>
                     </div>
+                  ) : importError ? (
+                    <div className="p-4 bg-rose-500/5 border border-rose-500/20 rounded-xl flex items-start gap-3">
+                      <AlertCircle size={20} className="text-rose-400 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="text-sm font-bold text-theme-text">Import failed — no rows were saved</h4>
+                        <p className="text-xs text-rose-300 mt-1">{importError}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setImportError(null)}
+                        className="px-3 py-2 rounded-lg border border-rose-500/30 text-xs font-bold text-rose-300 hover:bg-rose-500/10"
+                      >
+                        Try again
+                      </button>
+                    </div>
                   ) : importStats ? (
                     <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -1534,7 +1692,7 @@ export default function MigratePage() {
                         <div>
                           <h4 className="text-sm font-bold text-theme-text">Import completed successfully!</h4>
                           <p className="text-xs text-theme-text-secondary">
-                            Successfully imported {importStats.success} logs. Mismatches/Errors skipped: {importStats.failed}.
+                            Inserted {importStats.inserted} and updated {importStats.updated} Worklogs ({importStats.total} total).
                           </p>
                         </div>
                       </div>
@@ -1551,10 +1709,10 @@ export default function MigratePage() {
                   ) : (
                     <button
                       onClick={handleImport}
-                      disabled={previewRows.filter(r => r.status === 'error').length > 0}
+                      disabled={previewRows.filter(r => r.status === 'error').length > 0 || !selectedImportUserId || !currentUser?.activeWorkspaceId}
                       className={cn(
                         "w-full py-3.5 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2",
-                        previewRows.filter(r => r.status === 'error').length > 0
+                        previewRows.filter(r => r.status === 'error').length > 0 || !selectedImportUserId || !currentUser?.activeWorkspaceId
                           ? "bg-theme-surface-tertiary dark:bg-theme-surface-tertiary text-theme-text-secondary border border-theme-border/50 cursor-not-allowed"
                           : "bg-indigo-500 hover:bg-indigo-600 text-theme-text hover:shadow-indigo-500/10 active:scale-95"
                       )}
@@ -1778,11 +1936,12 @@ export default function MigratePage() {
                 {/* Employee Selector */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[11px] font-bold text-theme-text-secondary flex items-center gap-1">
-                    <Users size={11} /> Select Employee
+                    <Users size={11} /> {canSelectTeamMembers ? 'Select Employee' : 'Your Worklogs'}
                   </label>
                   <select
                     value={selectedExportUserId}
                     onChange={(e) => setSelectedExportUserId(e.target.value)}
+                    disabled={!canSelectTeamMembers}
                     className="bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl px-3 py-2.5 text-xs font-medium text-theme-text focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
                   >
                     <option value="">-- Select Employee --</option>
