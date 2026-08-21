@@ -89,29 +89,47 @@ export const ProjectKanbanColumn: React.FC<ProjectKanbanColumnProps> = ({
     return (
       <div
         onClick={() => onToggleCollapse?.(columnKey)}
-        className="w-12 shrink-0 bg-theme-surface/60 hover:bg-theme-surface-secondary/80 border border-theme-border/70 rounded-3xl p-3 flex flex-col items-center justify-between cursor-pointer transition-all duration-200 min-h-[500px] select-none group"
+        className={cn(
+          'w-14 shrink-0 rounded-3xl border p-3 flex flex-col items-center justify-between cursor-pointer transition-all duration-200 select-none group',
+          'bg-theme-surface/70 hover:bg-theme-surface-secondary/90 border-theme-border/70 hover:border-indigo-500/40 shadow-xs hover:shadow-md',
+          'min-h-[450px]'
+        )}
         title={`${title} (${projects.length}) - ${t('gantt.kanban.expandCol')}`}
       >
-        <div className="flex flex-col items-center gap-3">
+        {/* Top Header: Expand Button + Status Dot + Count */}
+        <div className="flex flex-col items-center gap-2.5 w-full">
           <button
             type="button"
-            className="p-1 rounded-lg hover:bg-theme-surface text-theme-text-muted group-hover:text-theme-text transition-colors"
+            className="w-7 h-7 rounded-xl flex items-center justify-center bg-theme-surface hover:bg-indigo-500 hover:text-white border border-theme-border/60 text-theme-text-muted transition-all duration-200 cursor-pointer shadow-xs group-hover:scale-105"
+            title={t('gantt.kanban.expandCol')}
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={14} />
           </button>
-          <span className={cn('w-2.5 h-2.5 rounded-full', dotColor)} />
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-theme-surface-secondary text-theme-text border border-theme-border/60">
+          <span className={cn('w-2.5 h-2.5 rounded-full shadow-xs', dotColor)} />
+          <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-theme-surface-secondary text-theme-text border border-theme-border/60 shadow-xs">
             {projects.length}
           </span>
         </div>
 
-        {/* Vertical Text for Title */}
-        <div className="writing-vertical-lr rotate-180 text-xs font-bold text-theme-text-secondary tracking-wider uppercase py-4">
-          {title}
+        {/* Middle: Clean Vertical Text (Top to Bottom readable orientation) */}
+        <div className="flex-1 flex items-center justify-center py-6 my-auto overflow-hidden">
+          <span className="text-xs font-bold text-theme-text-secondary group-hover:text-indigo-600 dark:group-hover:text-indigo-400 uppercase tracking-widest transition-colors whitespace-nowrap [writing-mode:vertical-rl]">
+            {title}
+          </span>
         </div>
 
-        <div className="flex flex-col items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-          <DollarSign size={13} />
+        {/* Bottom: Total Savings Badge (if > 0) */}
+        <div className="w-full flex flex-col items-center gap-1 pt-2 border-t border-theme-border/40">
+          {totalSavingsFormatted !== '฿0' ? (
+            <span
+              className="px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 whitespace-nowrap text-center"
+              title={`${t('gantt.kanban.totalPipelineSavings')}: ${totalSavingsFormatted}`}
+            >
+              {totalSavingsFormatted}
+            </span>
+          ) : (
+            <span className="w-1.5 h-1.5 rounded-full bg-theme-border" />
+          )}
         </div>
       </div>
     );
