@@ -14,8 +14,17 @@ import {
   getAvailableProjectYears,
 } from '../lib/project-management';
 import { ExecutiveSummaryKPIs } from '../components/gantt/ExecutiveSummaryKPIs';
-import { GanttFilterToolbar, type GanttZoomLevel } from '../components/gantt/GanttFilterToolbar';
+import {
+  GanttFilterToolbar,
+  type GanttZoomLevel,
+  type PortfolioViewMode,
+} from '../components/gantt/GanttFilterToolbar';
 import { GanttRoadmapCanvas } from '../components/gantt/GanttRoadmapCanvas';
+import {
+  ProjectKanbanCanvas,
+  type KanbanGroupBy,
+  type KanbanSwimlane,
+} from '../components/kanban/ProjectKanbanCanvas';
 import { ProjectDetailDrawer } from '../components/gantt/ProjectDetailDrawer';
 import { FolderKanban, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -30,6 +39,11 @@ export default function ProjectGanttPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [availableUsers, setAvailableUsers] = useState<{ id: string; name: string; email?: string; emp_id?: string }[]>([]);
+
+  // View Mode & Kanban States
+  const [viewMode, setViewMode] = useState<PortfolioViewMode>('gantt');
+  const [kanbanGroupBy, setKanbanGroupBy] = useState<KanbanGroupBy>('status');
+  const [kanbanSwimlane, setKanbanSwimlane] = useState<KanbanSwimlane>('none');
 
   // Filter & Hierarchy State
   const [searchQuery, setSearchQuery] = useState('');
@@ -320,6 +334,80 @@ export default function ProjectGanttPage() {
     setExpandedProjectIds(new Set());
   };
 
+  // Optimistic Status Update (via Drag & Drop or Quick Move)
+  const handleUpdateProjectStatus = useCallback(
+    async (projectId: string, newStatus: ProjectStatus) => {
+      const prevProjects = [...projects];
+      const target = projects.find((p) => p.id === projectId);
+      if (!target) return;
+
+      // Optimistic update local state
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, status: newStatus } : p))
+      );
+
+      try {
+        const updates: { status: ProjectStatus; progress_percent?: number } = { status: newStatus };
+        // If moving to completed and progress is not 100%, adjust progress
+        if (newStatus === 'completed' && (target.progress_percent || 0) < 100) {
+          updates.progress_percent = 100;
+        }
+
+        const { error } = await supabase.from('tb_projects').update(updates).eq('id', projectId);
+        if (error) throw error;
+
+        showToast(
+          t('gantt.kanban.statusUpdated', {
+            name: target.project_name,
+            status: newStatus,
+          }),
+          'success'
+        );
+      } catch (err: unknown) {
+        const e = err as { message?: string };
+        console.error('Failed to update project status:', err);
+        setProjects(prevProjects); // rollback
+        showToast(`${t('gantt.kanban.updateError')}${e.message || 'Error'}`, 'error');
+      }
+    },
+    [projects, showToast, t]
+  );
+
+  // Optimistic Health Update (via Drag & Drop or Quick Move)
+  const handleUpdateProjectHealth = useCallback(
+    async (projectId: string, newHealth: ProjectHealth) => {
+      const prevProjects = [...projects];
+      const target = projects.find((p) => p.id === projectId);
+      if (!target) return;
+
+      // Optimistic update local state
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, project_health: newHealth } : p))
+      );
+
+      try {
+        const { error } = await supabase
+          .from('tb_projects')
+          .update({ project_health: newHealth })
+          .eq('id', projectId);
+        if (error) throw error;
+
+        showToast(
+          t('gantt.kanban.healthUpdated', {
+            name: target.project_name,
+          }),
+          'success'
+        );
+      } catch (err: unknown) {
+        const e = err as { message?: string };
+        console.error('Failed to update project health:', err);
+        setProjects(prevProjects); // rollback
+        showToast(`${t('gantt.kanban.updateError')}${e.message || 'Error'}`, 'error');
+      }
+    },
+    [projects, showToast, t]
+  );
+
   return (
     <AppLayout>
       <div className="space-y-5 animate-fade-in pb-12">
@@ -362,8 +450,14 @@ export default function ProjectGanttPage() {
         {/* Executive Summary Top Cards (Scoped to Filtered Projects) */}
         <ExecutiveSummaryKPIs projects={kpiProjects} />
 
-        {/* Filter Toolbar with Year, Tree View & Zoom controls */}
+        {/* Filter Toolbar with View Switcher, Year, Tree View, Kanban & Zoom controls */}
         <GanttFilterToolbar
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          kanbanGroupBy={kanbanGroupBy}
+          onKanbanGroupByChange={setKanbanGroupBy}
+          kanbanSwimlane={kanbanSwimlane}
+          onKanbanSwimlaneChange={setKanbanSwimlane}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           selectedYear={selectedYear}
@@ -396,13 +490,13 @@ export default function ProjectGanttPage() {
           onResetAllFilters={handleResetAllFilters}
         />
 
-        {/* Main Gantt Roadmap Canvas */}
+        {/* Main Canvas: Gantt Roadmap or Kanban Board */}
         {isLoading ? (
           <div className="p-16 text-center rounded-3xl border border-theme-border/60 bg-theme-surface/40 animate-pulse space-y-3">
             <RefreshCw size={28} className="mx-auto text-indigo-500 animate-spin" />
             <p className="text-xs font-bold text-theme-text-muted">{t('gantt.loading')}</p>
           </div>
-        ) : (
+        ) : viewMode === 'gantt' ? (
           <GanttRoadmapCanvas
             projects={displayProjects}
             zoomLevel={zoomLevel}
@@ -412,6 +506,17 @@ export default function ProjectGanttPage() {
             onToggleExpandProject={handleToggleExpandProject}
             onSelectProject={handleSelectProject}
             selectedProjectId={selectedProjectId}
+          />
+        ) : (
+          <ProjectKanbanCanvas
+            projects={kpiProjects}
+            selectedYear={selectedYear}
+            groupBy={kanbanGroupBy}
+            swimlane={kanbanSwimlane}
+            onSelectProject={handleSelectProject}
+            selectedProjectId={selectedProjectId}
+            onUpdateProjectStatus={handleUpdateProjectStatus}
+            onUpdateProjectHealth={handleUpdateProjectHealth}
           />
         )}
 

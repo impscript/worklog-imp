@@ -6,6 +6,7 @@ import {
   RefreshCw,
   Plus,
   FolderTree,
+  FolderKanban,
   List,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -17,6 +18,7 @@ import {
   Activity,
   HeartPulse,
   Users,
+  Grid,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectStatus, ProjectHealth } from '../../lib/project-management';
@@ -26,10 +28,18 @@ import {
   type MultiSelectOption,
   type MultiSelectPreset,
 } from '../common/MultiSelectFilter';
+import type { KanbanGroupBy, KanbanSwimlane } from '../kanban/ProjectKanbanCanvas';
 
 export type GanttZoomLevel = 'month' | 'quarter' | 'year';
+export type PortfolioViewMode = 'gantt' | 'kanban';
 
 interface GanttFilterToolbarProps {
+  viewMode: PortfolioViewMode;
+  onViewModeChange: (mode: PortfolioViewMode) => void;
+  kanbanGroupBy?: KanbanGroupBy;
+  onKanbanGroupByChange?: (groupBy: KanbanGroupBy) => void;
+  kanbanSwimlane?: KanbanSwimlane;
+  onKanbanSwimlaneChange?: (swimlane: KanbanSwimlane) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   selectedYear: number | 'all';
@@ -64,6 +74,12 @@ interface GanttFilterToolbarProps {
 }
 
 export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
+  viewMode,
+  onViewModeChange,
+  kanbanGroupBy = 'status',
+  onKanbanGroupByChange,
+  kanbanSwimlane = 'none',
+  onKanbanSwimlaneChange,
   searchQuery,
   onSearchChange,
   selectedYear,
@@ -200,101 +216,169 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
 
   return (
     <div className="relative z-30 p-4 rounded-3xl border border-theme-border/70 bg-theme-surface/80 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm mb-5 space-y-3.5 select-none">
-      {/* Top Row: Search + View Hierarchy Toggle + Zoom Pills + Action Buttons */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-        {/* Search Bar */}
-        <div className="relative flex-1 min-w-[200px]">
-          <Search size={15} className="absolute left-3.5 top-3 text-theme-text-muted" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={t('gantt.filters.searchPlaceholder')}
-            className="w-full text-xs sm:text-sm py-2 pl-9 pr-3 rounded-2xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
-          />
-        </div>
-
-        {/* View Mode: Tree Hierarchy vs Flat List */}
-        <div className="flex items-center gap-1 bg-theme-surface-secondary/70 p-1 rounded-2xl border border-theme-border/60 shrink-0 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => onToggleTreeView(true)}
-            className={cn(
-              'px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1',
-              isTreeView
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-theme-text-muted hover:text-theme-text'
-            )}
-            title={t('gantt.filters.viewTree')}
-          >
-            <FolderTree size={13} />
-            <span>{t('gantt.filters.viewTree')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onToggleTreeView(false)}
-            className={cn(
-              'px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1',
-              !isTreeView
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'text-theme-text-muted hover:text-theme-text'
-            )}
-            title={t('gantt.filters.viewFlat')}
-          >
-            <List size={13} />
-            <span>{t('gantt.filters.viewFlat')}</span>
-          </button>
-        </div>
-
-        {/* Zoom Controls (Month / Quarter / Year) */}
-        <div className="flex items-center gap-1.5 bg-theme-surface-secondary/70 p-1 rounded-2xl border border-theme-border/60 shrink-0 self-start sm:self-auto">
-          <span className="text-[10px] font-bold text-theme-text-muted px-2 flex items-center gap-1">
-            <Calendar size={12} /> {t('gantt.filters.zoom')}
-          </span>
-          {(['month', 'quarter', 'year'] as const).map((z) => (
+      {/* Top Row: View Switcher + Search + Specific Controls + Action Buttons */}
+      <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
+          {/* View Mode Switcher (Gantt vs Kanban) */}
+          <div className="flex items-center gap-1 bg-theme-surface-secondary/80 p-1 rounded-2xl border border-theme-border/60 shrink-0">
             <button
-              key={z}
               type="button"
-              onClick={() => onZoomChange(z)}
+              onClick={() => onViewModeChange('gantt')}
               className={cn(
-                'px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer select-none',
-                zoomLevel === z
+                'px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5',
+                viewMode === 'gantt'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'text-theme-text-muted hover:text-theme-text'
               )}
             >
-              {z === 'month'
-                ? t('gantt.filters.month')
-                : z === 'quarter'
-                ? t('gantt.filters.quarter')
-                : t('gantt.filters.year')}
+              <FolderKanban size={14} />
+              <span>{t('gantt.viewGantt')}</span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => onViewModeChange('kanban')}
+              className={cn(
+                'px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5',
+                viewMode === 'kanban'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-theme-text-muted hover:text-theme-text'
+              )}
+            >
+              <Grid size={14} />
+              <span>{t('gantt.viewKanban')}</span>
+            </button>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={15} className="absolute left-3.5 top-3 text-theme-text-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder={t('gantt.filters.searchPlaceholder')}
+              className="w-full text-xs sm:text-sm py-2 pl-9 pr-3 rounded-2xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+          </div>
         </div>
 
-        {/* Tree Expand/Collapse All + Refresh + Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {isTreeView && onExpandAll && onCollapseAll && (
-            <div className="flex items-center gap-1 bg-theme-surface-secondary/50 p-1 rounded-2xl border border-theme-border/60">
-              <button
-                type="button"
-                onClick={onExpandAll}
-                className="p-1.5 rounded-xl hover:bg-theme-surface text-theme-text-muted hover:text-indigo-600 transition-colors cursor-pointer"
-                title={t('gantt.filters.expandAll')}
-              >
-                <ChevronsUpDown size={14} />
-              </button>
-              <button
-                type="button"
-                onClick={onCollapseAll}
-                className="p-1.5 rounded-xl hover:bg-theme-surface text-theme-text-muted hover:text-indigo-600 transition-colors cursor-pointer"
-                title={t('gantt.filters.collapseAll')}
-              >
-                <ChevronsDownUp size={14} />
-              </button>
-            </div>
+        {/* View-Specific Controls */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {viewMode === 'gantt' ? (
+            <>
+              {/* Gantt View: Tree Hierarchy vs Flat List */}
+              <div className="flex items-center gap-1 bg-theme-surface-secondary/70 p-1 rounded-2xl border border-theme-border/60 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onToggleTreeView(true)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1',
+                    isTreeView
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-theme-text-muted hover:text-theme-text'
+                  )}
+                  title={t('gantt.filters.viewTree')}
+                >
+                  <FolderTree size={13} />
+                  <span>{t('gantt.filters.viewTree')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleTreeView(false)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1',
+                    !isTreeView
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-theme-text-muted hover:text-theme-text'
+                  )}
+                  title={t('gantt.filters.viewFlat')}
+                >
+                  <List size={13} />
+                  <span>{t('gantt.filters.viewFlat')}</span>
+                </button>
+              </div>
+
+              {/* Gantt View: Zoom Controls (Month / Quarter / Year) */}
+              <div className="flex items-center gap-1.5 bg-theme-surface-secondary/70 p-1 rounded-2xl border border-theme-border/60 shrink-0">
+                <span className="text-[10px] font-bold text-theme-text-muted px-2 flex items-center gap-1">
+                  <Calendar size={12} /> {t('gantt.filters.zoom')}
+                </span>
+                {(['month', 'quarter', 'year'] as const).map((z) => (
+                  <button
+                    key={z}
+                    type="button"
+                    onClick={() => onZoomChange(z)}
+                    className={cn(
+                      'px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer select-none',
+                      zoomLevel === z
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-theme-text-muted hover:text-theme-text'
+                    )}
+                  >
+                    {z === 'month'
+                      ? t('gantt.filters.month')
+                      : z === 'quarter'
+                      ? t('gantt.filters.quarter')
+                      : t('gantt.filters.year')}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tree Expand/Collapse All */}
+              {isTreeView && onExpandAll && onCollapseAll && (
+                <div className="flex items-center gap-1 bg-theme-surface-secondary/50 p-1 rounded-2xl border border-theme-border/60">
+                  <button
+                    type="button"
+                    onClick={onExpandAll}
+                    className="p-1.5 rounded-xl hover:bg-theme-surface text-theme-text-muted hover:text-indigo-600 transition-colors cursor-pointer"
+                    title={t('gantt.filters.expandAll')}
+                  >
+                    <ChevronsUpDown size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onCollapseAll}
+                    className="p-1.5 rounded-xl hover:bg-theme-surface text-theme-text-muted hover:text-indigo-600 transition-colors cursor-pointer"
+                    title={t('gantt.filters.collapseAll')}
+                  >
+                    <ChevronsDownUp size={14} />
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Kanban View: Group By Selector */}
+              <div className="flex items-center gap-1.5 bg-theme-surface-secondary/70 px-2 py-1 rounded-2xl border border-theme-border/60 shrink-0">
+                <span className="text-[10px] font-bold text-theme-text-muted">{t('gantt.kanban.groupBy')}</span>
+                <select
+                  value={kanbanGroupBy}
+                  onChange={(e) => onKanbanGroupByChange?.(e.target.value as KanbanGroupBy)}
+                  className="text-xs font-bold py-1 px-2 rounded-xl bg-theme-surface border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="status">📊 {t('gantt.kanban.groupByStatus')}</option>
+                  <option value="health">❤️ {t('gantt.kanban.groupByHealth')}</option>
+                  <option value="team">🏢 {t('gantt.kanban.groupByTeam')}</option>
+                  <option value="type">🎯 {t('gantt.kanban.groupByType')}</option>
+                </select>
+              </div>
+
+              {/* Kanban View: Swimlane Selector */}
+              <div className="flex items-center gap-1.5 bg-theme-surface-secondary/70 px-2 py-1 rounded-2xl border border-theme-border/60 shrink-0">
+                <span className="text-[10px] font-bold text-theme-text-muted">{t('gantt.kanban.swimlane')}</span>
+                <select
+                  value={kanbanSwimlane}
+                  onChange={(e) => onKanbanSwimlaneChange?.(e.target.value as KanbanSwimlane)}
+                  className="text-xs font-bold py-1 px-2 rounded-xl bg-theme-surface border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="none">📄 {t('gantt.kanban.swimlaneNone')}</option>
+                  <option value="parent">📁 {t('gantt.kanban.swimlaneParent')}</option>
+                </select>
+              </div>
+            </>
           )}
 
+          {/* Refresh Action */}
           <button
             type="button"
             onClick={onRefresh}
@@ -304,6 +388,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
             <RefreshCw size={15} className={cn(isLoading && 'animate-spin text-indigo-500')} />
           </button>
 
+          {/* Create Project Button */}
           {onOpenCreateProject && (
             <button
               type="button"

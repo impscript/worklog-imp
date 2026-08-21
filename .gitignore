@@ -10,6 +10,15 @@ build/
 app-tmp/
 *.md
 
+# Shared agent guidance and project-specific workflows
+!/AGENTS.md
+!.agents/rules/*.md
+!.agents/workflows/*.md
+!.agents/skills/worklog-*/SKILL.md
+
+# Local handoff checkpoints are shared by editor agents, not Git
+.agents/worklog/
+
 # Scratch analysis & migration scripts (one-off utilities)
 frontend/scratch/
 *.cjs
