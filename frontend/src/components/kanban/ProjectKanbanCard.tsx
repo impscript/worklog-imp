@@ -129,6 +129,46 @@ export const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({
     { key: 'completed', label: 'Completed', icon: '✅' },
   ];
 
+  // Distinct team members list for avatar stack (including lead first, then other unique contributors)
+  const avatarStackList = React.useMemo(() => {
+    const list: { name: string; empId?: string | null; role: string; isLead: boolean }[] = [];
+    const seenNames = new Set<string>();
+
+    // 1. Add Lead first (if exists)
+    if (project.head_lead_name) {
+      list.push({
+        name: project.head_lead_name,
+        empId: project.head_lead_emp_id,
+        role: 'Lead',
+        isLead: true,
+      });
+      seenNames.add(project.head_lead_name.trim().toLowerCase());
+    }
+
+    // 2. Add Contributors (excluding duplicate lead)
+    if (project.team_contributions) {
+      project.team_contributions.forEach((tm) => {
+        if (!tm.user_name) return;
+        const lower = tm.user_name.trim().toLowerCase();
+        if (!seenNames.has(lower)) {
+          seenNames.add(lower);
+          list.push({
+            name: tm.user_name,
+            empId: tm.emp_id,
+            role: tm.role_in_project || 'Member',
+            isLead: false,
+          });
+        }
+      });
+    }
+
+    return list;
+  }, [project.head_lead_name, project.head_lead_emp_id, project.team_contributions]);
+
+  const maxVisibleAvatars = 4;
+  const visibleAvatars = avatarStackList.slice(0, maxVisibleAvatars);
+  const remainingCount = Math.max(0, avatarStackList.length - maxVisibleAvatars);
+
   return (
     <div
       draggable
@@ -353,35 +393,59 @@ export const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({
         </span>
       </div>
 
-      {/* Card Footer: Lead Face Avatar + Team Stack + Due Date */}
+      {/* Card Footer: Overlapping Avatar Stack (Lead + Contributors) + Due Date */}
       <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-theme-border/50">
-        {/* Left: Lead Photo & Team Avatar Stack */}
-        <div className="flex items-center gap-1.5 min-w-0">
-          {/* Lead Avatar */}
-          <div className="relative group/avatar shrink-0" title={project.head_lead_name || t('gantt.kanban.cardNoLead')}>
-            <img
-              src={getUserAvatarUrl(project.head_lead_name, project.head_lead_emp_id)}
-              alt={project.head_lead_name || 'Lead'}
-              className="w-6 h-6 rounded-full object-cover border border-theme-border ring-1 ring-indigo-500/30"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(project.head_lead_name || 'Lead')}&background=6366f1&color=fff&bold=true`;
-              }}
-            />
+        {/* Left: Overlapping Avatar Stack */}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center -space-x-2 hover:-space-x-1 transition-all duration-200 shrink-0">
+            {visibleAvatars.map((member, idx) => {
+              const cleanShortName = member.name.split(' ')[0];
+              return (
+                <div
+                  key={`${member.name}-${idx}`}
+                  className="relative group/avatar"
+                  title={`${member.isLead ? '👑 ' : ''}${member.name} (${member.role})`}
+                  style={{ zIndex: visibleAvatars.length - idx }}
+                >
+                  <img
+                    src={getUserAvatarUrl(member.name, member.empId)}
+                    alt={member.name}
+                    className={cn(
+                      'w-7 h-7 rounded-full object-cover border-2 border-theme-surface shadow-xs transition-transform duration-150 hover:scale-115 hover:z-30 cursor-pointer',
+                      member.isLead ? 'ring-1.5 ring-indigo-500' : 'ring-1 ring-theme-border/80'
+                    )}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanShortName)}&background=6366f1&color=fff&bold=true`;
+                    }}
+                  />
+                  {member.isLead && (
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-indigo-600 border border-white dark:border-zinc-900 flex items-center justify-center text-[7px] text-white"
+                      title="Project Lead"
+                    >
+                      ★
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Remaining Count Badge */}
+            {remainingCount > 0 && (
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black bg-theme-surface-secondary text-theme-text border-2 border-theme-surface ring-1 ring-theme-border/80 shadow-xs z-0"
+                title={`${remainingCount} more team members`}
+              >
+                +{remainingCount}
+              </div>
+            )}
           </div>
 
-          {/* Lead Name (short) */}
-          <span className="text-[11px] font-medium text-theme-text-secondary truncate max-w-[90px]">
-            {project.head_lead_name?.split(' ')[0] || t('gantt.kanban.cardNoLead')}
-          </span>
-
-          {/* Team Members Count Stack */}
-          {project.team_contributions && project.team_contributions.length > 0 && (
-            <span
-              className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-theme-surface-secondary text-theme-text-muted border border-theme-border/60 shrink-0"
-              title={`${project.team_contributions.length} Team Contributors`}
-            >
-              +{project.team_contributions.length}
+          {/* Lead Name (short) if only 1 avatar */}
+          {avatarStackList.length === 1 && project.head_lead_name && (
+            <span className="text-[11px] font-semibold text-theme-text-secondary truncate max-w-[100px]">
+              {project.head_lead_name.split(' ')[0]}
             </span>
           )}
         </div>
