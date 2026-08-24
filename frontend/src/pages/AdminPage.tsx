@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download, Power, PowerOff, Copy } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download, Power, PowerOff, Copy, Filter } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -48,6 +48,23 @@ export default function AdminPage() {
     }
   }, [location]);
   const [isMobileTabMenuOpen, setIsMobileTabMenuOpen] = useState(false);
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target as Node)) {
+        setIsExportDropdownOpen(false);
+      }
+    };
+    if (isExportDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isExportDropdownOpen]);
+
   const [importPreview, setImportPreview] = useState<{
     newRows: any[];
     updateRows: any[];
@@ -454,29 +471,7 @@ export default function AdminPage() {
     if (!query) return deptSuggestions;
     return deptSuggestions.filter(d => d.toLowerCase().includes(query));
   }, [deptSuggestions, formStructDept]);
-
-  const handleExportProjectStructures = () => {
-    const headers = ['id', 'holding', 'department_operator', 'project_type', 'project_name', 'module', 'bu', 'department', 'project_description'];
-    const csvContent = [
-      headers.join(','),
-      ...projectStructures.map(row => 
-        headers.map(h => {
-          const val = row[h] || '';
-          const escaped = String(val).replace(/"/g, '""');
-          return `"${escaped}"`;
-        }).join(',')
-      )
-    ].join('\n');
-
-    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `project_structures_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  // Export handler defined below getFilteredData() to access filtered records
 
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -890,6 +885,54 @@ export default function AdminPage() {
     }
 
     return data;
+  };
+
+  // Export Project Structures to CSV (All or Filtered)
+  const handleExportProjectStructures = (scope: 'all' | 'filtered' = 'all') => {
+    const currentFiltered = getFilteredData();
+    const dataToExport = scope === 'filtered' ? currentFiltered : projectStructures;
+
+    if (!dataToExport || dataToExport.length === 0) {
+      showToast(
+        scope === 'filtered' 
+          ? 'ไม่มีข้อมูลตามตัวกรองที่เลือกเพื่อส่งออก / No filtered records to export' 
+          : 'ไม่มีข้อมูลเพื่อส่งออก / No records to export', 
+        'warning'
+      );
+      setIsExportDropdownOpen(false);
+      return;
+    }
+
+    const headers = ['id', 'holding', 'department_operator', 'project_type', 'project_name', 'module', 'bu', 'department', 'project_description'];
+    const csvContent = [
+      headers.join(','),
+      ...dataToExport.map(row => 
+        headers.map(h => {
+          const val = row[h] ?? '';
+          const escaped = String(val).replace(/"/g, '""');
+          return `"${escaped}"`;
+        }).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const today = new Date().toISOString().split('T')[0];
+    link.setAttribute('href', url);
+    link.setAttribute('download', `project_structures_${scope === 'filtered' ? 'filtered_' : 'all_'}${today}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setIsExportDropdownOpen(false);
+    showToast(
+      scope === 'filtered'
+        ? `ส่งออกข้อมูลตามตัวกรองสำเร็จ (${dataToExport.length} รายการ)`
+        : `ส่งออกข้อมูลทั้งหมดสำเร็จ (${dataToExport.length} รายการ)`,
+      'success'
+    );
   };
 
   // Open modal for Create/Edit
@@ -1343,14 +1386,93 @@ export default function AdminPage() {
               <div className="flex items-center gap-2">
                 {activeTab === 'map_project' && (
                   <>
-                    <button 
-                      onClick={handleExportProjectStructures}
-                      className="inline-flex items-center gap-2 bg-theme-surface border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text px-4 py-2.5 rounded-xl font-bold transition-all active:scale-95 text-sm"
-                      title="Export Project Structures to CSV"
-                    >
-                      <Download size={16} />
-                      <span>Export CSV</span>
-                    </button>
+                    {/* Export CSV Dropdown */}
+                    <div className="relative" ref={exportDropdownRef}>
+                      <button 
+                        type="button"
+                        onClick={() => setIsExportDropdownOpen(prev => !prev)}
+                        className={cn(
+                          "inline-flex items-center gap-2 bg-theme-surface border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text px-4 py-2.5 rounded-xl font-bold transition-all active:scale-95 text-sm shadow-sm",
+                          isExportDropdownOpen && "ring-2 ring-indigo-500/50 bg-theme-surface-secondary text-theme-text"
+                        )}
+                        title="Export Project Structures to CSV"
+                      >
+                        <Download size={16} className="text-indigo-400" />
+                        <span>Export CSV</span>
+                        <ChevronDown size={14} className={cn("transition-transform duration-200 text-theme-text-secondary", isExportDropdownOpen && "rotate-180")} />
+                      </button>
+
+                      {isExportDropdownOpen && (
+                        <div className="absolute right-0 mt-2 w-72 bg-theme-surface-secondary/95 dark:bg-theme-surface-secondary/95 backdrop-blur-xl border border-theme-border rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 space-y-1">
+                          <div className="px-3 py-2 border-b border-theme-border/50 mb-1">
+                            <div className="text-xs font-bold text-theme-text uppercase tracking-wider">Export Options</div>
+                            <div className="text-[11px] text-theme-text-secondary">เลือกขอบเขตข้อมูลที่ต้องการส่งออก CSV</div>
+                          </div>
+
+                          {/* Option 1: Export Filtered */}
+                          <button
+                            type="button"
+                            onClick={() => handleExportProjectStructures('filtered')}
+                            disabled={filteredData.length === 0}
+                            className={cn(
+                              "w-full flex items-start gap-3 p-2.5 rounded-xl text-left transition-all group",
+                              filteredData.length > 0
+                                ? "hover:bg-indigo-500/10 hover:border-indigo-500/20 text-theme-text cursor-pointer"
+                                : "opacity-40 cursor-not-allowed text-theme-text-secondary"
+                            )}
+                          >
+                            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-all shrink-0 mt-0.5">
+                              <Filter size={15} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-xs font-bold text-theme-text group-hover:text-indigo-400 transition-colors">
+                                  ตามตัวกรอง (Filtered)
+                                </span>
+                                <span className="text-[11px] font-extrabold px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300">
+                                  {filteredData.length}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-theme-text-secondary line-clamp-1 mt-0.5">
+                                {Boolean(searchQuery.trim() || filterProject || filterHolding || filterRole || filterType || filterBU || filterStatus !== 'all') 
+                                  ? 'เฉพาะรายการที่ตรงกับตัวกรองปัจจุบัน' 
+                                  : 'กรองตามเงื่อนไขที่เลือก'}
+                              </p>
+                            </div>
+                          </button>
+
+                          {/* Option 2: Export All */}
+                          <button
+                            type="button"
+                            onClick={() => handleExportProjectStructures('all')}
+                            disabled={projectStructures.length === 0}
+                            className={cn(
+                              "w-full flex items-start gap-3 p-2.5 rounded-xl text-left transition-all group",
+                              projectStructures.length > 0
+                                ? "hover:bg-emerald-500/10 hover:border-emerald-500/20 text-theme-text cursor-pointer"
+                                : "opacity-40 cursor-not-allowed text-theme-text-secondary"
+                            )}
+                          >
+                            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-all shrink-0 mt-0.5">
+                              <Database size={15} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-xs font-bold text-theme-text group-hover:text-emerald-400 transition-colors">
+                                  ทั้งหมด (Export All)
+                                </span>
+                                <span className="text-[11px] font-extrabold px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300">
+                                  {projectStructures.length}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-theme-text-secondary line-clamp-1 mt-0.5">
+                                โครงสร้างโปรเจกต์ทั้งหมดในระบบ
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <button 
                       onClick={() => document.getElementById('import-project-structures-csv')?.click()}
                       className="inline-flex items-center gap-2 bg-theme-surface border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text px-4 py-2.5 rounded-xl font-bold transition-all active:scale-95 text-sm"
