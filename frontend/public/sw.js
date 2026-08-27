@@ -1,4 +1,4 @@
-const CACHE_NAME = 'imp-worklog-v1';
+const CACHE_NAME = 'imp-worklog-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -29,7 +29,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests, ignore API calls (/api, /functions, Supabase endpoint)
+  // Only handle GET requests, ignore API calls (/api, /functions, Supabase endpoints)
   const url = new URL(event.request.url);
   if (
     event.request.method !== 'GET' ||
@@ -40,24 +40,37 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-First for navigation requests (HTML pages) so user always gets the latest build
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match('/index.html') || caches.match('/'))
+    );
+    return;
+  }
+
+  // Stale-While-Revalidate for static assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch fresh copy in background (Stale-While-Revalidate)
-        fetch(event.request).then((networkResponse) => {
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
           }
-        }).catch(() => {});
-        return cachedResponse;
-      }
+          return networkResponse;
+        })
+        .catch(() => cachedResponse);
 
-      return fetch(event.request).catch(() => {
-        // Offline fallback for HTML navigation requests
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
-      });
+      return cachedResponse || fetchPromise;
     })
   );
 });
+

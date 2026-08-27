@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import { ensureValidSupabaseSession } from './lib/supabase';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import DashboardPage from './pages/DashboardPage';
 import LogWorkPage from './pages/LogWorkPage';
 import LoginPage from './pages/LoginPage';
@@ -23,7 +24,21 @@ import { ThemeProvider } from './context/ThemeContext';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const [state, setState] = useState<'loading' | 'authenticated' | 'anonymous'>('loading');
+  const [state, setState] = useState<'loading' | 'authenticated' | 'anonymous'>(() => {
+    // Instant synchronous check from localStorage so existing sessions don't flash a blank screen
+    const cached = typeof localStorage !== 'undefined' ? localStorage.getItem('worklog_session') : null;
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && (parsed.id || parsed.empId)) {
+          return 'authenticated';
+        }
+      } catch {
+        // invalid JSON
+      }
+    }
+    return 'loading';
+  });
 
   useEffect(() => {
     let active = true;
@@ -40,7 +55,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
-            if (parsed && parsed.id) {
+            if (parsed && (parsed.id || parsed.empId)) {
               setState('authenticated');
               return;
             }
@@ -60,38 +75,49 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   // so the router does not redirect anonymous viewers to /login.
   const isPublicShare = new URLSearchParams(window.location.search).has('share');
 
-  if (state === 'loading') return <div className="min-h-screen bg-slate-950" />;
+  if (state === 'loading') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-3">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs text-slate-500 font-mono tracking-wider">กำลังตรวจสอบข้อมูลการเข้าใช้งาน...</span>
+      </div>
+    );
+  }
+
   if (state === 'anonymous' && !isPublicShare) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return <>{children}</>;
 }
 
 function App() {
   return (
-    <ThemeProvider>
-      <NotificationProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/worklog/share/:id" element={<PublicWorklogPage />} />
-          <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/log" element={<ProtectedRoute><LogWorkPage /></ProtectedRoute>} />
-          <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
-          <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
-          <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
-          <Route path="/hrbp" element={<ProtectedRoute><HrbpPage /></ProtectedRoute>} />
-          <Route path="/ai-chat" element={<ProtectedRoute><AiChatPage /></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
-          <Route path="/projects" element={<ProtectedRoute><ProjectRegistryPage /></ProtectedRoute>} />
-          <Route path="/projects/gantt" element={<ProtectedRoute><ProjectGanttPage /></ProtectedRoute>} />
-          <Route path="/projects/roadmap" element={<ProtectedRoute><ProjectGanttPage /></ProtectedRoute>} />
-          <Route path="/team" element={<ProtectedRoute><TeamPage /></ProtectedRoute>} />
-          <Route path="/workspaces" element={<ProtectedRoute><WorkspacesPage /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-          <Route path="/migrate" element={<ProtectedRoute><MigratePage /></ProtectedRoute>} />
-        </Routes>
-      </NotificationProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <NotificationProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/worklog/share/:id" element={<PublicWorklogPage />} />
+            <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/log" element={<ProtectedRoute><LogWorkPage /></ProtectedRoute>} />
+            <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+            <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+            <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+            <Route path="/hrbp" element={<ProtectedRoute><HrbpPage /></ProtectedRoute>} />
+            <Route path="/ai-chat" element={<ProtectedRoute><AiChatPage /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+            <Route path="/projects" element={<ProtectedRoute><ProjectRegistryPage /></ProtectedRoute>} />
+            <Route path="/projects/gantt" element={<ProtectedRoute><ProjectGanttPage /></ProtectedRoute>} />
+            <Route path="/projects/roadmap" element={<ProtectedRoute><ProjectGanttPage /></ProtectedRoute>} />
+            <Route path="/team" element={<ProtectedRoute><TeamPage /></ProtectedRoute>} />
+            <Route path="/workspaces" element={<ProtectedRoute><WorkspacesPage /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            <Route path="/migrate" element={<ProtectedRoute><MigratePage /></ProtectedRoute>} />
+          </Routes>
+        </NotificationProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
 export default App;
+
 

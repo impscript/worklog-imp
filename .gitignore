@@ -46,3 +46,4 @@ supabase/.temp/
 # Scratch analysis (one-off Hermes scripts)
 scratch/
 frontend/scratch/
+.playwright-mcp/

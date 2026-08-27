@@ -53,7 +53,14 @@ export default function DashboardPage() {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<WorklogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user] = useState<any>(() => {
+    try {
+      const sessionStr = typeof localStorage !== 'undefined' ? localStorage.getItem('worklog_session') : null;
+      return sessionStr ? JSON.parse(sessionStr) : null;
+    } catch {
+      return null;
+    }
+  });
   const [editingLog, setEditingLog] = useState<any | null>(null);
   const [viewingLog, setViewingLog] = useState<WorklogEntry | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -66,10 +73,15 @@ export default function DashboardPage() {
   const [analysisLogs, setAnalysisLogs] = useState<string[]>([]);
   const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
   const [holidays, setHolidays] = useState<{ date: string; name: string }[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [checkedTasks, setCheckedTasks] = useState<Record<string, boolean>>(() => {
-    const saved = localStorage.getItem('dashboard_checklist_tasks');
-    return saved ? JSON.parse(saved) : {};
+    try {
+      const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('dashboard_checklist_tasks') : null;
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
   });
 
   const isCoachTemplate = (id: string | null | undefined) => {
@@ -124,7 +136,11 @@ export default function DashboardPage() {
   const toggleTask = (taskText: string) => {
     setCheckedTasks(prev => {
       const updated = { ...prev, [taskText]: !prev[taskText] };
-      localStorage.setItem('dashboard_checklist_tasks', JSON.stringify(updated));
+      try {
+        localStorage.setItem('dashboard_checklist_tasks', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Failed to save checklist state:', err);
+      }
       return updated;
     });
   };
@@ -201,83 +217,143 @@ export default function DashboardPage() {
     }
   };
 
-  // Generate week dates (Monday to Sunday)
+  // Generate week dates (Monday to Sunday) cleanly without mutating objects
   const getWeekDays = () => {
     const today = new Date();
     const day = today.getDay();
     // Monday is 1, Sunday is 0. If Sunday, we want to go back 6 days to get Monday.
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(today.setDate(diff));
+    const monday = new Date(today.getFullYear(), today.getMonth(), diff);
     
-    const weekDays = [];
+    const weekDaysList: Date[] = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      weekDays.push(d);
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+      weekDaysList.push(d);
     }
-    return weekDays;
+    return weekDaysList;
   };
 
   const weekDays = getWeekDays();
   const startOfWeek = formatDateToYMD(weekDays[0]);
   const endOfWeek = formatDateToYMD(weekDays[6]);
 
+  // Auto-refresh when user wakes up device, switches back to tab, or session restores
   useEffect(() => {
+    const handleAutoRefresh = () => {
+      setRefreshTrigger(prev => prev + 1);
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handleAutoRefresh();
+      }
+    };
+
+    window.addEventListener('worklog_session_refreshed', handleAutoRefresh);
+    window.addEventListener('focus', handleAutoRefresh);
+    window.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('worklog_session_refreshed', handleAutoRefresh);
+      window.removeEventListener('focus', handleAutoRefresh);
+      window.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  // Coordinated data fetching effect
+  useEffect(() => {
+    let active = true;
     const sessionStr = localStorage.getItem('worklog_session');
     if (!sessionStr) {
       navigate('/login');
       return;
     }
-    const session = JSON.parse(sessionStr);
-    setUser(session);
+    
+    let session: any = null;
+    try {
+      session = JSON.parse(sessionStr);
+    } catch {
+      navigate('/login');
+      return;
+    }
 
-    async function fetchEntries() {
+    async function loadAllDashboardData() {
       try {
         setIsLoading(true);
-        await ensureValidSupabaseSession();
-        const { data, error } = await supabase
-          .from('col_worklog')
-          .select('*')
-          .eq('user_id', session.id)
-          .order('work_date', { ascending: false })
-          .order('created_at', { ascending: false });
+        setLoadError(null);
 
-        if (error) {
-          console.error('Error fetching work logs:', error);
-        } else if (data) {
-          // Map database types properly
-          const mappedData = data.map((item: any) => ({
+        // First ensure valid session with timeout protection
+        await ensureValidSupabaseSession();
+        if (!active) return;
+
+        // Fetch entries, holidays, JD, and AI analysis in parallel safely
+        const [entriesRes, holidaysRes, jdRes, analysisRes] = await Promise.allSettled([
+          supabase
+            .from('col_worklog')
+            .select('*')
+            .eq('user_id', session.id)
+            .order('work_date', { ascending: false })
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('tb_master_holiday')
+            .select('*'),
+          supabase
+            .from('tb_user_jd')
+            .select('*')
+            .eq('user_id', session.id)
+            .maybeSingle(),
+          supabase
+            .from('tb_ai_individual_analysis')
+            .select('*')
+            .eq('user_id', session.id)
+            .or('is_deleted.eq.false,is_deleted.is.null')
+            .order('analysis_date', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        ]);
+
+        if (!active) return;
+
+        if (entriesRes.status === 'fulfilled' && entriesRes.value.data) {
+          const mappedData = entriesRes.value.data.map((item: any) => ({
             ...item,
-            total_hours: parseFloat(item.total_hours)
+            total_hours: parseFloat(item.total_hours) || 0
           }));
           setEntries(mappedData);
+        } else if (entriesRes.status === 'fulfilled' && entriesRes.value.error) {
+          console.warn('[DashboardPage] Warning fetching work logs:', entriesRes.value.error);
         }
-      } catch (err) {
-        console.error('Error in fetchEntries:', err);
+
+        if (holidaysRes.status === 'fulfilled' && holidaysRes.value.data) {
+          setHolidays(holidaysRes.value.data);
+        }
+
+        if (jdRes.status === 'fulfilled' && jdRes.value.data) {
+          setUserJd(jdRes.value.data);
+        }
+
+        if (analysisRes.status === 'fulfilled' && analysisRes.value.data) {
+          setAiAnalysis(analysisRes.value.data);
+        }
+      } catch (err: any) {
+        console.error('[DashboardPage] Error loading data:', err);
+        if (active) {
+          setLoadError(err?.message || 'ไม่สามารถโหลดข้อมูลล่าสุดได้');
+        }
       } finally {
-        setIsLoading(false);
-      }
-    }
-
-    async function fetchHolidays() {
-      try {
-        const { data, error } = await supabase
-          .from('tb_master_holiday')
-          .select('*');
-        if (error) {
-          console.error('Error fetching holidays:', error);
-        } else if (data) {
-          setHolidays(data);
+        if (active) {
+          setIsLoading(false);
         }
-      } catch (err) {
-        console.error('Error in fetchHolidays:', err);
       }
     }
 
-    fetchEntries();
-    fetchHolidays();
-    fetchJdAndAnalysis(session.id);
+    loadAllDashboardData();
+
+    return () => {
+      active = false;
+    };
   }, [navigate, refreshTrigger]);
+
 
   // Filter entries for this week
   const thisWeekEntries = entries.filter(
@@ -442,6 +518,24 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
+            {/* Error Banner if data fetch encountered network issue */}
+            {loadError && (
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm">
+                <div className="flex items-center gap-2.5">
+                  <AlertTriangle size={18} className="text-amber-400 shrink-0" />
+                  <span>{loadError} (อาจเกิดจากการเชื่อมต่อเครือข่ายหลังจากเปิดเครื่องใหม่)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRefreshTrigger(prev => prev + 1)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold transition-all cursor-pointer"
+                >
+                  <RefreshCw size={13} />
+                  <span>ลองใหม่ (Retry)</span>
+                </button>
+              </div>
+            )}
+
             {/* Welcoming Header Banner */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-theme-border dark:border-theme-border/60 pb-5">
               <div>
@@ -452,11 +546,21 @@ export default function DashboardPage() {
                   Here is a professional summary of your logged work activities and attendance.
                 </p>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-full self-start md:self-center">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 animate-pulse"></span>
-                <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest font-mono">
-                  Weekly: {startOfWeek} ~ {endOfWeek}
-                </span>
+              <div className="flex items-center gap-2 self-start md:self-center">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-full">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 animate-pulse"></span>
+                  <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest font-mono">
+                    Weekly: {startOfWeek} ~ {endOfWeek}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRefreshTrigger(prev => prev + 1)}
+                  title="รีเฟรชข้อมูล (Refresh Dashboard)"
+                  className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 bg-theme-surface-secondary hover:bg-theme-surface border border-theme-border rounded-full transition-all active:scale-95 cursor-pointer"
+                >
+                  <RefreshCw size={14} className={cn(isLoading && 'animate-spin')} />
+                </button>
               </div>
             </div>
 

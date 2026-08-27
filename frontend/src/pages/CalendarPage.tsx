@@ -1385,13 +1385,9 @@ export default function CalendarPage() {
           console.log('[Clean Sync] Fetching events for range:', monthStart, 'to', monthEnd);
           const allEvents = await googleCalendar.listEventsForRange(userObj.id, calendarId, monthStart, monthEnd);
           
-          // Filter only events created by our app
+          // Filter only events created by our app across all historical format variants
           const appEvents = allEvents.filter((evt: any) => {
-            const hasSig = evt.description && (
-              evt.description.includes('Synced from Worklog NewGen Web App') ||
-              evt.description.includes('📋 Worklog Entry')
-            );
-            return hasSig;
+            return googleCalendar.isWorklogEvent(evt);
           });
 
           console.log(`[Clean Sync] Found ${appEvents.length} app events to clean out of ${allEvents.length} total events.`);

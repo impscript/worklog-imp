@@ -353,13 +353,26 @@ class GoogleCalendarService {
   async listEventsForRange(userId: string, calendarId: string, startDateStr: string, endDateStr: string): Promise<any[]> {
     const timeMin = `${startDateStr}T00:00:00+07:00`;
     const timeMax = `${endDateStr}T23:59:59+07:00`;
+    const allItems: any[] = [];
+    let pageToken: string | null = null;
+
     try {
-      const path = `/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&maxResults=250`;
-      const res = await this._request(userId, 'GET', path);
-      return res.items || [];
+      do {
+        let path = `/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&maxResults=250`;
+        if (pageToken) {
+          path += `&pageToken=${encodeURIComponent(pageToken)}`;
+        }
+        const res = await this._request(userId, 'GET', path);
+        if (res && res.items && Array.isArray(res.items)) {
+          allItems.push(...res.items);
+        }
+        pageToken = res?.nextPageToken || null;
+      } while (pageToken);
+
+      return allItems;
     } catch (err) {
       console.warn('[GCal] listEventsForRange failed:', err);
-      return [];
+      return allItems;
     }
   }
 
@@ -516,79 +529,256 @@ class GoogleCalendarService {
   }
 
   /**
+   * Checks if a Google Calendar event is a Worklog entry across various format iterations
+   */
+  isWorklogEvent(evt: any): boolean {
+    if (!evt) return false;
+    const summary = (evt.summary || '').trim();
+    let desc = (evt.description || '').trim();
+    if (desc.includes('<') || desc.includes('&')) {
+      desc = this.convertHtmlToPlainText(desc);
+    }
+
+    // Direct app signatures in description
+    if (
+      desc.includes('Synced from Worklog') ||
+      desc.includes('Worklog NewGen') ||
+      desc.includes('📋 Worklog Entry') ||
+      desc.includes('Worklog Entry') ||
+      desc.includes('🆔 ID:') ||
+      desc.includes('🔗 Public Reference Link:')
+    ) {
+      return true;
+    }
+
+    // Key metadata fields in description
+    if (
+      desc.includes('🎯 Project:') ||
+      (desc.includes('⚡ Action:') && (desc.includes('⏱') || desc.includes('Hours:'))) ||
+      (desc.includes('🏢 BU:') && desc.includes('Dept:'))
+    ) {
+      return true;
+    }
+
+    // Summary prefix patterns like [Project], (Project), [Support MA], (Support MA), [Upgrade], (Upgrade), [Management], (Management), [OT / ...], (OT / ...)
+    if (
+      /^(\[|\()(?:\s*OT\s*\/)?\s*(?:Project|Support\s*MA|Support\s*Go-Live|Support|Upgrade|Management|Task|Other|E-Learning)(?:\s*\/[^)\]]+)?(\]|\))/i.test(summary)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private _generateConsistentLogId(_eventId?: string): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+
+  /**
    * Parses the structured description string of a synced Google Calendar event
    * back into a valid col_worklog object format.
    */
   parseEventDescriptionToWorklog(evt: any, userId: string): any | null {
+    if (!evt) return null;
     let desc = evt.description || '';
+    const summary = (evt.summary || '').trim();
 
-    // Normalize GCal HTML description to plain text if it contains HTML/entities
-    if (desc.includes('<br') || desc.includes('<p') || desc.includes('</') || desc.includes('&')) {
+    // 0. Normalize HTML description to plain text
+    if (desc.includes('<') || desc.includes('&')) {
       desc = this.convertHtmlToPlainText(desc);
     }
 
-    if (!desc.includes('Synced from Worklog NewGen Web App') && !desc.includes('📋 Worklog Entry')) {
+    if (!this.isWorklogEvent(evt)) {
       return null;
     }
 
     try {
-      // 1. Extract UUID ID
-      const idMatch = desc.match(/🆔 ID:\s*([0-9a-fA-F-]{36})/);
-      const logId = idMatch ? idMatch[1] : null;
-      if (!logId) return null;
-
-      // 2. Extract Project Name
-      const projectMatch = desc.match(/🎯 Project:\s*([^\n]+)/);
-      const rawProjectName = projectMatch ? projectMatch[1].trim() : 'Work Log';
-      const projectName = rawProjectName.split(/<br\s*\/?>|\n/i)[0].replace(/<[^>]+>/g, '').trim() || 'Work Log';
-
-      // 3. Extract BU and Dept
-      const buDeptMatch = desc.match(/🏢 BU:\s*([^|]+)\s*\|\s*Dept:\s*([^\n]+)/);
-      const bu = buDeptMatch ? buDeptMatch[1].trim() : 'N/A';
-      const department = buDeptMatch ? buDeptMatch[2].trim() : 'N/A';
-
-      // 4. Extract Hours
-      const hoursMatch = desc.match(/⏱️?\s*Hours:\s*([0-9.]+)/);
-      const totalHours = hoursMatch ? parseFloat(hoursMatch[1]) : 8.0;
-
-      // 5. Extract Action Name
-      const actionMatch = desc.match(/⚡ Action:\s*([^\n]+)/);
-      const actionName = actionMatch ? actionMatch[1].trim() : 'Others';
-
-      // 6. Extract Category (OT)
-      const isOT = desc.includes('Category: Overtime (OT)');
-
-      // Extract Project Type from summary/title bracket prefix (e.g. "[Management] COACH - TeamOps" or "[OT / Management]")
-      let parsedProjectType = 'Project';
-      const summary = evt.summary || '';
-      const typeMatch = summary.match(/^\[([^\]]+)\]/);
-      if (typeMatch) {
-        let typeStr = typeMatch[1].trim();
-        if (typeStr.startsWith('OT / ')) {
-          typeStr = typeStr.replace('OT / ', '').trim();
+      // 1. Extract UUID or fallback so valid entries without embedded ID are NEVER dropped
+      let logId: string | null = null;
+      const idMatch = desc.match(/🆔\s*ID:\s*([0-9a-fA-F-]{36})/i);
+      if (idMatch) {
+        logId = idMatch[1];
+      } else {
+        const linkMatch = desc.match(/worklog\/share\/([0-9a-fA-F-]{36})/i);
+        if (linkMatch) {
+          logId = linkMatch[1];
+        } else if (evt.extendedProperties?.private?.worklog_id) {
+          logId = evt.extendedProperties.private.worklog_id;
+        } else {
+          logId = this._generateConsistentLogId(evt.id);
         }
-        parsedProjectType = typeStr;
       }
 
-      // 7. Extract Description (between 📝 and the next line/divider)
-      let description = '';
-      const descLines = desc.split('\n');
-      const startIndex = descLines.findIndex((line: string) => line.startsWith('📝'));
-      if (startIndex !== -1) {
-        const remaining = descLines.slice(startIndex);
-        // Find next divider or ID line
-        const endIndex = remaining.findIndex((line: string, i: number) => i > 0 && (line.startsWith('━━') || line.startsWith('🆔') || line.startsWith('📌') || line.startsWith('---') || line.startsWith('──')));
-        const descriptionLines = endIndex !== -1 ? remaining.slice(0, endIndex) : remaining;
-        description = descriptionLines.join('\n').replace(/^📝\s*/, '').trim();
+      // 2. Extract Project Type and OT from Summary / Description
+      let parsedProjectType = 'Project';
+      let isOT = desc.includes('Category: Overtime (OT)') || desc.includes('🔥') || /🔥\s*Category:\s*Overtime/i.test(desc);
+
+      // Match [Type] or (Type) prefix from summary
+      const typeMatch = summary.match(/^(\[|\()([^)]+)(\]|\))/);
+      if (typeMatch) {
+        let typeStr = typeMatch[2].trim();
+        if (/^OT\s*[/:]/i.test(typeStr)) {
+          isOT = true;
+          typeStr = typeStr.replace(/^OT\s*[/:]\s*/i, '').trim();
+        }
+        if (typeStr) {
+          parsedProjectType = typeStr;
+        }
+      } else if (/^OT\s*[/:]/i.test(summary)) {
+        isOT = true;
       }
 
-      // 8. Extract Date and Times from the event object
+      // Standardize project type names
+      if (/^support\s*ma$/i.test(parsedProjectType)) parsedProjectType = 'Support MA';
+      else if (/^support\s*go-?live$/i.test(parsedProjectType)) parsedProjectType = 'Support Go-Live';
+      else if (/^upgrade$/i.test(parsedProjectType)) parsedProjectType = 'Upgrade';
+      else if (/^management$/i.test(parsedProjectType)) parsedProjectType = 'Management';
+      else if (/^project$/i.test(parsedProjectType)) parsedProjectType = 'Project';
+
+      // 3. Extract Project Name
+      let projectName = '';
+      const projectMatch = desc.match(/🎯\s*Project:\s*([^\n]+)/i);
+      if (projectMatch) {
+        const rawProj = projectMatch[1].trim();
+        projectName = rawProj.split(/<br\s*\/?>|\n/i)[0].replace(/<[^>]+>/g, '').trim() || 'Work Log';
+      } else {
+        // Fallback from summary
+        const cleanSummary = summary.replace(/^(\[|\()[^)]+(\]|\))\s*/, '').trim();
+        if (cleanSummary.includes(' - ')) {
+          const parts = cleanSummary.split(' - ');
+          projectName = parts[parts.length - 1].trim();
+        } else if (cleanSummary) {
+          projectName = cleanSummary;
+        } else {
+          projectName = 'Work Log';
+        }
+      }
+
+      // 4. Extract Module (📦 Module: ...)
+      let moduleName: string | null = null;
+      const moduleMatch = desc.match(/📦\s*Module:\s*([^\n]+)/i);
+      if (moduleMatch) {
+        const m = moduleMatch[1].trim();
+        if (m && m !== 'None' && m !== 'N/A' && m !== '-') {
+          moduleName = m;
+        }
+      }
+
+      // 5. Extract BU and Dept (🏢 BU: ... | Dept: ...)
+      let bu = '';
+      let department = '';
+      const buDeptMatch = desc.match(/🏢\s*BU:\s*([^|\n]+)(?:\s*\|\s*Dept:\s*([^\n]+))?/i);
+      if (buDeptMatch) {
+        bu = (buDeptMatch[1] || '').trim();
+        department = (buDeptMatch[2] || '').trim();
+        if (bu === 'N/A' || bu === '-') bu = '';
+        if (department === 'N/A' || department === '-') department = '';
+      }
+
+      // 6. Extract Action Name (⚡ Action: ...)
+      let actionName = 'Others';
+      const actionMatch = desc.match(/⚡\s*Action:\s*([^\n]+)/i);
+      if (actionMatch) {
+        actionName = actionMatch[1].trim();
+      } else {
+        const cleanSummary = summary.replace(/^(\[|\()[^)]+(\]|\))\s*/, '').trim();
+        if (cleanSummary.includes(' - ')) {
+          actionName = cleanSummary.split(' - ')[0].trim();
+        } else if (cleanSummary) {
+          actionName = cleanSummary;
+        }
+      }
+
+      // 7. Extract Dates and Times from event object
       const startDateTime = evt.start?.dateTime || evt.start?.date;
       const endDateTime = evt.end?.dateTime || evt.end?.date;
       
       const work_date = startDateTime ? startDateTime.split('T')[0] : new Date().toISOString().split('T')[0];
       const start_time = startDateTime && startDateTime.includes('T') ? startDateTime.split('T')[1].slice(0, 8) : '08:00:00';
-      let end_time = endDateTime && endDateTime.includes('T') ? endDateTime.split('T')[1].slice(0, 8) : '17:00:00';
+      const end_time = endDateTime && endDateTime.includes('T') ? endDateTime.split('T')[1].slice(0, 8) : '17:00:00';
+
+      // 8. Extract Hours (⏱ Hours: 5.0h ...)
+      let totalHours = 0;
+      const hoursMatch = desc.match(/⏱️?\s*Hours?:\s*([0-9.]+)/i);
+      if (hoursMatch) {
+        totalHours = parseFloat(hoursMatch[1]);
+      } else if (startDateTime && endDateTime && startDateTime.includes('T') && endDateTime.includes('T')) {
+        const startMs = new Date(startDateTime).getTime();
+        const endMs = new Date(endDateTime).getTime();
+        const diffHours = Math.max(0, (endMs - startMs) / (1000 * 60 * 60));
+        totalHours = diffHours >= 5 ? Math.max(1, diffHours - 1) : diffHours;
+      } else {
+        totalHours = 8.0;
+      }
+
+      // Determine break_time: if difference between start & end is > totalHours, break_time was true
+      let breakTime = false;
+      if (startDateTime && endDateTime && startDateTime.includes('T') && endDateTime.includes('T')) {
+        const startMs = new Date(startDateTime).getTime();
+        const endMs = new Date(endDateTime).getTime();
+        const diffHours = (endMs - startMs) / (1000 * 60 * 60);
+        if (Math.abs(diffHours - (totalHours + 1)) < 0.2) {
+          breakTime = true;
+        }
+      }
+
+      // 9. Extract Description (supports 📝, 🪄, 📖, ✏️, 💬, or lines after Action)
+      let description = '';
+      const descLines = desc.split('\n');
+      
+      const noteLineIndex = descLines.findIndex((line: string) => 
+        /^(?:📝|🪄|📖|✏️|💬|📌|📄|•|-)\s+/.test(line.trim()) &&
+        !line.includes('Worklog Entry') &&
+        !line.includes('Project Background') &&
+        !line.includes('Synced from') &&
+        !line.includes('Category:')
+      );
+
+      if (noteLineIndex !== -1) {
+        const remaining = descLines.slice(noteLineIndex);
+        const endDividerIndex = remaining.findIndex((line: string, i: number) => 
+          i > 0 && (
+            /^[━─\-_=~]{3,}/.test(line.trim()) ||
+            line.includes('🆔 ID:') ||
+            line.includes('📌 Synced from') ||
+            line.includes('🔗 Public')
+          )
+        );
+        const selectedLines = endDividerIndex !== -1 ? remaining.slice(0, endDividerIndex) : remaining;
+        description = selectedLines.join('\n').replace(/^(?:📝|🪄|📖|✏️|💬|📌|📄|•|-)\s*/, '').trim();
+      } else {
+        const actionLineIndex = descLines.findIndex((line: string) => line.includes('⚡ Action:'));
+        if (actionLineIndex !== -1 && actionLineIndex + 1 < descLines.length) {
+          const linesAfterAction = descLines.slice(actionLineIndex + 1);
+          const nextDivider = linesAfterAction.findIndex((line: string) => 
+            /^[━─\-_=~]{3,}/.test(line.trim()) ||
+            line.includes('🆔 ID:') ||
+            line.includes('📌 Synced from') ||
+            line.includes('🔗 Public') ||
+            line.includes('🔥 Category:')
+          );
+          const candidateLines = nextDivider !== -1 ? linesAfterAction.slice(0, nextDivider) : linesAfterAction;
+          const cleanNotes = candidateLines
+            .filter((l: string) => !l.includes('🔥 Category:') && !l.includes('🆔 ID:'))
+            .join('\n')
+            .replace(/^(?:📝|🪄|📖|✏️|💬|📌|📄|•|-)\s*/, '')
+            .trim();
+          if (cleanNotes && cleanNotes !== 'No description') {
+            description = cleanNotes;
+          }
+        }
+      }
+
+      if (description === 'No description' || description === '📝 No description') {
+        description = '';
+      }
 
       return {
         id: logId,
@@ -596,13 +786,15 @@ class GoogleCalendarService {
         work_date,
         start_time,
         end_time,
+        break_time: breakTime,
         total_hours: totalHours,
         project_name: projectName,
         project_type: parsedProjectType,
-        bu: bu === 'N/A' ? '' : bu,
-        department: department === 'N/A' ? '' : department,
+        module: moduleName,
+        bu,
+        department,
         action_name: actionName,
-        description: description,
+        description,
         channel: 'Web App',
         is_ot: isOT,
         gcal_event_id: evt.id
@@ -633,21 +825,52 @@ class GoogleCalendarService {
       return { total: 0, recovered: 0, updated: 0 };
     }
 
-    // 3. Query the database to find which IDs already exist in col_worklog
-    const parsedIds = parsedLogs.map(l => l.id);
-    const { data: existingLogs, error: checkErr } = await supabase
-      .from('col_worklog')
-      .select('id, project_type')
-      .in('id', parsedIds);
+    // 3. Query the database to find which IDs or GCal Event IDs already exist in col_worklog
+    const parsedIds = parsedLogs.map(l => l.id).filter(Boolean);
+    const parsedGcalIds = parsedLogs.map(l => l.gcal_event_id).filter(Boolean);
 
-    if (checkErr) {
-      throw new Error(`Failed to check existing worklogs: ${checkErr.message}`);
+    const existingLogsMap = new Map<string, string>(); // id -> project_type
+    const existingIdSet = new Set<string>();
+    const existingGcalIdSet = new Set<string>();
+
+    if (parsedIds.length > 0) {
+      const { data: logsById, error: err1 } = await supabase
+        .from('col_worklog')
+        .select('id, gcal_event_id, project_type')
+        .in('id', parsedIds);
+      
+      if (err1) console.warn('[GCal Recovery] Error checking existing IDs:', err1);
+      (logsById || []).forEach(l => {
+        if (l.id) {
+          existingIdSet.add(l.id);
+          existingLogsMap.set(l.id, l.project_type || '');
+        }
+        if (l.gcal_event_id) {
+          existingGcalIdSet.add(l.gcal_event_id);
+        }
+      });
     }
 
-    const existingLogsMap = new Map<string, string>((existingLogs || []).map(l => [l.id, l.project_type || '']));
+    if (parsedGcalIds.length > 0) {
+      const { data: logsByGcal, error: err2 } = await supabase
+        .from('col_worklog')
+        .select('id, gcal_event_id, project_type')
+        .in('gcal_event_id', parsedGcalIds);
+      
+      if (err2) console.warn('[GCal Recovery] Error checking existing GCal IDs:', err2);
+      (logsByGcal || []).forEach(l => {
+        if (l.id) {
+          existingIdSet.add(l.id);
+          existingLogsMap.set(l.id, l.project_type || '');
+        }
+        if (l.gcal_event_id) {
+          existingGcalIdSet.add(l.gcal_event_id);
+        }
+      });
+    }
     
     // 4. Filter out the ones that already exist in DB
-    const missingLogs = parsedLogs.filter(l => !existingLogsMap.has(l.id));
+    const missingLogs = parsedLogs.filter(l => !existingIdSet.has(l.id) && (!l.gcal_event_id || !existingGcalIdSet.has(l.gcal_event_id)));
     const logsNeedingTypeUpdate = parsedLogs.filter(l => {
       if (!existingLogsMap.has(l.id)) return false;
       const currentType = existingLogsMap.get(l.id);
@@ -659,9 +882,8 @@ class GoogleCalendarService {
       for (const logToUpdate of logsNeedingTypeUpdate) {
         const { error: updateErr } = await supabase
           .from('col_worklog')
-          .update({ project_type: logToUpdate.project_type })
-          .eq('id', logToUpdate.id)
-          .eq('workspace_id', 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001');
+          .update({ project_type: logToUpdate.project_type, module: logToUpdate.module })
+          .eq('id', logToUpdate.id);
         if (!updateErr) {
           updatedCount++;
         }
@@ -671,6 +893,7 @@ class GoogleCalendarService {
     if (missingLogs.length === 0) {
       return { total: parsedLogs.length, recovered: 0, updated: updatedCount };
     }
+
 
     // 5. Build full records including required mapping fallbacks for holding, department_operator, etc.
     // Fetch user details first to assign default holding/role mappings
