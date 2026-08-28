@@ -34,6 +34,8 @@ interface TeamMember {
   status: 'active' | 'warning' | 'chill';
   activeDays: number;
   sameDayLogs: number;
+  advancePlanDays: number;
+  weeklyPlanBonus: number;
   coffeeBoostCount: number;
 }
 
@@ -194,30 +196,46 @@ export default function LeaderboardPage() {
           const totalHours = userLogs.reduce((sum, log) => sum + parseFloat(log.total_hours || '0'), 0);
           
           // Group by work_date to calculate daily parameters
-          const dailyLogs: Record<string, { totalHours: number; isSameDay: boolean }> = {};
+          const dailyLogs: Record<string, { totalHours: number; isSameDay: boolean; isAdvancePlanned: boolean; weekKey: string }> = {};
           
           userLogs.forEach(log => {
             const dateStr = log.work_date;
             const logHours = parseFloat(log.total_hours || '0');
-            // Use Thailand time zone for correct same-day matching
+            // Use Thailand time zone for correct date matching
             const createdDate = new Date(log.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+            const isAdvance = createdDate < dateStr;
             const isSameDay = createdDate === dateStr;
             
+            // Determine weekly grouping (Monday of that week)
+            const d = new Date(`${dateStr}T12:00:00+07:00`);
+            const dayOfWeek = d.getDay();
+            const diffToMonday = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+            const mondayDate = new Date(d);
+            mondayDate.setDate(diffToMonday);
+            const weekKey = mondayDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+
             if (!dailyLogs[dateStr]) {
-              dailyLogs[dateStr] = { totalHours: 0, isSameDay: false };
+              dailyLogs[dateStr] = { totalHours: 0, isSameDay: false, isAdvancePlanned: false, weekKey };
             }
             dailyLogs[dateStr].totalHours += logHours;
-            if (isSameDay) {
+            if (isAdvance) {
+              dailyLogs[dateStr].isAdvancePlanned = true;
+            } else if (isSameDay) {
               dailyLogs[dateStr].isSameDay = true;
             }
           });
 
-          // Calculate core daily consistency score and punctuality bonus
+          // Calculate core daily consistency score, punctuality bonus, and advance planning bonus
           let coreDailyScore = 0;
           let totalPunctualityBonus = 0;
+          let totalAdvancePlanningBonus = 0;
           const activeDays = Object.keys(dailyLogs).length;
-          const sameDayLogs = Object.values(dailyLogs).filter(day => day.isSameDay).length;
+          const advancePlanDays = Object.values(dailyLogs).filter(day => day.isAdvancePlanned).length;
+          const sameDayLogs = Object.values(dailyLogs).filter(day => day.isSameDay && !day.isAdvancePlanned).length;
           
+          // Weekly planning calculation (group by weekKey)
+          const weeklyAdvanceMap: Record<string, number> = {};
+
           Object.values(dailyLogs).forEach(day => {
             // Daily consistency: 6 hours = 100 points, else proportional
             if (day.totalHours >= 6) {
@@ -226,9 +244,20 @@ export default function LeaderboardPage() {
               coreDailyScore += Math.round((day.totalHours / 6) * 100);
             }
             
-            // Punctuality: +15 points for same-day logging
-            if (day.isSameDay) {
+            // Advance Planning bonus (+25) vs Same-day Punctuality bonus (+15)
+            if (day.isAdvancePlanned) {
+              totalAdvancePlanningBonus += 25;
+              weeklyAdvanceMap[day.weekKey] = (weeklyAdvanceMap[day.weekKey] || 0) + 1;
+            } else if (day.isSameDay) {
               totalPunctualityBonus += 15;
+            }
+          });
+
+          // Weekly Strategic Planning Bonus: +50 points per week if >= 3 days planned in advance
+          let weeklyPlanBonus = 0;
+          Object.values(weeklyAdvanceMap).forEach(plannedCount => {
+            if (plannedCount >= 3) {
+              weeklyPlanBonus += 50;
             }
           });
 
@@ -237,23 +266,27 @@ export default function LeaderboardPage() {
           const coffeeBoostBonus = coffeeBoostCount * 30;
 
           // Total Flame Score
-          const flameScore = coreDailyScore + totalPunctualityBonus + coffeeBoostBonus;
+          const flameScore = coreDailyScore + totalPunctualityBonus + totalAdvancePlanningBonus + weeklyPlanBonus + coffeeBoostBonus;
 
-          // Assign Badges dynamically in Thai based on performance
+          // Assign Badges dynamically in Thai based on performance & planning
           let badge = "นักบันทึกสายชิล 🏃";
           let badgeIcon = "👟";
           let badgeColor = "text-orange-400 bg-orange-500/10 border-orange-500/20";
           let status: 'active' | 'warning' | 'chill' = 'active';
 
-          if (flameScore > 2500) {
+          if (flameScore > 2800) {
             badge = "เซียนบันทึกงานมือทอง 🚀";
             badgeIcon = "👾";
             badgeColor = "text-pink-400 bg-pink-500/10 border-pink-500/20";
-          } else if (flameScore > 1000) {
+          } else if (flameScore > 2000 || advancePlanDays >= 8) {
+            badge = "จอมวางแผนกลยุทธ์ 🗺️";
+            badgeIcon = "🎯";
+            badgeColor = "text-purple-400 bg-purple-500/10 border-purple-500/20";
+          } else if (flameScore > 1200) {
             badge = "ตำนานความสม่ำเสมอ 🛡️";
             badgeIcon = "🔥";
             badgeColor = "text-indigo-400 bg-indigo-500/10 border-indigo-500/25";
-          } else if (flameScore > 500) {
+          } else if (flameScore > 600) {
             badge = "นกตื่นเช้าส่งไว 🐦";
             badgeIcon = "☀️";
             badgeColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
@@ -280,6 +313,8 @@ export default function LeaderboardPage() {
             status,
             activeDays,
             sameDayLogs,
+            advancePlanDays,
+            weeklyPlanBonus,
             coffeeBoostCount
           };
         });
@@ -499,6 +534,13 @@ export default function LeaderboardPage() {
                       </div>
                     )}
 
+                    {/* Advance Plan Badge */}
+                    {top2.advancePlanDays > 0 && (
+                      <div className="absolute top-12 left-4 flex items-center gap-1 bg-purple-500/10 dark:bg-purple-500/20 px-2 py-0.5 rounded-full border border-purple-500/20 text-purple-600 dark:text-purple-400 text-[10px] font-bold" title={`วางแผนล่วงหน้า ${top2.advancePlanDays} วัน`}>
+                        🗺️ วางแผน {top2.advancePlanDays} วัน
+                      </div>
+                    )}
+
                     <div className="flex flex-col items-center space-y-3 mt-6">
                       <div className="w-16 h-16 rounded-full overflow-hidden ring-4 ring-slate-300/40 shadow-lg relative bg-slate-800">
                         <img 
@@ -551,6 +593,13 @@ export default function LeaderboardPage() {
                       </div>
                     )}
 
+                    {/* Advance Plan Badge */}
+                    {top1.advancePlanDays > 0 && (
+                      <div className="absolute top-12 left-4 flex items-center gap-1 bg-purple-500/10 dark:bg-purple-500/20 px-2 py-0.5 rounded-full border border-purple-500/20 text-purple-600 dark:text-purple-400 text-[10px] font-bold" title={`วางแผนล่วงหน้า ${top1.advancePlanDays} วัน`}>
+                        🗺️ วางแผน {top1.advancePlanDays} วัน
+                      </div>
+                    )}
+
                     <div className="flex flex-col items-center space-y-3 mt-6">
                       <div className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-amber-400 shadow-xl relative bg-slate-800">
                         <img 
@@ -600,6 +649,13 @@ export default function LeaderboardPage() {
                     {top3.coffeeBoostCount > 0 && (
                       <div className="absolute top-12 right-4 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 text-amber-500 text-[10px] font-bold animate-pulse">
                         ☕ {top3.coffeeBoostCount} บูสต์
+                      </div>
+                    )}
+
+                    {/* Advance Plan Badge */}
+                    {top3.advancePlanDays > 0 && (
+                      <div className="absolute top-12 left-4 flex items-center gap-1 bg-purple-500/10 dark:bg-purple-500/20 px-2 py-0.5 rounded-full border border-purple-500/20 text-purple-600 dark:text-purple-400 text-[10px] font-bold" title={`วางแผนล่วงหน้า ${top3.advancePlanDays} วัน`}>
+                        🗺️ วางแผน {top3.advancePlanDays} วัน
                       </div>
                     )}
 
@@ -706,9 +762,16 @@ export default function LeaderboardPage() {
                                   />
                                 </div>
                                 <div>
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <p className="font-bold text-theme-text leading-tight">{member.name}</p>
                                     
+                                    {/* Advance Plan Display */}
+                                    {member.advancePlanDays > 0 && (
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/15" title={`วางแผนล่วงหน้า ${member.advancePlanDays} วัน`}>
+                                        🗺️ {member.advancePlanDays} วัน
+                                      </span>
+                                    )}
+
                                     {/* Persisted Coffee Boost Display */}
                                     {member.coffeeBoostCount > 0 && (
                                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/15 animate-pulse">
@@ -795,29 +858,37 @@ export default function LeaderboardPage() {
                 <HelpCircle size={18} className="text-indigo-600 dark:text-indigo-400" />
                 <span>กติกาการสะสมคะแนน (Gamification Rules)</span>
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs leading-relaxed text-theme-text-secondary">
-                <div className="space-y-1.5">
-                  <h3 className="font-bold text-theme-text flex items-center gap-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-xs leading-relaxed text-theme-text-secondary">
+                <div className="space-y-1.5 p-3 rounded-xl bg-theme-surface-secondary/30 border border-theme-border/40">
+                  <h3 className="font-bold text-theme-text flex items-center gap-1.5">
                     <span className="text-amber-500">🔥</span> ความสม่ำเสมอรายวัน (Daily Consistency)
                   </h3>
                   <p>
-                    บันทึกชั่วโมงงานในแต่ละวันสะสมอย่างน้อย 6 ชั่วโมง จะได้รับคะแนนหลักประจำวัน 100 คะแนนเต็มทันที (หากบันทึกน้อยกว่า 6 ชั่วโมง คะแนนจะเฉลี่ยตามสัดส่วนจริง)
+                    บันทึกชั่วโมงงานในแต่ละวันสะสมอย่างน้อย 6 ชั่วโมง จะได้รับคะแนนหลักประจำวัน 100 คะแนนเต็ม (หากบันทึกน้อยกว่า 6 ชั่วโมง คะแนนจะเฉลี่ยตามสัดส่วนจริง)
                   </p>
                 </div>
-                <div className="space-y-1.5">
-                  <h3 className="font-bold text-theme-text flex items-center gap-1">
+                <div className="space-y-1.5 p-3 rounded-xl bg-theme-surface-secondary/30 border border-theme-border/40">
+                  <h3 className="font-bold text-theme-text flex items-center gap-1.5">
+                    <span className="text-purple-500">🗺️</span> โบนัสวางแผนล่วงหน้า (Advance Planning)
+                  </h3>
+                  <p>
+                    บันทึกหรือวางแผนงานล่วงหน้าก่อนถึงวันจริง ($\ge 1$ วัน) รับโบนัสความพร้อม <strong className="text-purple-600 dark:text-purple-400">+25 คะแนน/วัน</strong> และหากวางแผนล่วงหน้า $\ge 3$ วันในหนึ่งสัปดาห์ รับโบนัสสัปดาห์นักวางแผนเพิ่มพิเศษ <strong className="text-purple-600 dark:text-purple-400">+50 คะแนน</strong>
+                  </p>
+                </div>
+                <div className="space-y-1.5 p-3 rounded-xl bg-theme-surface-secondary/30 border border-theme-border/40">
+                  <h3 className="font-bold text-theme-text flex items-center gap-1.5">
                     <span className="text-indigo-500">⚡</span> โบนัสส่งตรงวัน (Punctuality Bonus)
                   </h3>
                   <p>
-                    กดส่งบันทึกงานภายในวันเดียวกับวันที่ปฏิบัติงานจริง (ไม่ส่งย้อนหลังข้ามวัน) รับโบนัสความเร็วเพิ่ม +15 คะแนนต่อวัน
+                    กดส่งบันทึกงานภายในวันเดียวกับวันที่ปฏิบัติงานจริง (ไม่ส่งย้อนหลังข้ามวัน) รับโบนัสความเร็วเพิ่ม <strong className="text-indigo-600 dark:text-indigo-400">+15 คะแนน/วัน</strong>
                   </p>
                 </div>
-                <div className="space-y-1.5">
-                  <h3 className="font-bold text-theme-text flex items-center gap-1">
+                <div className="space-y-1.5 p-3 rounded-xl bg-theme-surface-secondary/30 border border-theme-border/40">
+                  <h3 className="font-bold text-theme-text flex items-center gap-1.5">
                     <span className="text-emerald-500">☕</span> โบนัสพลังกาแฟ (Appreciation Bonus)
                   </h3>
                   <p>
-                    ได้รับการส่งแก้วกาแฟเชียร์และสนับสนุนส่งเสริมกันและกันภายในทีมพนักงาน รับคะแนนพิเศษเพิ่ม +30 คะแนนต่อแก้ว
+                    ได้รับการส่งแก้วกาแฟเชียร์และสนับสนุนส่งเสริมกันและกันภายในทีมพนักงาน รับคะแนนพิเศษเพิ่ม <strong className="text-emerald-600 dark:text-emerald-400">+30 คะแนนต่อแก้ว</strong>
                   </p>
                 </div>
               </div>
