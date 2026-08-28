@@ -244,20 +244,20 @@ export default function LeaderboardPage() {
               coreDailyScore += Math.round((day.totalHours / 6) * 100);
             }
             
-            // Advance Planning bonus (+25) vs Same-day Punctuality bonus (+15)
+            // Advance Planning bonus (+20) vs Same-day Punctuality bonus (+15)
             if (day.isAdvancePlanned) {
-              totalAdvancePlanningBonus += 25;
+              totalAdvancePlanningBonus += 20;
               weeklyAdvanceMap[day.weekKey] = (weeklyAdvanceMap[day.weekKey] || 0) + 1;
             } else if (day.isSameDay) {
               totalPunctualityBonus += 15;
             }
           });
 
-          // Weekly Strategic Planning Bonus: +50 points per week if >= 3 days planned in advance
+          // Weekly Strategic Planning Bonus: +25 points per week if >= 3 days planned in advance
           let weeklyPlanBonus = 0;
           Object.values(weeklyAdvanceMap).forEach(plannedCount => {
             if (plannedCount >= 3) {
-              weeklyPlanBonus += 50;
+              weeklyPlanBonus += 25;
             }
           });
 
@@ -274,11 +274,11 @@ export default function LeaderboardPage() {
           let badgeColor = "text-orange-400 bg-orange-500/10 border-orange-500/20";
           let status: 'active' | 'warning' | 'chill' = 'active';
 
-          if (flameScore > 2800) {
+          if (flameScore > 2500) {
             badge = "เซียนบันทึกงานมือทอง 🚀";
             badgeIcon = "👾";
             badgeColor = "text-pink-400 bg-pink-500/10 border-pink-500/20";
-          } else if (flameScore > 2000 || advancePlanDays >= 8) {
+          } else if (flameScore > 1800 || advancePlanDays >= 8) {
             badge = "จอมวางแผนกลยุทธ์ 🗺️";
             badgeIcon = "🎯";
             badgeColor = "text-purple-400 bg-purple-500/10 border-purple-500/20";
@@ -872,7 +872,7 @@ export default function LeaderboardPage() {
                     <span className="text-purple-500">🗺️</span> โบนัสวางแผนล่วงหน้า (Advance Planning)
                   </h3>
                   <p>
-                    บันทึกหรือวางแผนงานล่วงหน้าก่อนถึงวันจริง ($\ge 1$ วัน) รับโบนัสความพร้อม <strong className="text-purple-600 dark:text-purple-400">+25 คะแนน/วัน</strong> และหากวางแผนล่วงหน้า $\ge 3$ วันในหนึ่งสัปดาห์ รับโบนัสสัปดาห์นักวางแผนเพิ่มพิเศษ <strong className="text-purple-600 dark:text-purple-400">+50 คะแนน</strong>
+                    บันทึกหรือวางแผนงานล่วงหน้าก่อนถึงวันจริง ($\ge 1$ วัน) รับโบนัสความพร้อม <strong className="text-purple-600 dark:text-purple-400">+20 คะแนน/วัน</strong> และหากวางแผนล่วงหน้า $\ge 3$ วันในหนึ่งสัปดาห์ รับโบนัสสัปดาห์นักวางแผนเพิ่มพิเศษ <strong className="text-purple-600 dark:text-purple-400">+25 คะแนน</strong>
                   </p>
                 </div>
                 <div className="space-y-1.5 p-3 rounded-xl bg-theme-surface-secondary/30 border border-theme-border/40">
