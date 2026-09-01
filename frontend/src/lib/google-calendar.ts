@@ -495,37 +495,96 @@ class GoogleCalendarService {
   }
 
   /**
-   * Helper to convert Google Calendar HTML description to plain text
+   * Helper to clean Microsoft Teams, Zoom, Webex, and Google Meet boilerplate footers
+   */
+  stripMeetingBoilerplate(text: string): string {
+    if (!text) return '';
+
+    const lines = text.split('\n');
+    const cleanLines: string[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // Detect Teams, Zoom, Webex, or generic meeting invite boilerplate dividers/headers
+      if (
+        /^_{8,}/.test(trimmed) ||
+        /^-{8,}/.test(trimmed) ||
+        /^━{5,}/.test(trimmed) ||
+        /^Microsoft Teams(?:\s+meeting|\s+Need help\?|\s+classic)?/i.test(trimmed) ||
+        /^Join Microsoft Teams Meeting/i.test(trimmed) ||
+        /^Join the meeting now/i.test(trimmed) ||
+        /^Join Zoom Meeting/i.test(trimmed) ||
+        /^Join Webex meeting/i.test(trimmed) ||
+        /https:\/\/teams\.microsoft\.com\/l\/meetup-join/i.test(trimmed) ||
+        /^Meeting ID:\s*\d+/i.test(trimmed) ||
+        /^Passcode:\s*[a-zA-Z0-9]+/i.test(trimmed) ||
+        /^Join on your computer/i.test(trimmed) ||
+        /^Or call in \(audio only\)/i.test(trimmed) ||
+        /^Phone Conference ID:\s*\d+/i.test(trimmed) ||
+        /^Learn More \| Meeting options/i.test(trimmed) ||
+        /^Tap to join online:/i.test(trimmed)
+      ) {
+        // Stop capturing lines once boilerplate footer begins
+        break;
+      }
+
+      cleanLines.push(line);
+    }
+
+    return cleanLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  /**
+   * Helper to convert HTML description (including Microsoft Word/Outlook HTML) to clean plain text
    */
   convertHtmlToPlainText(html: string): string {
     if (!html) return '';
 
     let text = html;
 
-    // 1. Replace <br>, <br/>, <br /> with newline
-    text = text.replace(/<br\s*\/?>/gi, '\n');
+    // 1. Strip CSS styles, scripts, head, and XML blocks first
+    text = text.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+    text = text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+    text = text.replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '');
+    text = text.replace(/<xml\b[^>]*>[\s\S]*?<\/xml>/gi, '');
+    text = text.replace(/<!--[\s\S]*?-->/g, '');
+    text = text.replace(/<!\[[\s\S]*?\]>/gi, '');
 
-    // 2. Replace block level tags with newlines
-    text = text.replace(/<\/p>|<p\s*[^>]*>/gi, '\n');
-    text = text.replace(/<\/div>|<div\s*[^>]*>/gi, '\n');
-    text = text.replace(/<\/tr>|<tr\s*[^>]*>/gi, '\n');
-    text = text.replace(/<\/li>|<li\s*[^>]*>/gi, '\n');
+    // 2. Replace block level tags with newlines and format lists
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    text = text.replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n');
+    text = text.replace(/<(p|div|tr|h[1-6])\b[^>]*>/gi, '\n');
+    text = text.replace(/<li\b[^>]*>/gi, '\n• ');
+    text = text.replace(/<hr\b[^>]*>/gi, '\n---\n');
 
     // 3. Strip all remaining HTML tags
     text = text.replace(/<[^>]+>/g, '');
 
-    // 4. Decode common HTML entities
+    // 4. Decode HTML entities (named and numeric)
     const entities: { [key: string]: string } = {
       '&amp;': '&',
       '&lt;': '<',
       '&gt;': '>',
       '&quot;': '"',
       '&#39;': "'",
+      '&apos;': "'",
       '&nbsp;': ' ',
+      '&#160;': ' ',
+      '&ndash;': '–',
+      '&mdash;': '—',
+      '&bull;': '•',
+      '&hellip;': '…'
     };
-    text = text.replace(/&amp;|&lt;|&gt;|&quot;|&#39;|&nbsp;/g, (match) => entities[match] || match);
+    text = text.replace(/&(?:amp|lt|gt|quot|#39|apos|nbsp|#160|ndash|mdash|bull|hellip);/gi, (match) => entities[match.toLowerCase()] || match);
+    text = text.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+    text = text.replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 
-    return text;
+    // 5. Strip Microsoft Teams & meeting boilerplate footers
+    text = this.stripMeetingBoilerplate(text);
+
+    // 6. Clean up excessive spacing
+    return text.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   }
 
   /**
@@ -776,6 +835,13 @@ class GoogleCalendarService {
           if (cleanNotes && cleanNotes !== 'No description') {
             description = cleanNotes;
           }
+        }
+      }
+
+      if (!description && desc) {
+        const rawClean = this.convertHtmlToPlainText(desc);
+        if (rawClean && rawClean !== 'No description' && rawClean !== '📝 No description') {
+          description = rawClean;
         }
       }
 

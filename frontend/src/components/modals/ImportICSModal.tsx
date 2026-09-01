@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { X, Clock, Sparkles, Upload, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { googleCalendar } from '../../lib/google-calendar';
 import { useNotification } from '../../context/NotificationContext';
 
 interface ICSEvent {
@@ -399,7 +400,9 @@ export default function ImportICSModal({
           if (key === 'SUMMARY') {
             currentEvent.summary = cleanVal;
           } else if (key === 'DESCRIPTION') {
-            currentEvent.description = cleanVal;
+            // Auto-detect & clean HTML, CSS styles, and Teams/Outlook meeting boilerplate
+            const cleanDesc = googleCalendar.convertHtmlToPlainText(cleanVal);
+            currentEvent.description = cleanDesc;
           } else if (key === 'DTSTART') {
             currentEvent.dtstart = val;
             currentEvent.dtstartKey = fullKey;
