@@ -705,7 +705,7 @@ class GoogleCalendarService {
       const end_time = endDateTime && endDateTime.includes('T') ? endDateTime.split('T')[1].slice(0, 8) : '17:00:00';
 
       // 8. Extract Hours (⏱ Hours: 5.0h ...)
-      let totalHours = 0;
+      let totalHours = 8.0;
       const hoursMatch = desc.match(/⏱️?\s*Hours?:\s*([0-9.]+)/i);
       if (hoursMatch) {
         totalHours = parseFloat(hoursMatch[1]);
@@ -717,6 +717,9 @@ class GoogleCalendarService {
       } else {
         totalHours = 8.0;
       }
+      totalHours = (!isNaN(totalHours) && totalHours > 0)
+        ? Math.min(24.0, Math.max(0.25, Math.round(totalHours * 100) / 100))
+        : 8.0;
 
       // Determine break_time: if difference between start & end is > totalHours, break_time was true
       let breakTime = false;

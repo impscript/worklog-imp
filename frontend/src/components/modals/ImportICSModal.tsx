@@ -263,35 +263,36 @@ export default function ImportICSModal({
   useEffect(() => {
     if (!isOpen || !icsText) return;
 
-    function parseICSDate(str: string): Date | null {
+    function parseICSDate(str: string): { date: Date; isAllDay: boolean } | null {
       if (!str) return null;
-      const clean = str.replace(/[^0-9TZ]/g, '');
+      const clean = str.trim().replace(/[^0-9TZ]/g, '');
       if (clean.length < 8) return null;
       
-      const y = parseInt(clean.substring(0, 4));
-      const m = parseInt(clean.substring(4, 6)) - 1;
-      const d = parseInt(clean.substring(6, 8));
+      const y = parseInt(clean.substring(0, 4), 10);
+      const m = parseInt(clean.substring(4, 6), 10) - 1;
+      const d = parseInt(clean.substring(6, 8), 10);
       
-      let h = 0;
-      let min = 0;
-      let s = 0;
-      
-      if (clean.includes('T')) {
-        const tIndex = clean.indexOf('T');
-        h = parseInt(clean.substring(tIndex + 1, tIndex + 3)) || 0;
-        min = parseInt(clean.substring(tIndex + 3, tIndex + 5)) || 0;
-        s = parseInt(clean.substring(tIndex + 5, tIndex + 7)) || 0;
+      if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+
+      const isAllDay = !clean.includes('T');
+      if (isAllDay) {
+        return { date: new Date(y, m, d, 0, 0, 0), isAllDay: true };
       }
+
+      const tIndex = clean.indexOf('T');
+      const h = parseInt(clean.substring(tIndex + 1, tIndex + 3), 10) || 0;
+      const min = parseInt(clean.substring(tIndex + 3, tIndex + 5), 10) || 0;
+      const s = parseInt(clean.substring(tIndex + 5, tIndex + 7), 10) || 0;
       
       if (clean.endsWith('Z')) {
-        return new Date(Date.UTC(y, m, d, h, min, s));
+        return { date: new Date(Date.UTC(y, m, d, h, min, s)), isAllDay: false };
       } else {
-        return new Date(y, m, d, h, min, s);
+        return { date: new Date(y, m, d, h, min, s), isAllDay: false };
       }
     }
 
     const events: ICSEvent[] = [];
-    const lines = rawICSContent.split(/\r?\n/);
+    const lines = icsText.split(/\r?\n/);
     let currentEvent: any = null;
     
     for (let i = 0; i < lines.length; i++) {
@@ -300,57 +301,111 @@ export default function ImportICSModal({
         line += lines[i + 1].substring(1);
         i++;
       }
+      line = line.trim();
+      if (!line) continue;
       
       if (line.startsWith('BEGIN:VEVENT')) {
         currentEvent = {};
       } else if (line.startsWith('END:VEVENT')) {
-        if (currentEvent && currentEvent.dtstart && currentEvent.dtend) {
-          const start = parseICSDate(currentEvent.dtstart);
-          const end = parseICSDate(currentEvent.dtend);
-          if (start && end) {
-            const diffMs = end.getTime() - start.getTime();
-            const duration = Math.round((diffMs / 3600000) * 100) / 100;
-            
-            // Format to local date strings
-            const yStr = start.getFullYear();
-            const mStr = String(start.getMonth() + 1).padStart(2, '0');
-            const dStr = String(start.getDate()).padStart(2, '0');
-            const dateStr = `${yStr}-${mStr}-${dStr}`;
-            
-            const startH = String(start.getHours()).padStart(2, '0');
-            const startM = String(start.getMinutes()).padStart(2, '0');
-            const startTimeStr = `${startH}:${startM}`;
-            
-            const endH = String(end.getHours()).padStart(2, '0');
-            const endM = String(end.getMinutes()).padStart(2, '0');
-            const endTimeStr = `${endH}:${endM}`;
+        if (currentEvent && currentEvent.dtstart) {
+          const startParsed = parseICSDate(currentEvent.dtstart);
+          if (startParsed) {
+            const start = startParsed.date;
+            const isAllDay = startParsed.isAllDay || (currentEvent.dtstartKey && currentEvent.dtstartKey.toUpperCase().includes('VALUE=DATE'));
 
-            events.push({
-              summary: currentEvent.summary || 'Google Calendar Event',
-              description: currentEvent.description || '',
-              startDate: start,
-              endDate: end,
-              dateStr,
-              startTimeStr,
-              endTimeStr,
-              duration
-            });
+            let end: Date;
+            if (currentEvent.dtend) {
+              const endParsed = parseICSDate(currentEvent.dtend);
+              end = endParsed ? endParsed.date : (isAllDay ? new Date(start.getTime() + 86400000) : new Date(start.getTime() + 3600000));
+            } else {
+              end = isAllDay ? new Date(start.getTime() + 86400000) : new Date(start.getTime() + 3600000);
+            }
+
+            if (isAllDay) {
+              // Calculate number of days in the all-day event
+              const diffDays = Math.max(1, Math.min(31, Math.round((end.getTime() - start.getTime()) / 86400000)));
+              
+              for (let dayOffset = 0; dayOffset < diffDays; dayOffset++) {
+                const dayDate = new Date(start.getFullYear(), start.getMonth(), start.getDate() + dayOffset);
+                const yStr = dayDate.getFullYear();
+                const mStr = String(dayDate.getMonth() + 1).padStart(2, '0');
+                const dStr = String(dayDate.getDate()).padStart(2, '0');
+                const dateStr = `${yStr}-${mStr}-${dStr}`;
+
+                const eventSummary = diffDays > 1 
+                  ? `${currentEvent.summary || 'Google Calendar Event'} (Day ${dayOffset + 1}/${diffDays})`
+                  : (currentEvent.summary || 'Google Calendar Event');
+
+                events.push({
+                  summary: eventSummary,
+                  description: currentEvent.description || '',
+                  startDate: dayDate,
+                  endDate: dayDate,
+                  dateStr,
+                  startTimeStr: '08:00',
+                  endTimeStr: '17:00',
+                  duration: 8.0
+                });
+              }
+            } else {
+              // Timed event
+              let diffMs = end.getTime() - start.getTime();
+              if (diffMs <= 0) diffMs = 3600000; // Fallback 1 hour if inverted/instant
+
+              const rawDuration = Math.round((diffMs / 3600000) * 100) / 100;
+              // Safe clamping between 0.25h (15m) and 24.0h
+              const duration = Math.min(24.0, Math.max(0.25, isNaN(rawDuration) ? 1.0 : rawDuration));
+
+              const yStr = start.getFullYear();
+              const mStr = String(start.getMonth() + 1).padStart(2, '0');
+              const dStr = String(start.getDate()).padStart(2, '0');
+              const dateStr = `${yStr}-${mStr}-${dStr}`;
+              
+              const startH = String(start.getHours()).padStart(2, '0');
+              const startM = String(start.getMinutes()).padStart(2, '0');
+              const startTimeStr = `${startH}:${startM}`;
+              
+              const endH = String(end.getHours()).padStart(2, '0');
+              const endM = String(end.getMinutes()).padStart(2, '0');
+              const endTimeStr = `${endH}:${endM}`;
+
+              events.push({
+                summary: currentEvent.summary || 'Google Calendar Event',
+                description: currentEvent.description || '',
+                startDate: start,
+                endDate: end,
+                dateStr,
+                startTimeStr,
+                endTimeStr,
+                duration
+              });
+            }
           }
-          currentEvent = null;
         }
+        currentEvent = null;
       } else if (currentEvent) {
-        const match = line.match(/^([^;:]+)(?:;[^:]+)?:(.*)$/);
-        if (match) {
-          const [, key, val] = match;
-          const cleanVal = val.replace(/\\,/g, ',').replace(/\\n/g, '\n').replace(/\\;/g, ';');
+        const colonIdx = line.indexOf(':');
+        if (colonIdx > 0) {
+          const fullKey = line.substring(0, colonIdx);
+          const val = line.substring(colonIdx + 1);
+          const key = fullKey.split(';')[0].trim().toUpperCase();
+          const cleanVal = val
+            .replace(/\\,/g, ',')
+            .replace(/\\n/g, '\n')
+            .replace(/\\N/g, '\n')
+            .replace(/\\;/g, ';')
+            .replace(/\\\\/g, '\\');
+
           if (key === 'SUMMARY') {
             currentEvent.summary = cleanVal;
           } else if (key === 'DESCRIPTION') {
             currentEvent.description = cleanVal;
-          } else if (key === 'DTSTART' || key.startsWith('DTSTART;')) {
+          } else if (key === 'DTSTART') {
             currentEvent.dtstart = val;
-          } else if (key === 'DTEND' || key.startsWith('DTEND;')) {
+            currentEvent.dtstartKey = fullKey;
+          } else if (key === 'DTEND') {
             currentEvent.dtend = val;
+            currentEvent.dtendKey = fullKey;
           }
         }
       }
@@ -462,13 +517,18 @@ export default function ImportICSModal({
           ? `[Imported] ${ev.summary}\n\n${ev.description}`
           : `[Imported] ${ev.summary}`;
 
+        const rawDuration = Number(ev.duration);
+        const safeTotalHours = (!isNaN(rawDuration) && rawDuration > 0)
+          ? Math.min(24.0, Math.max(0.25, Math.round(rawDuration * 100) / 100))
+          : 8.0;
+
         return {
           user_id: session.id,
           work_date: ev.dateStr,
-          start_time: ev.startTimeStr + ':00',
-          end_time: ev.endTimeStr + ':00',
+          start_time: ev.startTimeStr.length === 5 ? ev.startTimeStr + ':00' : ev.startTimeStr,
+          end_time: ev.endTimeStr.length === 5 ? ev.endTimeStr + ':00' : ev.endTimeStr,
           break_time: false,
-          total_hours: ev.duration,
+          total_hours: safeTotalHours,
           holding: selectedHolding,
           department_operator: selectedRoleOperator,
           project_type: projectType,
@@ -484,10 +544,19 @@ export default function ImportICSModal({
         };
       });
 
-      const { error } = await supabase.from('col_worklog').insert(inserts);
-      if (error) throw error;
+      // Insert in batches of 50 to ensure high reliability for ~300+ items
+      const BATCH_SIZE = 50;
+      let totalSuccess = 0;
+      for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
+        const chunk = inserts.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('col_worklog').insert(chunk);
+        if (error) {
+          throw new Error(`Batch ${Math.floor(i / BATCH_SIZE) + 1} failed (${error.message})`);
+        }
+        totalSuccess += chunk.length;
+      }
 
-      showToast(`นำเข้ากิจกรรมสำเร็จจำนวน ${inserts.length} รายการ! / Imported ${inserts.length} events successfully!`, 'success');
+      showToast(`นำเข้ากิจกรรมสำเร็จจำนวน ${totalSuccess} รายการ! / Imported ${totalSuccess} events successfully!`, 'success');
       onImportSuccess();
       onClose();
     } catch (err: any) {
