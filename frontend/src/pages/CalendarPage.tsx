@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase, ensureValidSupabaseSession } from '../lib/supabase';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
+import RecoverGCalModal from '../components/modals/RecoverGCalModal';
 import { googleCalendar, syncWorklogToGCal } from '../lib/google-calendar';
 import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from 'react-i18next';
@@ -68,6 +69,7 @@ export default function CalendarPage() {
   const navigate = useNavigate();
   const [editingLog, setEditingLog] = useState<any | null>(null);
   const [viewingLog, setViewingLog] = useState<WorklogEntry | null>(null);
+  const [isRecoverModalOpen, setIsRecoverModalOpen] = useState(false);
   const [sessionUser, setSessionUser] = useState<any>(null);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [workspacesList, setWorkspacesList] = useState<{ id: string; workspace_name: string; invite_code: string }[]>([]);
@@ -1473,7 +1475,7 @@ export default function CalendarPage() {
   };
 
   // ── Month Recover Logs Handler ──────────────────────────────────────────────────
-  const handleRecoverLogs = async () => {
+  const handleRecoverLogs = () => {
     if (isSyncing) return;
     if (!gcalConnected) {
       setSyncAlert({
@@ -1489,59 +1491,7 @@ export default function CalendarPage() {
       return;
     }
 
-    setSyncAlert({
-      isOpen: true,
-      title: '🔍 ยืนยันการกู้คืนใบงานจาก GCal',
-      message: `ระบบจะสแกนปฏิทิน Google Calendar ในเดือน ${monthNames[month]} ${year} เพื่อตรวจหาใบงานที่เคยสร้างจากแอปนี้ และกู้คืนรายการที่ขาดหายไปกลับเข้าสู่ฐานข้อมูลโดยอัตโนมัติ\n\nต้องการดำเนินการต่อหรือไม่?`,
-      type: 'info',
-      isConfirm: true,
-      onConfirm: async () => {
-        if (isSyncing) return;
-        setSyncAlert(null);
-        setIsSyncing(true);
-        setSyncProgress({ current: 0, total: 1, status: 'กำลังดึงรายการนัดหมายเพื่อตรวจสอบ...' });
-
-        try {
-          const userObj = sessionUser;
-          if (!userObj?.id) return;
-          const { data: user } = await supabase
-            .from('users')
-            .select('gcal_calendar_id')
-            .eq('id', userObj.id)
-            .maybeSingle();
-            
-          const calendarId = user?.gcal_calendar_id || 'primary';
-          
-          const result = await googleCalendar.recoverWorklogsFromGCal(
-            userObj.id,
-            calendarId,
-            monthStart,
-            monthEnd
-          );
-
-          // Refresh component entries
-          setRefreshTrigger((t) => t + 1);
-
-          setSyncAlert({
-            isOpen: true,
-            title: 'กู้คืนใบงานสำเร็จ',
-            message: `สแกนพบใบงานทั้งหมดบนปฏิทิน: ${result.total} รายการ\nกู้คืนสำเร็จกลับสู่ฐานข้อมูล: ${result.recovered} รายการที่ขาดหายไป\nอัปเดต / ซ่อมแซม Project Type: ${result.updated || 0} รายการ`,
-            type: 'success'
-          });
-        } catch (err: any) {
-          console.error('[Recovery] Error during recovery:', err);
-          setSyncAlert({
-            isOpen: true,
-            title: 'เกิดข้อผิดพลาดในการกู้คืน',
-            message: `เกิดข้อผิดพลาด: ${err.message || err}`,
-            type: 'error'
-          });
-        } finally {
-          setIsSyncing(false);
-          setSyncProgress(null);
-        }
-      }
-    });
+    setIsRecoverModalOpen(true);
   };
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2187,6 +2137,17 @@ export default function CalendarPage() {
         onDeleteSuccess={() => {
           setRefreshTrigger(prev => prev + 1);
         }}
+      />
+
+      <RecoverGCalModal
+        isOpen={isRecoverModalOpen}
+        onClose={() => setIsRecoverModalOpen(false)}
+        onRecoverySuccess={() => {
+          setRefreshTrigger(prev => prev + 1);
+        }}
+        sessionUser={sessionUser}
+        targetMonth={currentDate}
+        workspaceId={selectedWorkspaceId}
       />
 
       {/* Premium Notification Modal for Calendar Sync */}
