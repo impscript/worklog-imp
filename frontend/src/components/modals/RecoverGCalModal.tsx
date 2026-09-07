@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { googleCalendar } from '../../lib/google-calendar';
 import { useNotification } from '../../context/NotificationContext';
 import { cn } from '../../lib/utils';
+import ModalPortal from './ModalPortal';
 
 interface ProjectStructure {
   id?: string;
@@ -837,8 +838,9 @@ export default function RecoverGCalModal({
   const existingCount = events.filter(e => e.alreadyInDB).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-5xl bg-theme-surface-modal border border-theme-border rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="w-full max-w-5xl bg-theme-surface-modal border border-theme-border rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
         
         {/* ── Modal Header ──────────────────────────────────────────────── */}
         <div className="p-5 sm:p-6 border-b border-theme-border flex justify-between items-center bg-theme-surface-secondary dark:bg-theme-surface-secondary/40 shrink-0">
@@ -1293,5 +1295,6 @@ export default function RecoverGCalModal({
 
       </div>
     </div>
+    </ModalPortal>
   );
 }
