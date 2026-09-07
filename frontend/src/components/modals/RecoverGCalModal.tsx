@@ -35,6 +35,7 @@ interface SessionUser {
   id: string;
   emp_id?: string;
   active_workspace_id?: string;
+  activeWorkspaceId?: string;
   full_name?: string;
 }
 
@@ -249,7 +250,7 @@ export default function RecoverGCalModal({
     if (!sessionUser?.id) return;
     setIsLoadingMaster(true);
     try {
-      const activeWs = workspaceId || sessionUser.active_workspace_id;
+      const activeWs = workspaceId || sessionUser.activeWorkspaceId || sessionUser.active_workspace_id;
       let useGlobal = true;
 
       if (activeWs && activeWs !== 'N/A') {
@@ -372,7 +373,7 @@ export default function RecoverGCalModal({
       );
 
       // 2. Fetch existing col_worklog records for this user & month range
-      const activeWs = workspaceId || sessionUser.active_workspace_id;
+      const activeWs = workspaceId || sessionUser.activeWorkspaceId || sessionUser.active_workspace_id;
       let dbQuery = supabase
         .from('col_worklog')
         .select('id, gcal_event_id, work_date, start_time, end_time, project_name, action_name')
@@ -770,7 +771,7 @@ export default function RecoverGCalModal({
     setImportProgress({ current: 0, total: newItems.length });
 
     try {
-      const activeWs = workspaceId || sessionUser.active_workspace_id;
+      const activeWs = workspaceId || sessionUser.activeWorkspaceId || sessionUser.active_workspace_id;
       const [defaultProjName] = (selectedProjectKey || '').split('|');
 
       const inserts = newItems.map(ev => {

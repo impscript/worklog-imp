@@ -2159,7 +2159,7 @@ export default function CalendarPage() {
         }}
         sessionUser={sessionUser}
         targetMonth={currentDate}
-        workspaceId={selectedWorkspaceId}
+        workspaceId={selectedWorkspaceId || sessionUser?.activeWorkspaceId}
       />
 
       {/* Premium Notification Modal for Calendar Sync */}
