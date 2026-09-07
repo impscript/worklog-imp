@@ -716,7 +716,18 @@ export default function RecoverGCalModal({
       return;
     }
 
-    const hasUnmapped = selectedList.some(e => !e.hasPattern || forceOverrideAll);
+    const newItems = selectedList.filter(e => !e.alreadyInDB);
+    const existingItems = selectedList.filter(e => e.alreadyInDB);
+
+    // If all selected items already exist in DB, do not re-insert duplicates
+    if (newItems.length === 0) {
+      showToast(`รายการที่เลือกทั้ง ${existingItems.length} รายการมีอยู่ในระบบเรียบร้อยแล้ว`, 'info');
+      onRecoverySuccess();
+      onClose();
+      return;
+    }
+
+    const hasUnmapped = newItems.some(e => !e.hasPattern || forceOverrideAll);
     if (hasUnmapped) {
       if (!selectedHolding) {
         showToast('กรุณาเลือก Holding', 'error');
@@ -756,13 +767,13 @@ export default function RecoverGCalModal({
     }
 
     setIsImporting(true);
-    setImportProgress({ current: 0, total: selectedList.length });
+    setImportProgress({ current: 0, total: newItems.length });
 
     try {
       const activeWs = workspaceId || sessionUser.active_workspace_id;
       const [defaultProjName] = (selectedProjectKey || '').split('|');
 
-      const inserts = selectedList.map(ev => {
+      const inserts = newItems.map(ev => {
         const useDetected = ev.hasPattern && !forceOverrideAll;
 
         const finalHolding = useDetected ? (ev.detectedHolding || selectedHolding) : selectedHolding;
@@ -819,7 +830,8 @@ export default function RecoverGCalModal({
         setImportProgress({ current: totalSuccess, total: inserts.length });
       }
 
-      showToast(`กู้คืนใบงานสำเร็จจำนวน ${totalSuccess} รายการเข้าสู่ระบบเรียบร้อยแล้ว!`, 'success');
+      const skippedNote = existingItems.length > 0 ? ` (ข้าม ${existingItems.length} รายการที่มีอยู่ในระบบแล้ว)` : '';
+      showToast(`กู้คืนใบงานสำเร็จจำนวน ${totalSuccess} รายการเข้าสู่ระบบเรียบร้อยแล้ว!${skippedNote}`, 'success');
       onRecoverySuccess();
       onClose();
     } catch (err: unknown) {
@@ -1276,17 +1288,27 @@ export default function RecoverGCalModal({
               type="button"
               onClick={handleExecuteRecovery}
               disabled={isImporting || selectedEventIds.length === 0 || isLoadingEvents}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-5 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+              className={cn(
+                "flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-5 py-2 text-white text-xs font-black rounded-xl shadow-lg transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none",
+                selectedEventIds.length > 0 && selectedEventIds.every(id => events.find(e => e.id === id)?.alreadyInDB)
+                  ? "bg-slate-600 hover:bg-slate-700 shadow-slate-600/20"
+                  : "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-500/20"
+              )}
             >
               {isImporting ? (
                 <>
                   <RefreshCw size={13} className="animate-spin" />
                   <span>กำลังกู้คืนข้อมูล...</span>
                 </>
+              ) : selectedEventIds.length > 0 && selectedEventIds.every(id => events.find(e => e.id === id)?.alreadyInDB) ? (
+                <>
+                  <CheckCircle2 size={13} />
+                  <span>มีในระบบแล้ว ({selectedEventIds.length})</span>
+                </>
               ) : (
                 <>
                   <Sparkles size={13} />
-                  <span>กู้คืน {selectedEventIds.length} รายการเข้าสู่ระบบ</span>
+                  <span>กู้คืน {selectedEventIds.filter(id => !events.find(e => e.id === id)?.alreadyInDB).length || selectedEventIds.length} รายการเข้าสู่ระบบ</span>
                 </>
               )}
             </button>

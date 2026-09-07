@@ -58,8 +58,13 @@ const formatDateToYMD = (date: Date) => {
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [entries, setEntries] = useState<WorklogEntry[]>([]);
-  const [selectedDateEntries, setSelectedDateEntries] = useState<WorklogEntry[]>([]);
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(() => formatDateToYMD(new Date()));
+
+  // Derived selectedDateEntries: automatically updates whenever entries or selectedDateStr changes
+  const selectedDateEntries = useMemo(() => {
+    if (!selectedDateStr) return [];
+    return entries.filter((e) => e.work_date === selectedDateStr);
+  }, [entries, selectedDateStr]);
   const [isLoading, setIsLoading] = useState(true);
 
   // ── GCal Re-Sync State ───────────────────────────────────────────────────────
@@ -1189,6 +1194,15 @@ export default function CalendarPage() {
     const targetWorkspaceId = selectedWorkspaceId || session.activeWorkspaceId;
     const currentTargetId = selectedUserId || session.id;
 
+    const targetYear = currentDate.getFullYear();
+    const targetMonth = currentDate.getMonth();
+
+    // Query 1 month before and 1 month after to cover calendar grid padding and week views
+    const fetchStartDate = new Date(targetYear, targetMonth - 1, 1);
+    const fetchEndDate = new Date(targetYear, targetMonth + 2, 0);
+    const startDateStr = formatDateToYMD(fetchStartDate);
+    const endDateStr = formatDateToYMD(fetchEndDate);
+
     async function fetchMonthEntries() {
       try {
         setIsLoading(true);
@@ -1197,7 +1211,10 @@ export default function CalendarPage() {
         let query = supabase
           .from('col_worklog')
           .select('*')
-          .eq('user_id', currentTargetId);
+          .eq('user_id', currentTargetId)
+          .gte('work_date', startDateStr)
+          .lte('work_date', endDateStr)
+          .order('work_date', { ascending: true });
 
         if (targetWorkspaceId && targetWorkspaceId !== 'N/A') {
           query = query.eq('workspace_id', targetWorkspaceId);
@@ -1213,10 +1230,6 @@ export default function CalendarPage() {
             total_hours: parseFloat(item.total_hours)
           }));
           setEntries(mapped);
-
-          if (selectedDateStr) {
-            setSelectedDateEntries(mapped.filter((e) => e.work_date === selectedDateStr));
-          }
         }
       } catch (err) {
         console.error('Error in fetchMonthEntries:', err);
@@ -1244,7 +1257,8 @@ export default function CalendarPage() {
       fetchMonthEntries();
       fetchHolidays();
     }
-  }, [selectedUserId, selectedWorkspaceId, refreshTrigger, selectedDateStr, sessionUser]);
+  }, [selectedUserId, selectedWorkspaceId, refreshTrigger, currentDate, sessionUser]);
+
 
   // ── Check GCal connection whenever session user is loaded ─────────────────────
   useEffect(() => {
@@ -1567,13 +1581,11 @@ export default function CalendarPage() {
     setCurrentDate(new Date());
     const tStr = formatDateToYMD(new Date());
     setSelectedDateStr(tStr);
-    setSelectedDateEntries(entries.filter((e) => e.work_date === tStr));
   };
 
   const handleDayClick = (date: Date) => {
     const dStr = formatDateToYMD(date);
     setSelectedDateStr(dStr);
-    setSelectedDateEntries(entries.filter((e) => e.work_date === dStr));
   };
 
   const handleCreateNewLog = async (workDate: string) => {
