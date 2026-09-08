@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles, Share2, Copy, Upload, X, Cpu, Shield } from 'lucide-react';
+import { ChevronDown, Check, AlertTriangle, Calendar as CalendarIcon, Zap, Clock, Eye, Sparkles, Share2, Copy, Upload, X, Cpu, Shield, RotateCcw } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn, isChatchawanUser } from '../lib/utils';
 import { supabase } from '../lib/supabase';
@@ -7,6 +7,7 @@ import { useNotification } from '../context/NotificationContext';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import ImportICSModal from '../components/modals/ImportICSModal';
+import { ConfirmDialogModal } from '../components/modals/ConfirmDialogModal';
 import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
 import { compressImage } from '../lib/image-compressor';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -384,6 +385,13 @@ export default function LogWorkPage() {
   const isTimeCustomizedRef = useRef(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isClassifying, setIsClassifying] = useState(false);
+  const [isResetDescModalOpen, setIsResetDescModalOpen] = useState(false);
+
+  const handleConfirmResetDescription = () => {
+    setDescription('');
+    localStorage.removeItem('worklog_draft_desc');
+    showToast('ล้างรายละเอียดงานเรียบร้อยแล้ว / Work description reset', 'info');
+  };
 
   const getWorklogGuide = () => {
     const isMeeting = /meeting|discuss|sync|ประชุม|คุย/i.test(actionName || '');
@@ -2350,10 +2358,21 @@ export default function LogWorkPage() {
 
           {/* Description */}
           <div className="mb-8">
-            <div className="mb-2">
+            <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-semibold text-theme-text-secondary">
                 รายละเอียดงาน / Work Description <span className="text-rose-400">*</span>
               </label>
+              {description.trim().length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsResetDescModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-theme-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-lg border border-transparent hover:border-rose-500/20 transition-all cursor-pointer"
+                  title="ล้างรายละเอียดงานและเริ่มใหม่"
+                >
+                  <RotateCcw size={12} className="transition-transform group-hover:-rotate-45" />
+                  <span>รีเซ็ตข้อความ / Reset</span>
+                </button>
+              )}
             </div>
             
             {/* Worklog templates wrapped on a new row */}
@@ -2703,6 +2722,18 @@ export default function LogWorkPage() {
         allowedProjects={allowedProjects}
         mapUserRole={mapUserRole}
         session={session}
+      />
+
+      <ConfirmDialogModal
+        isOpen={isResetDescModalOpen}
+        onClose={() => setIsResetDescModalOpen(false)}
+        onConfirm={handleConfirmResetDescription}
+        variant="warning"
+        title="ยืนยันการล้างรายละเอียดงาน? / Reset Work Description?"
+        message="ข้อความทั้งหมดในช่องรายละเอียดงานจะถูกลบ และล้างแบบร่างที่บันทึกไว้ในเบราว์เซอร์"
+        description="หากคุณพิมพ์เนื้อหาหรือข้อมูลสำคัญไว้ โปรดตรวจสอบก่อนยืนยัน"
+        confirmText="ล้างข้อความ / Reset"
+        cancelText="ยกเลิก / Cancel"
       />
 
       {createdShareLinkId && (
