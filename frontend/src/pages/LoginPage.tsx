@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, KeyRound, User as UserIcon, UserCheck, Eye, EyeOff, AlertCircle, ShieldAlert, ChevronDown, ChevronUp } from 'lucide-react';
+import { LogIn, KeyRound, User as UserIcon, UserCheck, Eye, EyeOff, AlertCircle, ShieldAlert, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { MOCK_USERS } from '../lib/mockUsers';
 import type { MockHRMSUser } from '../lib/mockUsers';
@@ -28,6 +28,7 @@ export default function LoginPage() {
         isLocked: true,
         title: t('login.errorLockedTitle', { defaultValue: 'บัญชีถูกระงับหรือล็อกชั่วคราว (IDMS Locked)' }),
         desc: t('login.errorLockedDesc', { defaultValue: 'ระบบ IDMS ระงับหรือล็อกการใช้งานบัญชีนี้ (เนื่องจากใส่รหัสผ่านผิดเกินกำหนด) กรุณาติดต่อฝ่าย IT / Helpdesk เพื่อทำการปลดล็อก' }),
+        notice: null,
       };
     }
 
@@ -36,6 +37,7 @@ export default function LoginPage() {
         isLocked: false,
         title: t('login.errorWrongPasswordTitle', { defaultValue: 'รหัสผ่านไม่ถูกต้อง (Password Mismatch)' }),
         desc: t('login.errorWrongPasswordDesc', { defaultValue: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ตรงกัน กรุณาตรวจสอบการพิมพ์ ตัวพิมพ์เล็ก-ใหญ่ หรือกดไอคอนรูปตา 👁️ เพื่อตรวจดูรหัสผ่าน' }),
+        notice: t('login.errorWrongPasswordExpiryNotice', { defaultValue: 'ระบบ IDMS ขององค์กรมีนโยบายบังคับเปลี่ยนรหัสผ่านทุก 90 วัน หากรหัสผ่านเดิมหมดอายุ อาจส่งผลให้เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบหรืออัปเดตรหัสผ่านใหม่ในระบบ IDMS' }),
       };
     }
 
@@ -44,6 +46,7 @@ export default function LoginPage() {
         isLocked: false,
         title: t('login.errorNotFoundTitle', { defaultValue: 'ไม่พบบัญชีผู้ใช้ในระบบ IDMS (Account Not Found)' }),
         desc: t('login.errorNotFoundDesc', { defaultValue: 'ไม่พบชื่อผู้ใช้นี้ในระบบ IDMS กรุณาตรวจสอบการสะกดชื่อ Username หรือติดต่อฝ่ายบุคคล/IT' }),
+        notice: null,
       };
     }
 
@@ -51,6 +54,7 @@ export default function LoginPage() {
       isLocked: false,
       title: null,
       desc: errorMsg,
+      notice: null,
     };
   };
 
@@ -177,7 +181,7 @@ export default function LoginPage() {
                       <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
                     )}
                   </div>
-                  <div className="space-y-0.5 text-left flex-1">
+                  <div className="space-y-1 text-left flex-1">
                     {errInfo.title && (
                       <p className="font-bold text-xs tracking-wide text-slate-900 dark:text-white">
                         {errInfo.title}
@@ -186,6 +190,12 @@ export default function LoginPage() {
                     <p className="leading-relaxed opacity-90 font-medium">
                       {errInfo.desc}
                     </p>
+                    {errInfo.notice && (
+                      <div className="mt-2.5 pt-2 border-t border-red-500/20 text-[11px] leading-relaxed text-red-700/90 dark:text-red-300/90 flex items-start gap-1.5 font-normal bg-red-500/5 dark:bg-red-500/10 p-2 rounded-xl">
+                        <Clock className="w-3.5 h-3.5 mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+                        <span>{errInfo.notice}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
