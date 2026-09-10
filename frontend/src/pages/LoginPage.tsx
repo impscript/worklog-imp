@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, KeyRound, User as UserIcon, ChevronDown, ChevronUp, UserCheck } from 'lucide-react';
+import { LogIn, KeyRound, User as UserIcon, UserCheck, Eye, EyeOff, AlertCircle, ShieldAlert, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { MOCK_USERS } from '../lib/mockUsers';
 import type { MockHRMSUser } from '../lib/mockUsers';
@@ -11,6 +11,7 @@ export default function LoginPage() {
   const { t } = useTranslation();
   const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showSimPanel, setShowSimPanel] = useState(false);
@@ -18,6 +19,40 @@ export default function LoginPage() {
   const [customEmpId, setCustomEmpId] = useState('');
   const navigate = useNavigate();
   const { login } = useAuth();
+
+  const getAuthErrorInfo = (errorMsg: string) => {
+    const lower = errorMsg.toLowerCase();
+
+    if (lower.includes('lock') || lower.includes('block') || lower.includes('suspend') || lower.includes('ระงับ') || lower.includes('ล็อก')) {
+      return {
+        isLocked: true,
+        title: t('login.errorLockedTitle', { defaultValue: 'บัญชีถูกระงับหรือล็อกชั่วคราว (IDMS Locked)' }),
+        desc: t('login.errorLockedDesc', { defaultValue: 'ระบบ IDMS ระงับหรือล็อกการใช้งานบัญชีนี้ (เนื่องจากใส่รหัสผ่านผิดเกินกำหนด) กรุณาติดต่อฝ่าย IT / Helpdesk เพื่อทำการปลดล็อก' }),
+      };
+    }
+
+    if (lower.includes('not match') || lower.includes('invalid credentials') || lower.includes('รหัสผ่านไม่ถูกต้อง') || lower.includes('password')) {
+      return {
+        isLocked: false,
+        title: t('login.errorWrongPasswordTitle', { defaultValue: 'รหัสผ่านไม่ถูกต้อง (Password Mismatch)' }),
+        desc: t('login.errorWrongPasswordDesc', { defaultValue: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ตรงกัน กรุณาตรวจสอบการพิมพ์ ตัวพิมพ์เล็ก-ใหญ่ หรือกดไอคอนรูปตา 👁️ เพื่อตรวจดูรหัสผ่าน' }),
+      };
+    }
+
+    if (lower.includes('not found') || lower.includes('ไม่พบบัญชี')) {
+      return {
+        isLocked: false,
+        title: t('login.errorNotFoundTitle', { defaultValue: 'ไม่พบบัญชีผู้ใช้ในระบบ IDMS (Account Not Found)' }),
+        desc: t('login.errorNotFoundDesc', { defaultValue: 'ไม่พบชื่อผู้ใช้นี้ในระบบ IDMS กรุณาตรวจสอบการสะกดชื่อ Username หรือติดต่อฝ่ายบุคคล/IT' }),
+      };
+    }
+
+    return {
+      isLocked: false,
+      title: null,
+      desc: errorMsg,
+    };
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +72,8 @@ export default function LoginPage() {
       // Success
       navigate('/');
 
-    } catch (err: any) {
-      setError(err.message || t('common.error'));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t('common.error'));
     } finally {
       setIsLoading(false);
     }
@@ -51,8 +86,8 @@ export default function LoginPage() {
       const inviteCode = new URLSearchParams(window.location.search).get('invite') || undefined;
       await login(user.emp_id, 'mock_bypass', inviteCode);
       navigate('/');
-    } catch (err: any) {
-      setError(err.message || t('common.error'));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t('common.error'));
     } finally {
       setIsLoading(false);
     }
@@ -76,8 +111,8 @@ export default function LoginPage() {
         await login(trimmedId, 'mock_bypass', inviteCode);
       }
       navigate('/');
-    } catch (err: any) {
-      setError(err.message || t('common.error'));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t('common.error'));
     } finally {
       setIsLoading(false);
     }
@@ -124,11 +159,38 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {error && (
-            <div className="mb-6 p-3 bg-red-500/10 dark:bg-red-500/5 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-semibold text-center tracking-wide rounded-xl">
-              {error}
-            </div>
-          )}
+          {error && (() => {
+            const errInfo = getAuthErrorInfo(error);
+            return (
+              <div
+                className={`mb-6 p-3.5 rounded-2xl border text-xs transition-all shadow-sm ${
+                  errInfo.isLocked
+                    ? 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-500/30 text-amber-900 dark:text-amber-200'
+                    : 'bg-red-500/10 dark:bg-red-500/15 border-red-500/25 text-red-700 dark:text-red-300'
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <div className="shrink-0 mt-0.5">
+                    {errInfo.isLocked ? (
+                      <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    )}
+                  </div>
+                  <div className="space-y-0.5 text-left flex-1">
+                    {errInfo.title && (
+                      <p className="font-bold text-xs tracking-wide text-slate-900 dark:text-white">
+                        {errInfo.title}
+                      </p>
+                    )}
+                    <p className="leading-relaxed opacity-90 font-medium">
+                      {errInfo.desc}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
@@ -158,13 +220,23 @@ export default function LoginPage() {
                   <KeyRound size={18} className="text-slate-500 dark:text-slate-400" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-50 dark:bg-theme-bg-page/60 border border-slate-300 dark:border-theme-border rounded-xl py-3.5 pl-11 pr-4 text-slate-900 dark:text-white text-base sm:text-sm min-h-[48px] placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all font-semibold shadow-xs"
+                  placeholder={t('login.passwordPlaceholder', { defaultValue: '••••••••' })}
+                  className="w-full bg-slate-50 dark:bg-theme-bg-page/60 border border-slate-300 dark:border-theme-border rounded-xl py-3.5 pl-11 pr-11 text-slate-900 dark:text-white text-base sm:text-sm min-h-[48px] placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all font-semibold shadow-xs"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer"
+                  aria-label={showPassword ? t('login.hidePassword', { defaultValue: 'ซ่อนรหัสผ่าน' }) : t('login.showPassword', { defaultValue: 'แสดงรหัสผ่าน' })}
+                  title={showPassword ? t('login.hidePassword', { defaultValue: 'ซ่อนรหัสผ่าน' }) : t('login.showPassword', { defaultValue: 'แสดงรหัสผ่าน' })}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 

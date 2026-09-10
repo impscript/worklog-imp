@@ -33,10 +33,12 @@ const parseIdmsResponse = (text: string) => {
     const empId = data.EmpId || data.emp_id || data.EmpID || data.EmpId?.trim();
     const success = data.Result === "OK" || data.status === "success" ||
       data.Status === "Success" || data.Code === 200 || data.code === "200";
-    return { success, empId: empId && String(empId) !== "0" ? String(empId) : null };
+    const rawResult = typeof data.Result === "string" ? data.Result : (typeof data.message === "string" ? data.message : "");
+    return { success, empId: empId && String(empId) !== "0" ? String(empId) : null, rawMsg: rawResult };
   } catch {
     const match = text.match(/EmpId["']?\s*[:=]\s*["']?(\d+)/i);
-    return { success: /OK|Success|true/i.test(text), empId: match?.[1] || null };
+    const resultMatch = text.match(/Result["']?\s*[:=]\s*["']?([^"'}]+)/i);
+    return { success: /OK|Success|true/i.test(text), empId: match?.[1] || null, rawMsg: resultMatch?.[1] || text };
   }
 };
 
@@ -101,7 +103,27 @@ Deno.serve(async (req) => {
       const parsed = parseIdmsResponse(await idmsResponse.text());
       idms.success = parsed.success;
       idms.empId = parsed.empId;
-      if (!idmsResponse.ok || !idms.success || !idms.empId) return json({ error: "Invalid credentials" }, 401, origin);
+      if (!idmsResponse.ok || !idms.success || !idms.empId) {
+        const rawMsg = parsed.rawMsg || "";
+        const lower = rawMsg.toLowerCase();
+        let errorMsg = "ชื่อผู้ใช้หรือรหัสผ่านของระบบ IDMS ไม่ถูกต้อง";
+        let statusCode = 401;
+
+        if (lower.includes("lock") || lower.includes("block") || lower.includes("suspend") || lower.includes("ระงับ") || lower.includes("ล็อก")) {
+          errorMsg = "บัญชีผู้ใช้ถูกระงับหรือล็อกชั่วคราวจากระบบ IDMS (กรุณาติดต่อฝ่าย IT / Helpdesk เพื่อปลดล็อก)";
+          statusCode = 423;
+        } else if (lower.includes("not match") || lower.includes("password")) {
+          errorMsg = "รหัสผ่านไม่ถูกต้อง (Username and password do not match)";
+          statusCode = 401;
+        } else if (lower.includes("not found")) {
+          errorMsg = "ไม่พบบัญชีผู้ใช้นี้ในระบบ IDMS (Your account was not found)";
+          statusCode = 404;
+        } else if (rawMsg) {
+          errorMsg = rawMsg.replace(/^Error\s*:\s*/i, "");
+        }
+
+        return json({ error: errorMsg, rawError: rawMsg || null }, statusCode, origin);
+      }
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey, {
