@@ -66,6 +66,7 @@ export interface RecoverableEvent {
   detectedBu?: string;
   detectedDept?: string;
   detectedActionName?: string;
+  detectedDescription?: string;
 }
 
 interface RecoverGCalModalProps {
@@ -470,7 +471,8 @@ export default function RecoverGCalModal({
               detectedRoleOperator: parsedWorklog?.department_operator,
               detectedBu: parsedWorklog?.bu,
               detectedDept: parsedWorklog?.department,
-              detectedActionName: parsedWorklog?.action_name
+              detectedActionName: parsedWorklog?.action_name,
+              detectedDescription: parsedWorklog?.description
             });
           }
         } else {
@@ -516,7 +518,8 @@ export default function RecoverGCalModal({
             detectedRoleOperator: parsedWorklog?.department_operator,
             detectedBu: parsedWorklog?.bu,
             detectedDept: parsedWorklog?.department,
-            detectedActionName: parsedWorklog?.action_name
+            detectedActionName: parsedWorklog?.action_name,
+            detectedDescription: parsedWorklog?.description
           });
         }
       }
@@ -786,9 +789,11 @@ export default function RecoverGCalModal({
         const finalDept = useDetected ? (ev.detectedDept || department || '') : (department || '');
         const finalActionName = useDetected ? (ev.detectedActionName || actionName) : actionName;
 
-        const combinedDesc = ev.cleanDescription
-          ? `[GCal Recovery] ${ev.summary}\n\n${ev.cleanDescription}`
-          : `[GCal Recovery] ${ev.summary}`;
+        const finalDescription = (useDetected && ev.detectedDescription !== undefined)
+          ? ev.detectedDescription
+          : (ev.cleanDescription
+            ? `[GCal Recovery] ${ev.summary}\n\n${ev.cleanDescription}`
+            : `[GCal Recovery] ${ev.summary}`);
 
         const rawDuration = Number(ev.duration);
         const safeTotalHours = (!isNaN(rawDuration) && rawDuration > 0)
@@ -810,7 +815,7 @@ export default function RecoverGCalModal({
           bu: finalBu,
           department: finalDept,
           action_name: finalActionName,
-          description: combinedDesc,
+          description: finalDescription,
           channel: 'Google Calendar Recovery',
           is_ot: ev.isOT,
           gcal_event_id: ev.gcalEventId,

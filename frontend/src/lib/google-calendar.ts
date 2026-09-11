@@ -508,15 +508,20 @@ class GoogleCalendarService {
 
       // Detect Teams, Zoom, Webex, or generic meeting invite boilerplate dividers/headers
       if (
-        /^_{8,}/.test(trimmed) ||
-        /^-{8,}/.test(trimmed) ||
+        /^_{5,}/.test(trimmed) ||
+        /^-{5,}/.test(trimmed) ||
+        /^={5,}/.test(trimmed) ||
         /^━{5,}/.test(trimmed) ||
         /^Microsoft Teams(?:\s+meeting|\s+Need help\?|\s+classic)?/i.test(trimmed) ||
         /^Join Microsoft Teams Meeting/i.test(trimmed) ||
         /^Join the meeting now/i.test(trimmed) ||
         /^Join Zoom Meeting/i.test(trimmed) ||
         /^Join Webex meeting/i.test(trimmed) ||
+        /^Join with Google Meet/i.test(trimmed) ||
+        /^To join the video meeting/i.test(trimmed) ||
         /https:\/\/teams\.microsoft\.com\/l\/meetup-join/i.test(trimmed) ||
+        /https:\/\/[a-z0-9-]+\.zoom\.us\/j\//i.test(trimmed) ||
+        /https:\/\/meet\.google\.com\//i.test(trimmed) ||
         /^Meeting ID:\s*\d+/i.test(trimmed) ||
         /^Passcode:\s*[a-zA-Z0-9]+/i.test(trimmed) ||
         /^Join on your computer/i.test(trimmed) ||
@@ -527,6 +532,11 @@ class GoogleCalendarService {
       ) {
         // Stop capturing lines once boilerplate footer begins
         break;
+      }
+
+      // Skip standalone giant tracking/safe-link URLs (> 120 chars)
+      if (/^https?:\/\/[^\s]{120,}$/i.test(trimmed)) {
+        continue;
       }
 
       cleanLines.push(line);
@@ -543,25 +553,50 @@ class GoogleCalendarService {
 
     let text = html;
 
-    // 1. Strip CSS styles, scripts, head, and XML blocks first
-    text = text.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
-    text = text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
-    text = text.replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '');
-    text = text.replace(/<xml\b[^>]*>[\s\S]*?<\/xml>/gi, '');
-    text = text.replace(/<!--[\s\S]*?-->/g, '');
-    text = text.replace(/<!\[[\s\S]*?\]>/gi, '');
+    // 0. Pre-decode escaped HTML tags if present (e.g. &lt;img ... or &lt;p&gt;)
+    if (/&lt;\/?[a-z!]/i.test(text)) {
+      text = text
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&apos;/gi, "'")
+        .replace(/&amp;/gi, '&');
+    }
 
-    // 2. Replace block level tags with newlines and format lists
+    // 1. Strip CSS styles, scripts, head, and XML blocks first (handles unclosed/truncated tags)
+    text = text.replace(/<style\b[^>]*>[\s\S]*?(?:<\/style>|$)/gi, '');
+    text = text.replace(/<script\b[^>]*>[\s\S]*?(?:<\/script>|$)/gi, '');
+    text = text.replace(/<head\b[^>]*>[\s\S]*?(?:<\/head>|$)/gi, '');
+    text = text.replace(/<xml\b[^>]*>[\s\S]*?(?:<\/xml>|$)/gi, '');
+    text = text.replace(/<!--[\s\S]*?(?:-->|$)/g, '');
+    text = text.replace(/<!\[[\s\S]*?(?:\]>|$)/gi, '');
+
+    // 2. Strip images, media, SVGs, and Office/VML tags (even if truncated without closing >)
+    text = text.replace(/<(?:img|picture|svg|video|audio)\b[\s\S]*?(?:>|$)/gi, '');
+    text = text.replace(/<\/?(?:v|o|w|m):[a-z0-9_-]+[\s\S]*?(?:>|$)/gi, '');
+
+    // 3. Strip raw Data URIs, image attributes, and base64 strings
+    text = text.replace(/data:[a-zA-Z0-9+.-]+\/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=\s]+/gi, '');
+    text = text.replace(/data-imagetype=["']?[^"'\s>]+["']?/gi, '');
+    text = text.replace(/src=["']?data:[^"'>]+["']?/gi, '');
+    text = text.replace(/cid:[a-zA-Z0-9._-]+/gi, '');
+
+    // 4. Replace block level tags with newlines and format lists
     text = text.replace(/<br\s*\/?>/gi, '\n');
-    text = text.replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n');
-    text = text.replace(/<(p|div|tr|h[1-6])\b[^>]*>/gi, '\n');
+    text = text.replace(/<\/(p|div|tr|li|h[1-6]|table|blockquote)>/gi, '\n');
+    text = text.replace(/<(p|div|tr|h[1-6]|blockquote)\b[^>]*>/gi, '\n');
     text = text.replace(/<li\b[^>]*>/gi, '\n• ');
     text = text.replace(/<hr\b[^>]*>/gi, '\n---\n');
 
-    // 3. Strip all remaining HTML tags
+    // 5. Strip all remaining HTML tags (both closed and unclosed tags at the end of truncated text)
     text = text.replace(/<[^>]+>/g, '');
+    text = text.replace(/<[a-zA-Z/][^>]*$/g, '');
 
-    // 4. Decode HTML entities (named and numeric)
+    // 6. Strip leftover long base64 chunks (60+ contiguous base64 characters)
+    text = text.replace(/\b[A-Za-z0-9+/=]{60,}\b/g, '');
+
+    // 7. Decode HTML entities (named and numeric)
     const entities: { [key: string]: string } = {
       '&amp;': '&',
       '&lt;': '<',
@@ -580,10 +615,10 @@ class GoogleCalendarService {
     text = text.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
     text = text.replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 
-    // 5. Strip Microsoft Teams & meeting boilerplate footers
+    // 8. Strip Microsoft Teams & meeting boilerplate footers
     text = this.stripMeetingBoilerplate(text);
 
-    // 6. Clean up excessive spacing
+    // 9. Clean up excessive spacing
     return text.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   }
 

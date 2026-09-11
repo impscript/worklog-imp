@@ -14,6 +14,22 @@ interface ViewWorklogModalProps {
   onDeleteSuccess?: () => void;
 }
 
+const sanitizeWorklogDescription = (desc: string | null | undefined): string => {
+  if (!desc) return '';
+  let text = desc;
+  if (text.includes('<') || text.includes('&lt;') || text.includes('data:image') || text.includes('data-imagetype')) {
+    text = text.replace(/<(?:img|picture|svg)\b[\s\S]*?(?:>|$)/gi, '');
+    text = text.replace(/&lt;(?:img|picture|svg)\b[\s\S]*?(?:&gt;|$)/gi, '');
+    text = text.replace(/data-imagetype=["']?[^"'\s>]+["']?/gi, '');
+    text = text.replace(/src=["']?data:[^"'>]+["']?/gi, '');
+    text = text.replace(/data:[a-zA-Z0-9+.-]+\/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=\s]+/gi, '');
+    text = text.replace(/\b[A-Za-z0-9+/=]{60,}\b/g, '');
+    text = text.replace(/<[a-zA-Z/][^>]*$/g, '');
+    text = text.replace(/<[^>]+>/g, '');
+  }
+  return text.trim();
+};
+
 export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess }: ViewWorklogModalProps) {
   const { t } = useTranslation();
   const [showConfirm, setShowConfirm] = useState(false);
@@ -160,6 +176,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
   };
 
   const breakTimeDisplay = getBreakTimeDisplay();
+  const displayDescription = sanitizeWorklogDescription(log.description);
 
   return (
     <ModalPortal>
@@ -354,7 +371,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               <div className="border-t border-theme-border pt-4">
                 <span className="text-[11px] font-bold text-theme-text-muted uppercase block mb-1.5">รายละเอียดงานปฏิบัติจริง</span>
                 <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/70 border border-theme-border p-4 rounded-xl text-xs text-theme-text leading-relaxed font-sans italic whitespace-pre-wrap">
-                  {log.description ? `"${log.description}"` : 'ไม่มีการระบุรายละเอียดเพิ่มเติม'}
+                  {displayDescription ? `"${displayDescription}"` : 'ไม่มีการระบุรายละเอียดเพิ่มเติม'}
                 </div>
               </div>
             </div>
@@ -508,7 +525,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
           <div className="space-y-1">
             <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-700">รายละเอียดงานปฏิบัติจริง</h3>
             <div className="border border-slate-300 p-3 rounded bg-white text-[10px] leading-normal font-sans italic whitespace-pre-wrap">
-              {log.description ? `"${log.description}"` : 'ไม่มีการระบุรายละเอียดเพิ่มเติม'}
+              {displayDescription ? `"${displayDescription}"` : 'ไม่มีการระบุรายละเอียดเพิ่มเติม'}
             </div>
           </div>
 
