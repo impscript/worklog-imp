@@ -1,6 +1,6 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, ChevronDown, Sun, Moon, FolderTree, FolderKanban, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, ChevronDown, Sun, Moon, FolderTree, FolderKanban, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown, ListChecks } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase, ensureValidSupabaseSession } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
@@ -540,6 +540,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <NavItem to="/" icon={<LayoutDashboard size={16} />} label={t('nav.dashboard')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} end />
             <NavItem to="/log" icon={<PlusCircle size={16} />} label={t('nav.logWork')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/calendar" icon={<Calendar size={16} />} label={t('nav.calendar')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/routine-tasks" icon={<ListChecks size={16} />} label={t('nav.routineTask')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/migrate" icon={<UploadCloud size={16} />} label={t('nav.migrate')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
 
             {/* Section 2: Collaboration & Projects */}

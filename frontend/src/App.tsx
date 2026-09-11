@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage';
 import LogWorkPage from './pages/LogWorkPage';
 import LoginPage from './pages/LoginPage';
 import CalendarPage from './pages/CalendarPage';
+import RoutineTaskPage from './pages/RoutineTaskPage';
 import ReportsPage from './pages/ReportsPage';
 import HrbpPage from './pages/HrbpPage';
 import AiChatPage from './pages/AiChatPage';
@@ -99,6 +100,7 @@ function App() {
             <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/log" element={<ProtectedRoute><LogWorkPage /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+            <Route path="/routine-tasks" element={<ProtectedRoute><RoutineTaskPage /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
             <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
             <Route path="/hrbp" element={<ProtectedRoute><HrbpPage /></ProtectedRoute>} />
