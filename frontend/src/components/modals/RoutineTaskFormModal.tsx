@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Save, RefreshCw, Trash2, Repeat } from 'lucide-react';
+import { X, Save, RefreshCw, Trash2, Repeat, Link2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 import { cn } from '../../lib/utils';
 
-export type RoutineFrequency = 'daily' | 'weekly' | 'monthly';
+export type RoutineFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 export type RoutineVisibility = 'only_me' | 'specific';
 
 function getErrorMessage(err: unknown): string {
@@ -25,6 +25,7 @@ export interface RoutineTask {
   frequency_type: RoutineFrequency;
   days_of_week: number[] | null;
   day_of_month: number | null;
+  month_of_year: number | null;
   visibility: RoutineVisibility;
   is_active: boolean;
   created_at: string;
@@ -47,7 +48,8 @@ interface RoutineTaskFormModalProps {
 }
 
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
-const FREQUENCIES: RoutineFrequency[] = ['daily', 'weekly', 'monthly'];
+const FREQUENCIES: RoutineFrequency[] = ['daily', 'weekly', 'monthly', 'yearly'];
+const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 
 export default function RoutineTaskFormModal({
   isOpen,
@@ -62,9 +64,12 @@ export default function RoutineTaskFormModal({
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [links, setLinks] = useState<string[]>([]);
+  const [newLinkInput, setNewLinkInput] = useState('');
   const [frequencyType, setFrequencyType] = useState<RoutineFrequency>('daily');
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
   const [dayOfMonth, setDayOfMonth] = useState<number | ''>(1);
+  const [monthOfYear, setMonthOfYear] = useState<number>(1);
   const [visibility, setVisibility] = useState<RoutineVisibility>('only_me');
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -77,9 +82,12 @@ export default function RoutineTaskFormModal({
   const resetForm = useCallback(() => {
     setTitle(task?.title || '');
     setDescription(task?.description || '');
+    setLinks([]);
+    setNewLinkInput('');
     setFrequencyType(task?.frequency_type || 'daily');
     setDaysOfWeek(task?.days_of_week || []);
     setDayOfMonth(task?.day_of_month || 1);
+    setMonthOfYear(task?.month_of_year || 1);
     setVisibility(task?.visibility || 'only_me');
     setSelectedUserIds([]);
     setSelectedNewUserId('');
@@ -145,7 +153,39 @@ export default function RoutineTaskFormModal({
     return () => { cancelled = true; };
   }, [isOpen, task]);
 
+  // When editing, prefill its existing links.
+  useEffect(() => {
+    if (!isOpen || !task) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('tb_routine_task_link')
+          .select('url')
+          .eq('task_id', task.id)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        if (!cancelled) setLinks(((data || []) as { url: string }[]).map((r) => r.url));
+      } catch (err) {
+        console.error('[RoutineTaskFormModal] Failed to load links:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, task]);
+
   const selectableMembers = members.filter((m) => !selectedUserIds.includes(m.id));
+
+  const handleAddLink = () => {
+    const trimmed = newLinkInput.trim();
+    if (!trimmed) return;
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    setLinks((prev) => [...prev, normalized]);
+    setNewLinkInput('');
+  };
+
+  const handleRemoveLink = (index: number) => {
+    setLinks((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleAddMember = () => {
     if (!selectedNewUserId) return;
@@ -179,7 +219,8 @@ export default function RoutineTaskFormModal({
         description: description.trim() || null,
         frequency_type: frequencyType,
         days_of_week: frequencyType === 'weekly' ? daysOfWeek : null,
-        day_of_month: frequencyType === 'monthly' ? (dayOfMonth === '' ? 1 : dayOfMonth) : null,
+        day_of_month: (frequencyType === 'monthly' || frequencyType === 'yearly') ? (dayOfMonth === '' ? 1 : dayOfMonth) : null,
+        month_of_year: frequencyType === 'yearly' ? monthOfYear : null,
         visibility,
         updated_at: new Date().toISOString(),
       };
@@ -212,6 +253,19 @@ export default function RoutineTaskFormModal({
           const rows = selectedUserIds.map((userId) => ({ task_id: taskId, user_id: userId }));
           const { error: insertError } = await supabase.from('tb_routine_task_visibility').insert(rows);
           if (insertError) throw insertError;
+        }
+
+        // Replace the link list wholesale too, same reasoning as above.
+        const { error: deleteLinksError } = await supabase
+          .from('tb_routine_task_link')
+          .delete()
+          .eq('task_id', taskId);
+        if (deleteLinksError) throw deleteLinksError;
+
+        if (links.length > 0) {
+          const linkRows = links.map((url) => ({ task_id: taskId, url }));
+          const { error: insertLinksError } = await supabase.from('tb_routine_task_link').insert(linkRows);
+          if (insertLinksError) throw insertLinksError;
         }
       }
 
@@ -277,10 +331,56 @@ export default function RoutineTaskFormModal({
           </div>
 
           <div>
+            <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1 flex items-center gap-1">
+              <Link2 size={12} />
+              {t('routineTask.linkLabel')}
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newLinkInput}
+                onChange={(e) => setNewLinkInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddLink();
+                  }
+                }}
+                placeholder={t('routineTask.linkPlaceholder')}
+                className="flex-1 theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+              />
+              <button
+                type="button"
+                onClick={handleAddLink}
+                disabled={!newLinkInput.trim()}
+                className="px-3 py-2 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                {t('routineTask.addLink')}
+              </button>
+            </div>
+            {links.length > 0 && (
+              <div className="flex flex-col gap-1.5 mt-2">
+                {links.map((url, index) => (
+                  <span
+                    key={`${url}-${index}`}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
+                  >
+                    <Link2 size={11} className="shrink-0" />
+                    <span className="truncate flex-1">{url}</span>
+                    <button type="button" onClick={() => handleRemoveLink(index)} className="hover:text-rose-500 transition-colors shrink-0">
+                      <Trash2 size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
             <label className="block text-[11px] font-semibold text-theme-text-secondary mb-2">
               {t('routineTask.frequencyLabel')}
             </label>
-            <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="grid grid-cols-2 gap-2 mb-3">
               {FREQUENCIES.map((freq) => (
                 <button
                   key={freq}
@@ -296,6 +396,7 @@ export default function RoutineTaskFormModal({
                   {freq === 'daily' && t('routineTask.frequencyDaily')}
                   {freq === 'weekly' && t('routineTask.frequencyWeekly')}
                   {freq === 'monthly' && t('routineTask.frequencyMonthly')}
+                  {freq === 'yearly' && t('routineTask.frequencyYearly')}
                 </button>
               ))}
             </div>
@@ -347,6 +448,47 @@ export default function RoutineTaskFormModal({
                   onBlur={() => setDayOfMonth((prev) => Math.min(31, Math.max(1, prev === '' ? 1 : prev)))}
                   className="w-full theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
                 />
+              </div>
+            )}
+
+            {frequencyType === 'yearly' && (
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-semibold text-theme-text-muted mb-1.5 uppercase tracking-wide">
+                    {t('routineTask.monthOfYearLabel')}
+                  </label>
+                  <select
+                    value={monthOfYear}
+                    onChange={(e) => setMonthOfYear(Number(e.target.value))}
+                    className="w-full theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m} value={m}>{t(`routineTask.month${m}`)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-24">
+                  <label className="block text-[10px] font-semibold text-theme-text-muted mb-1.5 uppercase tracking-wide">
+                    {t('routineTask.dayOfMonthLabel')}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={dayOfMonth}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') {
+                        setDayOfMonth('');
+                        return;
+                      }
+                      const parsed = Number(raw);
+                      if (!Number.isNaN(parsed)) setDayOfMonth(parsed);
+                    }}
+                    onBlur={() => setDayOfMonth((prev) => Math.min(31, Math.max(1, prev === '' ? 1 : prev)))}
+                    className="w-full theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                  />
+                </div>
               </div>
             )}
           </div>

@@ -365,13 +365,22 @@ export default function LogWorkPage() {
   const [isBreak, setIsBreak] = useState(true);
   const [description, setDescription] = useState('');
 
-  // Auto-draft saving to LocalStorage to protect field technician worklog descriptions
+  // Auto-draft saving to LocalStorage to protect field technician worklog descriptions.
+  // A description handed in via router state (e.g. "Log this task" from a routine
+  // task) takes priority over a leftover draft, since the user explicitly chose it.
   useEffect(() => {
+    const prefillDescription = (location.state as { prefillDescription?: string } | null)?.prefillDescription;
+    if (prefillDescription) {
+      setDescription(prefillDescription);
+      navigate(location.pathname, { replace: true, state: null });
+      return;
+    }
+
     const savedDraft = localStorage.getItem('worklog_draft_desc');
     if (savedDraft) {
       setDescription(savedDraft);
     }
-  }, []);
+  }, [location.state, location.pathname, navigate]);
 
   useEffect(() => {
     if (description) {

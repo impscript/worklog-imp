@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Repeat, CheckCircle2, Circle, Edit2, Trash2, Users, ListChecks, AlertCircle, Calendar } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Repeat, CheckCircle2, Circle, Edit2, Trash2, Users, ListChecks, AlertCircle, Calendar, Link2, PlusCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AppLayout from '../components/layout/AppLayout';
 import { supabase } from '../lib/supabase';
@@ -40,17 +41,25 @@ function isDueToday(task: RoutineTask, today: Date): boolean {
     const targetDay = Math.min(task.day_of_month || 1, lastDayOfMonth);
     return today.getDate() === targetDay;
   }
+  if (task.frequency_type === 'yearly') {
+    const targetMonth = task.month_of_year || 1;
+    const lastDayOfTargetMonth = new Date(today.getFullYear(), targetMonth, 0).getDate();
+    const targetDay = Math.min(task.day_of_month || 1, lastDayOfTargetMonth);
+    return today.getMonth() + 1 === targetMonth && today.getDate() === targetDay;
+  }
   return false;
 }
 
 export default function RoutineTaskPage() {
   const { t } = useTranslation();
   const { showToast, showConfirm } = useNotification();
+  const navigate = useNavigate();
 
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [tasks, setTasks] = useState<RoutineTask[]>([]);
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
   const [assignedNames, setAssignedNames] = useState<Record<string, string[]>>({});
+  const [taskLinks, setTaskLinks] = useState<Record<string, string[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<RoutineTask | null>(null);
@@ -117,6 +126,25 @@ export default function RoutineTaskPage() {
       } else {
         setAssignedNames({});
       }
+
+      const allTaskIds = taskRows.map((task) => task.id);
+      if (allTaskIds.length > 0) {
+        const { data: linkData, error: linkError } = await supabase
+          .from('tb_routine_task_link')
+          .select('task_id, url')
+          .in('task_id', allTaskIds)
+          .order('created_at', { ascending: true });
+        if (linkError) throw linkError;
+
+        const linksByTask: Record<string, string[]> = {};
+        ((linkData || []) as { task_id: string; url: string }[]).forEach((row) => {
+          if (!linksByTask[row.task_id]) linksByTask[row.task_id] = [];
+          linksByTask[row.task_id].push(row.url);
+        });
+        setTaskLinks(linksByTask);
+      } else {
+        setTaskLinks({});
+      }
     } catch (err: unknown) {
       showToast(t('routineTask.loadError') + getErrorMessage(err), 'error');
     } finally {
@@ -142,6 +170,12 @@ export default function RoutineTaskPage() {
     if (task.frequency_type === 'daily') return t('routineTask.frequencyDaily');
     if (task.frequency_type === 'weekly') {
       return (task.days_of_week || []).map((d) => t(`routineTask.weekdayFull${d}`)).join(', ');
+    }
+    if (task.frequency_type === 'yearly') {
+      return t('routineTask.everyYearDate', {
+        day: task.day_of_month,
+        month: t(`routineTask.month${task.month_of_year || 1}`),
+      });
     }
     return t('routineTask.everyMonthDay', { day: task.day_of_month });
   };
@@ -186,6 +220,11 @@ export default function RoutineTaskPage() {
   const handleCreate = () => {
     setEditingTask(null);
     setIsModalOpen(true);
+  };
+
+  const handleLogThisTask = (task: RoutineTask) => {
+    const prefillDescription = task.description ? `${task.title}\n${task.description}` : task.title;
+    navigate('/log', { state: { prefillDescription } });
   };
 
   const handleEdit = (task: RoutineTask) => {
@@ -293,6 +332,23 @@ export default function RoutineTaskPage() {
                           {task.description && (
                             <p className="text-[11px] text-theme-text-muted mt-0.5 line-clamp-2">{task.description}</p>
                           )}
+                          {taskLinks[task.id]?.length > 0 && (
+                            <div className="flex flex-col gap-0.5 mt-1">
+                              {taskLinks[task.id].map((url) => (
+                                <a
+                                  key={url}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                                >
+                                  <Link2 size={11} className="shrink-0" />
+                                  <span className="truncate max-w-[220px]">{url}</span>
+                                </a>
+                              ))}
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold border border-indigo-500/20 flex items-center gap-1">
                               <Calendar size={10} />
@@ -305,6 +361,14 @@ export default function RoutineTaskPage() {
                               </span>
                             )}
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => handleLogThisTask(task)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline mt-2"
+                          >
+                            <PlusCircle size={12} />
+                            {t('routineTask.logThisTask')}
+                          </button>
                         </div>
                       </div>
                     );
@@ -325,13 +389,14 @@ export default function RoutineTaskPage() {
                   <p className="text-xs text-theme-text-muted">{t('routineTask.noTasksYet')}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {(['daily', 'weekly', 'monthly'] as const).map((freq) => {
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                  {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((freq) => {
                     const columnTasks = tasks.filter((task) => task.frequency_type === freq);
                     const columnLabel =
                       freq === 'daily' ? t('routineTask.groupDaily')
                       : freq === 'weekly' ? t('routineTask.groupWeekly')
-                      : t('routineTask.groupMonthly');
+                      : freq === 'monthly' ? t('routineTask.groupMonthly')
+                      : t('routineTask.groupYearly');
                     return (
                       <div key={freq} className="bg-theme-surface-secondary/40 border border-theme-border/60 rounded-2xl p-3 space-y-2.5">
                         <div className="flex items-center justify-between px-1">
@@ -379,6 +444,23 @@ export default function RoutineTaskPage() {
                                 </div>
                                 {task.description && (
                                   <p className="text-[11px] text-theme-text-muted line-clamp-2">{task.description}</p>
+                                )}
+                                {taskLinks[task.id]?.length > 0 && (
+                                  <div className="flex flex-col gap-0.5">
+                                    {taskLinks[task.id].map((url) => (
+                                      <a
+                                        key={url}
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                                      >
+                                        <Link2 size={11} className="shrink-0" />
+                                        <span className="truncate max-w-[180px]">{url}</span>
+                                      </a>
+                                    ))}
+                                  </div>
                                 )}
                                 <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1">
