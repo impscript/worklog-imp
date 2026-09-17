@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import { supabase, ensureValidSupabaseSession } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
 import { useNotification } from '../../context/NotificationContext';
+import UpdateAnnouncementModal from '../modals/UpdateAnnouncementModal';
 import { useTheme } from '../../context/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import LanguageToggle from '../LanguageToggle';
@@ -1047,6 +1048,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </nav>
         )}
       </main>
+
+      {!isSharedView && user && <UpdateAnnouncementModal />}
     </div>
   );
 }
