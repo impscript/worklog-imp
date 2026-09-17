@@ -506,12 +506,17 @@ class GoogleCalendarService {
     for (const line of lines) {
       const trimmed = line.trim();
 
-      // Detect Teams, Zoom, Webex, or generic meeting invite boilerplate dividers/headers
+      // Detect Teams, Zoom, Webex, or generic meeting invite boilerplate dividers/headers.
+      // Note: deliberately NOT matching a run of '━' (U+2501 heavy horizontal) here —
+      // that's the character this app's own buildEventPayload() uses as a section
+      // divider in every synced worklog description, so treating it as a boilerplate
+      // marker was truncating the app's own description (including the trailing
+      // "🆔 ID:" line) before it ever reached the ID-based duplicate-match check,
+      // silently disabling that check and letting same-title entries collide.
       if (
         /^_{5,}/.test(trimmed) ||
         /^-{5,}/.test(trimmed) ||
         /^={5,}/.test(trimmed) ||
-        /^━{5,}/.test(trimmed) ||
         /^Microsoft Teams(?:\s+meeting|\s+Need help\?|\s+classic)?/i.test(trimmed) ||
         /^Join Microsoft Teams Meeting/i.test(trimmed) ||
         /^Join the meeting now/i.test(trimmed) ||
