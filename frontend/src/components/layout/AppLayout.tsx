@@ -1,11 +1,12 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, ChevronDown, Sun, Moon, FolderTree, FolderKanban, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown, ListChecks } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, ChevronDown, Sun, Moon, FolderTree, FolderKanban, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown, ListChecks, Gift } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase, ensureValidSupabaseSession } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
 import { useNotification } from '../../context/NotificationContext';
 import UpdateAnnouncementModal from '../modals/UpdateAnnouncementModal';
+import { getLatestVersion, SEEN_VERSION_KEY } from '../../lib/changelog';
 import { useTheme } from '../../context/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import LanguageToggle from '../LanguageToggle';
@@ -49,6 +50,37 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(getSessionUser);
   const navigate = useNavigate();
   const { showToast } = useNotification();
+
+  // "What's new" popup: auto-shows once per browser when the latest version
+  // changes, and can be re-opened anytime (showing the full history) via the
+  // gift-icon button in the header.
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [showUpdateHistory, setShowUpdateHistory] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SEEN_VERSION_KEY) !== getLatestVersion()) {
+        setShowUpdateHistory(false);
+        setIsUpdateModalOpen(true);
+      }
+    } catch {
+      // localStorage unavailable — skip the popup rather than show it every time
+    }
+  }, []);
+
+  const handleCloseUpdateModal = () => {
+    try {
+      localStorage.setItem(SEEN_VERSION_KEY, getLatestVersion());
+    } catch {
+      // ignore
+    }
+    setIsUpdateModalOpen(false);
+  };
+
+  const handleShowUpdateHistory = () => {
+    setShowUpdateHistory(true);
+    setIsUpdateModalOpen(true);
+  };
 
   // Projects Submenu Open State
   const isProjectsActive = location.pathname.startsWith('/projects');
@@ -730,8 +762,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               {getFormattedDate()}
             </span>
             
+            {/* What's New Button */}
+            {!isSharedView && (
+              <button
+                onClick={handleShowUpdateHistory}
+                className="p-2 rounded-lg border border-theme-border bg-theme-surface-secondary hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text-invert transition-all duration-200 active:scale-95 shrink-0"
+                title="มีอะไรใหม่บ้าง"
+              >
+                <Gift size={16} />
+              </button>
+            )}
+
             {/* Theme Toggle Button */}
-            <button 
+            <button
               onClick={toggleTheme}
               className="p-2 rounded-lg border border-theme-border bg-theme-surface-secondary hover:bg-theme-surface-tertiary dark:hover:bg-theme-surface-tertiary text-theme-text-secondary hover:text-theme-text dark:hover:text-theme-text-invert transition-all duration-200 active:scale-95 shrink-0"
               title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
@@ -1049,7 +1092,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         )}
       </main>
 
-      {!isSharedView && user && <UpdateAnnouncementModal />}
+      {!isSharedView && user && (
+        <UpdateAnnouncementModal
+          isOpen={isUpdateModalOpen}
+          onClose={handleCloseUpdateModal}
+          showHistory={showUpdateHistory}
+        />
+      )}
     </div>
   );
 }

@@ -45,3 +45,6 @@ export const CHANGELOG: ChangelogEntry[] = [
 export function getLatestVersion(): string {
   return CHANGELOG[0]?.version || '1.0.0';
 }
+
+// localStorage key tracking which version's popup a browser has already seen.
+export const SEEN_VERSION_KEY = 'worklog_last_seen_version';
