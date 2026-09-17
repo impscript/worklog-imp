@@ -1172,16 +1172,17 @@ export default function CalendarPage() {
     }
   }, [sessionUser, selectedWorkspaceId]);
 
-  // Auto re-fetch on window focus / visibility change or session refresh
+  // Re-fetch on session refresh only. Navigating to this page (route mount) and a
+  // manual browser refresh already trigger a fresh load on their own; re-fetching on
+  // every bare window 'focus' event was too aggressive — it fired on any brief
+  // alt-tab or window switch while this page just sat open in the background.
   useEffect(() => {
     const handleRefresh = () => {
       setRefreshTrigger((prev) => prev + 1);
     };
     window.addEventListener('worklog_session_refreshed', handleRefresh);
-    window.addEventListener('focus', handleRefresh);
     return () => {
       window.removeEventListener('worklog_session_refreshed', handleRefresh);
-      window.removeEventListener('focus', handleRefresh);
     };
   }, []);
 

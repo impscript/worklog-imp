@@ -75,14 +75,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Automatic session health check when user re-opens screen or switches back to tab
+  // Automatic session health check when user re-opens screen or switches back to tab.
+  // ensureValidSupabaseSession() already dispatches 'worklog_session_refreshed' itself,
+  // but only when the token actually needed refreshing (see lib/supabase.ts). Re-dispatching
+  // it here for every successful check — including the common no-op case where the session
+  // was already valid — made pages listening for that event (Calendar, Dashboard) reload
+  // their data on every bare window focus, even a brief alt-tab with nothing stale.
   useEffect(() => {
     const handleVisibilityCheck = async () => {
       if (document.visibilityState === 'visible') {
-        const isValid = await ensureValidSupabaseSession();
-        if (isValid) {
-          window.dispatchEvent(new CustomEvent('worklog_session_refreshed'));
-        }
+        await ensureValidSupabaseSession();
       }
     };
 

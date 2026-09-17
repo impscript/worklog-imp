@@ -138,18 +138,34 @@ export default function LeaderboardPage() {
           setSelectedWorkspaceId(targetWorkspaceId);
         }
 
-        // 1. Fetch real users filtered by active workspace
+        // 1. Fetch real users filtered by actual workspace membership.
+        // Deliberately NOT filtering by users.active_workspace_id — that column is
+        // each user's own current default workspace (a single value that changes
+        // whenever they switch it themselves), not their membership. Filtering by it
+        // made a member's name (and logged hours) disappear from a workspace's
+        // leaderboard whenever their personal default happened to point elsewhere,
+        // even though their worklogs were still correctly scoped to this workspace.
+        let memberIds: string[] | null = null;
+        if (targetWorkspaceId) {
+          const { data: memberRows, error: memberErr } = await supabase
+            .from('workspace_users')
+            .select('user_id')
+            .eq('workspace_id', targetWorkspaceId);
+          if (memberErr) throw memberErr;
+          memberIds = (memberRows || []).map((r) => r.user_id);
+        }
+
         let userQuery = supabase
           .from('users')
           .select('id, full_name, department, nickname, emp_id')
           .eq('status', 'Active');
 
-        if (targetWorkspaceId) {
-          userQuery = userQuery.eq('active_workspace_id', targetWorkspaceId);
+        if (memberIds) {
+          userQuery = userQuery.in('id', memberIds);
         }
 
         const { data: users, error: userErr } = await userQuery;
-        
+
         if (userErr) throw userErr;
 
         // Calculate start and end date for the selected month
