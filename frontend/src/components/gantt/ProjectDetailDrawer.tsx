@@ -19,12 +19,15 @@ import type {
   ProjectStatus,
   TeamMemberContribution,
   ProjectMilestone,
+  ProjectCostSavings,
+  ProjectGanttOverviewPayload,
   TeamRole,
 } from '../../lib/project-management';
 import {
   TEAM_ROLE_LABELS,
   calculateGrossSavings,
   calculateTotalSavings,
+  calculateProjectHealth,
   saveProjectGanttDetails,
   getUserAvatarUrl,
   getUiAvatarFallbackUrl,
@@ -41,14 +44,14 @@ interface ProjectDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   project: GanttProject | null;
-  onProjectUpdated: () => void;
+  onProjectUpdated: (updatedProject: GanttProject) => void;
   availableUsers?: { id: string; name: string; email?: string; emp_id?: string }[];
 }
 
 interface ProjectDetailDrawerContentProps {
   project: GanttProject;
   onClose: () => void;
-  onProjectUpdated: () => void;
+  onProjectUpdated: (updatedProject: GanttProject) => void;
   availableUsers: { id: string; name: string; email?: string; emp_id?: string }[];
 }
 
@@ -481,56 +484,85 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
       return;
     }
 
+    const overviewPatch: ProjectGanttOverviewPayload = {
+      ...(startDate !== (project.start_date || '') ? { start_date: startDate || null } : {}),
+      ...(dueDate !== (project.due_date || '') ? { due_date: dueDate || null } : {}),
+      ...(progress !== (project.progress_percent || 0) ? { progress_percent: Number(progress) } : {}),
+      ...(status !== project.status ? { status } : {}),
+      ...(ownerTeam !== (project.owner_team || 'IMP') ? { owner_team: ownerTeam } : {}),
+      ...(ownerHolding !== (project.owner_holding || '') ? { owner_holding: ownerHolding || null } : {}),
+      ...(worklogProjectType !== (project.worklog_project_type || 'Project')
+        ? { worklog_project_type: worklogProjectType || null }
+        : {}),
+      ...(headLeadId !== (project.head_lead_user_id || '') ? { head_lead_user_id: headLeadId || null } : {}),
+      ...(headLeadName !== (project.head_lead_name || '') ? { head_lead_name: headLeadName || null } : {}),
+    };
+
+    const savingsPayload: Partial<ProjectCostSavings> = {
+      direct_savings_mode: directSavingsMode,
+      direct_baseline_cost_annual: directBaselineCostAnnual,
+      direct_target_cost_annual: directTargetCostAnnual,
+      direct_savings_annual: computedDirectAnnual,
+      direct_savings_notes: directNotes,
+      indirect_manhour_saved_annual: indirectHours,
+      indirect_hourly_rate: indirectRate,
+      indirect_savings_annual: computedIndirectAnnual,
+      indirect_savings_notes: indirectNotes,
+      avoidance_savings_annual: avoidanceSavings,
+      avoidance_savings_notes: avoidanceNotes,
+      support_savings_annual: computedSupportAnnual,
+      support_ticket_baseline_monthly: supportTicketBaselineMonthly,
+      support_ticket_target_monthly: supportTicketTargetMonthly,
+      support_cost_per_ticket: supportCostPerTicket,
+      support_hours_per_ticket: supportHoursPerTicket,
+      support_hourly_rate: supportHourlyRate,
+      support_savings_notes: supportNotes,
+      incremental_run_cost_annual: incrementalRunCostAnnual,
+      manual_total_savings_override: manualTotalOverride,
+      baseline_before: baselineBefore,
+      target_after: targetAfter,
+      calculation_formula: formulaNotes,
+      ref_proof_url: refProofUrl,
+      verification_status: verificationStatus,
+    };
+
     setIsSaving(true);
     try {
-      await saveProjectGanttDetails(
-        project.id,
-        {
-          ...(startDate !== (project.start_date || '') ? { start_date: startDate || null } : {}),
-          ...(dueDate !== (project.due_date || '') ? { due_date: dueDate || null } : {}),
-          ...(progress !== (project.progress_percent || 0) ? { progress_percent: Number(progress) } : {}),
-          ...(status !== project.status ? { status } : {}),
-          ...(ownerTeam !== (project.owner_team || 'IMP') ? { owner_team: ownerTeam } : {}),
-          ...(ownerHolding !== (project.owner_holding || '') ? { owner_holding: ownerHolding || null } : {}),
-          ...(worklogProjectType !== (project.worklog_project_type || 'Project')
-            ? { worklog_project_type: worklogProjectType || null }
-            : {}),
-          ...(headLeadId !== (project.head_lead_user_id || '') ? { head_lead_user_id: headLeadId || null } : {}),
-          ...(headLeadName !== (project.head_lead_name || '') ? { head_lead_name: headLeadName || null } : {}),
-        },
-        teamList,
-        milestonesList,
-        {
-          direct_savings_mode: directSavingsMode,
-          direct_baseline_cost_annual: directBaselineCostAnnual,
-          direct_target_cost_annual: directTargetCostAnnual,
-          direct_savings_annual: computedDirectAnnual,
-          direct_savings_notes: directNotes,
-          indirect_manhour_saved_annual: indirectHours,
-          indirect_hourly_rate: indirectRate,
-          indirect_savings_annual: computedIndirectAnnual,
-          indirect_savings_notes: indirectNotes,
-          avoidance_savings_annual: avoidanceSavings,
-          avoidance_savings_notes: avoidanceNotes,
-          support_savings_annual: computedSupportAnnual,
-          support_ticket_baseline_monthly: supportTicketBaselineMonthly,
-          support_ticket_target_monthly: supportTicketTargetMonthly,
-          support_cost_per_ticket: supportCostPerTicket,
-          support_hours_per_ticket: supportHoursPerTicket,
-          support_hourly_rate: supportHourlyRate,
-          support_savings_notes: supportNotes,
-          incremental_run_cost_annual: incrementalRunCostAnnual,
-          manual_total_savings_override: manualTotalOverride,
-          baseline_before: baselineBefore,
-          target_after: targetAfter,
-          calculation_formula: formulaNotes,
-          ref_proof_url: refProofUrl,
-          verification_status: verificationStatus,
-        }
-      );
+      await saveProjectGanttDetails(project.id, overviewPatch, teamList, milestonesList, savingsPayload);
+
+      // Merge the saved fields straight into the in-memory project instead of
+      // refetching the whole Gantt list, so the table keeps its scroll position
+      // and expanded/collapsed tree state after a save.
+      const leadEmpId =
+        availableUsers.find((u) => u.id === headLeadId)?.emp_id ||
+        availableUsers.find((u) => u.name.toLowerCase().trim() === headLeadName.toLowerCase().trim())?.emp_id ||
+        null;
+
+      const updatedProject: GanttProject = {
+        ...project,
+        start_date: startDate || null,
+        due_date: dueDate || null,
+        progress_percent: Number(progress),
+        status,
+        owner_team: ownerTeam,
+        owner_holding: ownerHolding || null,
+        worklog_project_type: worklogProjectType || null,
+        head_lead_user_id: headLeadId || null,
+        head_lead_name: headLeadName || null,
+        head_lead_emp_id: leadEmpId,
+        project_health: calculateProjectHealth(startDate, dueDate, Number(progress), status),
+        team_contributions: teamList,
+        milestones: milestonesList,
+        cost_savings: {
+          ...project.cost_savings,
+          ...savingsPayload,
+          project_id: project.id,
+        } as GanttProject['cost_savings'],
+        total_savings_annual: currentTotalSavings,
+      };
 
       showToast(t('gantt.drawer.saveSuccess'), 'success');
-      onProjectUpdated();
+      onProjectUpdated(updatedProject);
       onClose();
     } catch (err: unknown) {
       const e = err as { message?: string };

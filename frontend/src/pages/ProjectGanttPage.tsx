@@ -341,6 +341,13 @@ export default function ProjectGanttPage() {
     setIsDrawerOpen(true);
   };
 
+  // Patches the single edited project in place after a drawer save, instead of
+  // refetching the whole Gantt list — keeps the table's scroll position and
+  // expanded/collapsed tree state intact.
+  const handleProjectUpdatedInPlace = useCallback((updatedProject: GanttProject) => {
+    setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
+  }, []);
+
   const handleToggleExpandProject = (id: string) => {
     setExpandedProjectIds((prev) => {
       const next = new Set(prev);
@@ -618,7 +625,7 @@ export default function ProjectGanttPage() {
           setSelectedProjectId(null);
         }}
         project={selectedProject}
-        onProjectUpdated={loadProjects}
+        onProjectUpdated={handleProjectUpdatedInPlace}
         availableUsers={availableUsers}
       />
     </AppLayout>
