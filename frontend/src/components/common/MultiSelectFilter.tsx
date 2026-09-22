@@ -124,7 +124,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         className={cn(
-          'inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none shadow-xs',
+          'w-full inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none shadow-xs',
           selectedValues.length > 0
             ? 'bg-indigo-50/90 dark:bg-indigo-500/15 border-indigo-500/40 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20'
             : 'border-theme-border bg-theme-surface text-theme-text hover:bg-theme-surface-secondary hover:border-theme-border/80'
@@ -132,8 +132,8 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
         title={selectedValues.length > 0 ? `${label} (${selectedValues.length})` : label}
       >
         {icon && <span className="shrink-0 text-theme-text-muted">{icon}</span>}
-        
-        <span className="truncate max-w-[150px]">
+
+        <span className="flex-1 min-w-0 truncate">
           {selectedValues.length === 0
             ? defaultAllLabel || label
             : selectedValues.length === 1

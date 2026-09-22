@@ -31,6 +31,7 @@ interface ProjectKanbanCanvasProps {
   onUpdateProjectStatus?: (projectId: string, newStatus: ProjectStatus) => Promise<void>;
   onUpdateProjectHealth?: (projectId: string, newHealth: ProjectHealth) => Promise<void>;
   onOpenCreateProject?: () => void;
+  onHideProject?: (id: string) => void;
 }
 
 interface ColumnConfig {
@@ -49,6 +50,7 @@ export const ProjectKanbanCanvas: React.FC<ProjectKanbanCanvasProps> = ({
   onUpdateProjectStatus,
   onUpdateProjectHealth,
   onOpenCreateProject,
+  onHideProject,
 }) => {
   const { t } = useTranslation();
 
@@ -384,6 +386,7 @@ export const ProjectKanbanCanvas: React.FC<ProjectKanbanCanvasProps> = ({
                         isDragOver={dragOverColumn === col.key}
                         draggedProjectId={draggedProject?.id}
                         onOpenCreateProject={onOpenCreateProject}
+                        onHideProject={onHideProject}
                       />
                     );
                   })}

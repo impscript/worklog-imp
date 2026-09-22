@@ -19,6 +19,9 @@ import {
   HeartPulse,
   Users,
   Grid,
+  EyeOff,
+  Eye,
+  ChevronDown,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectStatus, ProjectHealth } from '../../lib/project-management';
@@ -71,6 +74,9 @@ interface GanttFilterToolbarProps {
   onExpandAll?: () => void;
   onCollapseAll?: () => void;
   onResetAllFilters: () => void;
+  hiddenProjects: { id: string; project_name: string }[];
+  onRestoreProject: (id: string) => void;
+  onRestoreAllHidden: () => void;
 }
 
 export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
@@ -111,9 +117,36 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   onExpandAll,
   onCollapseAll,
   onResetAllFilters,
+  hiddenProjects,
+  onRestoreProject,
+  onRestoreAllHidden,
 }) => {
   const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
+
+  // Hidden Projects Dropdown (kept collapsed by default so a long hidden list
+  // doesn't clutter the toolbar with a chip per project)
+  const [isHiddenMenuOpen, setIsHiddenMenuOpen] = React.useState(false);
+  const hiddenMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (hiddenMenuRef.current && !hiddenMenuRef.current.contains(event.target as Node)) {
+        setIsHiddenMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsHiddenMenuOpen(false);
+    };
+    if (isHiddenMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isHiddenMenuOpen]);
 
   // Project Types Options & Presets
   const projectTypeOptions: MultiSelectOption[] = React.useMemo(() => {
@@ -215,7 +248,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
     Boolean(searchQuery.trim());
 
   return (
-    <div className="relative z-30 p-4 rounded-3xl border border-theme-border/70 bg-theme-surface/80 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm mb-5 space-y-3.5 select-none">
+    <div className="relative z-30 p-3 rounded-2xl border border-theme-border/70 bg-theme-surface/80 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm mb-3 space-y-2.5 select-none">
       {/* Top Row: View Switcher + Search + Specific Controls + Action Buttons */}
       <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
@@ -251,13 +284,13 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
 
           {/* Search Bar */}
           <div className="relative flex-1 min-w-[200px]">
-            <Search size={15} className="absolute left-3.5 top-3 text-theme-text-muted" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-muted" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={t('gantt.filters.searchPlaceholder')}
-              className="w-full text-xs sm:text-sm py-2 pl-9 pr-3 rounded-2xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full text-xs sm:text-sm py-1.5 pl-8 pr-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
             />
           </div>
         </div>
@@ -403,7 +436,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
       </div>
 
       {/* Bottom Row: Multi-Select Filter Popovers */}
-      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-theme-border/40 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-theme-border/40 text-xs">
         <span className="text-[11px] font-bold text-theme-text-muted flex items-center gap-1 pr-1">
           <Filter size={13} /> {t('gantt.filters.filterLabel')}
         </span>
@@ -415,7 +448,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
             const val = e.target.value;
             onYearChange(val === 'all' ? 'all' : Number(val));
           }}
-          className="text-xs font-bold py-1.5 px-2.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
+          className="w-44 text-xs font-bold py-1.5 px-2.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-xs truncate"
         >
           <option value="all">🌐 {t('gantt.filters.allYears')}</option>
           {availableYears.map((y) => (
@@ -427,8 +460,9 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
 
         {/* 1. Multi-Select: Project Types */}
         <MultiSelectFilter
+          className="w-44"
           label={t('gantt.filters.projectType')}
-          defaultAllLabel={`🎯 ${t('gantt.filters.allProjectTypes')}`}
+          defaultAllLabel={t('gantt.filters.allProjectTypes')}
           icon={<Layers size={13} />}
           options={projectTypeOptions}
           selectedValues={selectedProjectTypes}
@@ -438,8 +472,9 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
 
         {/* 2. Multi-Select: Teams */}
         <MultiSelectFilter
+          className="w-44"
           label={t('gantt.filters.team')}
-          defaultAllLabel={`🏢 ${t('gantt.filters.allTeams')}`}
+          defaultAllLabel={t('gantt.filters.allTeams')}
           icon={<Building2 size={13} />}
           options={teamOptions}
           selectedValues={selectedTeams}
@@ -448,8 +483,9 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
 
         {/* 3. Multi-Select: Holdings */}
         <MultiSelectFilter
+          className="w-44"
           label={t('gantt.filters.holding')}
-          defaultAllLabel={`🌐 ${t('gantt.filters.allHoldings')}`}
+          defaultAllLabel={t('gantt.filters.allHoldings')}
           icon={<Globe size={13} />}
           options={holdingOptions}
           selectedValues={selectedHoldings}
@@ -458,8 +494,9 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
 
         {/* 4. Multi-Select: Status */}
         <MultiSelectFilter
+          className="w-44"
           label={t('gantt.filters.status')}
-          defaultAllLabel={`📊 ${t('gantt.filters.allStatuses')}`}
+          defaultAllLabel={t('gantt.filters.allStatuses')}
           icon={<Activity size={13} />}
           options={statusOptions}
           selectedValues={selectedStatuses}
@@ -468,8 +505,9 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
 
         {/* 5. Multi-Select: Health */}
         <MultiSelectFilter
+          className="w-44"
           label={t('gantt.filters.health')}
-          defaultAllLabel={`❤️ ${t('gantt.filters.allHealths')}`}
+          defaultAllLabel={t('gantt.filters.allHealths')}
           icon={<HeartPulse size={13} />}
           options={healthOptions}
           selectedValues={selectedHealths}
@@ -478,8 +516,9 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
 
         {/* 6. Multi-Select: Users / Assignees */}
         <MultiSelectFilter
+          className="w-44"
           label={t('gantt.filters.member')}
-          defaultAllLabel={`👥 ${t('gantt.filters.allMembers')}`}
+          defaultAllLabel={t('gantt.filters.allMembers')}
           icon={<Users size={13} />}
           options={userOptions}
           selectedValues={selectedUsers}
@@ -487,17 +526,89 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           align="right"
         />
 
-        {/* Reset All Filters Button */}
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={onResetAllFilters}
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 px-2.5 py-1 rounded-xl transition-colors cursor-pointer ml-auto"
-            title={t('gantt.filters.resetAll')}
-          >
-            <RotateCcw size={12} />
-            <span>{t('gantt.filters.resetAll')}</span>
-          </button>
+        {/* Right-pinned cluster: Reset All + Hidden Projects. The parent row's
+            justify-between keeps the gap before this cluster equal to every
+            other gap, while still landing it flush against the right edge.
+            Only rendered when it actually has something to show, so an empty
+            cluster never claims a phantom gap. */}
+        {(hasActiveFilters || hiddenProjects.length > 0) && (
+        <div className="flex items-center gap-2">
+          {/* Reset All Filters Button */}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={onResetAllFilters}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
+              title={t('gantt.filters.resetAll')}
+            >
+              <RotateCcw size={12} />
+              <span>{t('gantt.filters.resetAll')}</span>
+            </button>
+          )}
+
+          {/* Hidden Projects — collapsed into a single dropdown so hiding many
+              projects doesn't clutter the toolbar with a chip per project. A
+              presentation override, not a data filter. */}
+          {hiddenProjects.length > 0 && (
+            <div className="relative" ref={hiddenMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsHiddenMenuOpen((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl border border-slate-500/40 bg-slate-500/10 text-slate-600 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer select-none shadow-xs hover:bg-slate-500/15"
+                title={t('gantt.filters.hiddenProjects')}
+              >
+                <EyeOff size={13} />
+                <span>{t('gantt.filters.hiddenProjects')}</span>
+                <span className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] font-black bg-slate-600 text-white shrink-0 shadow-xs">
+                  {hiddenProjects.length}
+                </span>
+                <ChevronDown
+                  size={13}
+                  className={cn('transition-transform duration-200 shrink-0', isHiddenMenuOpen && 'rotate-180')}
+                />
+              </button>
+
+              {isHiddenMenuOpen && (
+                <div className="absolute right-0 z-50 mt-1.5 min-w-[240px] max-w-[320px] w-max rounded-2xl border border-theme-border bg-theme-surface dark:bg-theme-surface-modal shadow-2xl backdrop-blur-xl p-2.5 animate-fade-in space-y-2">
+                  <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-theme-border/60 text-xs">
+                    <span className="font-bold text-theme-text">{t('gantt.filters.hiddenProjects')}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onRestoreAllHidden();
+                        setIsHiddenMenuOpen(false);
+                      }}
+                      className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-500/10 px-1.5 py-0.5 rounded-lg transition-colors cursor-pointer shrink-0"
+                      title={t('gantt.filters.restoreAllHidden')}
+                    >
+                      <RotateCcw size={11} />
+                      <span>{t('gantt.filters.restoreAllHidden')}</span>
+                    </button>
+                  </div>
+
+                  <div className="max-h-[220px] overflow-y-auto space-y-0.5 pr-0.5 custom-scrollbar">
+                    {hiddenProjects.map((p) => (
+                      <div
+                        key={`hidden-item-${p.id}`}
+                        className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl text-xs text-theme-text hover:bg-theme-surface-tertiary transition-all"
+                      >
+                        <span className="truncate">🙈 {p.project_name}</span>
+                        <button
+                          type="button"
+                          onClick={() => onRestoreProject(p.id)}
+                          className="p-1 rounded-lg hover:bg-slate-500/20 text-theme-text-muted hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer shrink-0"
+                          title={t('gantt.filters.restoreProject')}
+                        >
+                          <Eye size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         )}
       </div>
 
@@ -634,6 +745,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           })}
         </div>
       )}
+
     </div>
   );
 };

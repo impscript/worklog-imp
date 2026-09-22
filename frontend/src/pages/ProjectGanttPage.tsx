@@ -58,6 +58,15 @@ export default function ProjectGanttPage() {
   const [isTreeView, setIsTreeView] = useState<boolean>(true);
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
 
+  // Projects hidden from this executive report. Backed by the `is_hidden_from_gantt`
+  // column on tb_project_registry, so the hidden state is shared by everyone who
+  // opens this page and survives a refresh — like hiding a row in a spreadsheet —
+  // without touching any of the project's real data.
+  const hiddenProjectIds = useMemo(
+    () => new Set(projects.filter((p) => p.is_hidden_from_gantt).map((p) => p.id)),
+    [projects]
+  );
+
   // Reset All Filters Helper
   const handleResetAllFilters = useCallback(() => {
     setSearchQuery('');
@@ -287,23 +296,41 @@ export default function ProjectGanttPage() {
     availableUsers,
   ]);
 
-  // Display rows may include parents for tree context, but those parents must not affect KPI.
+  // Projects still matching the real data filters, minus anything the presenter has
+  // temporarily hidden. This is what the KPI cards and Kanban board are scoped to.
+  const visibleKpiProjects = useMemo(
+    () => kpiProjects.filter((p) => !hiddenProjectIds.has(p.id)),
+    [kpiProjects, hiddenProjectIds]
+  );
+
+  // Display rows may include parents for tree context, but those parents must not
+  // affect KPI, and a hidden project never reappears as tree-context scaffolding.
   const displayProjects = useMemo(() => {
-    if (!isTreeView) return kpiProjects;
+    if (!isTreeView) return visibleKpiProjects;
 
     // In tree mode, ensure parents of matching children are also kept in the list
-    const matchingIds = new Set(kpiProjects.map((p) => p.id));
-    const finalSet = new Set(kpiProjects);
+    const matchingIds = new Set(visibleKpiProjects.map((p) => p.id));
+    const finalSet = new Set(visibleKpiProjects);
 
-    kpiProjects.forEach((p) => {
-      if (p.parent_project_id && !matchingIds.has(p.parent_project_id)) {
+    visibleKpiProjects.forEach((p) => {
+      if (p.parent_project_id && !matchingIds.has(p.parent_project_id) && !hiddenProjectIds.has(p.parent_project_id)) {
         const parent = projects.find((item) => item.id === p.parent_project_id);
         if (parent) finalSet.add(parent);
       }
     });
 
     return Array.from(finalSet);
-  }, [isTreeView, kpiProjects, projects]);
+  }, [isTreeView, visibleKpiProjects, projects, hiddenProjectIds]);
+
+  // Hidden projects' names, looked up from the unfiltered list so a chip still
+  // reads correctly even if the project falls outside the current data filters.
+  const hiddenProjects = useMemo(
+    () =>
+      projects
+        .filter((p) => hiddenProjectIds.has(p.id))
+        .map((p) => ({ id: p.id, project_name: p.project_name })),
+    [projects, hiddenProjectIds]
+  );
 
   const selectedProject = useMemo(() => {
     return projects.find((p) => p.id === selectedProjectId) || null;
@@ -333,6 +360,50 @@ export default function ProjectGanttPage() {
   const handleCollapseAll = () => {
     setExpandedProjectIds(new Set());
   };
+
+  const setProjectHiddenFlag = useCallback(
+    async (ids: string[], hidden: boolean) => {
+      if (ids.length === 0) return;
+      const prevProjects = projects;
+
+      // Optimistic update so the report reacts instantly
+      setProjects((prev) =>
+        prev.map((p) => (ids.includes(p.id) ? { ...p, is_hidden_from_gantt: hidden } : p))
+      );
+
+      try {
+        const { error } = await supabase
+          .from('tb_project_registry')
+          .update({ is_hidden_from_gantt: hidden })
+          .in('id', ids);
+        if (error) throw error;
+      } catch (err: unknown) {
+        const e = err as { message?: string };
+        console.error('Failed to update hidden state:', err);
+        setProjects(prevProjects); // rollback
+        showToast(`${t('gantt.kanban.updateError')}${e.message || 'Error'}`, 'error');
+      }
+    },
+    [projects, showToast, t]
+  );
+
+  const handleHideProject = useCallback(
+    (id: string) => {
+      void setProjectHiddenFlag([id], true);
+    },
+    [setProjectHiddenFlag]
+  );
+
+  const handleRestoreProject = useCallback(
+    (id: string) => {
+      void setProjectHiddenFlag([id], false);
+    },
+    [setProjectHiddenFlag]
+  );
+
+  const handleRestoreAllHidden = useCallback(() => {
+    void setProjectHiddenFlag(Array.from(hiddenProjectIds), false);
+  }, [setProjectHiddenFlag, hiddenProjectIds]);
 
   // Optimistic Status Update (via Drag & Drop or Quick Move)
   const handleUpdateProjectStatus = useCallback(
@@ -410,15 +481,15 @@ export default function ProjectGanttPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-5 animate-fade-in pb-12">
+      <div className="space-y-3 animate-fade-in pb-12">
         {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-theme-border/60">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-              <FolderKanban size={20} />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1.5 border-b border-theme-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+              <FolderKanban size={16} />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-black text-theme-text tracking-tight flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-xl font-black text-theme-text tracking-tight flex items-center gap-2 flex-wrap">
                 <span>{t('gantt.title')}</span>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                   {t('gantt.badge')}
@@ -429,7 +500,7 @@ export default function ProjectGanttPage() {
                   </span>
                 )}
               </h1>
-              <p className="text-xs text-theme-text-secondary">
+              <p className="text-[11px] text-theme-text-secondary">
                 {t('gantt.subtitle')}
               </p>
             </div>
@@ -440,15 +511,15 @@ export default function ProjectGanttPage() {
             <button
               type="button"
               onClick={() => navigate('/projects')}
-              className="px-3.5 py-2 rounded-2xl border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text font-bold text-xs transition-all cursor-pointer select-none"
+              className="px-3 py-1.5 rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text font-bold text-xs transition-all cursor-pointer select-none"
             >
               📋 {t('gantt.registryBtn')}
             </button>
           </div>
         </div>
 
-        {/* Executive Summary Top Cards (Scoped to Filtered Projects) */}
-        <ExecutiveSummaryKPIs projects={kpiProjects} />
+        {/* Executive Summary Top Cards (Scoped to Filtered, Visible Projects) */}
+        <ExecutiveSummaryKPIs projects={visibleKpiProjects} />
 
         {/* Filter Toolbar with View Switcher, Year, Tree View, Kanban & Zoom controls */}
         <GanttFilterToolbar
@@ -488,6 +559,9 @@ export default function ProjectGanttPage() {
           onExpandAll={handleExpandAll}
           onCollapseAll={handleCollapseAll}
           onResetAllFilters={handleResetAllFilters}
+          hiddenProjects={hiddenProjects}
+          onRestoreProject={handleRestoreProject}
+          onRestoreAllHidden={handleRestoreAllHidden}
         />
 
         {/* Main Canvas: Gantt Roadmap or Kanban Board */}
@@ -506,10 +580,11 @@ export default function ProjectGanttPage() {
             onToggleExpandProject={handleToggleExpandProject}
             onSelectProject={handleSelectProject}
             selectedProjectId={selectedProjectId}
+            onHideProject={handleHideProject}
           />
         ) : (
           <ProjectKanbanCanvas
-            projects={kpiProjects}
+            projects={visibleKpiProjects}
             selectedYear={selectedYear}
             groupBy={kanbanGroupBy}
             swimlane={kanbanSwimlane}
@@ -517,6 +592,7 @@ export default function ProjectGanttPage() {
             selectedProjectId={selectedProjectId}
             onUpdateProjectStatus={handleUpdateProjectStatus}
             onUpdateProjectHealth={handleUpdateProjectHealth}
+            onHideProject={handleHideProject}
           />
         )}
 

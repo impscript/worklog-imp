@@ -7,6 +7,7 @@ import {
   FolderOpen,
   ArrowRightLeft,
   CheckCircle2,
+  EyeOff,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type {
@@ -31,6 +32,7 @@ interface ProjectKanbanCardProps {
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, project: GanttProject) => void;
   onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
   isDragging?: boolean;
+  onHideProject?: (id: string) => void;
 }
 
 export const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({
@@ -43,6 +45,7 @@ export const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({
   onDragStart,
   onDragEnd,
   isDragging = false,
+  onHideProject,
 }) => {
   const { t, i18n } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -237,6 +240,21 @@ export const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({
             </span>
             <span className="hidden sm:inline">{healthMeta.label}</span>
           </span>
+
+          {/* Temporarily Hide Project (presentation-only) */}
+          {onHideProject && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onHideProject(project.id);
+              }}
+              className="p-1 rounded-lg hover:bg-slate-500/15 text-theme-text-muted hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
+              title={t('gantt.canvas.hideProject')}
+            >
+              <EyeOff size={14} />
+            </button>
+          )}
 
           {/* Quick Action Move Menu */}
           <div className="relative" ref={menuRef}>

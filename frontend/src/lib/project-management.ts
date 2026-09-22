@@ -77,6 +77,7 @@ export interface GanttProject {
   worklog_project_type?: string | null;
   id: string;
   project_name: string;
+  is_hidden_from_gantt?: boolean;
   project_slug?: string;
   description?: string | null;
   workspace_id?: string | null;
@@ -661,6 +662,7 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
       return {
         id: p.id,
         project_name: p.project_name,
+        is_hidden_from_gantt: p.is_hidden_from_gantt || false,
         project_slug: p.project_slug,
         description: p.description,
         workspace_id: p.workspace_id,

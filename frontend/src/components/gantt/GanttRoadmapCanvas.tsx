@@ -7,6 +7,7 @@ import {
   FolderOpen,
   FolderTree,
   Layers,
+  EyeOff,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { GanttProject, ProjectStatus } from '../../lib/project-management';
@@ -30,6 +31,7 @@ interface GanttRoadmapCanvasProps {
   onToggleExpandProject: (id: string) => void;
   onSelectProject: (project: GanttProject) => void;
   selectedProjectId?: string | null;
+  onHideProject: (id: string) => void;
 }
 
 interface TimelineSpan {
@@ -56,6 +58,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
   onToggleExpandProject,
   onSelectProject,
   selectedProjectId,
+  onHideProject,
 }) => {
   const { t, i18n } = useTranslation();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -149,9 +152,16 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
     return Math.min(100, Math.max(0, ratio * 100));
   }, [timelineSpan]);
 
-  // Pixel widths per day depending on zoom
-  const dayWidthPx = zoomLevel === 'month' ? 4.5 : zoomLevel === 'quarter' ? 2.5 : 1.2;
-  const timelineCanvasWidth = Math.max(800, timelineSpan.totalDays * dayWidthPx);
+  // Month zoom stretches to fill the visible table exactly (no horizontal scroll needed) —
+  // but only while the span stays short enough to stay readable. Once a project date range
+  // pushes month zoom past this many columns, fall back to a fixed pixel density (like
+  // quarter/year) so labels don't get crushed illegibly, and let it scroll horizontally instead.
+  const MAX_FILL_MONTHS = 18;
+  const fillTimelineWidth = zoomLevel === 'month' && timelineSpan.columns.length <= MAX_FILL_MONTHS;
+  const dayWidthPx = zoomLevel === 'month' ? 3.2 : zoomLevel === 'quarter' ? 2.5 : 1.2;
+  const timelineCanvasWidth = fillTimelineWidth
+    ? undefined
+    : Math.max(800, timelineSpan.totalDays * dayWidthPx);
 
   // Flatten Hierarchical Tree into Renderable Rows
   const renderableRows = useMemo((): RenderableGanttRow[] => {
@@ -241,13 +251,19 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
       {/* Scrollable Container with Sticky Left Column */}
       <div
         ref={scrollContainerRef}
-        className="overflow-x-auto custom-scrollbar flex-1 relative max-h-[70vh] overflow-y-auto"
+        className={cn(
+          'custom-scrollbar flex-1 relative max-h-[70vh] overflow-y-auto',
+          // Month zoom is sized to fit exactly, so any horizontal scrollbar here
+          // would only be from sub-pixel rounding noise — clip it instead of
+          // letting a hairline scrollbar appear for a fraction of a pixel.
+          fillTimelineWidth ? 'overflow-x-hidden' : 'overflow-x-auto'
+        )}
       >
-        <div className="min-w-fit flex flex-col">
+        <div className={cn('flex flex-col', fillTimelineWidth ? 'w-full' : 'min-w-fit')}>
           {/* Header Row */}
           <div className="flex border-b border-theme-border/80 bg-theme-surface-secondary/70 backdrop-blur-md sticky top-0 z-20 text-xs font-bold text-theme-text">
             {/* Frozen Left Header */}
-            <div className="w-80 sm:w-96 px-4 py-3 border-r border-theme-border/80 shrink-0 sticky left-0 z-30 bg-theme-surface-secondary/90 backdrop-blur-md flex items-center justify-between shadow-xs">
+            <div className="w-96 sm:w-[480px] px-4 py-3 border-r border-theme-border/80 shrink-0 sticky left-0 z-30 bg-theme-surface-secondary/90 backdrop-blur-md flex items-center justify-between shadow-xs">
               <span className="flex items-center gap-1.5 uppercase tracking-wider text-[11px] text-theme-text-muted font-black">
                 <FolderTree size={14} className="text-indigo-500" />
                 {isTreeView ? t('gantt.canvas.projectAndModules') : t('gantt.canvas.timeline')}
@@ -256,7 +272,10 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
             </div>
 
             {/* Timeline Scale Headers */}
-            <div className="flex relative" style={{ width: timelineCanvasWidth }}>
+            <div
+              className={cn('flex relative', fillTimelineWidth && 'flex-1 min-w-0')}
+              style={fillTimelineWidth ? undefined : { width: timelineCanvasWidth }}
+            >
               {timelineSpan.columns.map((col, idx) => (
                 <div
                   key={idx}
@@ -279,7 +298,10 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
               <div
                 className="absolute top-0 bottom-0 z-10 pointer-events-none flex flex-col items-center"
                 style={{
-                  left: `calc( ${384}px + (${timelineCanvasWidth}px * ${todayPositionPercent / 100}) )`,
+                  // 100% here resolves against this row's full rendered width (label
+                  // column + timeline), so this stays pixel-accurate whether the
+                  // timeline canvas has a fixed pixel width or fills the remaining space.
+                  left: `calc(480px + (100% - 480px) * ${todayPositionPercent / 100})`,
                 }}
               >
                 <div className="bg-rose-500 text-white font-bold text-[9px] px-1.5 py-0.5 rounded-full shadow-md shrink-0 -translate-x-1/2">
@@ -327,7 +349,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                   )}
                 >
                   {/* Left Sticky Column */}
-                  <div className="w-88 sm:w-[410px] px-3.5 py-2 border-r border-theme-border/80 shrink-0 sticky left-0 z-10 bg-theme-surface/95 dark:bg-theme-bg-page/95 backdrop-blur-md flex flex-col justify-center gap-1.5 shadow-xs">
+                  <div className="w-96 sm:w-[480px] px-3.5 py-2 border-r border-theme-border/80 shrink-0 sticky left-0 z-10 bg-theme-surface/95 dark:bg-theme-bg-page/95 backdrop-blur-md flex flex-col justify-center gap-1.5 shadow-xs">
                     {/* Line 1: Name + Lead Avatar */}
                     <div className="flex items-center justify-between gap-1.5 min-w-0">
                       <div
@@ -396,6 +418,19 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                           <span>{t('gantt.canvas.unassigned')}</span>
                         </div>
                       )}
+
+                      {/* Temporarily Hide Project (presentation-only) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onHideProject(p.id);
+                        }}
+                        className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-slate-500/15 text-theme-text-muted hover:text-slate-600 dark:hover:text-slate-300 transition-all cursor-pointer shrink-0"
+                        title={t('gantt.canvas.hideProject')}
+                      >
+                        <EyeOff size={13} />
+                      </button>
                     </div>
 
                     {/* Line 2: Badges + Team Contribution Avatar Stack */}
@@ -492,8 +527,8 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
 
                   {/* Right Timeline Canvas Track */}
                   <div
-                    className="relative flex items-center py-2 px-1"
-                    style={{ width: timelineCanvasWidth }}
+                    className={cn('relative flex items-center py-2 px-1', fillTimelineWidth && 'flex-1 min-w-0')}
+                    style={fillTimelineWidth ? undefined : { width: timelineCanvasWidth }}
                   >
                     {/* Background Column Grid Lines */}
                     <div className="absolute inset-0 flex pointer-events-none">

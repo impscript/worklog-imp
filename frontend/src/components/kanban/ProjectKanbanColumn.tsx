@@ -37,6 +37,7 @@ interface ProjectKanbanColumnProps {
   isDragOver?: boolean;
   draggedProjectId?: string | null;
   onOpenCreateProject?: () => void;
+  onHideProject?: (id: string) => void;
 }
 
 export const ProjectKanbanColumn: React.FC<ProjectKanbanColumnProps> = ({
@@ -59,6 +60,7 @@ export const ProjectKanbanColumn: React.FC<ProjectKanbanColumnProps> = ({
   isDragOver = false,
   draggedProjectId,
   onOpenCreateProject,
+  onHideProject,
 }) => {
   const { t } = useTranslation();
 
@@ -212,6 +214,7 @@ export const ProjectKanbanColumn: React.FC<ProjectKanbanColumnProps> = ({
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
             isDragging={draggedProjectId === project.id}
+            onHideProject={onHideProject}
           />
         ))}
 

@@ -324,6 +324,9 @@
       "allMembers": "สมาชิกทุกคน",
       "resetAll": "ล้างตัวกรอง",
       "filteringBy": "กำลังกรอง:",
+      "hiddenProjects": "ซ่อนอยู่:",
+      "restoreProject": "แสดงโครงการนี้อีกครั้ง",
+      "restoreAllHidden": "กู้คืนทั้งหมด",
       "selectAll": "เลือกทั้งหมด",
       "clear": "ล้าง",
       "done": "เสร็จสิ้น",
@@ -343,7 +346,8 @@
       "actualContribution": "สัดส่วนลงงานจริง",
       "savings": "มูลค่าประหยัด",
       "unassigned": "ยังไม่ระบุ",
-      "noDates": "ยังไม่ได้ระบุวันเริ่มต้น-สิ้นสุด"
+      "noDates": "ยังไม่ได้ระบุวันเริ่มต้น-สิ้นสุด",
+      "hideProject": "ซ่อนออกจากมุมมองนี้ชั่วคราว"
     },
     "viewMode": "มุมมอง:",
     "viewGantt": "แผนงาน Gantt",
