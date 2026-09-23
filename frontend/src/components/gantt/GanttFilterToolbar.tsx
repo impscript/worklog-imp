@@ -22,6 +22,7 @@ import {
   EyeOff,
   Eye,
   ChevronDown,
+  Check,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ProjectStatus, ProjectHealth } from '../../lib/project-management';
@@ -476,7 +477,9 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
 
         {/* Parent Projects Only Toggle — default off (shows every project,
             parents and children). When checked, children are excluded from
-            both the table and the KPI totals so counts reflect parents alone. */}
+            both the table and the KPI totals so counts reflect parents alone.
+            Rendered as a visible checkbox (not just an icon pill) so it reads
+            unambiguously as a tick box rather than another dropdown. */}
         <label
           className={cn(
             'inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none shadow-xs shrink-0',
@@ -492,7 +495,16 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
             onChange={(e) => onShowParentsOnlyChange(e.target.checked)}
             className="sr-only"
           />
-          <FolderTree size={13} />
+          <span
+            className={cn(
+              'w-4 h-4 rounded-md border flex items-center justify-center transition-all shrink-0',
+              showParentsOnly
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                : 'border-theme-border bg-theme-surface'
+            )}
+          >
+            {showParentsOnly && <Check size={11} strokeWidth={3} />}
+          </span>
           <span className="whitespace-nowrap">{t('gantt.filters.parentsOnly')}</span>
         </label>
 

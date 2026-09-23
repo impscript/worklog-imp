@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, DollarSign, Clock, ShieldCheck, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Layers, DollarSign, Clock, ShieldCheck, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { GanttProject } from '../../lib/project-management';
 
@@ -62,29 +62,27 @@ export const ExecutiveSummaryKPIs: React.FC<ExecutiveSummaryKPIsProps> = ({ proj
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
               🛠️ Support {supportCount}
             </span>
-            <span className="text-theme-text-muted">·</span>
-            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+          </div>
+
+          {/* Status + Health summary — plain gray text, color carried by the
+              emoji alone, using the same emoji as the Health filter dropdown
+              (🟢 on track / ✅ completed / ⏸️ on hold / 🔴 delayed) for consistency. */}
+          <div className="flex items-center gap-1.5 mt-1.5 text-[10.5px] font-bold flex-wrap text-theme-text-muted">
+            <span className="inline-flex items-center gap-1">
               🟢 {t('gantt.kpi.active')} {activeCount}
             </span>
-            <span>·</span>
-            <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400">
-              ✓ {t('gantt.kpi.completed')} {completedCount}
+            <span className="inline-flex items-center gap-1">
+              ✅ {t('gantt.kpi.completed')} {completedCount}
             </span>
             {onHoldCount > 0 && (
-              <>
-                <span>·</span>
-                <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                  ⏸️ {t('gantt.kpi.onHold')} {onHoldCount}
-                </span>
-              </>
+              <span className="inline-flex items-center gap-1">
+                ⏸️ {t('gantt.kpi.onHold')} {onHoldCount}
+              </span>
             )}
             {delayedCount > 0 && (
-              <>
-                <span>·</span>
-                <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400">
-                  <AlertTriangle size={11} /> {t('gantt.kpi.delayed')} {delayedCount}
-                </span>
-              </>
+              <span className="inline-flex items-center gap-1">
+                🔴 {t('gantt.kpi.delayed')} {delayedCount}
+              </span>
             )}
           </div>
         </div>

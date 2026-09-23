@@ -141,6 +141,24 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
     return { startDate, endDate, totalDays, columns };
   }, [projects, zoomLevel, selectedYear, i18n.language]);
 
+  // Cumulative left/width % for each column, computed once and shared by the header
+  // and every row's grid-line overlay. Rendering columns as absolutely-positioned
+  // boxes from this single shared array (instead of letting each of the ~90 row
+  // copies independently flex-distribute the same percentages) avoids the tiny
+  // cross-tree rounding drift that showed up as a visible seam on the darker
+  // quarter-boundary lines.
+  const columnsWithOffset = useMemo(() => {
+    return timelineSpan.columns.reduce<Array<TimelineSpan['columns'][number] & { widthPercent: number; leftPercent: number }>>(
+      (acc, col) => {
+        const widthPercent = (col.days / timelineSpan.totalDays) * 100;
+        const leftPercent = acc.length > 0 ? acc[acc.length - 1].leftPercent + acc[acc.length - 1].widthPercent : 0;
+        acc.push({ ...col, widthPercent, leftPercent });
+        return acc;
+      },
+      []
+    );
+  }, [timelineSpan]);
+
   // Today position in %
   const todayPositionPercent = useMemo(() => {
     const nowTime = new Date().getTime();
@@ -162,6 +180,11 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
   const timelineCanvasWidth = fillTimelineWidth
     ? undefined
     : Math.max(800, timelineSpan.totalDays * dayWidthPx);
+
+  // In month zoom, darken the divider that lands on a quarter boundary (end of
+  // Mar/Jun/Sep/Dec) so quarters are easy to spot without switching zoom levels.
+  const isQuarterEndColumn = (col: TimelineSpan['columns'][number]) =>
+    zoomLevel === 'month' && (col.startDate.getMonth() + 1) % 3 === 0;
 
   // Flatten Hierarchical Tree into Renderable Rows
   const renderableRows = useMemo((): RenderableGanttRow[] => {
@@ -273,14 +296,17 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
 
             {/* Timeline Scale Headers */}
             <div
-              className={cn('flex relative', fillTimelineWidth && 'flex-1 min-w-0')}
+              className={cn('relative', fillTimelineWidth && 'flex-1 min-w-0')}
               style={fillTimelineWidth ? undefined : { width: timelineCanvasWidth }}
             >
-              {timelineSpan.columns.map((col, idx) => (
+              {columnsWithOffset.map((col, idx) => (
                 <div
                   key={idx}
-                  className="px-2 py-3 text-center border-r border-theme-border/40 truncate shrink-0 flex flex-col justify-center"
-                  style={{ width: `${(col.days / timelineSpan.totalDays) * 100}%` }}
+                  className={cn(
+                    'absolute top-0 bottom-0 px-2 py-3 text-center border-r truncate flex flex-col justify-center',
+                    isQuarterEndColumn(col) ? 'border-theme-border' : 'border-theme-border/40'
+                  )}
+                  style={{ left: `${col.leftPercent}%`, width: `${col.widthPercent}%` }}
                 >
                   <span className="text-[11px] font-bold text-theme-text">{col.label}</span>
                   {col.subLabel && (
@@ -530,13 +556,20 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                     className={cn('relative flex items-center py-2 px-1', fillTimelineWidth && 'flex-1 min-w-0')}
                     style={fillTimelineWidth ? undefined : { width: timelineCanvasWidth }}
                   >
-                    {/* Background Column Grid Lines */}
-                    <div className="absolute inset-0 flex pointer-events-none">
-                      {timelineSpan.columns.map((col, idx) => (
+                    {/* Background Column Grid Lines — positioned from the same
+                        shared leftPercent/widthPercent as the header columns
+                        (see columnsWithOffset) so they land pixel-perfectly
+                        under the header's dividers instead of drifting from
+                        independent flex rounding. */}
+                    <div className="absolute inset-0 pointer-events-none">
+                      {columnsWithOffset.map((col, idx) => (
                         <div
                           key={idx}
-                          className="border-r border-theme-border/20 h-full"
-                          style={{ width: `${(col.days / timelineSpan.totalDays) * 100}%` }}
+                          className={cn(
+                            'absolute top-0 bottom-0 border-r',
+                            isQuarterEndColumn(col) ? 'border-theme-border/60' : 'border-theme-border/20'
+                          )}
+                          style={{ left: `${col.leftPercent}%`, width: `${col.widthPercent}%` }}
                         />
                       ))}
                     </div>
