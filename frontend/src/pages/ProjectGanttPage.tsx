@@ -81,9 +81,6 @@ export default function ProjectGanttPage() {
     setShowParentsOnly(false);
   }, []);
 
-  // Load active workspace name from session
-  const [workspaceName, setWorkspaceName] = useState<string>('');
-
   // Load Projects from Supabase
   const loadProjects = useCallback(async () => {
     setIsLoading(true);
@@ -107,9 +104,6 @@ export default function ProjectGanttPage() {
       const sessionStr = localStorage.getItem('worklog_session');
       const session = sessionStr ? JSON.parse(sessionStr) : null;
       const activeWsId = session?.activeWorkspaceId;
-      if (session?.workspaceName) {
-        setWorkspaceName(session.workspaceName);
-      }
 
       if (activeWsId) {
         const { data: memData, error: membersError } = await supabase
@@ -504,14 +498,6 @@ export default function ProjectGanttPage() {
             <div>
               <h1 className="text-lg sm:text-xl font-black text-theme-text tracking-tight flex items-center gap-2 flex-wrap">
                 <span>{t('gantt.title')}</span>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                  {t('gantt.badge')}
-                </span>
-                {workspaceName && (
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    🏢 {workspaceName}
-                  </span>
-                )}
               </h1>
               <p className="text-[11px] text-theme-text-secondary">
                 {t('gantt.subtitle')}
