@@ -322,6 +322,7 @@
       "allHealths": "ทุกระดับสุขภาพ",
       "member": "สมาชิก",
       "allMembers": "สมาชิกทุกคน",
+      "parentsOnly": "เฉพาะโครงการแม่",
       "resetAll": "ล้างตัวกรอง",
       "filteringBy": "กำลังกรอง:",
       "hiddenProjects": "ซ่อนอยู่:",

@@ -54,6 +54,7 @@ export default function ProjectGanttPage() {
   const [selectedStatuses, setSelectedStatuses] = useState<ProjectStatus[]>([]);
   const [selectedHealths, setSelectedHealths] = useState<ProjectHealth[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [showParentsOnly, setShowParentsOnly] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<GanttZoomLevel>('month');
   const [isTreeView, setIsTreeView] = useState<boolean>(true);
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
@@ -77,6 +78,7 @@ export default function ProjectGanttPage() {
     setSelectedStatuses([]);
     setSelectedHealths([]);
     setSelectedUsers([]);
+    setShowParentsOnly(false);
   }, []);
 
   // Load active workspace name from session
@@ -222,7 +224,10 @@ export default function ProjectGanttPage() {
 
     return projects.filter((p) => {
       if (!isProjectInYear(p, selectedYear)) return false;
-      
+
+      // 0. Parent Projects Only
+      if (showParentsOnly && p.parent_project_id) return false;
+
       // 1. Multi-Select Project Types Filter
       if (selectedProjectTypes.length > 0) {
         const pType = (p.worklog_project_type || 'Project').toLowerCase();
@@ -286,6 +291,7 @@ export default function ProjectGanttPage() {
   }, [
     projects,
     selectedYear,
+    showParentsOnly,
     searchQuery,
     selectedProjectTypes,
     selectedTeams,
@@ -555,6 +561,8 @@ export default function ProjectGanttPage() {
           selectedUsers={selectedUsers}
           onUsersChange={setSelectedUsers}
           usersList={availableUsers}
+          showParentsOnly={showParentsOnly}
+          onShowParentsOnlyChange={setShowParentsOnly}
           zoomLevel={zoomLevel}
           onZoomChange={setZoomLevel}
           holdingsList={holdingsList}

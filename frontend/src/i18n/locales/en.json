@@ -322,6 +322,7 @@
       "allHealths": "All Health Levels",
       "member": "Member",
       "allMembers": "All Members",
+      "parentsOnly": "Parent projects only",
       "resetAll": "Reset Filters",
       "filteringBy": "Filtering by:",
       "hiddenProjects": "Hidden from view:",

@@ -62,6 +62,8 @@ interface GanttFilterToolbarProps {
   selectedUsers: string[];
   onUsersChange: (userIds: string[]) => void;
   usersList: { id: string; name: string; email?: string }[];
+  showParentsOnly: boolean;
+  onShowParentsOnlyChange: (value: boolean) => void;
   zoomLevel: GanttZoomLevel;
   onZoomChange: (zoom: GanttZoomLevel) => void;
   holdingsList: string[];
@@ -105,6 +107,8 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   selectedUsers,
   onUsersChange,
   usersList,
+  showParentsOnly,
+  onShowParentsOnlyChange,
   zoomLevel,
   onZoomChange,
   holdingsList,
@@ -252,6 +256,7 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
     selectedHealths.length > 0 ||
     selectedUsers.length > 0 ||
     selectedYear !== currentYear ||
+    showParentsOnly ||
     Boolean(searchQuery.trim());
 
   return (
@@ -469,6 +474,28 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           ))}
         </select>
 
+        {/* Parent Projects Only Toggle — default off (shows every project,
+            parents and children). When checked, children are excluded from
+            both the table and the KPI totals so counts reflect parents alone. */}
+        <label
+          className={cn(
+            'inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none shadow-xs shrink-0',
+            showParentsOnly
+              ? 'bg-indigo-50/90 dark:bg-indigo-500/15 border-indigo-500/40 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20'
+              : 'border-theme-border bg-theme-surface text-theme-text hover:bg-theme-surface-secondary hover:border-theme-border/80'
+          )}
+          title={t('gantt.filters.parentsOnly')}
+        >
+          <input
+            type="checkbox"
+            checked={showParentsOnly}
+            onChange={(e) => onShowParentsOnlyChange(e.target.checked)}
+            className="sr-only"
+          />
+          <FolderTree size={13} />
+          <span className="whitespace-nowrap">{t('gantt.filters.parentsOnly')}</span>
+        </label>
+
         {/* 1. Multi-Select: Project Types */}
         <MultiSelectFilter
           className="flex-1 min-w-0"
@@ -662,6 +689,20 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           <span className="text-[10px] font-bold uppercase text-theme-text-muted tracking-wider mr-1">
             {t('gantt.filters.filteringBy')}
           </span>
+
+          {/* Parent Projects Only Chip */}
+          {showParentsOnly && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 shadow-xs">
+              <span>🌳 {t('gantt.filters.parentsOnly')}</span>
+              <button
+                type="button"
+                onClick={() => onShowParentsOnlyChange(false)}
+                className="hover:bg-indigo-500/30 rounded-full p-0.5 transition-colors cursor-pointer"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          )}
 
           {/* Project Types Chips */}
           {selectedProjectTypes.map((type) => (
