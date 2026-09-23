@@ -8,6 +8,22 @@ interface UpdateAnnouncementModalProps {
   showHistory?: boolean;
 }
 
+// Renders a highlight string, turning **bold** markers into emphasized text so
+// the key point of each bullet stands out from the surrounding explanation.
+function renderHighlight(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={i} className="font-bold text-theme-text">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 export default function UpdateAnnouncementModal({ isOpen, onClose, showHistory }: UpdateAnnouncementModalProps) {
   if (!isOpen) return null;
 
@@ -17,7 +33,7 @@ export default function UpdateAnnouncementModal({ isOpen, onClose, showHistory }
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-full max-w-sm theme-panel border border-theme-border/80 rounded-2xl shadow-2xl p-6 text-center flex flex-col max-h-[85vh]"
+        className="w-full max-w-2xl theme-panel border border-theme-border/80 rounded-2xl shadow-2xl p-6 text-center flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 mb-4 shrink-0">
@@ -38,7 +54,7 @@ export default function UpdateAnnouncementModal({ isOpen, onClose, showHistory }
                 {entry.highlights.map((item, index) => (
                   <li key={index} className="flex items-start gap-2 text-sm text-theme-text-secondary">
                     <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                    <span>{item}</span>
+                    <span>{renderHighlight(item)}</span>
                   </li>
                 ))}
               </ul>
