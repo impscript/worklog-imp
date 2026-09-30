@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download, Power, PowerOff, Copy, Filter } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download, Power, PowerOff, Copy, Filter, DollarSign } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { useNotification } from '../context/NotificationContext';
 
-type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings' | 'ai_prompt' | 'holiday' | 'templates';
+type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings' | 'ai_prompt' | 'holiday' | 'templates' | 'salary_rate';
+
+// The IT salary rate reference is IMP's own tool (used to cost in-house builds),
+// so only the Process Improvement workspace manages it in the Admin UI.
+const PROCESS_IMPROVEMENT_WORKSPACE_ID = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
 
 export default function AdminPage() {
   const { showToast, showConfirm } = useNotification();
@@ -78,6 +82,12 @@ export default function AdminPage() {
   const [filterType, setFilterType] = useState('');
   const [filterBU, setFilterBU] = useState('');
 
+  // IT Salary Rate specific filters
+  const [filterSalaryCategory, setFilterSalaryCategory] = useState('');
+  const [filterSalaryRole, setFilterSalaryRole] = useState('');
+  const [filterSalaryMin, setFilterSalaryMin] = useState('');
+  const [filterSalaryMax, setFilterSalaryMax] = useState('');
+
   const resetFilters = () => {
     setFilterProject('');
     setFilterHolding('');
@@ -86,13 +96,20 @@ export default function AdminPage() {
     setFilterBU('');
   };
 
+  const resetSalaryRateFilters = () => {
+    setFilterSalaryCategory('');
+    setFilterSalaryRole('');
+    setFilterSalaryMin('');
+    setFilterSalaryMax('');
+  };
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const entriesPerPage = 10;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchQuery, filterProject, filterHolding, filterRole, filterType, filterBU]);
+  }, [activeTab, searchQuery, filterProject, filterHolding, filterRole, filterType, filterBU, filterSalaryCategory, filterSalaryRole, filterSalaryMin, filterSalaryMax]);
 
   // Database Data States
   const [holdings, setHoldings] = useState<any[]>([]);
@@ -103,13 +120,24 @@ export default function AdminPage() {
   const [projectStructures, setProjectStructures] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [holidaysList, setHolidaysList] = useState<any[]>([]);
-  
+  const [salaryRates, setSalaryRates] = useState<any[]>([]);
+
   // Form Field States
   const [formHoldingName, setFormHoldingName] = useState('');
   const [formRoleName, setFormRoleName] = useState('');
   const [formTypeName, setFormTypeName] = useState('');
   const [formActionCategory, setFormActionCategory] = useState('Project');
   const [formActionName, setFormActionName] = useState('');
+
+  // IT Salary Rate Form States
+  const [formSalaryCategory, setFormSalaryCategory] = useState('');
+  const [formSalaryRole, setFormSalaryRole] = useState('');
+  const [formSalaryExperienceBracket, setFormSalaryExperienceBracket] = useState('');
+  const [formSalaryMin, setFormSalaryMin] = useState(0);
+  const [formSalaryMax, setFormSalaryMax] = useState(0);
+  const [formSalarySourceLabel, setFormSalarySourceLabel] = useState('');
+  const [formSalarySourceUrl, setFormSalarySourceUrl] = useState('');
+  const [formSalarySourceYear, setFormSalarySourceYear] = useState(new Date().getFullYear());
   
   // Mappings Form States
   const [formMapUserName, setFormMapUserName] = useState('');
@@ -248,6 +276,15 @@ export default function AdminPage() {
     if (!projectStructures || !Array.isArray(projectStructures)) return [];
     return Array.from(new Set(projectStructures.map(p => p.bu))).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [projectStructures]);
+
+  const uniqueSalaryCategories = useMemo(() => {
+    return Array.from(new Set(salaryRates.map(s => s.category))).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [salaryRates]);
+
+  const uniqueSalaryRoles = useMemo(() => {
+    const rows = filterSalaryCategory ? salaryRates.filter(s => s.category === filterSalaryCategory) : salaryRates;
+    return Array.from(new Set(rows.map(s => s.role))).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [salaryRates, filterSalaryCategory]);
 
   // --- Project Structures Auto-editable DDL Cascading Suggestions ---
 
@@ -723,6 +760,7 @@ export default function AdminPage() {
       let projStructQuery = supabase.from('tb_map_project_structure').select('*');
       let holidayQuery = supabase.from('tb_master_holiday').select('*');
       let templateQuery = supabase.from('tb_master_worklog_templates').select('*');
+      let salaryRateQuery = supabase.from('tb_master_it_salary_rate').select('*');
 
       if (!isSuperAdmin && workspaceId) {
         if (useGlobal) {
@@ -732,6 +770,7 @@ export default function AdminPage() {
           actionQuery = actionQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
           userMapQuery = userMapQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
           projStructQuery = projStructQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+          salaryRateQuery = salaryRateQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
         } else {
           holdingQuery = holdingQuery.eq('workspace_id', workspaceId);
           roleQuery = roleQuery.eq('workspace_id', workspaceId);
@@ -739,6 +778,7 @@ export default function AdminPage() {
           actionQuery = actionQuery.eq('workspace_id', workspaceId);
           userMapQuery = userMapQuery.eq('workspace_id', workspaceId);
           projStructQuery = projStructQuery.eq('workspace_id', workspaceId);
+          salaryRateQuery = salaryRateQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
         }
         templateQuery = templateQuery.eq('workspace_id', workspaceId);
       }
@@ -762,7 +802,8 @@ export default function AdminPage() {
         resProjStructs,
         resUsers,
         resHolidays,
-        resTemplates
+        resTemplates,
+        resSalaryRates
       ] = await Promise.all([
         holdingQuery.order('holding_name'),
         roleQuery.order('role_name'),
@@ -772,12 +813,14 @@ export default function AdminPage() {
         projStructQuery.order('project_name'),
         userQuery,
         holidayQuery.order('date', { ascending: false }),
-        templateQuery.order('template_name')
+        templateQuery.order('template_name'),
+        salaryRateQuery.order('category').order('role').order('experience_bracket')
       ]);
 
       if (resHoldings.data) setHoldings(resHoldings.data);
       if (resRoles.data) setRoles(resRoles.data);
       if (resTypes.data) setProjectTypes(resTypes.data);
+      if (resSalaryRates.data) setSalaryRates(resSalaryRates.data);
       if (resActions.data) setActions(resActions.data);
       if (resUserMaps.data) setUserMappings(resUserMaps.data);
       if (resProjStructs.data) setProjectStructures(resProjStructs.data);
@@ -818,11 +861,27 @@ export default function AdminPage() {
         data = projectTypes.filter(t => t.type_name.toLowerCase().includes(q));
         break;
       case 'action':
-        data = actions.filter(a => 
-          a.action_name.toLowerCase().includes(q) || 
+        data = actions.filter(a =>
+          a.action_name.toLowerCase().includes(q) ||
           a.action_category.toLowerCase().includes(q)
         );
         break;
+      case 'salary_rate': {
+        const qMin = filterSalaryMin !== '' ? Number(filterSalaryMin) : null;
+        const qMax = filterSalaryMax !== '' ? Number(filterSalaryMax) : null;
+        data = salaryRates.filter(s => {
+          const matchesSearch = !q ||
+            s.role.toLowerCase().includes(q) ||
+            s.category.toLowerCase().includes(q) ||
+            s.experience_bracket.toLowerCase().includes(q);
+          const matchesCategory = !filterSalaryCategory || s.category === filterSalaryCategory;
+          const matchesRole = !filterSalaryRole || s.role === filterSalaryRole;
+          const matchesMin = qMin === null || Number(s.salary_max) >= qMin;
+          const matchesMax = qMax === null || Number(s.salary_min) <= qMax;
+          return matchesSearch && matchesCategory && matchesRole && matchesMin && matchesMax;
+        });
+        break;
+      }
       case 'map_user':
         data = userMappings.filter(m => 
           m.name.toLowerCase().includes(q) || 
@@ -951,6 +1010,15 @@ export default function AdminPage() {
       else if (activeTab === 'action') {
         setFormActionCategory(row.action_category);
         setFormActionName(row.action_name);
+      } else if (activeTab === 'salary_rate') {
+        setFormSalaryCategory(row.category);
+        setFormSalaryRole(row.role);
+        setFormSalaryExperienceBracket(row.experience_bracket);
+        setFormSalaryMin(Number(row.salary_min) || 0);
+        setFormSalaryMax(Number(row.salary_max) || 0);
+        setFormSalarySourceLabel(row.source_label || '');
+        setFormSalarySourceUrl(row.source_url || '');
+        setFormSalarySourceYear(row.source_year || new Date().getFullYear());
       } else if (activeTab === 'map_user') {
         setFormMapUserName(row.name || '');
         setFormMapUserId(row.user_id || ''); // populate UUID if available
@@ -987,6 +1055,14 @@ export default function AdminPage() {
       setFormTypeName('');
       setFormActionCategory(actionCategoryOptions[0] || 'Project');
       setFormActionName('');
+      setFormSalaryCategory('');
+      setFormSalaryRole('');
+      setFormSalaryExperienceBracket('');
+      setFormSalaryMin(0);
+      setFormSalaryMax(0);
+      setFormSalarySourceLabel('');
+      setFormSalarySourceUrl('');
+      setFormSalarySourceYear(new Date().getFullYear());
       setFormMapUserName('');
       setFormMapUserId('');
       setFormMapHolding(holdings[0]?.holding_name || '');
@@ -1056,6 +1132,25 @@ export default function AdminPage() {
           if (error) throw error;
         } else {
           const { error } = await supabase.from('tb_master_action').insert(payload);
+          if (error) throw error;
+        }
+      } else if (activeTab === 'salary_rate') {
+        const payload: any = {
+          category: formSalaryCategory,
+          role: formSalaryRole,
+          experience_bracket: formSalaryExperienceBracket,
+          salary_min: formSalaryMin,
+          salary_max: formSalaryMax,
+          source_label: formSalarySourceLabel || null,
+          source_url: formSalarySourceUrl || null,
+          source_year: formSalarySourceYear || null
+        };
+        if (workspaceId) payload.workspace_id = workspaceId;
+        if (editRow) {
+          const { error } = await supabase.from('tb_master_it_salary_rate').update(payload).eq('id', editRow.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('tb_master_it_salary_rate').insert(payload);
           if (error) throw error;
         }
       } else if (activeTab === 'map_user') {
@@ -1192,13 +1287,15 @@ export default function AdminPage() {
       map_project: 'โครงสร้างโครงการ (Project Structure)',
       holiday: 'วันหยุด (Holiday)',
       templates: 'เทมเพลต',
-      users: 'ผู้ใช้ (User)'
+      users: 'ผู้ใช้ (User)',
+      salary_rate: 'เรทเงินเดือนอ้างอิง (IT Salary Rate)'
     };
     const recordLabel = activeTab === 'holding' ? row.holding_name
       : activeTab === 'role' ? row.role_name
       : activeTab === 'project_type' ? row.type_name
       : activeTab === 'holiday' ? String(row.date)
       : activeTab === 'users' ? (row.full_name || row.email || row.emp_id || row.id)
+      : activeTab === 'salary_rate' ? `${row.role} (${row.experience_bracket})`
       : (row.name || row.id);
 
     const isSoftDeleteTab = activeTab !== 'holiday' && activeTab !== 'users';
@@ -1229,7 +1326,8 @@ export default function AdminPage() {
         activeTab === 'map_user' ? 'tb_map_user_role' :
         activeTab === 'map_project' ? 'tb_map_project_structure' :
         activeTab === 'holiday' ? 'tb_master_holiday' :
-        activeTab === 'templates' ? 'tb_master_worklog_templates' : 'users'
+        activeTab === 'templates' ? 'tb_master_worklog_templates' :
+        activeTab === 'salary_rate' ? 'tb_master_it_salary_rate' : 'users'
       );
 
       const wsFilter = delWorkspaceId || row.workspace_id;
@@ -1267,7 +1365,8 @@ export default function AdminPage() {
         tab === 'action' ? 'tb_master_action' :
         tab === 'map_user' ? 'tb_map_user_role' :
         tab === 'map_project' ? 'tb_map_project_structure' :
-        tab === 'templates' ? 'tb_master_worklog_templates' : ''
+        tab === 'templates' ? 'tb_master_worklog_templates' :
+        tab === 'salary_rate' ? 'tb_master_it_salary_rate' : ''
       );
       if (!tableName) return;
 
@@ -1299,6 +1398,7 @@ export default function AdminPage() {
     { key: 'role', label: 'Roles', icon: Shield },
     { key: 'project_type', label: 'Project Types', icon: Cpu },
     { key: 'action', label: 'Actions', icon: Activity },
+    { key: 'salary_rate', label: 'IT Salary Rates', icon: DollarSign },
     { key: 'map_user', label: 'User Mappings', icon: UserCheck },
     { key: 'map_project', label: 'Project Structures', icon: GitMerge },
     { key: 'users', label: 'System Users', icon: Users },
@@ -1311,8 +1411,14 @@ export default function AdminPage() {
   const allowedTabs = useMemo(() => {
     const isSuperAdmin = session?.role === 'admin' && (!session?.activeWorkspaceId || session?.activeWorkspaceId === 'N/A');
     if (isSuperAdmin) return tabs;
-    // Hide global system administration tabs from workspace level admins/managers
-    return tabs.filter(t => t.key !== 'users' && t.key !== 'holiday');
+    const isProcessImprovementWorkspace = session?.activeWorkspaceId === PROCESS_IMPROVEMENT_WORKSPACE_ID;
+    // Hide global system administration tabs from workspace level admins/managers,
+    // and hide the IT Salary Rate reference tab outside the Process Improvement workspace.
+    return tabs.filter(t =>
+      t.key !== 'users' &&
+      t.key !== 'holiday' &&
+      (t.key !== 'salary_rate' || isProcessImprovementWorkspace)
+    );
   }, [tabs, session]);
 
   const renderScopeBadge = (row: any) => {
@@ -1356,6 +1462,10 @@ export default function AdminPage() {
   const filteredData = getFilteredData();
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
   const paginatedData = filteredData.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
+
+  const distinctSalarySources = Array.from(
+    new Map(salaryRates.filter(r => r.source_url || r.source_label).map(r => [r.source_url || r.source_label, r])).values()
+  );
 
   return (
     <AppLayout>
@@ -1434,7 +1544,7 @@ export default function AdminPage() {
                                 </span>
                               </div>
                               <p className="text-[11px] text-theme-text-secondary line-clamp-1 mt-0.5">
-                                {Boolean(searchQuery.trim() || filterProject || filterHolding || filterRole || filterType || filterBU || filterStatus !== 'all') 
+                                {Boolean(searchQuery.trim() || filterProject || filterHolding || filterRole || filterType || filterBU || filterSalaryCategory || filterSalaryRole || filterSalaryMin || filterSalaryMax || filterStatus !== 'all')
                                   ? 'เฉพาะรายการที่ตรงกับตัวกรองปัจจุบัน' 
                                   : 'กรองตามเงื่อนไขที่เลือก'}
                               </p>
@@ -1627,6 +1737,18 @@ export default function AdminPage() {
                         </button>
                       )
                     )}
+
+                    {activeTab === 'salary_rate' && (
+                      (filterSalaryCategory || filterSalaryRole || filterSalaryMin || filterSalaryMax || searchQuery) && (
+                        <button
+                          onClick={() => { setSearchQuery(''); resetSalaryRateFilters(); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition-all"
+                        >
+                          <RotateCcw size={12} />
+                          Clear All Filters
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
 
@@ -1708,6 +1830,87 @@ export default function AdminPage() {
                     </div>
                   </div>
                 )}
+
+                {activeTab === 'salary_rate' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-theme-border/30">
+                    {/* Category Filter */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-theme-text-secondary">Category</label>
+                      <select
+                        value={filterSalaryCategory}
+                        onChange={(e) => { setFilterSalaryCategory(e.target.value); setFilterSalaryRole(''); }}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
+                      >
+                        <option value="">All Categories</option>
+                        {uniqueSalaryCategories.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Role Filter */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-theme-text-secondary">Role</label>
+                      <select
+                        value={filterSalaryRole}
+                        onChange={(e) => setFilterSalaryRole(e.target.value)}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
+                      >
+                        <option value="">All Roles</option>
+                        {uniqueSalaryRoles.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Salary Range Filter */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-theme-text-secondary">เงินเดือนตั้งแต่ (บาท/เดือน)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={filterSalaryMin}
+                        onChange={(e) => setFilterSalaryMin(e.target.value)}
+                        placeholder="เช่น 60000"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-semibold text-theme-text-secondary">ถึงเงินเดือน (บาท/เดือน)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={filterSalaryMax}
+                        onChange={(e) => setFilterSalaryMax(e.target.value)}
+                        placeholder="เช่น 100000"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs transition-all"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'salary_rate' && distinctSalarySources.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-theme-text-secondary font-semibold">อ้างอิงจาก:</span>
+                {distinctSalarySources.map((src, idx) => (
+                  src.source_url ? (
+                    <a
+                      key={idx}
+                      href={src.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-400 hover:underline font-semibold"
+                    >
+                      {src.source_label || src.source_url}{src.source_year ? ` (${src.source_year})` : ''}
+                    </a>
+                  ) : (
+                    <span key={idx} className="text-theme-text-secondary">
+                      {src.source_label}{src.source_year ? ` (${src.source_year})` : ''}
+                    </span>
+                  )
+                ))}
               </div>
             )}
 
@@ -1764,6 +1967,15 @@ export default function AdminPage() {
                             <th className="px-6 py-4 font-semibold">Action Name</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
+                            <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                          </tr>
+                        )}
+                        {activeTab === 'salary_rate' && (
+                          <tr>
+                            <th className="px-6 py-4 font-semibold">Category / Role</th>
+                            <th className="px-6 py-4 font-semibold">Experience</th>
+                            <th className="px-6 py-4 font-semibold">Salary Range (บาท/เดือน)</th>
+                            <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
                           </tr>
                         )}
@@ -1871,6 +2083,31 @@ export default function AdminPage() {
                                   <td className="px-6 py-4 font-bold text-theme-text">{row.action_name}</td>
                                   {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
+                                  <td className="px-6 py-4 text-right space-x-2">
+                                    {canModify && (
+                                      <>
+                                        <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                                          <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </td>
+                                </>
+                              )}
+                              {activeTab === 'salary_rate' && (
+                                <>
+                                  <td className="px-6 py-4">
+                                    <div className="font-bold text-theme-text">{row.role}</div>
+                                    <div className="text-xs text-theme-text-secondary mt-0.5">{row.category}</div>
+                                  </td>
+                                  <td className="px-6 py-4 text-theme-text-secondary">{row.experience_bracket} ปี</td>
+                                  <td className="px-6 py-4 font-mono text-theme-text">
+                                    {Number(row.salary_min).toLocaleString()} - {Number(row.salary_max).toLocaleString()}
+                                  </td>
+                                  {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4 text-right space-x-2">
                                     {canModify && (
                                       <>
@@ -2188,6 +2425,102 @@ export default function AdminPage() {
                       className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                       required
                     />
+                  </div>
+                </>
+              )}
+
+              {/* IT Salary Rate Form */}
+              {activeTab === 'salary_rate' && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-theme-text-secondary mb-2">Category</label>
+                      <input
+                        type="text"
+                        value={formSalaryCategory}
+                        onChange={(e) => setFormSalaryCategory(e.target.value)}
+                        placeholder="e.g. Application Development"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-theme-text-secondary mb-2">Experience Bracket</label>
+                      <input
+                        type="text"
+                        value={formSalaryExperienceBracket}
+                        onChange={(e) => setFormSalaryExperienceBracket(e.target.value)}
+                        placeholder="e.g. 3 - 5"
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Role</label>
+                    <input
+                      type="text"
+                      value={formSalaryRole}
+                      onChange={(e) => setFormSalaryRole(e.target.value)}
+                      placeholder="e.g. Full Stack Developer"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-theme-text-secondary mb-2">Salary Min (บาท/เดือน)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formSalaryMin}
+                        onChange={(e) => setFormSalaryMin(Number(e.target.value))}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-theme-text-secondary mb-2">Salary Max (บาท/เดือน)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formSalaryMax}
+                        onChange={(e) => setFormSalaryMax(Number(e.target.value))}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Source Label</label>
+                    <input
+                      type="text"
+                      value={formSalarySourceLabel}
+                      onChange={(e) => setFormSalarySourceLabel(e.target.value)}
+                      placeholder="e.g. ISM Technology Thailand IT Salary Report"
+                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-theme-text-secondary mb-2">Source URL</label>
+                      <input
+                        type="text"
+                        value={formSalarySourceUrl}
+                        onChange={(e) => setFormSalarySourceUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-theme-text-secondary mb-2">Source Year</label>
+                      <input
+                        type="number"
+                        value={formSalarySourceYear}
+                        onChange={(e) => setFormSalarySourceYear(Number(e.target.value))}
+                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      />
+                    </div>
                   </div>
                 </>
               )}

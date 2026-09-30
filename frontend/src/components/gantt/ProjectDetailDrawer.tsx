@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   X,
   Save,
@@ -13,6 +13,8 @@ import {
   ShieldCheck,
   RefreshCw,
   Clock,
+  Search,
+  ChevronDown,
 } from 'lucide-react';
 import type {
   GanttProject,
@@ -22,6 +24,8 @@ import type {
   ProjectCostSavings,
   ProjectGanttOverviewPayload,
   TeamRole,
+  IndirectSavingsItem,
+  DirectMarketRateItem,
 } from '../../lib/project-management';
 import {
   TEAM_ROLE_LABELS,
@@ -63,6 +67,160 @@ interface MasterProjectTypeRow {
   type_name?: string | null;
 }
 
+interface MasterSalaryRateRow {
+  id: string;
+  category: string;
+  role: string;
+  experience_bracket: string;
+  salary_min: number;
+  salary_max: number;
+  source_label?: string | null;
+  source_url?: string | null;
+  source_year?: number | null;
+}
+
+const INDIRECT_CATEGORY_PRESETS = ['Analytic', 'Console Report', 'Console Data'];
+
+function calculateProjectBusinessDays(startDate?: string | null, dueDate?: string | null): number {
+  const fallback = 22; // one month of working days
+  if (!startDate || !dueDate) return fallback;
+  const start = new Date(startDate);
+  const end = new Date(dueDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return fallback;
+  let count = 0;
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) count++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count || fallback;
+}
+
+interface SalaryRateSearchSelectProps {
+  groups: Record<string, MasterSalaryRateRow[]>;
+  value: string;
+  onChange: (id: string) => void;
+  placeholder: string;
+}
+
+// Small searchable single-select for the market-rate position picker. Native
+// <select> can't be searched by typing a substring, and the option list here
+// (grouped by category) is long enough that scanning it is slow.
+const SalaryRateSearchSelect: React.FC<SalaryRateSearchSelectProps> = ({ groups, value, onChange, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const selectedLabel = useMemo(() => {
+    for (const rows of Object.values(groups)) {
+      const found = rows.find((r) => r.id === value);
+      if (found) {
+        return `${found.role} (${found.experience_bracket} ปี): ${Number(found.salary_min).toLocaleString()}-${Number(found.salary_max).toLocaleString()}`;
+      }
+    }
+    return '';
+  }, [groups, value]);
+
+  const filteredGroups = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return groups;
+    const result: Record<string, MasterSalaryRateRow[]> = {};
+    for (const [category, rows] of Object.entries(groups)) {
+      const matches = rows.filter(
+        (r) =>
+          r.role.toLowerCase().includes(q) ||
+          category.toLowerCase().includes(q) ||
+          r.experience_bracket.toLowerCase().includes(q)
+      );
+      if (matches.length > 0) result[category] = matches;
+    }
+    return result;
+  }, [groups, search]);
+
+  const hasOptions = Object.keys(filteredGroups).length > 0;
+
+  return (
+    <div className="relative flex-1 min-w-[220px]" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full flex items-center gap-2 py-2.5 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-semibold focus:outline-none focus:border-violet-500 cursor-pointer"
+      >
+        <span className={cn('flex-1 min-w-0 truncate text-left', !selectedLabel && 'text-theme-text-muted font-normal')}>
+          {selectedLabel || placeholder}
+        </span>
+        <ChevronDown size={13} className={cn('text-theme-text-muted transition-transform duration-200 shrink-0', isOpen && 'rotate-180')} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 z-50 mt-1.5 w-full min-w-[280px] rounded-2xl border border-theme-border bg-theme-surface dark:bg-theme-surface-modal shadow-2xl backdrop-blur-xl p-2.5 animate-fade-in space-y-2">
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-theme-text-muted" />
+            <input
+              type="text"
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="พิมพ์ค้นหาตำแหน่ง..."
+              className="w-full text-xs py-1.5 pl-7 pr-2 rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-violet-500"
+            />
+          </div>
+          <div className="max-h-[240px] overflow-y-auto space-y-1 pr-0.5 custom-scrollbar">
+            {!hasOptions ? (
+              <div className="py-4 text-center text-xs text-theme-text-muted">ไม่พบตำแหน่งที่ค้นหา</div>
+            ) : (
+              Object.entries(filteredGroups).map(([category, rows]) => (
+                <div key={category}>
+                  <div className="px-2 py-1 text-[10px] font-bold text-theme-text-muted uppercase">{category}</div>
+                  {rows.map((row) => (
+                    <button
+                      key={row.id}
+                      type="button"
+                      onClick={() => {
+                        onChange(row.id);
+                        setIsOpen(false);
+                        setSearch('');
+                      }}
+                      className={cn(
+                        'w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer',
+                        row.id === value
+                          ? 'bg-violet-500/10 text-violet-800 dark:text-violet-200 font-semibold'
+                          : 'text-theme-text hover:bg-theme-surface-tertiary'
+                      )}
+                    >
+                      {row.role} ({row.experience_bracket} ปี): {Number(row.salary_min).toLocaleString()}-{Number(row.salary_max).toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   project,
   onClose,
@@ -84,6 +242,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [worklogProjectType, setWorklogProjectType] = useState(project.worklog_project_type || 'Project');
   const [masterHoldings, setMasterHoldings] = useState<string[]>([]);
   const [masterProjectTypes, setMasterProjectTypes] = useState<string[]>([]);
+  const [salaryRateRows, setSalaryRateRows] = useState<MasterSalaryRateRow[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -112,8 +271,21 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
         if (isMounted && tData && tData.length > 0) {
           setMasterProjectTypes((tData as MasterProjectTypeRow[]).map((d) => d.type_name).filter(Boolean) as string[]);
         }
+
+        // Fetch IT salary rate reference from tb_master_it_salary_rate
+        let salaryRateQuery = supabase.from('tb_master_it_salary_rate').select('*').eq('is_active', true);
+        if (workspaceId) {
+          salaryRateQuery = salaryRateQuery.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+        }
+        const { data: srData } = await salaryRateQuery
+          .order('category')
+          .order('role')
+          .order('experience_bracket');
+        if (isMounted && srData) {
+          setSalaryRateRows(srData as MasterSalaryRateRow[]);
+        }
       } catch (err) {
-        console.warn('Failed to load master holding or project types in drawer:', err);
+        console.warn('Failed to load master holding, project types, or salary rates in drawer:', err);
       }
     };
     void fetchMasterData();
@@ -156,9 +328,23 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [directTargetCostAnnual, setDirectTargetCostAnnual] = useState(Number(cs?.direct_target_cost_annual) || 0);
   const [directSavings, setDirectSavings] = useState(Number(cs?.direct_savings_annual) || 0);
   const [directNotes, setDirectNotes] = useState(cs?.direct_savings_notes || '');
+  const [directMarketRateItemsList, setDirectMarketRateItemsList] = useState<DirectMarketRateItem[]>(
+    project.direct_market_rate_items || []
+  );
+  const [selectedSalaryRateId, setSelectedSalaryRateId] = useState('');
   const [indirectHours, setIndirectHours] = useState(Number(cs?.indirect_manhour_saved_annual) || 0);
-  const [indirectRate, setIndirectRate] = useState(Number(cs?.indirect_hourly_rate ?? 350));
-  const [indirectNotes, setIndirectNotes] = useState(cs?.indirect_savings_notes || '');
+  // Standard rate and the free-text description are no longer editable here —
+  // description now lives per line item, and the rate is implied by each
+  // item's own position level — but both are still round-tripped so existing
+  // saved values survive a save that doesn't touch this section.
+  const indirectRate = Number(cs?.indirect_hourly_rate ?? 350);
+  const indirectNotes = cs?.indirect_savings_notes || '';
+  const [valueAddMultiplier, setValueAddMultiplier] = useState(Number(cs?.value_add_multiplier) || 0);
+  const [indirectItemsList, setIndirectItemsList] = useState<IndirectSavingsItem[]>(
+    project.indirect_savings_items || []
+  );
+  const [newIndirectItemCategory, setNewIndirectItemCategory] = useState('');
+  const [newIndirectItemLevelId, setNewIndirectItemLevelId] = useState('');
   const [avoidanceSavings, setAvoidanceSavings] = useState(Number(cs?.avoidance_savings_annual) || 0);
   const [avoidanceNotes, setAvoidanceNotes] = useState(cs?.avoidance_savings_notes || '');
   const [supportSavings, setSupportSavings] = useState(Number(cs?.support_savings_annual) || 0);
@@ -171,6 +357,20 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [incrementalRunCostAnnual, setIncrementalRunCostAnnual] = useState(Number(cs?.incremental_run_cost_annual) || 0);
   const [manualTotalOverride, setManualTotalOverride] = useState<number | null>(
     cs?.manual_total_savings_override !== undefined ? cs.manual_total_savings_override : null
+  );
+  const [savingsSharePercentage, setSavingsSharePercentage] = useState(
+    cs?.savings_share_percentage !== undefined && cs?.savings_share_percentage !== null
+      ? cs.savings_share_percentage
+      : 100
+  );
+  const [monthsRealizedThisYear, setMonthsRealizedThisYear] = useState<number | null>(
+    cs?.months_realized_this_year !== undefined ? cs.months_realized_this_year : null
+  );
+  const [beneficiaryHeadcount, setBeneficiaryHeadcount] = useState<number | null>(
+    cs?.beneficiary_headcount !== undefined ? cs.beneficiary_headcount : null
+  );
+  const [beneficiaryDepartmentCount, setBeneficiaryDepartmentCount] = useState<number | null>(
+    cs?.beneficiary_department_count !== undefined ? cs.beneficiary_department_count : null
   );
   const [baselineBefore, setBaselineBefore] = useState(cs?.baseline_before || '');
   const [targetAfter, setTargetAfter] = useState(cs?.target_after || '');
@@ -188,14 +388,65 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showVerificationSignoffModal, setShowVerificationSignoffModal] = useState(false);
 
+  // Each MECE dimension collapses to a summary row by default; sections that
+  // already carry saved data start expanded so existing figures stay visible.
+  const [isDirectExpanded, setIsDirectExpanded] = useState(
+    () => (Number(cs?.direct_baseline_cost_annual) || 0) > 0 ||
+      (Number(cs?.direct_target_cost_annual) || 0) > 0 ||
+      (Number(cs?.direct_savings_annual) || 0) > 0
+  );
+  const [isIndirectExpanded, setIsIndirectExpanded] = useState(
+    () => (Number(cs?.indirect_savings_annual) || 0) > 0 ||
+      (Number(cs?.indirect_manhour_saved_annual) || 0) > 0 ||
+      (project.indirect_savings_items?.length ?? 0) > 0
+  );
+  const [isAvoidanceExpanded, setIsAvoidanceExpanded] = useState(
+    () => (Number(cs?.avoidance_savings_annual) || 0) > 0
+  );
+  const [isSupportExpanded, setIsSupportExpanded] = useState(
+    () => (Number(cs?.support_savings_annual) || 0) > 0 ||
+      (Number(cs?.support_ticket_baseline_monthly) || 0) > 0
+  );
+
+  // "Position Level" rows power the Indirect Savings level picker below, not
+  // the Direct Savings market-rate picker, so they're excluded from this group.
+  const salaryRatesByCategory = salaryRateRows.reduce<Record<string, MasterSalaryRateRow[]>>((acc, row) => {
+    if (row.category === 'Position Level') return acc;
+    (acc[row.category] ||= []).push(row);
+    return acc;
+  }, {});
+  const positionLevelOptions = salaryRateRows
+    .filter((row) => row.category === 'Position Level')
+    .sort((a, b) => Number(b.salary_min) - Number(a.salary_min));
+
   // Computed Savings Summary
-  const hasDirectCalculator = directBaselineCostAnnual > 0 || directTargetCostAnnual > 0;
-  const computedDirectAnnual = directSavingsMode === 'new_capability'
-    ? 0
-    : hasDirectCalculator
-      ? Math.max(0, directBaselineCostAnnual - directTargetCostAnnual)
-      : directSavings;
+  const projectBusinessDays = calculateProjectBusinessDays(startDate, dueDate);
+  const marketRateItemsSum = Math.round(
+    directMarketRateItemsList.reduce(
+      (acc, item) =>
+        acc + (item.monthly_rate / (item.working_days_per_month || 1)) * item.headcount * item.man_days,
+      0
+    )
+  );
+  const effectiveDirectBaselineCostAnnual =
+    directMarketRateItemsList.length > 0 ? marketRateItemsSum : directBaselineCostAnnual;
+  const hasDirectCalculator = effectiveDirectBaselineCostAnnual > 0 || directTargetCostAnnual > 0;
+  const computedDirectAnnual = hasDirectCalculator
+    ? Math.max(0, effectiveDirectBaselineCostAnnual - directTargetCostAnnual)
+    : directSavings;
   const computedIndirectAnnual = indirectHours * indirectRate;
+  const indirectItemsSum = indirectItemsList.reduce(
+    (acc, item) =>
+      acc + (item.monthly_salary / (item.working_days_per_month || 1)) * item.days_saved_per_month * item.headcount * 12,
+    0
+  );
+  const effectiveIndirectAnnual = indirectItemsList.length > 0 ? indirectItemsSum : computedIndirectAnnual;
+  // Line items track days saved, not hours; convert using a standard 8-hour workday
+  // so the "hours saved / year" summary field can display something derived from them.
+  const indirectHoursFromItems = indirectItemsList.reduce(
+    (acc, item) => acc + item.days_saved_per_month * item.headcount * 12 * 8,
+    0
+  );
   const supportUnitCost = supportCostPerTicket + (supportHoursPerTicket * supportHourlyRate);
   const hasSupportCalculator = supportTicketBaselineMonthly > 0 || supportTicketTargetMonthly > 0 || supportUnitCost > 0;
   const computedSupportAnnual = hasSupportCalculator
@@ -203,12 +454,12 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     : supportSavings;
   const savingsPayloadPreview = {
     direct_savings_mode: directSavingsMode,
-    direct_baseline_cost_annual: directBaselineCostAnnual,
+    direct_baseline_cost_annual: effectiveDirectBaselineCostAnnual,
     direct_target_cost_annual: directTargetCostAnnual,
     direct_savings_annual: computedDirectAnnual,
     indirect_manhour_saved_annual: indirectHours,
     indirect_hourly_rate: indirectRate,
-    indirect_savings_annual: computedIndirectAnnual,
+    indirect_savings_annual: effectiveIndirectAnnual,
     avoidance_savings_annual: avoidanceSavings,
     support_savings_annual: computedSupportAnnual,
     support_ticket_baseline_monthly: supportTicketBaselineMonthly,
@@ -218,11 +469,16 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     support_hourly_rate: supportHourlyRate,
     incremental_run_cost_annual: incrementalRunCostAnnual,
     manual_total_savings_override: manualTotalOverride,
+    value_add_multiplier: valueAddMultiplier,
+    savings_share_percentage: savingsSharePercentage,
+    months_realized_this_year: monthsRealizedThisYear,
   };
   const grossAnnualSavings = calculateGrossSavings(savingsPayloadPreview);
   const currentTotalSavings = calculateTotalSavings({
     ...savingsPayloadPreview,
   });
+  const realizedThisYearDisplay =
+    monthsRealizedThisYear !== null ? currentTotalSavings * (monthsRealizedThisYear / 12) : null;
 
   // Team Target % Total Validation
   const totalTargetPercent = teamList.reduce((acc, curr) => acc + (Number(curr.target_contribution_percent) || 0), 0);
@@ -246,8 +502,6 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     if (computedDirectAnnual !== (Number(cs?.direct_savings_annual) || 0)) return true;
     if (directNotes !== (cs?.direct_savings_notes || '')) return true;
     if (indirectHours !== (Number(cs?.indirect_manhour_saved_annual) || 0)) return true;
-    if (indirectRate !== Number(cs?.indirect_hourly_rate ?? 350)) return true;
-    if (indirectNotes !== (cs?.indirect_savings_notes || '')) return true;
     if (avoidanceSavings !== (Number(cs?.avoidance_savings_annual) || 0)) return true;
     if (avoidanceNotes !== (cs?.avoidance_savings_notes || '')) return true;
     if (computedSupportAnnual !== (Number(cs?.support_savings_annual) || 0)) return true;
@@ -259,6 +513,13 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     if (supportNotes !== (cs?.support_savings_notes || '')) return true;
     if (incrementalRunCostAnnual !== (Number(cs?.incremental_run_cost_annual) || 0)) return true;
     if (manualTotalOverride !== (cs?.manual_total_savings_override ?? null)) return true;
+    if (valueAddMultiplier !== (Number(cs?.value_add_multiplier) || 0)) return true;
+    if (savingsSharePercentage !== (cs?.savings_share_percentage ?? 100)) return true;
+    if (monthsRealizedThisYear !== (cs?.months_realized_this_year ?? null)) return true;
+    if (beneficiaryHeadcount !== (cs?.beneficiary_headcount ?? null)) return true;
+    if (beneficiaryDepartmentCount !== (cs?.beneficiary_department_count ?? null)) return true;
+    if (JSON.stringify(indirectItemsList) !== JSON.stringify(project.indirect_savings_items || [])) return true;
+    if (JSON.stringify(directMarketRateItemsList) !== JSON.stringify(project.direct_market_rate_items || [])) return true;
     if (baselineBefore !== (cs?.baseline_before || '')) return true;
     if (targetAfter !== (cs?.target_after || '')) return true;
     if (formulaNotes !== (cs?.calculation_formula || '')) return true;
@@ -268,9 +529,10 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   }, [
     startDate, dueDate, status, progress, ownerTeam, ownerHolding, worklogProjectType, headLeadId, headLeadName,
     teamList, milestonesList, directSavingsMode, directBaselineCostAnnual, directTargetCostAnnual, computedDirectAnnual,
-    directNotes, indirectHours, indirectRate, indirectNotes, avoidanceSavings, avoidanceNotes, computedSupportAnnual,
+    directNotes, indirectHours, avoidanceSavings, avoidanceNotes, computedSupportAnnual,
     supportTicketBaselineMonthly, supportTicketTargetMonthly, supportCostPerTicket, supportHoursPerTicket,
-    supportHourlyRate, supportNotes, incrementalRunCostAnnual, manualTotalOverride, baselineBefore, targetAfter,
+    supportHourlyRate, supportNotes, incrementalRunCostAnnual, manualTotalOverride, valueAddMultiplier,
+    savingsSharePercentage, monthsRealizedThisYear, beneficiaryHeadcount, beneficiaryDepartmentCount, indirectItemsList, directMarketRateItemsList, baselineBefore, targetAfter,
     formulaNotes, refProofUrl, verificationStatus, project, cs
   ]);
 
@@ -451,6 +713,72 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     });
   };
 
+  const handleAddIndirectItem = () => {
+    const category = newIndirectItemCategory.trim();
+    const levelRow = positionLevelOptions.find((r) => r.id === newIndirectItemLevelId);
+    if (!category || !levelRow) return;
+    const newItem: IndirectSavingsItem = {
+      id: crypto.randomUUID(),
+      project_id: project.id,
+      label: `${category} (${levelRow.role})`,
+      category,
+      position_level: levelRow.role,
+      monthly_salary: Number(levelRow.salary_min),
+      headcount: 1,
+      days_saved_per_month: 0,
+      working_days_per_month: 22,
+      sequence_order: indirectItemsList.length + 1,
+    };
+    setIndirectItemsList((prev) => [...prev, newItem]);
+    setNewIndirectItemCategory('');
+    setNewIndirectItemLevelId('');
+  };
+
+  const handleRemoveIndirectItem = (index: number) => {
+    setIndirectItemsList((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleUpdateIndirectItem = (index: number, patch: Partial<IndirectSavingsItem>) => {
+    setIndirectItemsList((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], ...patch };
+      return copy;
+    });
+  };
+
+  const handleAddMarketRateItem = () => {
+    const rateRow = salaryRateRows.find((r) => r.id === selectedSalaryRateId);
+    if (!rateRow) return;
+    const midpoint = Math.round((Number(rateRow.salary_min) + Number(rateRow.salary_max)) / 2);
+    const sourceNote = `${rateRow.source_label || 'Reference'}${rateRow.source_year ? ` (${rateRow.source_year})` : ''}: ${rateRow.role} ${rateRow.experience_bracket} ปี = ${Number(rateRow.salary_min).toLocaleString()}-${Number(rateRow.salary_max).toLocaleString()} บาท/เดือน${rateRow.source_url ? ` — ${rateRow.source_url}` : ''}`;
+    const newItem: DirectMarketRateItem = {
+      id: crypto.randomUUID(),
+      project_id: project.id,
+      position_label: rateRow.role,
+      experience_bracket: rateRow.experience_bracket,
+      monthly_rate: midpoint,
+      headcount: 1,
+      man_days: projectBusinessDays,
+      working_days_per_month: 22,
+      source_note: sourceNote,
+      sequence_order: directMarketRateItemsList.length + 1,
+    };
+    setDirectMarketRateItemsList((prev) => [...prev, newItem]);
+    setSelectedSalaryRateId('');
+  };
+
+  const handleRemoveMarketRateItem = (index: number) => {
+    setDirectMarketRateItemsList((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleUpdateMarketRateItem = (index: number, patch: Partial<DirectMarketRateItem>) => {
+    setDirectMarketRateItemsList((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], ...patch };
+      return copy;
+    });
+  };
+
   // Milestone actions
   const handleSaveMilestone = (m: ProjectMilestone) => {
     if (m.id) {
@@ -500,13 +828,13 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
 
     const savingsPayload: Partial<ProjectCostSavings> = {
       direct_savings_mode: directSavingsMode,
-      direct_baseline_cost_annual: directBaselineCostAnnual,
+      direct_baseline_cost_annual: effectiveDirectBaselineCostAnnual,
       direct_target_cost_annual: directTargetCostAnnual,
       direct_savings_annual: computedDirectAnnual,
       direct_savings_notes: directNotes,
       indirect_manhour_saved_annual: indirectHours,
       indirect_hourly_rate: indirectRate,
-      indirect_savings_annual: computedIndirectAnnual,
+      indirect_savings_annual: effectiveIndirectAnnual,
       indirect_savings_notes: indirectNotes,
       avoidance_savings_annual: avoidanceSavings,
       avoidance_savings_notes: avoidanceNotes,
@@ -519,6 +847,11 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
       support_savings_notes: supportNotes,
       incremental_run_cost_annual: incrementalRunCostAnnual,
       manual_total_savings_override: manualTotalOverride,
+      value_add_multiplier: valueAddMultiplier,
+      savings_share_percentage: savingsSharePercentage,
+      months_realized_this_year: monthsRealizedThisYear,
+      beneficiary_headcount: beneficiaryHeadcount,
+      beneficiary_department_count: beneficiaryDepartmentCount,
       baseline_before: baselineBefore,
       target_after: targetAfter,
       calculation_formula: formulaNotes,
@@ -528,7 +861,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
 
     setIsSaving(true);
     try {
-      await saveProjectGanttDetails(project.id, overviewPatch, teamList, milestonesList, savingsPayload);
+      await saveProjectGanttDetails(project.id, overviewPatch, teamList, milestonesList, savingsPayload, indirectItemsList, directMarketRateItemsList);
 
       // Merge the saved fields straight into the in-memory project instead of
       // refetching the whole Gantt list, so the table keeps its scroll position
@@ -558,6 +891,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
           ...savingsPayload,
           project_id: project.id,
         } as GanttProject['cost_savings'],
+        indirect_savings_items: indirectItemsList,
+        direct_market_rate_items: directMarketRateItemsList,
         total_savings_annual: currentTotalSavings,
       };
 
@@ -1211,20 +1546,56 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       Net Annual Benefit = Gross ฿{grossAnnualSavings.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
                       {' - '}Run Cost ฿{incrementalRunCostAnnual.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
                     </div>
+                    {realizedThisYearDisplay !== null && (
+                      <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-1">
+                        รับรู้ปีนี้ ({monthsRealizedThisYear}/12 เดือน): ฿{realizedThisYearDisplay.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
+                      </div>
+                    )}
                   </div>
                   {directSavingsMode === 'new_capability' && (
                     <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-                      New capability: Direct = 0, claim value via Indirect / Avoidance / Support
+                      New capability: Direct Saving = เรทราคาตลาดพัฒนาระบบ - ค่าใช้จ่ายที่จ่ายจริง (ทีมพัฒนาเองจึงมักเป็น 0)
                     </span>
                   )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-3 mt-1 border-t border-emerald-500/20">
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-1 text-[9px] font-bold text-theme-text-muted uppercase">
+                      <Users size={10} /> ผู้ใช้งานที่ได้รับประโยชน์ (คน)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={beneficiaryHeadcount ?? ''}
+                      onChange={(e) => setBeneficiaryHeadcount(e.target.value === '' ? null : Number(e.target.value))}
+                      className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-bold font-mono focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-1 text-[9px] font-bold text-theme-text-muted uppercase">
+                      <Flag size={10} /> จำนวนแผนกที่ใช้งาน
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={beneficiaryDepartmentCount ?? ''}
+                      onChange={(e) => setBeneficiaryDepartmentCount(e.target.value === '' ? null : Number(e.target.value))}
+                      className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-bold font-mono focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* 4 MECE Dimension Inputs */}
               <div className="space-y-4">
                 {/* 1. Direct Cash Savings */}
-                <div className="p-4 rounded-3xl border border-theme-border bg-theme-surface space-y-3">
-                  <div className="flex items-center justify-between">
+                <div className="rounded-3xl border border-theme-border bg-theme-surface shadow-md overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setIsDirectExpanded((prev) => !prev)}
+                    className="w-full flex items-center justify-between gap-2 p-4 cursor-pointer select-none"
+                  >
                     <div className="flex items-center gap-2">
                       <span className="w-5 h-5 rounded-full bg-violet-500/20 text-violet-600 dark:text-violet-400 font-black text-[11px] flex items-center justify-center">
                         1
@@ -1233,10 +1604,15 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                         Direct Savings (ลดการจ่ายเงินสดจริง)
                       </h4>
                     </div>
-                    <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400">
-                      กระทบงบ P&L จริง
-                    </span>
-                  </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-black text-violet-600 dark:text-violet-400">
+                        ฿{computedDirectAnnual.toLocaleString()}
+                      </span>
+                      <ChevronDown size={14} className={cn('text-theme-text-muted transition-transform duration-200', isDirectExpanded && 'rotate-180')} />
+                    </div>
+                  </button>
+                  {isDirectExpanded && (
+                  <div className="px-4 pb-4 pt-1 space-y-3 border-t border-theme-border/40">
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1 sm:col-span-1">
@@ -1251,7 +1627,6 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                           if (nextMode === 'new_capability') {
                             setDirectBaselineCostAnnual(0);
                             setDirectTargetCostAnnual(0);
-                            setDirectSavings(0);
                           }
                         }}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-bold focus:outline-none focus:border-violet-500"
@@ -1263,33 +1638,167 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
-                        ค่าใช้จ่ายเดิม (บาท/ปี)
+                        {directSavingsMode === 'new_capability'
+                          ? 'เรทราคาตลาดพัฒนาระบบนี้ (บาท/ปี)'
+                          : 'ค่าใช้จ่ายเดิม (บาท/ปี)'}
                       </label>
                       <input
                         type="number"
                         min="0"
-                        value={directBaselineCostAnnual}
-                        onChange={(e) => setDirectBaselineCostAnnual(Number(e.target.value))}
-                        disabled={directSavingsMode === 'new_capability'}
-                        placeholder="เช่น 600000"
-                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-violet-500"
+                        value={directMarketRateItemsList.length > 0 ? marketRateItemsSum : (directBaselineCostAnnual || '')}
+                        onChange={(e) => setDirectBaselineCostAnnual(e.target.value === '' ? 0 : Number(e.target.value))}
+                        disabled={directMarketRateItemsList.length > 0}
+                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-violet-500 disabled:opacity-70 disabled:cursor-not-allowed"
                       />
+                      {directSavingsMode === 'new_capability' && directMarketRateItemsList.length > 0 && (
+                        <p className="text-[10px] text-theme-text-muted">
+                          ปิดใช้งานเพราะมีรายการอ้างอิงราคาตลาดด้านล่างแล้ว ระบบจะรวมยอดจากรายการนั้นแทน
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
-                        ค่าใช้จ่ายหลังทำ (บาท/ปี)
+                        {directSavingsMode === 'new_capability'
+                          ? 'ค่าใช้จ่ายที่บริษัทจ่ายจริง (บาท/ปี)'
+                          : 'ค่าใช้จ่ายหลังทำ (บาท/ปี)'}
                       </label>
                       <input
                         type="number"
                         min="0"
-                        value={directTargetCostAnnual}
-                        onChange={(e) => setDirectTargetCostAnnual(Number(e.target.value))}
-                        disabled={directSavingsMode === 'new_capability'}
-                        placeholder="เช่น 100000"
+                        value={directTargetCostAnnual || ''}
+                        onChange={(e) => setDirectTargetCostAnnual(e.target.value === '' ? 0 : Number(e.target.value))}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-violet-500"
                       />
                     </div>
                   </div>
+
+                  {directSavingsMode === 'new_capability' && (
+                    <div className="space-y-2 pt-2 border-t border-theme-border/40">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                          รายการอ้างอิงราคาตลาด (ไม่บังคับ)
+                        </label>
+                        <a
+                          href="/admin?tab=salary_rate"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] font-bold text-violet-600 dark:text-violet-400 hover:underline"
+                        >
+                          🔗 ดูฐานข้อมูลเรทราคาตลาด
+                        </a>
+                      </div>
+
+                      <div className="p-3 rounded-2xl border border-violet-500/30 bg-violet-500/5 flex flex-wrap items-center gap-2">
+                        <SalaryRateSearchSelect
+                          groups={salaryRatesByCategory}
+                          value={selectedSalaryRateId}
+                          onChange={setSelectedSalaryRateId}
+                          placeholder="-- เลือกตำแหน่ง + ประสบการณ์ที่ต้องใช้ --"
+                        />
+                        <button
+                          type="button"
+                          disabled={selectedSalaryRateId === ''}
+                          onClick={handleAddMarketRateItem}
+                          className={cn(
+                            'flex items-center gap-1 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shrink-0 select-none',
+                            selectedSalaryRateId !== ''
+                              ? 'bg-violet-600 hover:bg-violet-700 text-white shadow-md shadow-violet-500/20 active:scale-95 cursor-pointer'
+                              : 'bg-theme-surface-secondary text-theme-text-muted cursor-not-allowed border border-theme-border'
+                          )}
+                        >
+                          <Plus size={14} />
+                          เพิ่มตำแหน่ง
+                        </button>
+                      </div>
+                      {salaryRateRows.length === 0 && (
+                        <p className="text-[10px] text-theme-text-muted">
+                          ยังไม่มีข้อมูลเรทอ้างอิงในระบบ — เพิ่มได้ที่หน้า Admin &gt; Master Data Manager &gt; IT Salary Rates
+                        </p>
+                      )}
+
+                      {directMarketRateItemsList.map((item, idx) => {
+                        const itemAnnual =
+                          (item.monthly_rate / (item.working_days_per_month || 1)) * item.headcount * item.man_days;
+                        return (
+                          <div key={item.id} className="p-3.5 rounded-2xl border border-violet-500/40 bg-theme-surface space-y-3">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={item.position_label}
+                                onChange={(e) => handleUpdateMarketRateItem(idx, { position_label: e.target.value })}
+                                title={item.source_note || undefined}
+                                className="flex-1 min-w-0 py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-xs font-bold focus:outline-none focus:border-violet-500"
+                              />
+                              <div className="text-right shrink-0 px-2">
+                                <div className="text-[8px] font-bold text-theme-text-muted uppercase leading-none">รวม</div>
+                                <div className="text-sm font-black text-violet-600 dark:text-violet-400 whitespace-nowrap">
+                                  ฿{itemAnnual.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveMarketRateItem(idx)}
+                                className="p-1.5 rounded-xl text-theme-text-muted hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                                title="ลบรายการนี้"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              <div>
+                                <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                  Man-day ที่ใช้
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={item.man_days || ''}
+                                  onChange={(e) => handleUpdateMarketRateItem(idx, { man_days: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                  className="w-full py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-xs font-mono font-bold focus:outline-none focus:border-violet-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                  อัตรา/เดือน (บาท)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={item.monthly_rate || ''}
+                                  onChange={(e) => handleUpdateMarketRateItem(idx, { monthly_rate: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                  className="w-full py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-xs font-mono font-bold focus:outline-none focus:border-violet-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                  จำนวนคน
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={item.headcount || ''}
+                                  onChange={(e) => handleUpdateMarketRateItem(idx, { headcount: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                  className="w-full py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-xs font-mono font-bold focus:outline-none focus:border-violet-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                  วันทำงาน/เดือน
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.working_days_per_month || ''}
+                                  onChange={(e) => handleUpdateMarketRateItem(idx, { working_days_per_month: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                  className="w-full py-1.5 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-xs font-mono font-bold focus:outline-none focus:border-violet-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
@@ -1299,17 +1808,16 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       <input
                         type="number"
                         min="0"
-                        value={computedDirectAnnual}
-                        onChange={(e) => setDirectSavings(Number(e.target.value))}
-                        disabled={hasDirectCalculator || directSavingsMode === 'new_capability'}
-                        placeholder="กรอกเองเฉพาะกรณีไม่มี before/after"
+                        value={computedDirectAnnual || ''}
+                        onChange={(e) => setDirectSavings(e.target.value === '' ? 0 : Number(e.target.value))}
+                        disabled={hasDirectCalculator}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-violet-500 disabled:opacity-70 disabled:cursor-not-allowed"
                       />
-                      <p className="text-[10px] text-theme-text-muted">
-                        {directSavingsMode === 'new_capability'
-                          ? 'ระบบใหม่ไม่มีค่าใช้จ่ายเดิมให้หักลบ จึงไม่ claim เป็น Direct Savings'
-                          : 'คำนวณจากค่าใช้จ่ายเดิม - ค่าใช้จ่ายหลังทำ และไม่ให้ติดลบ'}
-                      </p>
+                      {directSavingsMode !== 'new_capability' && (
+                        <p className="text-[10px] text-theme-text-muted">
+                          คำนวณจากค่าใช้จ่ายเดิม - ค่าใช้จ่ายหลังทำ และไม่ให้ติดลบ
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
@@ -1326,11 +1834,17 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       />
                     </div>
                   </div>
+                  </div>
+                  )}
                 </div>
 
                 {/* 2. Indirect Manhour Savings */}
-                <div className="p-4 rounded-3xl border border-theme-border bg-theme-surface space-y-3">
-                  <div className="flex items-center justify-between">
+                <div className="rounded-3xl border border-theme-border bg-theme-surface shadow-md overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setIsIndirectExpanded((prev) => !prev)}
+                    className="w-full flex items-center justify-between gap-2 p-4 cursor-pointer select-none"
+                  >
                     <div className="flex items-center gap-2">
                       <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black text-[11px] flex items-center justify-center">
                         2
@@ -1339,57 +1853,250 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                         Indirect Savings (ประหยัดเวลา / เพิ่มผลิตภาพ)
                       </h4>
                     </div>
-                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                      = ฿{computedIndirectAnnual.toLocaleString()} / ปี
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-black text-amber-600 dark:text-amber-400">
+                        ฿{effectiveIndirectAnnual.toLocaleString()}
+                      </span>
+                      <ChevronDown size={14} className={cn('text-theme-text-muted transition-transform duration-200', isIndirectExpanded && 'rotate-180')} />
+                    </div>
+                  </button>
+                  {isIndirectExpanded && (
+                  <div className="px-4 pb-4 pt-1 space-y-3 border-t border-theme-border/40">
+
+                  {/* Indirect Savings Line Items (Analytic / Console Report / Console Data breakdown) */}
+                  <div className="space-y-2 pt-2 border-t border-theme-border/40">
+                    <div className="p-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/5 space-y-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {INDIRECT_CATEGORY_PRESETS.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setNewIndirectItemCategory(preset)}
+                            className={cn(
+                              'px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border',
+                              newIndirectItemCategory === preset
+                                ? 'bg-amber-600 border-amber-600 text-white'
+                                : 'border-theme-border text-theme-text-muted hover:bg-theme-surface-tertiary'
+                            )}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                        <input
+                          type="text"
+                          value={newIndirectItemCategory}
+                          onChange={(e) => setNewIndirectItemCategory(e.target.value)}
+                          placeholder="Category เช่น Analytic"
+                          className="flex-1 min-w-[140px] py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs focus:outline-none focus:border-amber-500"
+                        />
+                        <select
+                          value={newIndirectItemLevelId}
+                          onChange={(e) => setNewIndirectItemLevelId(e.target.value)}
+                          className="flex-1 min-w-[160px] py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="">-- เลือกตำแหน่ง --</option>
+                          {positionLevelOptions.map((level) => (
+                            <option key={level.id} value={level.id}>
+                              {level.role} ({Number(level.salary_min).toLocaleString()} บาท/เดือน)
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={!newIndirectItemCategory.trim() || !newIndirectItemLevelId}
+                          onClick={handleAddIndirectItem}
+                          className={cn(
+                            'px-4 py-2 rounded-xl font-bold text-xs transition-all shrink-0 select-none flex items-center gap-1',
+                            newIndirectItemCategory.trim() && newIndirectItemLevelId
+                              ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-500/20 active:scale-95 cursor-pointer'
+                              : 'bg-theme-surface-secondary text-theme-text-muted cursor-not-allowed border border-theme-border'
+                          )}
+                        >
+                          <Plus size={14} />
+                          เพิ่มรายการ
+                        </button>
+                      </div>
+                    </div>
+
+                    {indirectItemsList.map((item, idx) => {
+                      const itemAnnual =
+                        (item.monthly_salary / (item.working_days_per_month || 1)) *
+                        item.days_saved_per_month *
+                        item.headcount *
+                        12;
+                      return (
+                        <div key={item.id} className="p-3 rounded-2xl border border-orange-500/40 bg-theme-surface space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <input
+                              type="text"
+                              value={item.label}
+                              onChange={(e) => handleUpdateIndirectItem(idx, { label: e.target.value })}
+                              className="flex-1 min-w-0 py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-xs font-bold"
+                            />
+                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                              ฿{itemAnnual.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ปี
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveIndirectItem(idx)}
+                              className="p-1.5 rounded-xl text-theme-text-muted hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                              title="ลบรายการนี้"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                Category
+                              </label>
+                              <input
+                                type="text"
+                                value={item.category || ''}
+                                onChange={(e) => handleUpdateIndirectItem(idx, { category: e.target.value })}
+                                className="w-full py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-[10px] font-bold"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                ตำแหน่ง
+                              </label>
+                              <select
+                                value={positionLevelOptions.find((r) => r.role === item.position_level)?.id || ''}
+                                onChange={(e) => {
+                                  const level = positionLevelOptions.find((r) => r.id === e.target.value);
+                                  if (level) {
+                                    handleUpdateIndirectItem(idx, {
+                                      position_level: level.role,
+                                      monthly_salary: Number(level.salary_min),
+                                    });
+                                  }
+                                }}
+                                className="w-full py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-[10px] font-bold cursor-pointer"
+                              >
+                                <option value="">-- เลือกตำแหน่ง --</option>
+                                {positionLevelOptions.map((level) => (
+                                  <option key={level.id} value={level.id}>
+                                    {level.role}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div>
+                              <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                เงินเดือน/เดือน
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.monthly_salary || ''}
+                                onChange={(e) => handleUpdateIndirectItem(idx, { monthly_salary: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                className="w-full py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-[10px] font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                จำนวนคน
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.headcount || ''}
+                                onChange={(e) => handleUpdateIndirectItem(idx, { headcount: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                className="w-full py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-[10px] font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                วันที่ประหยัด/เดือน
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.days_saved_per_month || ''}
+                                onChange={(e) => handleUpdateIndirectItem(idx, { days_saved_per_month: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                className="w-full py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-[10px] font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                วันทำงาน/เดือน
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.working_days_per_month || ''}
+                                onChange={(e) => handleUpdateIndirectItem(idx, { working_days_per_month: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                className="w-full py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-[10px] font-mono"
+                              />
+                            </div>
+                          </div>
+                          <input
+                            type="text"
+                            value={item.notes || ''}
+                            onChange={(e) => handleUpdateIndirectItem(idx, { notes: e.target.value })}
+                            placeholder="เช่น ลดเวลาทำเอกสารอนุมัติของ HR จาก 3 ชม. เหลือ 15 นาที..."
+                            className="w-full py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-[10px] focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
-                        เวลาที่ประหยัดได้รวม (ชม./ปี)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={indirectHours}
-                        onChange={(e) => setIndirectHours(Number(e.target.value))}
-                        placeholder="เช่น 1200 (100 ชม./ด. x 12)"
-                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
-                        อัตราค่าแรงมาตรฐาน (บาท/ชม.)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={indirectRate}
-                        onChange={(e) => setIndirectRate(Number(e.target.value))}
-                        placeholder="ค่ามาตรฐาน 350 บ./ชม."
-                        className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                  </div>
+                  {indirectItemsList.length > 0 && (
+                    <>
+                      <div className="space-y-1 pt-2 border-t border-theme-border/40">
+                        <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                          เวลาที่ประหยัดได้รวม (ชม./ปี)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={indirectItemsList.length > 0 ? indirectHoursFromItems : indirectHours || ''}
+                          onChange={(e) => setIndirectHours(e.target.value === '' ? 0 : Number(e.target.value))}
+                          disabled={indirectItemsList.length > 0}
+                          className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-amber-500 disabled:opacity-70 disabled:cursor-not-allowed"
+                        />
+                        <p className="text-[10px] text-theme-text-muted">
+                          คำนวณจากรายการย่อยด้านบน (วันที่ประหยัด × จำนวนคน × 12 เดือน × 8 ชม./วัน)
+                        </p>
+                      </div>
 
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
-                      คำอธิบายกระบวนการที่ประหยัดเวลาได้
-                    </label>
-                    <input
-                      type="text"
-                      value={indirectNotes}
-                      onChange={(e) => setIndirectNotes(e.target.value)}
-                      placeholder="เช่น ลดเวลาทำเอกสารอนุมัติของ HR จาก 3 ชม. เหลือ 15 นาที..."
-                      className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text focus:outline-none focus:border-amber-500"
-                    />
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-theme-text-muted uppercase">
+                          ตัวคูณ Value Add (0 = ปิด, เช่น 2 = ได้โบนัสเพิ่มอีก 2 เท่าของ Indirect)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={valueAddMultiplier || ''}
+                          onChange={(e) => setValueAddMultiplier(e.target.value === '' ? 0 : Number(e.target.value))}
+                          className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-amber-500"
+                        />
+                        {valueAddMultiplier > 0 && (
+                          <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                            โบนัส Value Add = ฿{(effectiveIndirectAnnual * valueAddMultiplier).toLocaleString()} / ปี
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
                   </div>
+                  )}
                 </div>
 
                 {/* 3. Cost Avoidance */}
-                <div className="p-4 rounded-3xl border border-theme-border bg-theme-surface space-y-3">
-                  <div className="flex items-center justify-between">
+                <div className="rounded-3xl border border-theme-border bg-theme-surface shadow-md overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setIsAvoidanceExpanded((prev) => !prev)}
+                    className="w-full flex items-center justify-between gap-2 p-4 cursor-pointer select-none"
+                  >
                     <div className="flex items-center gap-2">
                       <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 font-black text-[11px] flex items-center justify-center">
                         3
@@ -1398,10 +2105,15 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                         Cost Avoidance (หลีกเลี่ยงต้นทุนอนาคต)
                       </h4>
                     </div>
-                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                      ไม่ต้องจ่ายในอนาคต
-                    </span>
-                  </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-black text-blue-600 dark:text-blue-400">
+                        ฿{avoidanceSavings.toLocaleString()}
+                      </span>
+                      <ChevronDown size={14} className={cn('text-theme-text-muted transition-transform duration-200', isAvoidanceExpanded && 'rotate-180')} />
+                    </div>
+                  </button>
+                  {isAvoidanceExpanded && (
+                  <div className="px-4 pb-4 pt-1 space-y-3 border-t border-theme-border/40">
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
@@ -1411,9 +2123,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       <input
                         type="number"
                         min="0"
-                        value={avoidanceSavings}
-                        onChange={(e) => setAvoidanceSavings(Number(e.target.value))}
-                        placeholder="เช่น 480000 (เลี่ยงจ้างคน 1 อัตรา)"
+                        value={avoidanceSavings || ''}
+                        onChange={(e) => setAvoidanceSavings(e.target.value === '' ? 0 : Number(e.target.value))}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-blue-500"
                       />
                     </div>
@@ -1430,11 +2141,17 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       />
                     </div>
                   </div>
+                  </div>
+                  )}
                 </div>
 
                 {/* 4. Support & Maintenance Savings */}
-                <div className="p-4 rounded-3xl border border-theme-border bg-theme-surface space-y-3">
-                  <div className="flex items-center justify-between">
+                <div className="rounded-3xl border border-theme-border bg-theme-surface shadow-md overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setIsSupportExpanded((prev) => !prev)}
+                    className="w-full flex items-center justify-between gap-2 p-4 cursor-pointer select-none"
+                  >
                     <div className="flex items-center gap-2">
                       <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-black text-[11px] flex items-center justify-center">
                         4
@@ -1443,10 +2160,15 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                         Support & Usage Savings (ลดงานซัพพอร์ต & OpEx)
                       </h4>
                     </div>
-                    <span className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400">
-                      ลด Incident / Ticket
-                    </span>
-                  </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-black text-cyan-600 dark:text-cyan-400">
+                        ฿{computedSupportAnnual.toLocaleString()}
+                      </span>
+                      <ChevronDown size={14} className={cn('text-theme-text-muted transition-transform duration-200', isSupportExpanded && 'rotate-180')} />
+                    </div>
+                  </button>
+                  {isSupportExpanded && (
+                  <div className="px-4 pb-4 pt-1 space-y-3 border-t border-theme-border/40">
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <div className="space-y-1">
@@ -1456,9 +2178,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       <input
                         type="number"
                         min="0"
-                        value={supportTicketBaselineMonthly}
-                        onChange={(e) => setSupportTicketBaselineMonthly(Number(e.target.value))}
-                        placeholder="เช่น 120"
+                        value={supportTicketBaselineMonthly || ''}
+                        onChange={(e) => setSupportTicketBaselineMonthly(e.target.value === '' ? 0 : Number(e.target.value))}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500"
                       />
                     </div>
@@ -1469,9 +2190,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       <input
                         type="number"
                         min="0"
-                        value={supportTicketTargetMonthly}
-                        onChange={(e) => setSupportTicketTargetMonthly(Number(e.target.value))}
-                        placeholder="เช่น 24"
+                        value={supportTicketTargetMonthly || ''}
+                        onChange={(e) => setSupportTicketTargetMonthly(e.target.value === '' ? 0 : Number(e.target.value))}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500"
                       />
                     </div>
@@ -1482,9 +2202,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       <input
                         type="number"
                         min="0"
-                        value={supportCostPerTicket}
-                        onChange={(e) => setSupportCostPerTicket(Number(e.target.value))}
-                        placeholder="เช่น 200"
+                        value={supportCostPerTicket || ''}
+                        onChange={(e) => setSupportCostPerTicket(e.target.value === '' ? 0 : Number(e.target.value))}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500"
                       />
                     </div>
@@ -1496,9 +2215,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                         type="number"
                         min="0"
                         step="0.25"
-                        value={supportHoursPerTicket}
-                        onChange={(e) => setSupportHoursPerTicket(Number(e.target.value))}
-                        placeholder="เช่น 0.5"
+                        value={supportHoursPerTicket || ''}
+                        onChange={(e) => setSupportHoursPerTicket(e.target.value === '' ? 0 : Number(e.target.value))}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500"
                       />
                     </div>
@@ -1509,9 +2227,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       <input
                         type="number"
                         min="0"
-                        value={supportHourlyRate}
-                        onChange={(e) => setSupportHourlyRate(Number(e.target.value))}
-                        placeholder="350"
+                        value={supportHourlyRate || ''}
+                        onChange={(e) => setSupportHourlyRate(e.target.value === '' ? 0 : Number(e.target.value))}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500"
                       />
                     </div>
@@ -1525,10 +2242,9 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       <input
                         type="number"
                         min="0"
-                        value={computedSupportAnnual}
-                        onChange={(e) => setSupportSavings(Number(e.target.value))}
+                        value={computedSupportAnnual || ''}
+                        onChange={(e) => setSupportSavings(e.target.value === '' ? 0 : Number(e.target.value))}
                         disabled={hasSupportCalculator}
-                        placeholder="กรอกเองเฉพาะกรณีไม่มี ticket baseline"
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-cyan-500 disabled:opacity-70 disabled:cursor-not-allowed"
                       />
                       <p className="text-[10px] text-theme-text-muted">
@@ -1548,6 +2264,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       />
                     </div>
                   </div>
+                  </div>
+                  )}
                 </div>
 
                 {/* Incremental Run Cost */}
@@ -1569,9 +2287,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       <input
                         type="number"
                         min="0"
-                        value={incrementalRunCostAnnual}
-                        onChange={(e) => setIncrementalRunCostAnnual(Number(e.target.value))}
-                        placeholder="เช่น Cloud, License ใหม่, MA รายปี"
+                        value={incrementalRunCostAnnual || ''}
+                        onChange={(e) => setIncrementalRunCostAnnual(e.target.value === '' ? 0 : Number(e.target.value))}
                         className="w-full py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text font-mono font-bold focus:outline-none focus:border-rose-500"
                       />
                     </div>
@@ -1616,12 +2333,49 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                     onChange={(e) =>
                       setManualTotalOverride(e.target.value ? parseFloat(e.target.value) : null)
                     }
-                    placeholder="เว้นว่างไว้หากต้องการให้ระบบรวม 4 มิติอัตโนมัติ..."
                     className="w-full py-1.5 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs"
                   />
                   <p className="text-[10px] text-theme-text-muted">
-                    * ใส่เฉพาะกรณีที่มีตัวเลขรับรองพิเศษจากผู้บริหารที่ไม่ตรงกับสูตรมาตรฐาน
+                    * ใส่เฉพาะกรณีที่มีตัวเลขรับรองพิเศษจากผู้บริหารที่ไม่ตรงกับสูตรมาตรฐาน (จะข้าม Value Add / Share % ด้านล่างทั้งหมด)
                   </p>
+                </div>
+
+                {/* Share % and Partial-Year Realization (Optional) */}
+                <div className="p-4 rounded-3xl border border-theme-border/60 bg-theme-surface-secondary/40 space-y-3">
+                  <div className="space-y-1">
+                    <label className="block font-bold text-theme-text text-[11px]">
+                      📊 ปรับยอด Share % (ค่าเริ่มต้น 100%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={savingsSharePercentage || ''}
+                      onChange={(e) => setSavingsSharePercentage(e.target.value === '' ? 0 : Number(e.target.value))}
+                      className="w-full py-1.5 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-mono"
+                    />
+                    <p className="text-[10px] text-theme-text-muted">
+                      * เช่น หน่วยงานเราถือสัดส่วนผลงานแค่ 50% ของยอดรวม ให้ใส่ 50 เป็นขั้นตอนสุดท้ายหลังรวมทุกมิติ + Value Add แล้ว
+                    </p>
+                  </div>
+                  <div className="space-y-1 pt-2 border-t border-theme-border/40">
+                    <label className="block font-bold text-theme-text text-[11px]">
+                      📅 จำนวนเดือนที่รับรู้ผลในปีนี้ (ไม่บังคับ)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={monthsRealizedThisYear ?? ''}
+                      onChange={(e) =>
+                        setMonthsRealizedThisYear(e.target.value ? Number(e.target.value) : null)
+                      }
+                      className="w-full py-1.5 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-mono"
+                    />
+                    <p className="text-[10px] text-theme-text-muted">
+                      * ใช้กรณีโครงการเพิ่ง Go-Live กลางปี เช่น Go-Live พ.ย. ปีนี้จะรับรู้ได้แค่ 2 เดือน ค่านี้ใช้แสดงผลเสริมเท่านั้น ไม่กระทบยอดรวมรายปีเต็มที่ใช้เทียบกับโครงการอื่น
+                    </p>
+                  </div>
                 </div>
 
                 {/* Calculation Proof & Evidence Section */}

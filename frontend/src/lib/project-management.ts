@@ -62,6 +62,15 @@ export interface ProjectCostSavings {
   incremental_run_cost_annual?: number | null;
   // Manual override if custom calculation
   manual_total_savings_override?: number | null;
+  // Value Add bonus applied on top of the indirect subtotal (0 = disabled)
+  value_add_multiplier?: number | null;
+  // Final multiplicative step on the grand total (100 = full amount)
+  savings_share_percentage?: number | null;
+  // Supplementary "realized this year" figure for partial-year launches; display-only
+  months_realized_this_year?: number | null;
+  // Reach: how many people / departments benefit from this project's savings
+  beneficiary_headcount?: number | null;
+  beneficiary_department_count?: number | null;
   // Calculation details & Audit evidence
   baseline_before?: string | null;
   target_after?: string | null;
@@ -71,6 +80,33 @@ export interface ProjectCostSavings {
   verification_status: 'draft' | 'pending' | 'verified' | 'rejected';
   verified_by?: string | null;
   verified_at?: string | null;
+}
+
+export interface IndirectSavingsItem {
+  id: string;
+  project_id: string;
+  label: string;
+  category?: string | null;
+  position_level?: string | null;
+  monthly_salary: number;
+  headcount: number;
+  days_saved_per_month: number;
+  working_days_per_month: number;
+  notes?: string | null;
+  sequence_order: number;
+}
+
+export interface DirectMarketRateItem {
+  id: string;
+  project_id: string;
+  position_label: string;
+  experience_bracket?: string | null;
+  monthly_rate: number;
+  headcount: number;
+  man_days: number;
+  working_days_per_month: number;
+  source_note?: string | null;
+  sequence_order: number;
 }
 
 export interface GanttProject {
@@ -98,6 +134,8 @@ export interface GanttProject {
   team_contributions: TeamMemberContribution[];
   milestones: ProjectMilestone[];
   cost_savings?: ProjectCostSavings | null;
+  indirect_savings_items?: IndirectSavingsItem[];
+  direct_market_rate_items?: DirectMarketRateItem[];
   children?: GanttProject[];
   // Computed metrics
   total_worklog_hours: number;
@@ -448,15 +486,12 @@ export function calculateGrossSavings(savings?: Partial<ProjectCostSavings> | nu
     return Number(savings.manual_total_savings_override);
   }
 
-  const directMode = savings.direct_savings_mode || 'cost_reduction';
   const baselineCost = Number(savings.direct_baseline_cost_annual) || 0;
   const targetCost = Number(savings.direct_target_cost_annual) || 0;
   const hasDirectCalculator = baselineCost > 0 || targetCost > 0;
-  const direct = directMode === 'new_capability'
-    ? 0
-    : hasDirectCalculator
-      ? Math.max(0, baselineCost - targetCost)
-      : Number(savings.direct_savings_annual) || 0;
+  const direct = hasDirectCalculator
+    ? Math.max(0, baselineCost - targetCost)
+    : Number(savings.direct_savings_annual) || 0;
   const indirectHours = Number(savings.indirect_manhour_saved_annual) || 0;
   const rate = Number(savings.indirect_hourly_rate ?? 350);
   const indirect = Number(savings.indirect_savings_annual) || (indirectHours * rate);
@@ -472,7 +507,10 @@ export function calculateGrossSavings(savings?: Partial<ProjectCostSavings> | nu
     ? Math.max(0, supportBaseline - supportTarget) * 12 * supportCostUnit
     : Number(savings.support_savings_annual) || 0;
 
-  return direct + indirect + avoidance + support;
+  const coreSum = direct + indirect + avoidance + support;
+  const valueAddBonus = indirect * (Number(savings.value_add_multiplier) || 0);
+  const sharePct = savings.savings_share_percentage ?? 100;
+  return (coreSum + valueAddBonus) * (sharePct / 100);
 }
 
 /**
@@ -558,6 +596,22 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
       .in('project_id', projectIds);
     if (savingsErr) throw savingsErr;
 
+    // 5b. Fetch Indirect Savings Line Items
+    const { data: indirectItemsData, error: indirectItemsErr } = await supabase
+      .from('tb_project_indirect_savings_items')
+      .select('*')
+      .in('project_id', projectIds)
+      .order('sequence_order', { ascending: true });
+    if (indirectItemsErr) throw indirectItemsErr;
+
+    // 5c. Fetch Direct Savings Market Rate Reference Items
+    const { data: marketRateItemsData, error: marketRateItemsErr } = await supabase
+      .from('tb_project_direct_market_rate_items')
+      .select('*')
+      .in('project_id', projectIds)
+      .order('sequence_order', { ascending: true });
+    if (marketRateItemsErr) throw marketRateItemsErr;
+
     // 6. Fetch Actual Worklog Hours grouped by project_name and user_id
     const projectNames = rawProjects.map((p) => p.project_name);
     const { data: worklogs, error: worklogsErr } = await supabase
@@ -591,6 +645,8 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
       const pTeam = (teamData || []).filter((t) => t.project_id === p.id);
       const pMilestones = (milestonesData || []).filter((m) => m.project_id === p.id);
       const pSavings = (savingsData || []).find((s) => s.project_id === p.id);
+      const pIndirectItems = (indirectItemsData || []).filter((i) => i.project_id === p.id);
+      const pMarketRateItems = (marketRateItemsData || []).filter((i) => i.project_id === p.id);
 
       const pWorklog = worklogSummary.get(p.project_name);
       const totalWorklogHours = pWorklog ? pWorklog.totalHours : 0;
@@ -683,6 +739,8 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
         team_contributions: teamContributions,
         milestones: pMilestones,
         cost_savings: pSavings || null,
+        indirect_savings_items: pIndirectItems,
+        direct_market_rate_items: pMarketRateItems,
         total_worklog_hours: totalWorklogHours,
         total_savings_annual: totalSavingsAnnual,
       };
@@ -703,10 +761,18 @@ export async function saveProjectGanttDetails(
   overview: ProjectGanttOverviewPayload,
   teamList: TeamMemberContribution[],
   milestones: ProjectMilestone[],
-  savings: Partial<ProjectCostSavings>
+  savings: Partial<ProjectCostSavings>,
+  indirectItems: IndirectSavingsItem[] = [],
+  directMarketRateItems: DirectMarketRateItem[] = []
 ) {
   if (milestones.some((milestone) => !milestone.id)) {
     throw new Error('A milestone is missing its ID');
+  }
+  if (indirectItems.some((item) => !item.id)) {
+    throw new Error('An indirect savings item is missing its ID');
+  }
+  if (directMarketRateItems.some((item) => !item.id)) {
+    throw new Error('A direct market rate item is missing its ID');
   }
 
   const teamPayload = teamList.map((member) => ({
@@ -732,12 +798,39 @@ export async function saveProjectGanttDetails(
     notes: milestone.notes ?? null,
   }));
 
+  const indirectItemsPayload = indirectItems.map((item, index) => ({
+    id: item.id,
+    label: item.label,
+    category: item.category ?? null,
+    position_level: item.position_level ?? null,
+    monthly_salary: item.monthly_salary,
+    headcount: item.headcount,
+    days_saved_per_month: item.days_saved_per_month,
+    working_days_per_month: item.working_days_per_month,
+    notes: item.notes ?? null,
+    sequence_order: index + 1,
+  }));
+
+  const directMarketRateItemsPayload = directMarketRateItems.map((item, index) => ({
+    id: item.id,
+    position_label: item.position_label,
+    experience_bracket: item.experience_bracket ?? null,
+    monthly_rate: item.monthly_rate,
+    headcount: item.headcount,
+    man_days: item.man_days,
+    working_days_per_month: item.working_days_per_month,
+    source_note: item.source_note ?? null,
+    sequence_order: index + 1,
+  }));
+
   const { error } = await supabase.rpc('save_gantt_project_details', {
     p_project_id: projectId,
     p_overview: overview,
     p_team: teamPayload,
     p_milestones: milestonePayload,
     p_savings: savings,
+    p_indirect_items: indirectItemsPayload,
+    p_direct_market_rate_items: directMarketRateItemsPayload,
   });
 
   if (error) throw error;
