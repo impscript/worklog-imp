@@ -243,6 +243,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const [masterHoldings, setMasterHoldings] = useState<string[]>([]);
   const [masterProjectTypes, setMasterProjectTypes] = useState<string[]>([]);
   const [salaryRateRows, setSalaryRateRows] = useState<MasterSalaryRateRow[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -284,15 +285,31 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
         if (isMounted && srData) {
           setSalaryRateRows(srData as MasterSalaryRateRow[]);
         }
+
+        // Fetch departments from this project's own structure (tb_map_project_structure)
+        const { data: structData } = await supabase
+          .from('tb_map_project_structure')
+          .select('department')
+          .or(`project_id.eq.${project.id},module_id.eq.${project.id}`);
+        if (isMounted && structData) {
+          const departments = Array.from(
+            new Set(
+              (structData as { department: string | null }[])
+                .map((row) => row.department)
+                .filter((d): d is string => Boolean(d && d.trim()))
+            )
+          ).sort((a, b) => a.localeCompare(b));
+          setDepartmentOptions(departments);
+        }
       } catch (err) {
-        console.warn('Failed to load master holding, project types, or salary rates in drawer:', err);
+        console.warn('Failed to load master holding, project types, salary rates, or departments in drawer:', err);
       }
     };
     void fetchMasterData();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [project.id]);
 
   const availableHoldings = useMemo(() => {
     const defaults = ['Double A', 'Real Estate', 'All Holding', 'Logistic', 'Power', 'NPS', 'IMP', 'IT'];
@@ -345,6 +362,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   );
   const [newIndirectItemCategory, setNewIndirectItemCategory] = useState('');
   const [newIndirectItemLevelId, setNewIndirectItemLevelId] = useState('');
+  const [newIndirectItemDepartment, setNewIndirectItemDepartment] = useState('');
   const [avoidanceSavings, setAvoidanceSavings] = useState(Number(cs?.avoidance_savings_annual) || 0);
   const [avoidanceNotes, setAvoidanceNotes] = useState(cs?.avoidance_savings_notes || '');
   const [supportSavings, setSupportSavings] = useState(Number(cs?.support_savings_annual) || 0);
@@ -418,6 +436,9 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
   const positionLevelOptions = salaryRateRows
     .filter((row) => row.category === 'Position Level')
     .sort((a, b) => Number(b.salary_min) - Number(a.salary_min));
+  // Auto-pick the department when the project's structure only has one to choose from.
+  const effectiveNewIndirectItemDepartment =
+    newIndirectItemDepartment || (departmentOptions.length === 1 ? departmentOptions[0] : '');
 
   // Computed Savings Summary
   const projectBusinessDays = calculateProjectBusinessDays(startDate, dueDate);
@@ -447,6 +468,16 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     (acc, item) => acc + item.days_saved_per_month * item.headcount * 12 * 8,
     0
   );
+  // Beneficiary reach in the Grand Total banner mirrors the indirect items once any exist,
+  // instead of being typed in separately.
+  const derivedBeneficiaryHeadcount = indirectItemsList.reduce((acc, item) => acc + (Number(item.headcount) || 0), 0);
+  const derivedBeneficiaryDepartmentCount = new Set(
+    indirectItemsList.map((item) => item.department).filter((d): d is string => Boolean(d && d.trim()))
+  ).size;
+  const effectiveBeneficiaryHeadcount =
+    indirectItemsList.length > 0 ? derivedBeneficiaryHeadcount : beneficiaryHeadcount;
+  const effectiveBeneficiaryDepartmentCount =
+    indirectItemsList.length > 0 ? derivedBeneficiaryDepartmentCount : beneficiaryDepartmentCount;
   const supportUnitCost = supportCostPerTicket + (supportHoursPerTicket * supportHourlyRate);
   const hasSupportCalculator = supportTicketBaselineMonthly > 0 || supportTicketTargetMonthly > 0 || supportUnitCost > 0;
   const computedSupportAnnual = hasSupportCalculator
@@ -723,6 +754,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
       label: `${category} (${levelRow.role})`,
       category,
       position_level: levelRow.role,
+      department: effectiveNewIndirectItemDepartment || null,
       monthly_salary: Number(levelRow.salary_min),
       headcount: 1,
       days_saved_per_month: 0,
@@ -732,6 +764,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
     setIndirectItemsList((prev) => [...prev, newItem]);
     setNewIndirectItemCategory('');
     setNewIndirectItemLevelId('');
+    setNewIndirectItemDepartment('');
   };
 
   const handleRemoveIndirectItem = (index: number) => {
@@ -850,8 +883,8 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
       value_add_multiplier: valueAddMultiplier,
       savings_share_percentage: savingsSharePercentage,
       months_realized_this_year: monthsRealizedThisYear,
-      beneficiary_headcount: beneficiaryHeadcount,
-      beneficiary_department_count: beneficiaryDepartmentCount,
+      beneficiary_headcount: effectiveBeneficiaryHeadcount,
+      beneficiary_department_count: effectiveBeneficiaryDepartmentCount,
       baseline_before: baselineBefore,
       target_after: targetAfter,
       calculation_formula: formulaNotes,
@@ -1567,10 +1600,14 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                     <input
                       type="number"
                       min="0"
-                      value={beneficiaryHeadcount ?? ''}
+                      disabled={indirectItemsList.length > 0}
+                      value={indirectItemsList.length > 0 ? derivedBeneficiaryHeadcount : (beneficiaryHeadcount ?? '')}
                       onChange={(e) => setBeneficiaryHeadcount(e.target.value === '' ? null : Number(e.target.value))}
-                      className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-bold font-mono focus:outline-none focus:border-emerald-500"
+                      className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-bold font-mono focus:outline-none focus:border-emerald-500 disabled:opacity-70 disabled:cursor-not-allowed"
                     />
+                    {indirectItemsList.length > 0 && (
+                      <p className="text-[9px] text-theme-text-muted">คำนวณจากรายการย่อย Indirect Cost Saving</p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <label className="flex items-center gap-1 text-[9px] font-bold text-theme-text-muted uppercase">
@@ -1579,10 +1616,14 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                     <input
                       type="number"
                       min="0"
-                      value={beneficiaryDepartmentCount ?? ''}
+                      disabled={indirectItemsList.length > 0}
+                      value={indirectItemsList.length > 0 ? derivedBeneficiaryDepartmentCount : (beneficiaryDepartmentCount ?? '')}
                       onChange={(e) => setBeneficiaryDepartmentCount(e.target.value === '' ? null : Number(e.target.value))}
-                      className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-bold font-mono focus:outline-none focus:border-emerald-500"
+                      className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-bold font-mono focus:outline-none focus:border-emerald-500 disabled:opacity-70 disabled:cursor-not-allowed"
                     />
+                    {indirectItemsList.length > 0 && (
+                      <p className="text-[9px] text-theme-text-muted">คำนวณจากรายการย่อย Indirect Cost Saving</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1903,6 +1944,18 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                             </option>
                           ))}
                         </select>
+                        <select
+                          value={effectiveNewIndirectItemDepartment}
+                          onChange={(e) => setNewIndirectItemDepartment(e.target.value)}
+                          className="flex-1 min-w-[140px] py-2 px-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer"
+                        >
+                          <option value="">-- เลือกแผนก --</option>
+                          {departmentOptions.map((dept) => (
+                            <option key={dept} value={dept}>
+                              {dept}
+                            </option>
+                          ))}
+                        </select>
                         <button
                           type="button"
                           disabled={!newIndirectItemCategory.trim() || !newIndirectItemLevelId}
@@ -1918,6 +1971,11 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                           เพิ่มรายการ
                         </button>
                       </div>
+                      {departmentOptions.length === 0 && (
+                        <p className="text-[10px] text-theme-text-muted">
+                          ยังไม่มีข้อมูลแผนกในโครงสร้างโปรเจ็กนี้ — เพิ่มได้ที่หน้าโครงสร้างโปรเจ็ก
+                        </p>
+                      )}
                     </div>
 
                     {indirectItemsList.map((item, idx) => {
@@ -1947,7 +2005,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                               <Trash2 size={14} />
                             </button>
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             <div>
                               <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
                                 Category
@@ -1980,6 +2038,23 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                                 {positionLevelOptions.map((level) => (
                                   <option key={level.id} value={level.id}>
                                     {level.role}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-theme-text-muted uppercase">
+                                แผนก
+                              </label>
+                              <select
+                                value={item.department || ''}
+                                onChange={(e) => handleUpdateIndirectItem(idx, { department: e.target.value || null })}
+                                className="w-full py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-[10px] font-bold cursor-pointer"
+                              >
+                                <option value="">-- เลือกแผนก --</option>
+                                {departmentOptions.map((dept) => (
+                                  <option key={dept} value={dept}>
+                                    {dept}
                                   </option>
                                 ))}
                               </select>

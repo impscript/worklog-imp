@@ -88,6 +88,7 @@ export interface IndirectSavingsItem {
   label: string;
   category?: string | null;
   position_level?: string | null;
+  department?: string | null;
   monthly_salary: number;
   headcount: number;
   days_saved_per_month: number;
@@ -803,6 +804,7 @@ export async function saveProjectGanttDetails(
     label: item.label,
     category: item.category ?? null,
     position_level: item.position_level ?? null,
+    department: item.department ?? null,
     monthly_salary: item.monthly_salary,
     headcount: item.headcount,
     days_saved_per_month: item.days_saved_per_month,
