@@ -26,6 +26,7 @@ import {
   type KanbanSwimlane,
 } from '../components/kanban/ProjectKanbanCanvas';
 import { ProjectDetailDrawer } from '../components/gantt/ProjectDetailDrawer';
+import { HiddenProjectsDropdown } from '../components/gantt/HiddenProjectsDropdown';
 import { FolderKanban, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -507,6 +508,11 @@ export default function ProjectGanttPage() {
 
           {/* Quick Actions */}
           <div className="flex items-center gap-2">
+            <HiddenProjectsDropdown
+              hiddenProjects={hiddenProjects}
+              onRestoreProject={handleRestoreProject}
+              onRestoreAllHidden={handleRestoreAllHidden}
+            />
             <button
               type="button"
               onClick={() => navigate('/projects')}
@@ -560,9 +566,6 @@ export default function ProjectGanttPage() {
           onExpandAll={handleExpandAll}
           onCollapseAll={handleCollapseAll}
           onResetAllFilters={handleResetAllFilters}
-          hiddenProjects={hiddenProjects}
-          onRestoreProject={handleRestoreProject}
-          onRestoreAllHidden={handleRestoreAllHidden}
         />
 
         {/* Main Canvas: Gantt Roadmap or Kanban Board */}

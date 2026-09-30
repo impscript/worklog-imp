@@ -1,10 +1,21 @@
 import React from 'react';
-import { Layers, DollarSign, Clock, ShieldCheck, TrendingUp } from 'lucide-react';
+import { Layers, DollarSign, Clock, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { cn } from '../../lib/utils';
 import type { GanttProject } from '../../lib/project-management';
 
 interface ExecutiveSummaryKPIsProps {
   projects: GanttProject[];
+}
+
+// Shared card shell: soft shadow + hairline border instead of a hard outline,
+// generous padding, and a big rounded radius — closer to an Apple widget than
+// a bordered dashboard tile.
+const cardClass =
+  'relative p-5 rounded-[28px] border border-black/[0.06] dark:border-white/[0.08] bg-theme-surface/80 dark:bg-theme-bg-page/60 backdrop-blur-xl shadow-[0_1px_2px_rgba(0,0,0,0.04),0_10px_24px_-14px_rgba(0,0,0,0.18)] hover:shadow-[0_1px_2px_rgba(0,0,0,0.06),0_16px_32px_-14px_rgba(0,0,0,0.22)] transition-shadow duration-300 flex flex-col gap-4';
+
+function StatDot({ colorClass }: { colorClass: string }) {
+  return <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', colorClass)} />;
 }
 
 export const ExecutiveSummaryKPIs: React.FC<ExecutiveSummaryKPIsProps> = ({ projects }) => {
@@ -39,49 +50,54 @@ export const ExecutiveSummaryKPIs: React.FC<ExecutiveSummaryKPIsProps> = ({ proj
   const fteEquivalent = (totalManhours / 1920).toFixed(1);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mb-3 select-none">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3 select-none">
       {/* CARD 1: Total Projects & Health */}
-      <div className="p-3 rounded-2xl border border-theme-border/70 bg-theme-surface/70 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+      <div className={cardClass}>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-theme-text-muted uppercase tracking-wider">
+          <span className="text-[13px] font-medium text-theme-text-muted">
             {t('gantt.kpi.portfolio')}
           </span>
-          <div className="p-1.5 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
-            <Layers size={16} />
+          <div className="w-9 h-9 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+            <Layers size={16} strokeWidth={2.25} />
           </div>
         </div>
 
-        <div className="mt-2">
-          <div className="text-xl sm:text-2xl font-black text-theme-text tracking-tight">
-            {totalProjects} <span className="text-xs font-semibold text-theme-text-muted">{t('gantt.kpi.projectsUnit')}</span>
-          </div>
-          <div className="flex items-center gap-1.5 mt-1.5 text-[10.5px] font-bold flex-wrap">
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
-              🚀 Project {projectCount}
-            </span>
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-              🛠️ Support {supportCount}
-            </span>
+        <div>
+          <div className="text-3xl font-bold text-theme-text tracking-tight tabular-nums">
+            {totalProjects}
+            <span className="text-sm font-medium text-theme-text-muted ml-1.5">{t('gantt.kpi.projectsUnit')}</span>
           </div>
 
-          {/* Status + Health summary — plain gray text, color carried by the
-              emoji alone, using the same emoji as the Health filter dropdown
-              (🟢 on track / ✅ completed / ⏸️ on hold / 🔴 delayed) for consistency. */}
-          <div className="flex items-center gap-1.5 mt-1.5 text-[10.5px] font-bold flex-wrap text-theme-text-muted">
-            <span className="inline-flex items-center gap-1">
-              🟢 {t('gantt.kpi.active')} {activeCount}
+          <div className="flex items-center gap-1.5 mt-2 text-[12.5px] text-theme-text-muted">
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400">{projectCount}</span>
+            <span>{t('gantt.kpi.mainProjects')}</span>
+            <span className="text-theme-text-muted/40">·</span>
+            <span className="font-semibold text-amber-600 dark:text-amber-400">{supportCount}</span>
+            <span>{t('gantt.kpi.supportProjects')}</span>
+          </div>
+
+          {/* Status summary — a dot carries the color, so the text itself can
+              stay plain and quiet, matching how iOS widgets pair a colored
+              dot with a number instead of tinting the whole label. */}
+          <div className="flex items-center gap-3 mt-2.5 text-[12.5px] text-theme-text-muted flex-wrap">
+            <span className="inline-flex items-center gap-1.5">
+              <StatDot colorClass="bg-emerald-500" />
+              {activeCount} {t('gantt.kpi.active')}
             </span>
-            <span className="inline-flex items-center gap-1">
-              ✅ {t('gantt.kpi.completed')} {completedCount}
+            <span className="inline-flex items-center gap-1.5">
+              <StatDot colorClass="bg-blue-500" />
+              {completedCount} {t('gantt.kpi.completed')}
             </span>
             {onHoldCount > 0 && (
-              <span className="inline-flex items-center gap-1">
-                ⏸️ {t('gantt.kpi.onHold')} {onHoldCount}
+              <span className="inline-flex items-center gap-1.5">
+                <StatDot colorClass="bg-slate-400" />
+                {onHoldCount} {t('gantt.kpi.onHold')}
               </span>
             )}
             {delayedCount > 0 && (
-              <span className="inline-flex items-center gap-1">
-                🔴 {t('gantt.kpi.delayed')} {delayedCount}
+              <span className="inline-flex items-center gap-1.5">
+                <StatDot colorClass="bg-rose-500" />
+                {delayedCount} {t('gantt.kpi.delayed')}
               </span>
             )}
           </div>
@@ -89,66 +105,65 @@ export const ExecutiveSummaryKPIs: React.FC<ExecutiveSummaryKPIsProps> = ({ proj
       </div>
 
       {/* CARD 2: Total Value Realization (Total Savings) */}
-      <div className="p-3 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-theme-surface/70 to-theme-surface/40 backdrop-blur-md shadow-sm hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden">
+      <div className={cardClass}>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
+          <span className="text-[13px] font-medium text-theme-text-muted">
             {t('gantt.kpi.totalSavings')}
           </span>
-          <div className="p-1.5 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-            <DollarSign size={16} />
+          <div className="w-9 h-9 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <DollarSign size={16} strokeWidth={2.25} />
           </div>
         </div>
 
-        <div className="mt-2">
-          <div className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-300 tracking-tight">
-            ฿ {totalSavings.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
+        <div>
+          <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight tabular-nums">
+            ฿{totalSavings.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
           </div>
-          <div className="text-[10px] text-theme-text-muted mt-1.5 truncate">
-            4D (Direct + Indirect + Avoidance + Support)
+          <div className="text-[12.5px] text-theme-text-muted mt-2 truncate">
+            {t('gantt.kpi.savingsBreakdown')}
           </div>
         </div>
       </div>
 
       {/* CARD 3: Direct Hard Cash Saved */}
-      <div className="p-3 rounded-2xl border border-theme-border/70 bg-theme-surface/70 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+      <div className={cardClass}>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-theme-text-muted uppercase tracking-wider">
+          <span className="text-[13px] font-medium text-theme-text-muted">
             {t('gantt.kpi.hardCash')}
           </span>
-          <div className="p-1.5 rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400">
-            <TrendingUp size={16} />
+          <div className="w-9 h-9 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
+            <TrendingUp size={16} strokeWidth={2.25} />
           </div>
         </div>
 
-        <div className="mt-2">
-          <div className="text-xl sm:text-2xl font-black text-theme-text tracking-tight">
-            ฿ {totalDirectCash.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
+        <div>
+          <div className="text-3xl font-bold text-theme-text tracking-tight tabular-nums">
+            ฿{totalDirectCash.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
           </div>
-          <div className="flex items-center gap-1 mt-1.5 text-[11px] text-theme-text-muted truncate">
-            <span>{t('gantt.kpi.licenseAndMaterial')}</span>
+          <div className="text-[12.5px] text-theme-text-muted mt-2 truncate">
+            {t('gantt.kpi.licenseAndMaterial')}
           </div>
         </div>
       </div>
 
       {/* CARD 4: Manhours & Productivity Saved */}
-      <div className="p-3 rounded-2xl border border-theme-border/70 bg-theme-surface/70 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+      <div className={cardClass}>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-theme-text-muted uppercase tracking-wider">
+          <span className="text-[13px] font-medium text-theme-text-muted">
             {t('gantt.kpi.productivity')}
           </span>
-          <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
-            <Clock size={16} />
+          <div className="w-9 h-9 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <Clock size={16} strokeWidth={2.25} />
           </div>
         </div>
 
-        <div className="mt-2">
-          <div className="text-xl sm:text-2xl font-black text-theme-text tracking-tight">
-            {totalManhours.toLocaleString('th-TH', { maximumFractionDigits: 0 })}{' '}
-            <span className="text-xs font-semibold text-theme-text-muted">{t('gantt.kpi.hoursUnit')}</span>
+        <div>
+          <div className="text-3xl font-bold text-theme-text tracking-tight tabular-nums">
+            {totalManhours.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
+            <span className="text-sm font-medium text-theme-text-muted ml-1.5">{t('gantt.kpi.hoursUnit')}</span>
           </div>
-          <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-amber-700 dark:text-amber-300 font-bold">
-            <ShieldCheck size={13} />
-            <span>{t('gantt.kpi.fteEquivalent')} ~{fteEquivalent} {t('gantt.kpi.annualFte')}</span>
+          <div className="text-[12.5px] text-theme-text-muted mt-2 truncate">
+            {t('gantt.kpi.fteEquivalent')} ~{fteEquivalent} {t('gantt.kpi.annualFte')}
           </div>
         </div>
       </div>

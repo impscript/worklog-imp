@@ -19,8 +19,6 @@ import {
   HeartPulse,
   Users,
   Grid,
-  EyeOff,
-  Eye,
   ChevronDown,
   Check,
 } from 'lucide-react';
@@ -77,9 +75,6 @@ interface GanttFilterToolbarProps {
   onExpandAll?: () => void;
   onCollapseAll?: () => void;
   onResetAllFilters: () => void;
-  hiddenProjects: { id: string; project_name: string }[];
-  onRestoreProject: (id: string) => void;
-  onRestoreAllHidden: () => void;
 }
 
 export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
@@ -122,43 +117,14 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
   onExpandAll,
   onCollapseAll,
   onResetAllFilters,
-  hiddenProjects,
-  onRestoreProject,
-  onRestoreAllHidden,
 }) => {
   const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
 
-  // Hidden Projects Dropdown (kept collapsed by default so a long hidden list
-  // doesn't clutter the toolbar with a chip per project)
-  const [isHiddenMenuOpen, setIsHiddenMenuOpen] = React.useState(false);
-  const [hiddenSearch, setHiddenSearch] = React.useState('');
-  const hiddenMenuRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (hiddenMenuRef.current && !hiddenMenuRef.current.contains(event.target as Node)) {
-        setIsHiddenMenuOpen(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsHiddenMenuOpen(false);
-    };
-    if (isHiddenMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isHiddenMenuOpen]);
-
-  const filteredHiddenProjects = React.useMemo(() => {
-    const q = hiddenSearch.toLowerCase().trim();
-    if (!q) return hiddenProjects;
-    return hiddenProjects.filter((p) => p.project_name.toLowerCase().includes(q));
-  }, [hiddenProjects, hiddenSearch]);
+  // Filter row (year/type/team/holding/status/health/member) is collapsed by
+  // default to save vertical space — only the toggle button sits on the main
+  // toolbar row, next to search, until the user opts to open it.
+  const [isFiltersOpen, setIsFiltersOpen] = React.useState(false);
 
   // Project Types Options & Presets
   const projectTypeOptions: MultiSelectOption[] = React.useMemo(() => {
@@ -260,11 +226,27 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
     showParentsOnly ||
     Boolean(searchQuery.trim());
 
+  // Count of active filters shown as a badge on the collapsed filter toggle
+  // (search has its own always-visible box, so it isn't counted here).
+  const activeFilterCount =
+    selectedProjectTypes.length +
+    selectedTeams.length +
+    selectedHoldings.length +
+    selectedStatuses.length +
+    selectedHealths.length +
+    selectedUsers.length +
+    (selectedYear !== currentYear ? 1 : 0) +
+    (showParentsOnly ? 1 : 0);
+
   return (
     <div className="relative z-30 p-3 rounded-2xl border border-theme-border/70 bg-theme-surface/80 dark:bg-theme-bg-page/60 backdrop-blur-md shadow-sm mb-3 space-y-2.5 select-none">
-      {/* Top Row: View Switcher + Search + Specific Controls + Action Buttons */}
-      <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
+      {/* Top Row: View Switcher + Search + Specific Controls + Action Buttons.
+          Stays on one line regardless of the sidebar being collapsed or
+          expanded — the search bar (flex-1 min-w) is the only piece that
+          shrinks/grows to absorb the width change, same pattern as the main
+          filter dropdowns below. */}
+      <div className="flex flex-nowrap items-center justify-between gap-3">
+        <div className="flex flex-nowrap items-center gap-2.5 flex-1 min-w-0">
           {/* View Mode Switcher (Gantt vs Kanban) */}
           <div className="flex items-center gap-1 bg-theme-surface-secondary/80 p-1 rounded-2xl border border-theme-border/60 shrink-0">
             <button
@@ -306,10 +288,36 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
               className="w-full text-xs sm:text-sm py-1.5 pl-8 pr-3 rounded-xl border border-theme-border bg-theme-surface text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
             />
           </div>
+
+          {/* Filter Panel Toggle — collapsed by default so the year/type/team/
+              holding/status/health/member row doesn't eat vertical space until
+              someone actually wants to adjust a filter. */}
+          <button
+            type="button"
+            onClick={() => setIsFiltersOpen((prev) => !prev)}
+            className={cn(
+              'inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none shadow-xs shrink-0',
+              isFiltersOpen || activeFilterCount > 0
+                ? 'bg-indigo-50/90 dark:bg-indigo-500/15 border-indigo-500/40 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20'
+                : 'border-theme-border bg-theme-surface text-theme-text hover:bg-theme-surface-secondary hover:border-theme-border/80'
+            )}
+          >
+            <Filter size={14} />
+            <span>{t('gantt.filters.filterButton')}</span>
+            {activeFilterCount > 0 && (
+              <span className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] font-black bg-indigo-600 text-white shrink-0 shadow-xs">
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDown
+              size={13}
+              className={cn('transition-transform duration-200 shrink-0', isFiltersOpen && 'rotate-180')}
+            />
+          </button>
         </div>
 
         {/* View-Specific Controls */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-nowrap items-center gap-2 shrink-0">
           {viewMode === 'gantt' ? (
             <>
               {/* Gantt View: Tree Hierarchy vs Flat List */}
@@ -448,11 +456,15 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
         </div>
       </div>
 
-      {/* Bottom Area: main filter dropdowns always stay on one line (shrinking
-          together as the sidebar expands/collapses) on their own row; Reset All +
-          Hidden Projects always sit on a second row below, never sharing space
-          with — or visually swapping in for — one of the filter dropdowns. */}
+      {/* Bottom Area: main filter dropdowns are collapsed behind the toggle
+          button up top by default to save space, opening on their own line
+          (shrinking together as the sidebar expands/collapses) when shown;
+          Reset All always sits on its own row below, regardless of the
+          toggle, never sharing space with — or visually swapping in for —
+          one of the filter dropdowns. */}
+      {(isFiltersOpen || hasActiveFilters) && (
       <div className="pt-2 border-t border-theme-border/40 text-xs space-y-2">
+        {isFiltersOpen && (
         <div className="flex flex-nowrap items-center gap-2">
         <span className="text-[11px] font-bold text-theme-text-muted flex items-center gap-1 pr-1 shrink-0">
           <Filter size={13} /> {t('gantt.filters.filterLabel')}
@@ -576,129 +588,24 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
           align="right"
         />
         </div>
-
-        {/* Reset All + Hidden Projects — always its own dedicated row below the
-            main filter dropdowns, so it never competes for space with (or visually
-            swaps in for) one of them. Only rendered when it has something to show,
-            so an empty row never appears. */}
-        {(hasActiveFilters || hiddenProjects.length > 0) && (
-        <div className="flex items-center gap-2">
-          {/* Reset All Filters Button */}
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={onResetAllFilters}
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
-              title={t('gantt.filters.resetAll')}
-            >
-              <RotateCcw size={12} />
-              <span>{t('gantt.filters.resetAll')}</span>
-            </button>
-          )}
-
-          {/* Hidden Projects — collapsed into a single dropdown so hiding many
-              projects doesn't clutter the toolbar with a chip per project. A
-              presentation override, not a data filter. */}
-          {hiddenProjects.length > 0 && (
-            <div className="relative" ref={hiddenMenuRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  // Reset the search box on every toggle so it's always blank on open
-                  setHiddenSearch('');
-                  setIsHiddenMenuOpen((prev) => !prev);
-                }}
-                className="inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl border border-slate-500/40 bg-slate-500/10 text-slate-600 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer select-none shadow-xs hover:bg-slate-500/15"
-                title={t('gantt.filters.hiddenProjects')}
-              >
-                <EyeOff size={13} />
-                <span>{t('gantt.filters.hiddenProjects')}</span>
-                <span className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] font-black bg-slate-600 text-white shrink-0 shadow-xs">
-                  {hiddenProjects.length}
-                </span>
-                <ChevronDown
-                  size={13}
-                  className={cn('transition-transform duration-200 shrink-0', isHiddenMenuOpen && 'rotate-180')}
-                />
-              </button>
-
-              {isHiddenMenuOpen && (
-                <div className="absolute left-0 z-50 mt-1.5 min-w-[240px] max-w-[320px] w-max rounded-2xl border border-theme-border bg-theme-surface dark:bg-theme-surface-modal shadow-2xl backdrop-blur-xl p-2.5 animate-fade-in space-y-2">
-                  <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-theme-border/60 text-xs">
-                    <span className="font-bold text-theme-text">{t('gantt.filters.hiddenProjects')}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onRestoreAllHidden();
-                        setIsHiddenMenuOpen(false);
-                      }}
-                      className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-500/10 px-1.5 py-0.5 rounded-lg transition-colors cursor-pointer shrink-0"
-                      title={t('gantt.filters.restoreAllHidden')}
-                    >
-                      <RotateCcw size={11} />
-                      <span>{t('gantt.filters.restoreAllHidden')}</span>
-                    </button>
-                  </div>
-
-                  {hiddenProjects.length > 5 && (
-                    <div className="relative">
-                      <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-theme-text-muted" />
-                      <input
-                        type="text"
-                        autoFocus
-                        value={hiddenSearch}
-                        onChange={(e) => setHiddenSearch(e.target.value)}
-                        placeholder={t('gantt.filters.searchOption')}
-                        className="w-full text-xs py-1.5 pl-7 pr-6 rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-indigo-500"
-                      />
-                      {hiddenSearch && (
-                        <button
-                          type="button"
-                          onClick={() => setHiddenSearch('')}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text"
-                        >
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="max-h-[220px] overflow-y-auto space-y-0.5 pr-0.5 custom-scrollbar">
-                    {filteredHiddenProjects.length === 0 ? (
-                      <div className="py-4 text-center text-xs text-theme-text-muted">
-                        {t('gantt.filters.noOptionsFound')}
-                      </div>
-                    ) : (
-                      filteredHiddenProjects.map((p) => (
-                        <div
-                          key={`hidden-item-${p.id}`}
-                          className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl text-xs text-theme-text hover:bg-theme-surface-tertiary transition-all"
-                        >
-                          <span className="truncate">🙈 {p.project_name}</span>
-                          <button
-                            type="button"
-                            onClick={() => onRestoreProject(p.id)}
-                            className="p-1 rounded-lg hover:bg-slate-500/20 text-theme-text-muted hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer shrink-0"
-                            title={t('gantt.filters.restoreProject')}
-                          >
-                            <Eye size={13} />
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
         )}
-      </div>
 
-      {/* Active Filter Chips / Badges Row */}
-      {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-1.5 pt-1.5 text-xs animate-fade-in border-t border-theme-border/20">
-          <span className="text-[10px] font-bold uppercase text-theme-text-muted tracking-wider mr-1">
+        {/* Reset All Filters + Active Filter Chips — one combined row, so
+            resetting and seeing what's currently filtered live together
+            instead of stacking on separate lines. */}
+        {hasActiveFilters && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs animate-fade-in">
+          <button
+            type="button"
+            onClick={onResetAllFilters}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 px-2.5 py-1 rounded-xl transition-colors cursor-pointer shrink-0"
+            title={t('gantt.filters.resetAll')}
+          >
+            <RotateCcw size={12} />
+            <span>{t('gantt.filters.resetAll')}</span>
+          </button>
+
+          <span className="text-[10px] font-bold uppercase text-theme-text-muted tracking-wider mx-1 shrink-0">
             {t('gantt.filters.filteringBy')}
           </span>
 
@@ -841,6 +748,8 @@ export const GanttFilterToolbar: React.FC<GanttFilterToolbarProps> = ({
             );
           })}
         </div>
+        )}
+      </div>
       )}
 
     </div>
