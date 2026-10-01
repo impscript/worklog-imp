@@ -18,6 +18,8 @@ import {
   getUserAvatarUrl,
   getUiAvatarFallbackUrl,
   getProjectTypeMeta,
+  isAddOnPlusType,
+  USAGE_STATUS_META,
 } from '../../lib/project-management';
 import { cn } from '../../lib/utils';
 import type { GanttZoomLevel } from './GanttFilterToolbar';
@@ -340,6 +342,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
             {renderableRows.map(({ project: p, depth, hasChildren, isExpanded, childCount }) => {
               const isSelected = p.id === selectedProjectId;
               const healthMeta = PROJECT_HEALTH_LABELS[p.project_health];
+              const usageMeta = USAGE_STATUS_META[p.usage_status || 'unverified'];
               const isChild = depth > 0;
 
               // Calculate Gantt Bar Offset and Width
@@ -363,6 +366,27 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                 Math.min(100, ((dueTime - timelineStart) / totalTimelineDuration) * 100)
               );
               const barWidthPercent = Math.max(2.5, barEndPercent - barStartPercent);
+
+              // Plan bar (ghost/outline, painted behind Actual): only when the
+              // project actually has both plan dates and isn't unplanned
+              // Add-On (Plus) scope.
+              const hasPlanBar =
+                !!p.planned_start_date && !!p.planned_due_date && !isAddOnPlusType(p.worklog_project_type);
+              let planBarStartPercent = 0;
+              let planBarWidthPercent = 0;
+              if (hasPlanBar) {
+                const planStartTime = new Date(p.planned_start_date as string).getTime();
+                const planDueTime = new Date(p.planned_due_date as string).getTime();
+                planBarStartPercent = Math.max(
+                  0,
+                  Math.min(100, ((planStartTime - timelineStart) / totalTimelineDuration) * 100)
+                );
+                const planBarEndPercent = Math.max(
+                  planBarStartPercent + 2,
+                  Math.min(100, ((planDueTime - timelineStart) / totalTimelineDuration) * 100)
+                );
+                planBarWidthPercent = Math.max(2.5, planBarEndPercent - planBarStartPercent);
+              }
 
               return (
                 <div
@@ -510,6 +534,19 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                           <span>{healthMeta.icon}</span>
                           <span>{healthMeta.label}</span>
                         </span>
+
+                        {/* Usage Status Badge — is this shipped project still
+                            actually used? Separate from schedule health above. */}
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold border text-[9.5px]',
+                            usageMeta.badge
+                          )}
+                          title={p.last_usage_note || undefined}
+                        >
+                          <span>{usageMeta.icon}</span>
+                          <span>{usageMeta.shortLabel}</span>
+                        </span>
                       </div>
 
                       {/* Team Overlapping Avatar Stack */}
@@ -574,61 +611,106 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                       ))}
                     </div>
 
-                    {/* Gantt Bar */}
-                    <div
-                      className={cn(
-                        'relative rounded-xl shadow-md flex items-center px-2.5 transition-all group-hover:scale-[1.01] overflow-hidden',
-                        isChild ? 'h-6.5' : 'h-8'
-                      )}
-                      style={{
-                        left: `${barStartPercent}%`,
-                        width: `${barWidthPercent}%`,
-                      }}
-                    >
-                      {/* Base Bar Fill */}
-                      <div
-                        className={cn(
-                          'absolute inset-0 border transition-colors opacity-95',
-                          getStatusBgColor(p.status, depth)
-                        )}
-                      />
+                    {(() => {
+                      // Shared Actual-bar contents (fill, progress shading,
+                      // milestones, label) reused whether or not a Plan line
+                      // is drawn alongside it — only the wrapper's size and
+                      // position differ between the two layouts below.
+                      const actualBarInner = (
+                        <>
+                          {/* Base Bar Fill */}
+                          <div
+                            className={cn(
+                              'absolute inset-0 border transition-colors opacity-95',
+                              getStatusBgColor(p.status, depth)
+                            )}
+                          />
 
-                      {/* Progress Shading Inner Bar */}
-                      <div
-                        className="absolute inset-y-0 left-0 bg-black/20 dark:bg-white/20 transition-all"
-                        style={{ width: `${Math.min(100, Math.max(0, p.progress_percent))}%` }}
-                      />
+                          {/* Progress Shading Inner Bar */}
+                          <div
+                            className="absolute inset-y-0 left-0 bg-black/20 dark:bg-white/20 transition-all"
+                            style={{ width: `${Math.min(100, Math.max(0, p.progress_percent))}%` }}
+                          />
 
-                      {/* Milestone Diamonds / Ticks */}
-                      {p.milestones.length > 0 && (
-                        <div className="absolute inset-y-0 right-2 flex items-center gap-1 z-10">
-                          {p.milestones.slice(0, 3).map((m, mIdx) => (
-                            <div
-                              key={mIdx}
-                              title={`Milestone: ${m.milestone_name} (${m.status})`}
-                              className={cn(
-                                'w-2 h-2 rotate-45 border border-white shadow-xs',
-                                m.status === 'completed' ? 'bg-emerald-300' : 'bg-white/80'
-                              )}
-                            />
-                          ))}
+                          {/* Milestone Diamonds / Ticks */}
+                          {p.milestones.length > 0 && (
+                            <div className="absolute inset-y-0 right-2 flex items-center gap-1 z-10">
+                              {p.milestones.slice(0, 3).map((m, mIdx) => (
+                                <div
+                                  key={mIdx}
+                                  title={`Milestone: ${m.milestone_name} (${m.status})`}
+                                  className={cn(
+                                    'w-2 h-2 rotate-45 border border-white shadow-xs',
+                                    m.status === 'completed' ? 'bg-emerald-300' : 'bg-white/80'
+                                  )}
+                                />
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Bar Content Label */}
+                          <div className="relative z-10 flex items-center justify-between w-full text-white font-extrabold text-[10.5px] gap-2 min-w-0 drop-shadow-xs">
+                            <span className="truncate">
+                              {p.status.toUpperCase()} · {p.progress_percent}%
+                            </span>
+
+                            {p.total_savings_annual > 0 && (
+                              <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-950/40 text-emerald-200 border border-emerald-400/40 text-[9px] font-mono shrink-0">
+                                <DollarSign size={10} />
+                                <span>{(p.total_savings_annual / 1000).toFixed(0)}k/{t('gantt.filters.year')}</span>
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      );
+
+                      if (!hasPlanBar) {
+                        return (
+                          <div
+                            className={cn(
+                              'relative rounded-xl shadow-md flex items-center px-2.5 transition-all group-hover:scale-[1.01] overflow-hidden',
+                              isChild ? 'h-6.5' : 'h-8'
+                            )}
+                            style={{ left: `${barStartPercent}%`, width: `${barWidthPercent}%` }}
+                          >
+                            {actualBarInner}
+                          </div>
+                        );
+                      }
+
+                      // Plan + Actual as two separate stacked lines, sized so
+                      // the pair together still fits the row's original
+                      // height — a thin Plan line on top, a slightly thicker
+                      // Actual bar below it.
+                      const rowHeight = isChild ? 26 : 32;
+                      const planHeight = isChild ? 8 : 11;
+                      const actualHeight = isChild ? 16 : 20;
+                      return (
+                        <div className="relative w-full" style={{ height: rowHeight }}>
+                          {/* Plan Line */}
+                          <div
+                            className="absolute top-0 rounded-full bg-slate-400 dark:bg-slate-400/80"
+                            style={{
+                              left: `${planBarStartPercent}%`,
+                              width: `${planBarWidthPercent}%`,
+                              height: planHeight,
+                            }}
+                            title={`${t('gantt.canvas.legendPlan')}: ${p.planned_start_date} → ${p.planned_due_date}`}
+                          />
+                          {/* Actual Bar */}
+                          <div
+                            className="absolute bottom-0 rounded-lg shadow-md flex items-center px-2 transition-all group-hover:scale-[1.01] overflow-hidden"
+                            style={{
+                              left: `${barStartPercent}%`,
+                              width: `${barWidthPercent}%`,
+                              height: actualHeight,
+                            }}
+                          >
+                            {actualBarInner}
+                          </div>
                         </div>
-                      )}
-
-                      {/* Bar Content Label */}
-                      <div className="relative z-10 flex items-center justify-between w-full text-white font-extrabold text-[10.5px] gap-2 min-w-0 drop-shadow-xs">
-                        <span className="truncate">
-                          {p.status.toUpperCase()} · {p.progress_percent}%
-                        </span>
-
-                        {p.total_savings_annual > 0 && (
-                          <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-950/40 text-emerald-200 border border-emerald-400/40 text-[9px] font-mono shrink-0">
-                            <DollarSign size={10} />
-                            <span>{(p.total_savings_annual / 1000).toFixed(0)}k/{t('gantt.filters.year')}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );

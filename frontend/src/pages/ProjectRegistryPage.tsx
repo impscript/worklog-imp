@@ -45,7 +45,6 @@ interface Project {
   deploy_url: string | null;
   go_live_date: string | null;
   last_verified_date: string | null;
-  last_usage_note: string | null;
   is_auto_check_enabled: boolean;
   created_at: string;
   updated_at: string;
@@ -484,12 +483,6 @@ function ProjectCard({
             </span>
           )}
         </div>
-
-        {project.last_usage_note && (
-          <div className="mt-2 text-[11px] text-theme-text-secondary italic bg-theme-surface-secondary/50 rounded-lg px-3 py-1.5 border border-theme-border/50">
-            📝 {project.last_usage_note}
-          </div>
-        )}
 
         {project.credentials_ref_note && (
           <div className="mt-2 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/5 rounded-lg px-3 py-1.5 border border-amber-500/20 flex items-start gap-2">
@@ -1315,7 +1308,6 @@ const ProjectFormModal = ({
     deploy_url: '',
     go_live_date: '',
     last_verified_date: '',
-    last_usage_note: '',
     worklog_project_type: '',
     hosting_provider: '',
     admin_email: '',
@@ -1425,7 +1417,6 @@ const ProjectFormModal = ({
         deploy_url: editingProject?.deploy_url || '',
         go_live_date: editingProject?.go_live_date || '',
         last_verified_date: editingProject?.last_verified_date || '',
-        last_usage_note: editingProject?.last_usage_note || '',
         worklog_project_type: editingProject?.worklog_project_type || '',
         hosting_provider: editingProject?.hosting_provider || '',
         admin_email: editingProject?.admin_email || '',
@@ -1478,7 +1469,6 @@ const ProjectFormModal = ({
         deploy_url: formData.deploy_url.trim() || null,
         go_live_date: formData.go_live_date || null,
         last_verified_date: formData.last_verified_date || null,
-        last_usage_note: formData.last_usage_note.trim() || null,
         worklog_project_type: formData.parent_project_id ? (formData.worklog_project_type || null) : null,
         hosting_provider: formData.hosting_provider.trim() || null,
         admin_email: formData.admin_email.trim() || null,
@@ -1880,20 +1870,6 @@ const ProjectFormModal = ({
             </div>
           </div>
 
-          {/* Notes */}
-          <div className="border-t border-theme-border/50 pt-5">
-            <h3 className="text-xs font-bold text-theme-text tracking-wide mb-3 uppercase">บันทึก</h3>
-            <div>
-              <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1.5">Last Usage Note</label>
-              <textarea
-                value={formData.last_usage_note}
-                onChange={e => setFormData(p => ({ ...p, last_usage_note: e.target.value }))}
-                rows={2}
-                placeholder="เช่น ระบบมีคนใช้ทุกวัน, ปิดการใช้งานแล้ว, รอเปลี่ยนระบบใหม่..."
-                className="w-full theme-field rounded-lg px-3.5 py-2.5 text-sm border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all resize-none"
-              />
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

@@ -110,6 +110,17 @@ export interface DirectMarketRateItem {
   sequence_order: number;
 }
 
+export interface AvoidanceItem {
+  id: string;
+  project_id: string;
+  mode: 'cost_reduction' | 'replacement';
+  label: string;
+  baseline_cost_annual: number;
+  target_cost_annual: number;
+  notes?: string | null;
+  sequence_order: number;
+}
+
 export interface GanttProject {
   worklog_project_type?: string | null;
   id: string;
@@ -126,6 +137,10 @@ export interface GanttProject {
   owner_team?: string | null;
   start_date?: string | null;
   due_date?: string | null;
+  planned_start_date?: string | null;
+  planned_due_date?: string | null;
+  usage_status?: string | null;
+  last_usage_note?: string | null;
   progress_percent: number;
   head_lead_user_id?: string | null;
   head_lead_name?: string | null;
@@ -137,6 +152,7 @@ export interface GanttProject {
   cost_savings?: ProjectCostSavings | null;
   indirect_savings_items?: IndirectSavingsItem[];
   direct_market_rate_items?: DirectMarketRateItem[];
+  avoidance_items?: AvoidanceItem[];
   children?: GanttProject[];
   // Computed metrics
   total_worklog_hours: number;
@@ -146,6 +162,10 @@ export interface GanttProject {
 export interface ProjectGanttOverviewPayload {
   start_date?: string | null;
   due_date?: string | null;
+  planned_start_date?: string | null;
+  planned_due_date?: string | null;
+  usage_status?: string | null;
+  last_usage_note?: string | null;
   progress_percent?: number;
   status?: ProjectStatus;
   head_lead_user_id?: string | null;
@@ -214,7 +234,19 @@ export const PROJECT_TYPE_META: Record<
     badge: 'bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30',
     category: 'management',
   },
+  'Add On (Plus)': {
+    label: 'Add On (Plus)',
+    icon: '➕',
+    badge: 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30',
+    category: 'other',
+  },
 };
+
+// "Add On (Plus)" work is unplanned by nature (ad-hoc scope added mid-flight),
+// so it never gets a Plan bar on the roadmap or a Plan date pair in the drawer.
+export function isAddOnPlusType(type?: string | null): boolean {
+  return (type || '').trim().toLowerCase() === 'add on (plus)';
+}
 
 export function getProjectTypeMeta(type?: string | null) {
   if (!type) {
@@ -359,6 +391,30 @@ export const PROJECT_HEALTH_LABELS: Record<ProjectHealth, { label: string; badge
     label: 'Archived',
     badge: 'bg-stone-500/15 border-stone-500/30 text-stone-700 dark:text-stone-300',
     icon: '📦',
+  },
+};
+
+// Whether a shipped project is actually still being used — separate from
+// `status` (which tracks schedule phase), set manually by whoever checks in
+// with the real users, defaulting to "unverified" until someone does.
+export const USAGE_STATUS_META: Record<string, { label: string; shortLabel: string; badge: string; icon: string }> = {
+  active: {
+    label: 'Active (ใช้งานอยู่)',
+    shortLabel: 'Active',
+    badge: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-700 dark:text-emerald-300',
+    icon: '🟢',
+  },
+  inactive: {
+    label: 'Inactive (เลิกใช้แล้ว)',
+    shortLabel: 'Inactive',
+    badge: 'bg-slate-500/15 border-slate-500/30 text-slate-700 dark:text-slate-300',
+    icon: '⚪',
+  },
+  unverified: {
+    label: 'Unverified (ยังไม่ได้ตรวจสอบ)',
+    shortLabel: 'Unverified',
+    badge: 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300',
+    icon: '❓',
   },
 };
 
@@ -613,6 +669,14 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
       .order('sequence_order', { ascending: true });
     if (marketRateItemsErr) throw marketRateItemsErr;
 
+    // 5d. Fetch Cost Avoidance Line Items
+    const { data: avoidanceItemsData, error: avoidanceItemsErr } = await supabase
+      .from('tb_project_avoidance_items')
+      .select('*')
+      .in('project_id', projectIds)
+      .order('sequence_order', { ascending: true });
+    if (avoidanceItemsErr) throw avoidanceItemsErr;
+
     // 6. Fetch Actual Worklog Hours grouped by project_name and user_id
     const projectNames = rawProjects.map((p) => p.project_name);
     const { data: worklogs, error: worklogsErr } = await supabase
@@ -648,6 +712,7 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
       const pSavings = (savingsData || []).find((s) => s.project_id === p.id);
       const pIndirectItems = (indirectItemsData || []).filter((i) => i.project_id === p.id);
       const pMarketRateItems = (marketRateItemsData || []).filter((i) => i.project_id === p.id);
+      const pAvoidanceItems = (avoidanceItemsData || []).filter((i) => i.project_id === p.id);
 
       const pWorklog = worklogSummary.get(p.project_name);
       const totalWorklogHours = pWorklog ? pWorklog.totalHours : 0;
@@ -732,6 +797,10 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
         owner_team: p.owner_team,
         start_date: startDate,
         due_date: dueDate,
+        planned_start_date: p.planned_start_date || null,
+        planned_due_date: p.planned_due_date || null,
+        usage_status: p.usage_status || 'unverified',
+        last_usage_note: p.last_usage_note || null,
         progress_percent: progressPercent,
         head_lead_user_id: p.head_lead_user_id,
         head_lead_name: p.head_lead_name,
@@ -742,6 +811,7 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
         cost_savings: pSavings || null,
         indirect_savings_items: pIndirectItems,
         direct_market_rate_items: pMarketRateItems,
+        avoidance_items: pAvoidanceItems,
         total_worklog_hours: totalWorklogHours,
         total_savings_annual: totalSavingsAnnual,
       };
@@ -764,7 +834,8 @@ export async function saveProjectGanttDetails(
   milestones: ProjectMilestone[],
   savings: Partial<ProjectCostSavings>,
   indirectItems: IndirectSavingsItem[] = [],
-  directMarketRateItems: DirectMarketRateItem[] = []
+  directMarketRateItems: DirectMarketRateItem[] = [],
+  avoidanceItems: AvoidanceItem[] = []
 ) {
   if (milestones.some((milestone) => !milestone.id)) {
     throw new Error('A milestone is missing its ID');
@@ -774,6 +845,9 @@ export async function saveProjectGanttDetails(
   }
   if (directMarketRateItems.some((item) => !item.id)) {
     throw new Error('A direct market rate item is missing its ID');
+  }
+  if (avoidanceItems.some((item) => !item.id)) {
+    throw new Error('An avoidance item is missing its ID');
   }
 
   const teamPayload = teamList.map((member) => ({
@@ -825,6 +899,16 @@ export async function saveProjectGanttDetails(
     sequence_order: index + 1,
   }));
 
+  const avoidanceItemsPayload = avoidanceItems.map((item, index) => ({
+    id: item.id,
+    mode: item.mode,
+    label: item.label,
+    baseline_cost_annual: item.baseline_cost_annual,
+    target_cost_annual: item.target_cost_annual,
+    notes: item.notes ?? null,
+    sequence_order: index + 1,
+  }));
+
   const { error } = await supabase.rpc('save_gantt_project_details', {
     p_project_id: projectId,
     p_overview: overview,
@@ -833,6 +917,7 @@ export async function saveProjectGanttDetails(
     p_savings: savings,
     p_indirect_items: indirectItemsPayload,
     p_direct_market_rate_items: directMarketRateItemsPayload,
+    p_avoidance_items: avoidanceItemsPayload,
   });
 
   if (error) throw error;

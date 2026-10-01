@@ -53,6 +53,7 @@ export default function ProjectGanttPage() {
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   const [selectedHoldings, setSelectedHoldings] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<ProjectStatus[]>([]);
+  const [selectedUsageStatuses, setSelectedUsageStatuses] = useState<string[]>([]);
   const [selectedHealths, setSelectedHealths] = useState<ProjectHealth[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [showParentsOnly, setShowParentsOnly] = useState(false);
@@ -77,6 +78,7 @@ export default function ProjectGanttPage() {
     setSelectedTeams([]);
     setSelectedHoldings([]);
     setSelectedStatuses([]);
+    setSelectedUsageStatuses([]);
     setSelectedHealths([]);
     setSelectedUsers([]);
     setShowParentsOnly(false);
@@ -213,49 +215,30 @@ export default function ProjectGanttPage() {
     return getAvailableProjectYears(projects);
   }, [projects]);
 
-  // Projects that truly match the filters and should be counted in KPI / claims.
-  const kpiProjects = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-
-    return projects.filter((p) => {
+  // Base scope filters shared by the KPI overview and the drill-down list below it:
+  // year, parent-only, team/holding/health/user, and search text. Deliberately
+  // excludes project type / status / usage status — those three are the ones the
+  // Executive Summary's own clickable stats drill into (see kpiProjects below),
+  // and the KPI panel's totals must stay stable while a drill-down filter is active.
+  const matchesKpiBaseFilters = useCallback(
+    (p: GanttProject) => {
       if (!isProjectInYear(p, selectedYear)) return false;
-
-      // 0. Parent Projects Only
       if (showParentsOnly && p.parent_project_id) return false;
 
-      // 1. Multi-Select Project Types Filter
-      if (selectedProjectTypes.length > 0) {
-        const pType = (p.worklog_project_type || 'Project').toLowerCase();
-        const matchesAnyType = selectedProjectTypes.some((selected) => {
-          const sLower = selected.toLowerCase();
-          return pType === sLower || (p.worklog_project_type || '').toLowerCase() === sLower;
-        });
-        if (!matchesAnyType) return false;
-      }
-
-      // 2. Multi-Select Teams Filter
       if (selectedTeams.length > 0) {
         const pTeam = p.owner_team || 'IMP';
         if (!selectedTeams.includes(pTeam)) return false;
       }
 
-      // 3. Multi-Select Holdings Filter
       if (selectedHoldings.length > 0) {
         const pHolding = p.owner_holding || '';
         if (!selectedHoldings.includes(pHolding)) return false;
       }
 
-      // 4. Multi-Select Status Filter
-      if (selectedStatuses.length > 0) {
-        if (!selectedStatuses.includes(p.status)) return false;
-      }
-
-      // 5. Multi-Select Health Filter
       if (selectedHealths.length > 0) {
         if (!selectedHealths.includes(p.project_health)) return false;
       }
 
-      // 6. Multi-Select Member / User Filter
       if (selectedUsers.length > 0) {
         const isUserMatch = selectedUsers.some((uid) => {
           const uObj = availableUsers.find((u) => u.id === uid);
@@ -273,7 +256,7 @@ export default function ProjectGanttPage() {
         if (!isUserMatch) return false;
       }
 
-      // 7. Search Text Match
+      const q = searchQuery.toLowerCase().trim();
       if (!q) return true;
       return (
         p.project_name.toLowerCase().includes(q) ||
@@ -282,23 +265,53 @@ export default function ProjectGanttPage() {
         (p.owner_holding || '').toLowerCase().includes(q) ||
         (p.owner_team || '').toLowerCase().includes(q)
       );
+    },
+    [selectedYear, showParentsOnly, selectedTeams, selectedHoldings, selectedHealths, selectedUsers, availableUsers, searchQuery]
+  );
+
+  // Projects within the base scope (used for the KPI overview's own totals, so
+  // clicking a stat inside it doesn't make the panel collapse to just itself).
+  const kpiOverviewProjects = useMemo(
+    () => projects.filter(matchesKpiBaseFilters),
+    [projects, matchesKpiBaseFilters]
+  );
+  const visibleKpiOverviewProjects = useMemo(
+    () => kpiOverviewProjects.filter((p) => !hiddenProjectIds.has(p.id)),
+    [kpiOverviewProjects, hiddenProjectIds]
+  );
+
+  // Projects that truly match every filter, including project type / status /
+  // usage status — the ones the Executive Summary's stats can drill into. This is
+  // what the Gantt canvas and Kanban board are scoped to.
+  const kpiProjects = useMemo(() => {
+    return kpiOverviewProjects.filter((p) => {
+      // Multi-Select Project Types Filter
+      if (selectedProjectTypes.length > 0) {
+        const pType = (p.worklog_project_type || 'Project').toLowerCase();
+        const matchesAnyType = selectedProjectTypes.some((selected) => {
+          const sLower = selected.toLowerCase();
+          return pType === sLower || (p.worklog_project_type || '').toLowerCase() === sLower;
+        });
+        if (!matchesAnyType) return false;
+      }
+
+      // Multi-Select Status Filter
+      if (selectedStatuses.length > 0) {
+        if (!selectedStatuses.includes(p.status)) return false;
+      }
+
+      // Usage Status Filter
+      if (selectedUsageStatuses.length > 0) {
+        const pUsage = p.usage_status || 'unverified';
+        if (!selectedUsageStatuses.includes(pUsage)) return false;
+      }
+
+      return true;
     });
-  }, [
-    projects,
-    selectedYear,
-    showParentsOnly,
-    searchQuery,
-    selectedProjectTypes,
-    selectedTeams,
-    selectedHoldings,
-    selectedStatuses,
-    selectedHealths,
-    selectedUsers,
-    availableUsers,
-  ]);
+  }, [kpiOverviewProjects, selectedProjectTypes, selectedStatuses, selectedUsageStatuses]);
 
   // Projects still matching the real data filters, minus anything the presenter has
-  // temporarily hidden. This is what the KPI cards and Kanban board are scoped to.
+  // temporarily hidden. This is what the Kanban board is scoped to.
   const visibleKpiProjects = useMemo(
     () => kpiProjects.filter((p) => !hiddenProjectIds.has(p.id)),
     [kpiProjects, hiddenProjectIds]
@@ -523,8 +536,21 @@ export default function ProjectGanttPage() {
           </div>
         </div>
 
-        {/* Executive Summary Top Cards (Scoped to Filtered, Visible Projects) */}
-        <ExecutiveSummaryKPIs projects={visibleKpiProjects} />
+        {/* Executive Summary Top Cards — totals stay scoped to the base filters
+            (year/team/holding/health/user/search) so they don't collapse when a
+            stat below is clicked; clicking a stat drills the Gantt/Kanban list
+            into that subset via the shared status/type/usage-status filters. */}
+        <ExecutiveSummaryKPIs
+          projects={visibleKpiOverviewProjects}
+          selectedStatuses={selectedStatuses}
+          onStatusesChange={setSelectedStatuses}
+          selectedProjectTypes={selectedProjectTypes}
+          onProjectTypesChange={setSelectedProjectTypes}
+          selectedUsageStatuses={selectedUsageStatuses}
+          onUsageStatusesChange={setSelectedUsageStatuses}
+          showParentsOnly={showParentsOnly}
+          onShowParentsOnlyChange={setShowParentsOnly}
+        />
 
         {/* Filter Toolbar with View Switcher, Year, Tree View, Kanban & Zoom controls */}
         <GanttFilterToolbar
