@@ -689,14 +689,18 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                         <div className="relative w-full" style={{ height: rowHeight }}>
                           {/* Plan Line */}
                           <div
-                            className="absolute top-0 rounded-full bg-slate-400 dark:bg-slate-400/80"
+                            className="absolute top-0 rounded-full bg-slate-400 dark:bg-slate-400/80 flex items-center justify-center overflow-hidden"
                             style={{
                               left: `${planBarStartPercent}%`,
                               width: `${planBarWidthPercent}%`,
                               height: planHeight,
                             }}
                             title={`${t('gantt.canvas.legendPlan')}: ${p.planned_start_date} → ${p.planned_due_date}`}
-                          />
+                          >
+                            <span className="text-[6px] font-bold text-white/90 tracking-wider leading-none select-none truncate px-0.5">
+                              PLAN
+                            </span>
+                          </div>
                           {/* Actual Bar */}
                           <div
                             className="absolute bottom-0 rounded-lg shadow-md flex items-center px-2 transition-all group-hover:scale-[1.01] overflow-hidden"
