@@ -1377,7 +1377,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                     value={lastUsageNote}
                     onChange={(e) => setLastUsageNote(e.target.value)}
                     placeholder="เช่น ระบบมีคนใช้ทุกวัน, ปิดการใช้งานแล้ว, รอเปลี่ยนระบบใหม่..."
-                    className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs resize-none"
+                    className="w-full py-1.5 px-2.5 rounded-xl border border-theme-border bg-theme-surface text-theme-text text-xs resize-y min-h-[52px]"
                   />
                 </div>
               </div>
