@@ -364,20 +364,29 @@ export default function MigratePage() {
     setImportStats(null);
     setImportError(null);
 
-    // Auto-map headers
+    // Auto-map headers. An exact (normalized) header name always wins; the loose
+    // "contains" guess is only a fallback. Without this, an exported CSV — which has
+    // both action_name and action_channel, and both is_ot and is_implied_ot — got the
+    // later, wrong column (action_channel / is_implied_ot) mapped over the real one.
+    const normHeader = (h: string) => h.toLowerCase().replace(/[\s_-]/g, '');
+    const pickHeader = (exactNames: string[], looseMatch?: (norm: string) => boolean): string | undefined =>
+      headers.find(h => exactNames.includes(normHeader(h))) ??
+      (looseMatch ? [...headers].reverse().find(h => looseMatch(normHeader(h))) : undefined);
+
     const newMappings = { ...mappings };
-    headers.forEach(h => {
-      const norm = h.toLowerCase().replace(/[\s_-]/g, '');
-      if (norm === 'id' || norm === 'uuid' || norm === 'worklogid') newMappings.id = h;
-      if (norm.includes('date') || norm === 'workdate') newMappings.work_date = h;
-      if (norm.includes('start') || norm === 'starttime') newMappings.start_time = h;
-      if (norm.includes('end') || norm === 'endtime') newMappings.end_time = h;
-      if (norm.includes('project') || norm === 'projname') newMappings.project_name = h;
-      if (norm.includes('action') || norm === 'actname' || norm === 'task') newMappings.action_name = h;
-      if (norm.includes('description') || norm === 'desc' || norm === 'detail') newMappings.description = h;
-      if (norm.includes('hours') || norm === 'totalhours' || norm === 'duration') newMappings.total_hours = h;
-      if (norm.includes('ot') || norm === 'isot') newMappings.is_ot = h;
-    });
+    newMappings.id = pickHeader(['id', 'uuid', 'worklogid']) ?? newMappings.id;
+    newMappings.work_date = pickHeader(['workdate', 'date'], n => n.includes('date')) ?? newMappings.work_date;
+    newMappings.start_time = pickHeader(['starttime', 'start'], n => n.includes('start')) ?? newMappings.start_time;
+    newMappings.end_time = pickHeader(['endtime', 'end'], n => n.includes('end')) ?? newMappings.end_time;
+    newMappings.project_name =
+      pickHeader(['projectname', 'projname', 'project'], n => n.includes('project') && !n.includes('type')) ?? newMappings.project_name;
+    newMappings.action_name =
+      pickHeader(['actionname', 'actname', 'action', 'task'], n => n.includes('action') && !n.includes('channel')) ?? newMappings.action_name;
+    newMappings.description =
+      pickHeader(['description', 'desc', 'detail'], n => n.includes('description')) ?? newMappings.description;
+    newMappings.total_hours =
+      pickHeader(['totalhours', 'hours', 'duration'], n => n.includes('hours')) ?? newMappings.total_hours;
+    newMappings.is_ot = pickHeader(['isot', 'ot', 'overtime']) ?? newMappings.is_ot;
     setMappings(newMappings);
   };
 
