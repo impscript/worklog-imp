@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import {
   User,
   DollarSign,
@@ -64,6 +64,20 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Pixel width of the timeline track (identical for every row), so each bar can
+  // decide whether its label fits inside or must be drawn beside it.
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [trackWidth, setTrackWidth] = useState(0);
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      setTrackWidth(entries[0].contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Compute overall timeline bounds across all projects or anchor to selected year
   const timelineSpan = useMemo((): TimelineSpan => {
@@ -298,6 +312,7 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
 
             {/* Timeline Scale Headers */}
             <div
+              ref={trackRef}
               className={cn('relative', fillTimelineWidth && 'flex-1 min-w-0')}
               style={fillTimelineWidth ? undefined : { width: timelineCanvasWidth }}
             >
@@ -612,106 +627,148 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
                     </div>
 
                     {(() => {
-                      // Shared Actual-bar contents (fill, progress shading,
-                      // milestones, label) reused whether or not a Plan line
-                      // is drawn alongside it — only the wrapper's size and
-                      // position differ between the two layouts below.
-                      const actualBarInner = (
-                        <>
-                          {/* Base Bar Fill */}
-                          <div
-                            className={cn(
-                              'absolute inset-0 border transition-colors opacity-95',
-                              getStatusBgColor(p.status, depth)
-                            )}
-                          />
+                      // Adaptive bar: the label (status · progress, savings chip,
+                      // milestones) is drawn inside the bar only when the bar is wide
+                      // enough in real pixels; otherwise the unfit parts are drawn
+                      // beside the bar so short projects never hide their data.
+                      const trackPx = trackWidth || 1000;
+                      const barPx = (barWidthPercent / 100) * trackPx;
+                      const milestoneCount = Math.min(3, p.milestones.length);
+                      const statusText = `${p.status.toUpperCase()} · ${p.progress_percent}%`;
+                      const savingsText =
+                        p.total_savings_annual > 0
+                          ? `${(p.total_savings_annual / 1000).toFixed(0)}k/${t('gantt.filters.year')}`
+                          : null;
 
-                          {/* Progress Shading Inner Bar */}
-                          <div
-                            className="absolute inset-y-0 left-0 bg-black/20 dark:bg-white/20 transition-all"
-                            style={{ width: `${Math.min(100, Math.max(0, p.progress_percent))}%` }}
-                          />
+                      const showStatusInside = barPx >= 120;
+                      const showSavingsInside = barPx >= 230;
+                      const showMilestonesInside = barPx >= 60;
 
-                          {/* Milestone Diamonds / Ticks */}
-                          {p.milestones.length > 0 && (
-                            <div className="absolute inset-y-0 right-2 flex items-center gap-1 z-10">
-                              {p.milestones.slice(0, 3).map((m, mIdx) => (
-                                <div
-                                  key={mIdx}
-                                  title={`Milestone: ${m.milestone_name} (${m.status})`}
-                                  className={cn(
-                                    'w-2 h-2 rotate-45 border border-white shadow-xs',
-                                    m.status === 'completed' ? 'bg-emerald-300' : 'bg-white/80'
-                                  )}
-                                />
-                              ))}
-                            </div>
-                          )}
+                      const showStatusOutside = !showStatusInside;
+                      const showSavingsOutside = !!savingsText && !showSavingsInside;
+                      const showMilestonesOutside = milestoneCount > 0 && !showMilestonesInside;
+                      const hasCallout = showStatusOutside || showSavingsOutside || showMilestonesOutside;
 
-                          {/* Bar Content Label */}
-                          <div className="relative z-10 flex items-center justify-between w-full text-white font-extrabold text-[10.5px] gap-2 min-w-0 drop-shadow-xs">
-                            <span className="truncate">
-                              {p.status.toUpperCase()} · {p.progress_percent}%
-                            </span>
+                      const calloutPx =
+                        12 +
+                        (showStatusOutside ? 118 : 0) +
+                        (showSavingsOutside ? 84 : 0) +
+                        (showMilestonesOutside ? milestoneCount * 12 : 0);
+                      const barEndPx = ((barStartPercent + barWidthPercent) / 100) * trackPx;
+                      const calloutOnRight = barEndPx + 6 + calloutPx <= trackPx;
 
-                            {p.total_savings_annual > 0 && (
-                              <span className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-950/40 text-emerald-200 border border-emerald-400/40 text-[9px] font-mono shrink-0">
-                                <DollarSign size={10} />
-                                <span>{(p.total_savings_annual / 1000).toFixed(0)}k/{t('gantt.filters.year')}</span>
-                              </span>
-                            )}
-                          </div>
-                        </>
-                      );
-
-                      if (!hasPlanBar) {
-                        return (
-                          <div
-                            className={cn(
-                              'relative rounded-xl shadow-md flex items-center px-2.5 transition-all group-hover:scale-[1.01] overflow-hidden',
-                              isChild ? 'h-6.5' : 'h-8'
-                            )}
-                            style={{ left: `${barStartPercent}%`, width: `${barWidthPercent}%` }}
-                          >
-                            {actualBarInner}
-                          </div>
-                        );
-                      }
-
-                      // Plan + Actual as two separate stacked lines, sized so
-                      // the pair together still fits the row's original
-                      // height — a thin Plan line on top, a slightly thicker
-                      // Actual bar below it.
                       const rowHeight = isChild ? 26 : 32;
                       const planHeight = isChild ? 8 : 11;
-                      const actualHeight = isChild ? 16 : 20;
+                      const actualHeight = hasPlanBar ? (isChild ? 16 : 20) : rowHeight;
+
+                      const barTitle = `${p.project_name} — ${statusText}${savingsText ? ` · ${savingsText}` : ''}`;
+
+                      const milestoneDiamonds = (inside: boolean) =>
+                        p.milestones.slice(0, 3).map((m, mIdx) => (
+                          <div
+                            key={mIdx}
+                            title={`Milestone: ${m.milestone_name} (${m.status})`}
+                            className={cn(
+                              'w-2 h-2 rotate-45 border shrink-0',
+                              inside
+                                ? cn('border-white shadow-xs', m.status === 'completed' ? 'bg-emerald-300' : 'bg-white/80')
+                                : cn('border-slate-400/70', m.status === 'completed' ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-500')
+                            )}
+                          />
+                        ));
+
+                      const savingsChip = (inside: boolean) => (
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border text-[9px] font-mono shrink-0',
+                            inside
+                              ? 'bg-emerald-950/40 text-emerald-200 border-emerald-400/40'
+                              : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                          )}
+                        >
+                          <DollarSign size={10} />
+                          <span>{savingsText}</span>
+                        </span>
+                      );
+
                       return (
                         <div className="relative w-full" style={{ height: rowHeight }}>
                           {/* Plan Line */}
-                          <div
-                            className="absolute top-0 rounded-full bg-slate-400 dark:bg-slate-400/80 flex items-center justify-center overflow-hidden"
-                            style={{
-                              left: `${planBarStartPercent}%`,
-                              width: `${planBarWidthPercent}%`,
-                              height: planHeight,
-                            }}
-                            title={`${t('gantt.canvas.legendPlan')}: ${p.planned_start_date} → ${p.planned_due_date}`}
-                          >
-                            <span className="text-[6px] font-bold text-white/90 tracking-wider leading-none select-none truncate px-0.5">
-                              PLAN
-                            </span>
-                          </div>
+                          {hasPlanBar && (
+                            <div
+                              className="absolute top-0 rounded-full bg-slate-400 dark:bg-slate-400/80 flex items-center justify-center overflow-hidden"
+                              style={{
+                                left: `${planBarStartPercent}%`,
+                                width: `${planBarWidthPercent}%`,
+                                height: planHeight,
+                              }}
+                              title={`${t('gantt.canvas.legendPlan')}: ${p.planned_start_date} → ${p.planned_due_date}`}
+                            >
+                              <span className="text-[6px] font-bold text-white/90 tracking-wider leading-none select-none truncate px-0.5">
+                                PLAN
+                              </span>
+                            </div>
+                          )}
+
                           {/* Actual Bar */}
                           <div
-                            className="absolute bottom-0 rounded-lg shadow-md flex items-center px-2 transition-all group-hover:scale-[1.01] overflow-hidden"
-                            style={{
-                              left: `${barStartPercent}%`,
-                              width: `${barWidthPercent}%`,
-                              height: actualHeight,
-                            }}
+                            title={barTitle}
+                            className={cn(
+                              'absolute bottom-0 shadow-md flex items-center transition-all group-hover:scale-[1.01] overflow-hidden',
+                              hasPlanBar ? 'rounded-lg px-2' : 'rounded-xl px-2.5'
+                            )}
+                            style={{ left: `${barStartPercent}%`, width: `${barWidthPercent}%`, height: actualHeight }}
                           >
-                            {actualBarInner}
+                            {/* Base Bar Fill */}
+                            <div
+                              className={cn(
+                                'absolute inset-0 border transition-colors opacity-95',
+                                getStatusBgColor(p.status, depth)
+                              )}
+                            />
+
+                            {/* Progress Shading Inner Bar */}
+                            <div
+                              className="absolute inset-y-0 left-0 bg-black/20 dark:bg-white/20 transition-all"
+                              style={{ width: `${Math.min(100, Math.max(0, p.progress_percent))}%` }}
+                            />
+
+                            {/* Milestone Diamonds / Ticks (only when they fit) */}
+                            {showMilestonesInside && milestoneCount > 0 && (
+                              <div className="absolute inset-y-0 right-2 flex items-center gap-1 z-10">
+                                {milestoneDiamonds(true)}
+                              </div>
+                            )}
+
+                            {/* Bar Content Label (only the parts that fit) */}
+                            {(showStatusInside || (showSavingsInside && savingsText)) && (
+                              <div className="relative z-10 flex items-center justify-between w-full text-white font-extrabold text-[10.5px] gap-2 min-w-0 drop-shadow-xs">
+                                <span className="truncate">{showStatusInside ? statusText : ''}</span>
+                                {showSavingsInside && savingsText && savingsChip(true)}
+                              </div>
+                            )}
                           </div>
+
+                          {/* Callout beside the bar for whatever did not fit inside */}
+                          {hasCallout && (
+                            <div
+                              className="absolute bottom-0 z-20 flex items-center gap-1.5 px-1.5 rounded-md border border-theme-border/60 bg-theme-surface/90 dark:bg-theme-bg-page/90 backdrop-blur-sm shadow-xs whitespace-nowrap pointer-events-none"
+                              style={{
+                                height: actualHeight,
+                                ...(calloutOnRight
+                                  ? { left: `calc(${barStartPercent + barWidthPercent}% + 6px)` }
+                                  : { right: `calc(${100 - barStartPercent}% + 6px)` }),
+                              }}
+                            >
+                              {showMilestonesOutside && (
+                                <span className="flex items-center gap-1">{milestoneDiamonds(false)}</span>
+                              )}
+                              {showStatusOutside && (
+                                <span className="text-[10px] font-extrabold text-theme-text">{statusText}</span>
+                              )}
+                              {showSavingsOutside && savingsChip(false)}
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
