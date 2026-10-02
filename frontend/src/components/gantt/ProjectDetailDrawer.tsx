@@ -31,6 +31,7 @@ import type {
 import {
   TEAM_ROLE_LABELS,
   calculateTotalSavings,
+  roundSavingsForDisplay,
   calculateProjectHealth,
   saveProjectGanttDetails,
   getUserAvatarUrl,
@@ -1772,7 +1773,7 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                       ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-emerald-500/30'
                       : 'bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-rose-500/30'
                   )}>
-                    ฿ {currentTotalSavings.toLocaleString('th-TH', { maximumFractionDigits: 0 })} / ปี
+                    ฿ {roundSavingsForDisplay(currentTotalSavings).toLocaleString('th-TH')} / ปี
                   </span>
                 </div>
 

@@ -573,6 +573,12 @@ export function calculateGrossSavings(savings?: Partial<ProjectCostSavings> | nu
 /**
  * Computes Net Annual Benefit after incremental run cost.
  */
+// Headline savings figures are shown rounded to the nearest thousand baht so they
+// read as round numbers; the exact amount stays available where it is labelled "actual".
+export function roundSavingsForDisplay(amount: number): number {
+  return Math.round(amount / 1000) * 1000;
+}
+
 export function calculateTotalSavings(savings?: Partial<ProjectCostSavings> | null): number {
   if (!savings) return 0;
   return calculateGrossSavings(savings) - (Number(savings.incremental_run_cost_annual) || 0);

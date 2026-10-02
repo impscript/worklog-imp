@@ -1,7 +1,7 @@
 import React from 'react';
 import { Layers, DollarSign, Activity, PlayCircle, CheckCircle2, PlusCircle, Rocket, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { isAddOnPlusType, type GanttProject, type ProjectStatus } from '../../lib/project-management';
+import { isAddOnPlusType, roundSavingsForDisplay, type GanttProject, type ProjectStatus } from '../../lib/project-management';
 
 interface ExecutiveSummaryKPIsProps {
   projects: GanttProject[];
@@ -372,7 +372,7 @@ export const ExecutiveSummaryKPIs: React.FC<ExecutiveSummaryKPIsProps> = ({
 
           <div className="rounded-xl bg-white dark:bg-white/[0.06] px-3 py-3 text-center">
             <div className="text-[22px] font-bold text-emerald-600 dark:text-emerald-400 tracking-tight tabular-nums">
-              ฿{totalSavings.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
+              ฿{roundSavingsForDisplay(totalSavings).toLocaleString('th-TH')}
             </div>
             <div className="text-[10px] text-theme-text-muted mt-1 leading-snug">{t('gantt.kpi.savingsBreakdown')}</div>
           </div>
