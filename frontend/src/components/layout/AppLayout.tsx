@@ -1,11 +1,13 @@
-import { useState, useEffect, type ReactNode } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, ChevronDown, Sun, Moon, FolderTree, FolderKanban, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown, ListChecks, Gift } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase, ensureValidSupabaseSession } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
 import { useNotification } from '../../context/NotificationContext';
 import UpdateAnnouncementModal from '../modals/UpdateAnnouncementModal';
+import ModalPortal from '../modals/ModalPortal';
+import { getAllowedAdminTabs, getDefaultAdminTab } from '../../lib/admin-tabs';
 import { getLatestVersion, SEEN_VERSION_KEY } from '../../lib/changelog';
 import { useTheme } from '../../context/ThemeContext';
 import { useTranslation } from 'react-i18next';
@@ -630,7 +632,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <NavItem to="/team" icon={<User size={16} />} label={t('nav.team')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             )}
             {(user?.workspaceRole === 'admin' || user?.workspaceRole === 'manager') && user?.role !== 'admin' && (
-              <NavItem to="/admin" icon={<Database size={16} />} label={t('nav.admin')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+              <AdminFlyoutNav variant="item" isCollapsed={isCollapsed} user={user} onNav={() => setIsSidebarOpen(false)} />
             )}
             <NavItem to="/leaderboard" icon={<Trophy size={16} />} label={t('nav.leaderboard')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
 
@@ -647,7 +649,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
             {/* Section 4: ผู้ดูแลระบบใหญ่ (Super Admin) */}
             {user?.role === 'admin' && (
-              <SysAdminSection isCollapsed={isCollapsed} onNav={() => setIsSidebarOpen(false)} />
+              <SysAdminSection isCollapsed={isCollapsed} user={user} onNav={() => setIsSidebarOpen(false)} />
             )}
           </nav>
 
@@ -1113,9 +1115,12 @@ interface NavItemProps {
   end?: boolean;
 }
 
+const NAV_ACTIVE_CLASS = "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/25 after:absolute after:left-0 after:top-1/4 after:h-1/2 after:w-1 after:bg-indigo-600 dark:after:bg-indigo-500 after:rounded-r-full shadow-xs font-semibold";
+const NAV_INACTIVE_CLASS = "text-theme-text-secondary hover:bg-theme-surface-tertiary hover:text-theme-text border border-transparent";
+
 function NavItem({ to, icon, label, isCollapsed, onClick, forceActive, end }: NavItemProps) {
-  const activeClass = "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/25 after:absolute after:left-0 after:top-1/4 after:h-1/2 after:w-1 after:bg-indigo-600 dark:after:bg-indigo-500 after:rounded-r-full shadow-xs font-semibold";
-  const inactiveClass = "text-theme-text-secondary hover:bg-theme-surface-tertiary hover:text-theme-text border border-transparent";
+  const activeClass = NAV_ACTIVE_CLASS;
+  const inactiveClass = NAV_INACTIVE_CLASS;
 
   return (
     <NavLink
@@ -1238,7 +1243,156 @@ function SubNavItem({
   );
 }
 
-function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: () => void }) {
+// "Admin" row that opens a flyout (cascading submenu) listing the Master Data
+// collections to its right, instead of a column inside the Admin page itself.
+// The panel is portaled to <body> with fixed positioning because the sidebar's
+// <nav> scrolls (overflow clips absolutely positioned children).
+function AdminFlyoutNav({
+  variant,
+  isCollapsed,
+  user,
+  onNav,
+}: {
+  variant: 'item' | 'sub';
+  isCollapsed: boolean;
+  user: SessionUser | null;
+  onNav: () => void;
+}) {
+  const { t } = useTranslation();
+  const location = useLocation();
+  const [isOpen, setIsOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const tabs = getAllowedAdminTabs(user);
+  const isOnAdmin = location.pathname === '/admin';
+  const currentTab = isOnAdmin ? new URLSearchParams(location.search).get('tab') || getDefaultAdminTab(user) : null;
+
+  const updatePos = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const panelWidth = 232;
+    const left = Math.max(8, Math.min(r.right + 8, window.innerWidth - panelWidth - 8));
+    // Rows low on the screen open upward so a tall list never runs off the bottom.
+    setPos(
+      r.top > window.innerHeight / 2
+        ? { left, bottom: window.innerHeight - r.bottom, maxHeight: r.bottom - 12 }
+        : { left, top: r.top, maxHeight: window.innerHeight - r.top - 12 }
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const node = e.target as Node;
+      if (triggerRef.current?.contains(node) || menuRef.current?.contains(node)) return;
+      setIsOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', updatePos);
+    window.addEventListener('scroll', updatePos, true);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', updatePos);
+      window.removeEventListener('scroll', updatePos, true);
+    };
+  }, [isOpen, updatePos]);
+
+  const handleToggle = () => {
+    if (!isOpen) updatePos();
+    setIsOpen((prev) => !prev);
+  };
+
+  const isActive = isOnAdmin || isOpen;
+  const label = t('nav.admin');
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={handleToggle}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        title={isCollapsed ? label : undefined}
+        className={
+          variant === 'item'
+            ? cn(
+                "w-full flex items-center rounded-lg transition-all duration-200 group text-[13px] font-medium relative overflow-hidden",
+                isCollapsed ? "md:justify-center space-x-2.5 md:space-x-0 py-2 px-2" : "space-x-2.5 px-3 py-2",
+                isActive ? NAV_ACTIVE_CLASS : NAV_INACTIVE_CLASS
+              )
+            : cn(
+                "w-full flex items-center gap-2 py-1.5 px-2.5 rounded-md text-[12px] font-medium transition-all duration-150",
+                isActive
+                  ? "bg-indigo-100/70 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-semibold shadow-xs"
+                  : "text-theme-text-secondary hover:bg-theme-surface-tertiary/80 hover:text-theme-text"
+              )
+        }
+      >
+        <span className={cn("shrink-0", variant === 'item' ? "text-theme-text-muted group-hover:text-indigo-600 dark:group-hover:text-indigo-400" : "opacity-80")}>
+          <Database size={variant === 'item' ? 16 : 13} />
+        </span>
+        {!isCollapsed ? (
+          <>
+            <span className="tracking-wide whitespace-nowrap truncate flex-1 text-left">{label}</span>
+            <ChevronRight size={14} className="shrink-0 text-theme-text-muted" />
+          </>
+        ) : (
+          <span className="tracking-wide whitespace-nowrap md:hidden">{label}</span>
+        )}
+      </button>
+
+      {isOpen && pos && (
+        <ModalPortal>
+          <div
+            ref={menuRef}
+            role="menu"
+            className="fixed z-[70] w-56 overflow-y-auto rounded-xl border border-theme-border bg-theme-surface shadow-2xl p-1.5 animate-fade-in"
+            style={{ left: pos.left, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight }}
+          >
+            <div className="px-2.5 pt-1 pb-1.5 text-[10px] font-black uppercase tracking-widest text-theme-text-muted">
+              Master Data
+            </div>
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isCurrent = currentTab === tab.key;
+              return (
+                <Link
+                  key={tab.key}
+                  to={`/admin?tab=${tab.key}`}
+                  role="menuitem"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onNav();
+                  }}
+                  className={cn(
+                    "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors",
+                    isCurrent
+                      ? "bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 font-semibold"
+                      : "text-theme-text-secondary hover:bg-theme-surface-tertiary hover:text-theme-text"
+                  )}
+                >
+                  <Icon size={14} className="shrink-0" />
+                  <span className="truncate">{tab.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </ModalPortal>
+      )}
+    </>
+  );
+}
+
+function SysAdminSection({ isCollapsed, user, onNav }: { isCollapsed: boolean; user: SessionUser | null; onNav: () => void }) {
   const { t } = useTranslation();
   const location = useLocation();
   const isWorkspacesActive = location.pathname === '/workspaces';
@@ -1279,13 +1433,7 @@ function SysAdminSection({ isCollapsed, onNav }: { isCollapsed: boolean; onNav: 
             label={t('nav.workspaces')}
             onClick={onNav}
           />
-          <SubNavItem
-            to="/admin"
-            icon={<Database size={13} />}
-            label={t('nav.admin')}
-            onClick={onNav}
-            end
-          />
+          <AdminFlyoutNav variant="sub" isCollapsed={isCollapsed} user={user} onNav={onNav} />
         </NavSubGroup>
       )}
     </div>

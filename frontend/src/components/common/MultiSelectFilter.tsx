@@ -26,6 +26,7 @@ interface MultiSelectFilterProps {
   onChange: (values: string[]) => void;
   presets?: MultiSelectPreset[];
   searchPlaceholder?: string;
+  alwaysShowSearch?: boolean;
   className?: string;
   align?: 'left' | 'right';
 }
@@ -39,6 +40,7 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
   onChange,
   presets,
   searchPlaceholder,
+  alwaysShowSearch,
   className,
   align = 'left',
 }) => {
@@ -236,8 +238,8 @@ export const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
             </div>
           )}
 
-          {/* Search Box if > 5 options */}
-          {options.length > 5 && (
+          {/* Search Box if > 5 options (or always, when the caller asks for it) */}
+          {(options.length > 5 || alwaysShowSearch) && (
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-theme-text-muted" />
               <input

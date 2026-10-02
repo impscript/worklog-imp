@@ -1,16 +1,15 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Shield, Activity, UserCheck, GitMerge, Users, Sliders, Calendar, Upload, Download, Power, PowerOff, Copy, Filter, DollarSign } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Upload, Download, Power, PowerOff, Copy, Filter } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
+import { getProjectTypeMeta } from '../lib/project-management';
+import { MultiSelectFilter } from '../components/common/MultiSelectFilter';
+import { ADMIN_TABS, getDefaultAdminTab, type AdminTab } from '../lib/admin-tabs';
 import { useNotification } from '../context/NotificationContext';
 
-type TableTab = 'holding' | 'role' | 'project_type' | 'action' | 'map_user' | 'map_project' | 'users' | 'ai_settings' | 'ai_prompt' | 'holiday' | 'templates' | 'salary_rate';
-
-// The IT salary rate reference is IMP's own tool (used to cost in-house builds),
-// so only the Process Improvement workspace manages it in the Admin UI.
-const PROCESS_IMPROVEMENT_WORKSPACE_ID = 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
+type TableTab = AdminTab;
 
 export default function AdminPage() {
   const { showToast, showConfirm } = useNotification();
@@ -36,11 +35,7 @@ export default function AdminPage() {
       
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab') as TableTab | null;
-      if (tabParam) {
-        setActiveTab(tabParam);
-      } else if (user.role !== 'admin' && (user.workspaceRole === 'admin' || user.workspaceRole === 'manager')) {
-        setActiveTab('templates');
-      }
+      setActiveTab(tabParam ?? getDefaultAdminTab(user));
     }
   }, []);
 
@@ -51,7 +46,6 @@ export default function AdminPage() {
       setActiveTab(tabParam);
     }
   }, [location]);
-  const [isMobileTabMenuOpen, setIsMobileTabMenuOpen] = useState(false);
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
   const exportDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -76,11 +70,11 @@ export default function AdminPage() {
   } | null>(null);
 
   // Project Structures specific filters
-  const [filterProject, setFilterProject] = useState('');
-  const [filterHolding, setFilterHolding] = useState('');
-  const [filterRole, setFilterRole] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [filterBU, setFilterBU] = useState('');
+  const [filterProject, setFilterProject] = useState<string[]>([]);
+  const [filterHolding, setFilterHolding] = useState<string[]>([]);
+  const [filterRole, setFilterRole] = useState<string[]>([]);
+  const [filterType, setFilterType] = useState<string[]>([]);
+  const [filterBU, setFilterBU] = useState<string[]>([]);
 
   // IT Salary Rate specific filters
   const [filterSalaryCategory, setFilterSalaryCategory] = useState('');
@@ -89,11 +83,11 @@ export default function AdminPage() {
   const [filterSalaryMax, setFilterSalaryMax] = useState('');
 
   const resetFilters = () => {
-    setFilterProject('');
-    setFilterHolding('');
-    setFilterRole('');
-    setFilterType('');
-    setFilterBU('');
+    setFilterProject([]);
+    setFilterHolding([]);
+    setFilterRole([]);
+    setFilterType([]);
+    setFilterBU([]);
   };
 
   const resetSalaryRateFilters = () => {
@@ -102,6 +96,16 @@ export default function AdminPage() {
     setFilterSalaryMin('');
     setFilterSalaryMax('');
   };
+
+  // The collection is now picked from the sidebar flyout (via ?tab=), so clear the
+  // search/filters whenever it changes — same reset the in-page tab buttons used to do.
+  const [filtersTab, setFiltersTab] = useState(activeTab);
+  if (filtersTab !== activeTab) {
+    setFiltersTab(activeTab);
+    setSearchQuery('');
+    setFilterStatus(activeTab === 'map_project' ? 'active' : 'all');
+    resetFilters();
+  }
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -810,7 +814,7 @@ export default function AdminPage() {
         typeQuery.order('type_name'),
         actionQuery.order('action_category'),
         userMapQuery.order('name'),
-        projStructQuery.order('project_name'),
+        projStructQuery.order('project_name').order('project_type').order('module'),
         userQuery,
         holidayQuery.order('date', { ascending: false }),
         templateQuery.order('template_name'),
@@ -901,11 +905,11 @@ export default function AdminPage() {
             p.department.toLowerCase().includes(q)
           );
 
-          const matchesHolding = !filterHolding || p.holding === filterHolding;
-          const matchesRole = !filterRole || p.department_operator === filterRole;
-          const matchesType = !filterType || p.project_type === filterType;
-          const matchesProject = !filterProject || p.project_name === filterProject;
-          const matchesBU = !filterBU || p.bu === filterBU;
+          const matchesHolding = filterHolding.length === 0 || filterHolding.includes(p.holding);
+          const matchesRole = filterRole.length === 0 || filterRole.includes(p.department_operator);
+          const matchesType = filterType.length === 0 || filterType.includes(p.project_type);
+          const matchesProject = filterProject.length === 0 || filterProject.includes(p.project_name);
+          const matchesBU = filterBU.length === 0 || filterBU.includes(p.bu);
 
           return matchesSearch && matchesHolding && matchesRole && matchesType && matchesProject && matchesBU;
         });
@@ -1393,33 +1397,8 @@ export default function AdminPage() {
     }
   };
 
-  const tabs: { key: TableTab; label: string; icon: any }[] = [
-    { key: 'holding', label: 'Holdings', icon: Database },
-    { key: 'role', label: 'Roles', icon: Shield },
-    { key: 'project_type', label: 'Project Types', icon: Cpu },
-    { key: 'action', label: 'Actions', icon: Activity },
-    { key: 'salary_rate', label: 'IT Salary Rates', icon: DollarSign },
-    { key: 'map_user', label: 'User Mappings', icon: UserCheck },
-    { key: 'map_project', label: 'Project Structures', icon: GitMerge },
-    { key: 'users', label: 'System Users', icon: Users },
-    { key: 'holiday', label: 'Holidays', icon: Calendar },
-    { key: 'templates', label: 'Worklog Templates', icon: Plus },
-    { key: 'ai_settings', label: 'AI Settings', icon: Sliders },
-    { key: 'ai_prompt', label: 'AI Prompts', icon: MessageSquare }
-  ];
-
-  const allowedTabs = useMemo(() => {
-    const isSuperAdmin = session?.role === 'admin' && (!session?.activeWorkspaceId || session?.activeWorkspaceId === 'N/A');
-    if (isSuperAdmin) return tabs;
-    const isProcessImprovementWorkspace = session?.activeWorkspaceId === PROCESS_IMPROVEMENT_WORKSPACE_ID;
-    // Hide global system administration tabs from workspace level admins/managers,
-    // and hide the IT Salary Rate reference tab outside the Process Improvement workspace.
-    return tabs.filter(t =>
-      t.key !== 'users' &&
-      t.key !== 'holiday' &&
-      (t.key !== 'salary_rate' || isProcessImprovementWorkspace)
-    );
-  }, [tabs, session]);
+  const activeTabMeta = ADMIN_TABS.find((t) => t.key === activeTab);
+  const ActiveTabIcon = activeTabMeta?.icon ?? Database;
 
   const renderScopeBadge = (row: any) => {
     const isGlobal = !row.workspace_id;
@@ -1459,6 +1438,7 @@ export default function AdminPage() {
     );
   };
 
+  const hasStructureFilters = filterProject.length > 0 || filterHolding.length > 0 || filterRole.length > 0 || filterType.length > 0 || filterBU.length > 0;
   const filteredData = getFilteredData();
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
   const paginatedData = filteredData.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
@@ -1474,6 +1454,10 @@ export default function AdminPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
+            <div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-bold text-indigo-400">
+              <ActiveTabIcon size={13} />
+              <span>{activeTabMeta?.label}</span>
+            </div>
             <h1 className="text-3xl font-extrabold text-theme-text tracking-tight theme-heading-gradient flex items-center gap-2">
               <Database className="text-indigo-400" />
               <span>Master Data Manager</span>
@@ -1544,7 +1528,7 @@ export default function AdminPage() {
                                 </span>
                               </div>
                               <p className="text-[11px] text-theme-text-secondary line-clamp-1 mt-0.5">
-                                {Boolean(searchQuery.trim() || filterProject || filterHolding || filterRole || filterType || filterBU || filterSalaryCategory || filterSalaryRole || filterSalaryMin || filterSalaryMax || filterStatus !== 'all')
+                                {Boolean(searchQuery.trim() || hasStructureFilters || filterSalaryCategory || filterSalaryRole || filterSalaryMin || filterSalaryMax || filterStatus !== 'all')
                                   ? 'เฉพาะรายการที่ตรงกับตัวกรองปัจจุบัน' 
                                   : 'กรองตามเงื่อนไขที่เลือก'}
                               </p>
@@ -1612,106 +1596,54 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex flex-col lg:flex-row gap-8 items-start">
-          {/* Navigation/Selector Column */}
-          <div className="w-full lg:w-64 shrink-0 space-y-4 lg:sticky lg:top-4 self-start">
-            {/* Desktop Tabs: Vertical List */}
-            <div className="hidden lg:flex flex-col bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/60 border border-theme-border/50 rounded-2xl p-4 shadow-lg space-y-1 max-h-[calc(100vh-160px)] overflow-y-auto custom-scrollbar">
-              <h2 className="px-3 py-2 text-xs font-bold text-theme-text-secondary uppercase tracking-wider mb-2">Master Tables</h2>
-              {allowedTabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => { setActiveTab(tab.key); setSearchQuery(''); setFilterStatus('all'); resetFilters(); }}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all border text-left",
-                      activeTab === tab.key 
-                        ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
-                        : "text-theme-text-secondary border-transparent hover:text-theme-text hover:bg-theme-surface-secondary/40"
-                    )}
-                  >
-                    <Icon size={16} className={cn(activeTab === tab.key ? "text-indigo-400" : "text-theme-text-secondary")} />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Mobile Dropdown Tab Selector */}
-            <div className="lg:hidden relative">
-              <label className="block text-xs font-bold text-theme-text-secondary uppercase tracking-wider mb-1.5 ml-1">Select Master Collection</label>
-              <button
-                onClick={() => setIsMobileTabMenuOpen(prev => !prev)}
-                className="w-full flex items-center justify-between bg-theme-surface-tertiary dark:bg-theme-surface-tertiary border border-theme-border/50 rounded-xl px-4 py-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
-              >
-                <div className="flex items-center gap-2">
-                  {(() => {
-                    const currentTab = allowedTabs.find(t => t.key === activeTab);
-                    const CurrentIcon = currentTab?.icon || Database;
-                    return (
-                      <>
-                        <CurrentIcon size={16} className="text-indigo-400" />
-                        <span>{currentTab?.label}</span>
-                      </>
-                    );
-                  })()}
-                </div>
-                <ChevronDown size={16} className={cn("text-theme-text-secondary transition-transform duration-200", isMobileTabMenuOpen && "rotate-180")} />
-              </button>
-
-              {isMobileTabMenuOpen && (
-                <>
-                  {/* Backdrop */}
-                  <div className="fixed inset-0 z-40" onClick={() => setIsMobileTabMenuOpen(false)} />
-                  <div className="absolute left-0 right-0 mt-2 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary border border-theme-border/80 rounded-xl shadow-2xl p-2 z-50 divide-y divide-theme-border/50 max-h-[320px] overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-150">
-                    {allowedTabs.map((tab) => {
-                      const Icon = tab.icon;
-                      return (
-                        <button
-                          key={tab.key}
-                          onClick={() => {
-                            setActiveTab(tab.key);
-                            setSearchQuery('');
-                            setFilterStatus('all');
-                            resetFilters();
-                            setIsMobileTabMenuOpen(false);
-                          }}
-                          className={cn(
-                            "w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-lg text-left transition-all",
-                            activeTab === tab.key 
-                              ? "bg-indigo-500/10 text-indigo-400"
-                              : "text-theme-text hover:bg-theme-surface-secondary"
-                          )}
-                        >
-                          <Icon size={16} className={cn(activeTab === tab.key ? "text-indigo-400" : "text-theme-text-secondary")} />
-                          <span>{tab.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
           {/* Table/Content Column */}
           <div className="flex-1 min-w-0 space-y-6">
             {/* Search Bar & Filters */}
             {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
-              <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-4 shadow-lg flex flex-col gap-4">
+              <div className="relative z-20 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-4 shadow-lg flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="relative w-full md:w-1/3">
                     <input 
                       type="text" 
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder={`Search in ${tabs.find(t => t.key === activeTab)?.label}...`}
+                      placeholder={`Search in ${activeTabMeta?.label}...`}
                       className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2 pl-10 pr-4 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
                     />
                     <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-secondary" />
                   </div>
                   <div className="flex items-center gap-4 self-stretch md:self-auto justify-end">
-                    {(activeTab !== 'holiday' && activeTab !== 'users') && (
+                    {activeTab === 'map_project' && (
+                      <label
+                        className={cn(
+                          'inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer select-none transition-colors',
+                          filterStatus === 'active'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : 'bg-theme-surface-secondary border-theme-border text-theme-text-secondary hover:text-theme-text'
+                        )}
+                        title="ติ๊กออกเพื่อแสดงรายการที่ปิดใช้งานด้วย"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={filterStatus === 'active'}
+                          onChange={(e) => setFilterStatus(e.target.checked ? 'active' : 'all')}
+                          className="sr-only"
+                        />
+                        <span
+                          className={cn(
+                            'w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors',
+                            filterStatus === 'active'
+                              ? 'bg-emerald-500 border-emerald-500 text-white'
+                              : 'border-theme-border bg-theme-surface'
+                          )}
+                        >
+                          {filterStatus === 'active' && <Check size={11} strokeWidth={3} />}
+                        </span>
+                        <span>Active only (เฉพาะที่เปิดใช้งาน)</span>
+                      </label>
+                    )}
+
+                    {(activeTab !== 'holiday' && activeTab !== 'users' && activeTab !== 'map_project') && (
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold text-theme-text-secondary whitespace-nowrap">Status (สถานะ):</span>
                         <select
@@ -1727,7 +1659,7 @@ export default function AdminPage() {
                     )}
 
                     {activeTab === 'map_project' && (
-                      (filterProject || filterHolding || filterRole || filterType || filterBU || searchQuery) && (
+                      (hasStructureFilters || searchQuery) && (
                         <button
                           onClick={() => { setSearchQuery(''); resetFilters(); }}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition-all"
@@ -1754,79 +1686,71 @@ export default function AdminPage() {
 
                 {activeTab === 'map_project' && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-4 border-t border-theme-border/30">
-                    {/* Project Filter */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-theme-text-secondary">Project</label>
-                      <select
-                        value={filterProject}
-                        onChange={(e) => setFilterProject(e.target.value)}
-                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
-                      >
-                        <option value="">All Projects</option>
-                        {uniqueProjects.map(p => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
+                      <MultiSelectFilter
+                        className="w-full"
+                        label="Project"
+                        defaultAllLabel="All Projects"
+                        options={uniqueProjects.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterProject}
+                        onChange={setFilterProject}
+                        alwaysShowSearch
+                      />
                     </div>
 
-                    {/* Holding Filter */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-theme-text-secondary">Holding</label>
-                      <select
-                        value={filterHolding}
-                        onChange={(e) => setFilterHolding(e.target.value)}
-                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
-                      >
-                        <option value="">All Holdings</option>
-                        {uniqueHoldings.map(h => (
-                          <option key={h} value={h}>{h}</option>
-                        ))}
-                      </select>
+                      <MultiSelectFilter
+                        className="w-full"
+                        label="Holding"
+                        defaultAllLabel="All Holdings"
+                        options={uniqueHoldings.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterHolding}
+                        onChange={setFilterHolding}
+                        alwaysShowSearch
+                      />
                     </div>
 
-                    {/* Role Filter */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-theme-text-secondary">Role</label>
-                      <select
-                        value={filterRole}
-                        onChange={(e) => setFilterRole(e.target.value)}
-                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
-                      >
-                        <option value="">All Roles</option>
-                        {uniqueRoles.map(r => (
-                          <option key={r} value={r}>{r}</option>
-                        ))}
-                      </select>
+                      <MultiSelectFilter
+                        className="w-full"
+                        label="Role"
+                        defaultAllLabel="All Roles"
+                        options={uniqueRoles.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterRole}
+                        onChange={setFilterRole}
+                        alwaysShowSearch
+                      />
                     </div>
 
-                    {/* Type Filter */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-theme-text-secondary">Type</label>
-                      <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
-                      >
-                        <option value="">All Types</option>
-                        {uniqueProjectTypes.map(t => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
+                      <MultiSelectFilter
+                        className="w-full"
+                        label="Type"
+                        defaultAllLabel="All Types"
+                        options={uniqueProjectTypes.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterType}
+                        onChange={setFilterType}
+                        alwaysShowSearch
+                        align="right"
+                      />
                     </div>
 
-                    {/* BU Filter */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-theme-text-secondary">BU / Dept</label>
-                      <select
-                        value={filterBU}
-                        onChange={(e) => setFilterBU(e.target.value)}
-                        className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-1.5 px-3 text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs transition-all"
-                      >
-                        <option value="">All BUs</option>
-                        {uniqueBUs.map(bu => (
-                          <option key={bu} value={bu}>{bu}</option>
-                        ))}
-                      </select>
+                      <MultiSelectFilter
+                        className="w-full"
+                        label="BU / Dept"
+                        defaultAllLabel="All BUs"
+                        options={uniqueBUs.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterBU}
+                        onChange={setFilterBU}
+                        alwaysShowSearch
+                        align="right"
+                      />
                     </div>
                   </div>
                 )}
@@ -1992,6 +1916,7 @@ export default function AdminPage() {
                         {activeTab === 'map_project' && (
                           <tr>
                             <th className="px-6 py-4 font-semibold">Project & Module</th>
+                            <th className="px-6 py-4 font-semibold">Project Type</th>
                             <th className="px-6 py-4 font-semibold">Allocation & Context</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
@@ -2163,10 +2088,18 @@ export default function AdminPage() {
                                     {row.module && <div className="text-xs text-theme-text-secondary mt-0.5">Module: {row.module}</div>}
                                     {row.project_description && <div className="text-[11px] text-theme-text-muted mt-1 italic line-clamp-2 max-w-[200px]" title={row.project_description}>{row.project_description}</div>}
                                   </td>
+                                  <td className="px-6 py-4">
+                                    {row.project_type ? (
+                                      <span className={cn('inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-md border whitespace-nowrap', getProjectTypeMeta(row.project_type).badge)}>
+                                        {row.project_type}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-theme-text-muted">-</span>
+                                    )}
+                                  </td>
                                   <td className="px-6 py-4 text-xs space-y-1">
                                     <div><span className="text-theme-text-muted font-medium">Holding:</span> <span className="text-theme-text font-semibold">{row.holding}</span></div>
                                     <div><span className="text-theme-text-muted font-medium">Role:</span> <span className="text-indigo-400 font-semibold">{row.department_operator}</span></div>
-                                    <div><span className="text-theme-text-muted font-medium">Type:</span> <span className="text-theme-text">{row.project_type}</span></div>
                                     <div><span className="text-theme-text-muted font-medium">BU/Dept:</span> <span className="text-theme-text font-medium">{row.bu} / {row.department}</span></div>
                                   </td>
                                   {renderStatusToggle(row, canModify)}
