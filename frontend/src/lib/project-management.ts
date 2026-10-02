@@ -207,7 +207,7 @@ export const PROJECT_TYPE_META: Record<
   Project: {
     label: 'Project',
     icon: '🚀',
-    badge: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30',
+    badge: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30',
     category: 'project',
   },
   Upgrade: {
@@ -253,7 +253,7 @@ export function getProjectTypeMeta(type?: string | null) {
     return {
       label: 'Project',
       icon: '🚀',
-      badge: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30',
+      badge: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30',
       category: 'project' as const,
     };
   }
