@@ -2259,12 +2259,12 @@ const ProjectDetailDrawerContent: React.FC<ProjectDetailDrawerContentProps> = ({
                               />
                             </div>
                           </div>
-                          <input
-                            type="text"
+                          <textarea
+                            rows={2}
                             value={item.notes || ''}
                             onChange={(e) => handleUpdateIndirectItem(idx, { notes: e.target.value })}
                             placeholder="เช่น ลดเวลาทำเอกสารอนุมัติของ HR จาก 3 ชม. เหลือ 15 นาที..."
-                            className="w-full py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-[10px] focus:outline-none focus:border-amber-500"
+                            className="w-full py-1 px-2 rounded-lg border border-theme-border bg-theme-surface text-theme-text text-[10px] focus:outline-none focus:border-amber-500 resize-y min-h-[40px]"
                           />
                         </div>
                       );
