@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, ChevronDown, Sun, Moon, FolderTree, FolderKanban, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown, ListChecks, Gift } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, Trophy, User, PlusCircle, Menu, X, LogOut, Database, Cpu, UploadCloud, ChevronLeft, ChevronRight, ChevronDown, Sun, Moon, FolderTree, FolderKanban, MessageSquare, Sparkles, LayoutGrid, Shield, Search, Check, ChevronsUpDown, ListChecks, Gift, CalendarCheck } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase, ensureValidSupabaseSession } from '../../lib/supabase';
 import { syncWorklogToGCal } from '../../lib/google-calendar';
@@ -645,6 +645,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               )}
             </div>
             <NavItem to="/hrbp" icon={<Cpu size={16} />} label="AI Enhance" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
+            <NavItem to="/appraisal" icon={<CalendarCheck size={16} />} label="AI Half - End Year" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/ai-chat" icon={<MessageSquare size={16} />} label={t('nav.aiChat')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
 
             {/* Section 4: ผู้ดูแลระบบใหญ่ (Super Admin) */}

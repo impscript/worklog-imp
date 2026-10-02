@@ -9,6 +9,7 @@ import CalendarPage from './pages/CalendarPage';
 import RoutineTaskPage from './pages/RoutineTaskPage';
 import ReportsPage from './pages/ReportsPage';
 import HrbpPage from './pages/HrbpPage';
+import OfficialAppraisalPage from './pages/OfficialAppraisalPage';
 import AiChatPage from './pages/AiChatPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
@@ -104,6 +105,7 @@ function App() {
             <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
             <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
             <Route path="/hrbp" element={<ProtectedRoute><HrbpPage /></ProtectedRoute>} />
+            <Route path="/appraisal" element={<ProtectedRoute><OfficialAppraisalPage /></ProtectedRoute>} />
             <Route path="/ai-chat" element={<ProtectedRoute><AiChatPage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
             <Route path="/projects" element={<ProtectedRoute><ProjectRegistryPage /></ProtectedRoute>} />
