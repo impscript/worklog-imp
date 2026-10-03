@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
@@ -21,9 +21,11 @@ import {
   History,
   Info,
   X,
-  ShieldCheck
+  ShieldCheck,
+  Cpu
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
+import { AppraisalConfirmModal, type AvailableProviderItem } from '../components/modals/AppraisalConfirmModal';
 
 interface UserProfile {
   id: string;
@@ -97,12 +99,15 @@ interface AppraisalResult {
     human_in_the_loop: { has_evidence: boolean; count: number; title: string; detail: string; badge: string };
     expert_in_the_loop: { has_evidence: boolean; count: number; title: string; detail: string; badge: string };
   };
+  supervisor_notes?: string;
+  ai_provider?: string;
+  ai_model?: string;
 }
 
 interface AnalysisHistoryItem {
   id: string;
   template_id?: string;
-  analysis_data?: AppraisalResult;
+  analysis_data?: unknown;
   score?: number;
   jd_alignment_score?: number;
   strengths?: string[];
@@ -112,6 +117,204 @@ interface AnalysisHistoryItem {
   analysis_date?: string;
   start_date?: string;
   end_date?: string;
+  supervisor_notes?: string;
+}
+
+/**
+ * Bulletproof Schema Normalizer
+ * Bridges historical, partial, or legacy AI evaluation data into a guaranteed valid AppraisalResult
+ * Prevents any "Cannot read properties of undefined (reading 'quantity')" runtime crashes
+ */
+function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): AppraisalResult {
+  let data: Record<string, unknown> = {};
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        data = parsed as Record<string, unknown>;
+      }
+    } catch {
+      data = {};
+    }
+  } else if (raw && typeof raw === 'object') {
+    data = raw as Record<string, unknown>;
+  }
+
+  // Helper type-safe extractors
+  const getString = (val: unknown, fallback: string): string =>
+    typeof val === 'string' && val.trim() ? val : fallback;
+
+  // 1. Determine overall score
+  const overallScore = typeof data.overall_score === 'number'
+    ? data.overall_score
+    : typeof item?.score === 'number'
+    ? item.score
+    : typeof item?.jd_alignment_score === 'number'
+    ? item.jd_alignment_score
+    : 75;
+
+  const defaultPillarScore = Math.min(20, Math.max(0, Math.round((overallScore / 100) * 20)));
+  const defaultLevel = overallScore >= 85 ? 'ดีเยี่ยม' : overallScore >= 75 ? 'ดีมาก' : overallScore >= 60 ? 'มาตรฐาน' : 'ต้องพัฒนา';
+
+  // 2. Normalize 5 Pillar Scores
+  let rawScores = data.scores as Record<string, Record<string, unknown>> | undefined;
+  if (!rawScores || typeof rawScores !== 'object' || Array.isArray(rawScores)) {
+    rawScores = {};
+    // Extract from dimension_scores array if available (edge function analyze-performance format)
+    const dimArray = Array.isArray(data.dimension_scores)
+      ? data.dimension_scores
+      : Array.isArray(data.scores)
+      ? data.scores
+      : null;
+
+    if (dimArray && dimArray.length > 0) {
+      dimArray.forEach((d) => {
+        const dim = (d && typeof d === 'object') ? (d as Record<string, unknown>) : {};
+        const dName = String(dim.dimension || dim.dimension_th || '').toLowerCase();
+        const rawScore = typeof dim.raw_score === 'number' ? dim.raw_score : 7.5;
+        const scaledScore = Math.min(20, Math.max(0, parseFloat((rawScore * 2).toFixed(1))));
+        const pObj = {
+          score: scaledScore,
+          max: 20,
+          level: scaledScore >= 16 ? 'ดีเยี่ยม' : scaledScore >= 14 ? 'ดี' : scaledScore >= 12 ? 'พอใช้' : 'ต้องพัฒนา',
+          sufficiency: 'Medium',
+          reason: String(dim.rationale || dim.improvement_suggestions || 'ข้อมูลจากระบบ AI ประเมินเดิม'),
+        };
+        if (/plan|วางแผน/i.test(dName)) rawScores!.quantity = pObj;
+        else if (/exec|ลงมือทำ|งาน/i.test(dName)) rawScores!.quality = pObj;
+        else if (/learn|เรียนรู้|reflection/i.test(dName)) rawScores!.learning = pObj;
+        else if (/account|รับผิดชอบ/i.test(dName)) rawScores!.accountability = pObj;
+        else if (/worklog|proact|ปฏิทิน/i.test(dName)) rawScores!.proactiveness = pObj;
+      });
+    }
+  }
+
+  const safeScores = {
+    quantity: {
+      score: typeof rawScores?.quantity?.score === 'number' ? (rawScores.quantity.score as number) : defaultPillarScore,
+      max: typeof rawScores?.quantity?.max === 'number' ? (rawScores.quantity.max as number) : 20,
+      level: getString(rawScores?.quantity?.level, defaultLevel),
+      sufficiency: getString(rawScores?.quantity?.sufficiency, 'Medium'),
+      reason: getString(rawScores?.quantity?.reason, 'บันทึกงานตามเกณฑ์มาตรฐาน'),
+    },
+    quality: {
+      score: typeof rawScores?.quality?.score === 'number' ? (rawScores.quality.score as number) : defaultPillarScore,
+      max: typeof rawScores?.quality?.max === 'number' ? (rawScores.quality.max as number) : 20,
+      level: getString(rawScores?.quality?.level, defaultLevel),
+      sufficiency: getString(rawScores?.quality?.sufficiency, 'Medium'),
+      reason: getString(rawScores?.quality?.reason, 'ส่งมอบงานตามเป้าหมาย'),
+    },
+    learning: {
+      score: typeof rawScores?.learning?.score === 'number' ? (rawScores.learning.score as number) : defaultPillarScore,
+      max: typeof rawScores?.learning?.max === 'number' ? (rawScores.learning.max as number) : 20,
+      level: getString(rawScores?.learning?.level, defaultLevel),
+      sufficiency: getString(rawScores?.learning?.sufficiency, 'Medium'),
+      reason: getString(rawScores?.learning?.reason, 'การเรียนรู้และพัฒนาทักษะ'),
+    },
+    accountability: {
+      score: typeof rawScores?.accountability?.score === 'number' ? (rawScores.accountability.score as number) : defaultPillarScore,
+      max: typeof rawScores?.accountability?.max === 'number' ? (rawScores.accountability.max as number) : 20,
+      level: getString(rawScores?.accountability?.level, defaultLevel),
+      sufficiency: getString(rawScores?.accountability?.sufficiency, 'Medium'),
+      reason: getString(rawScores?.accountability?.reason, 'ความรับผิดชอบและการติดตามงาน'),
+    },
+    proactiveness: {
+      score: typeof rawScores?.proactiveness?.score === 'number' ? (rawScores.proactiveness.score as number) : defaultPillarScore,
+      max: typeof rawScores?.proactiveness?.max === 'number' ? (rawScores.proactiveness.max as number) : 20,
+      level: getString(rawScores?.proactiveness?.level, defaultLevel),
+      sufficiency: getString(rawScores?.proactiveness?.sufficiency, 'Medium'),
+      reason: getString(rawScores?.proactiveness?.reason, 'ความคิดริเริ่มและปรับปรุงกระบวนการ'),
+    },
+  };
+
+  const rawEvidences = (data.evidences && typeof data.evidences === 'object') ? (data.evidences as Record<string, unknown>) : {};
+  const safeEvidences = {
+    quantity: Array.isArray(rawEvidences.quantity) ? (rawEvidences.quantity as string[]) : ['ดึงจากประวัติการทำงาน'],
+    quality: Array.isArray(rawEvidences.quality) ? (rawEvidences.quality as string[]) : ['ดึงจากประวัติการทำงาน'],
+    learning: Array.isArray(rawEvidences.learning) ? (rawEvidences.learning as string[]) : ['ดึงจากประวัติการทำงาน'],
+    accountability: Array.isArray(rawEvidences.accountability) ? (rawEvidences.accountability as string[]) : ['ดึงจากประวัติการทำงาน'],
+    proactiveness: Array.isArray(rawEvidences.proactiveness) ? (rawEvidences.proactiveness as string[]) : ['ดึงจากประวัติการทำงาน'],
+  };
+
+  const rawWorkStatus = (data.work_status && typeof data.work_status === 'object') ? (data.work_status as Record<string, unknown>) : {};
+  const safeWorkStatus = {
+    completed: Array.isArray(rawWorkStatus.completed) ? (rawWorkStatus.completed as string[]) : [],
+    in_progress: Array.isArray(rawWorkStatus.in_progress) ? (rawWorkStatus.in_progress as string[]) : [],
+    pending: Array.isArray(rawWorkStatus.pending) ? (rawWorkStatus.pending as string[]) : [],
+    overdue: Array.isArray(rawWorkStatus.overdue) ? (rawWorkStatus.overdue as string[]) : [],
+  };
+
+  const safeJdCoverage = Array.isArray(data.jd_coverage)
+    ? (data.jd_coverage as { item: string; status: 'Found' | 'Missing'; details: string }[])
+    : [];
+  const safeEvidenceGaps = Array.isArray(data.evidence_gaps) ? (data.evidence_gaps as string[]) : [];
+  const safeTopStrengths = Array.isArray(data.top_strengths) && data.top_strengths.length > 0
+    ? (data.top_strengths as string[])
+    : Array.isArray(item?.strengths) && item.strengths.length > 0
+    ? (item.strengths as string[])
+    : ['มีความมุ่งมั่นในการส่งมอบงานและรับผิดชอบโครงการที่ได้รับมอบหมาย'];
+  const safeDevPriorities = Array.isArray(data.development_priorities) && data.development_priorities.length > 0
+    ? (data.development_priorities as string[])
+    : Array.isArray(item?.improvements) && item.improvements.length > 0
+    ? (item.improvements as string[])
+    : ['เพิ่มการบันทึกตัวชี้วัดผลลัพธ์ (Result/Outcome) และการสรุปบทเรียน Case Study'];
+  const safeRecommendations = Array.isArray(data.recommendations) && data.recommendations.length > 0
+    ? (data.recommendations as string[])
+    : [typeof data.executive_summary === 'string' ? data.executive_summary.slice(0, 150) : 'สามารถบันทึกงานอย่างสม่ำเสมอตามสูตร [What] -> [Action] -> [Result]'];
+
+  const rawParadigm = (data.operating_paradigm && typeof data.operating_paradigm === 'object')
+    ? (data.operating_paradigm as Record<string, Record<string, unknown>>)
+    : {};
+  const aiLead = rawParadigm.ai_lead || {};
+  const humanTouch = rawParadigm.human_in_the_loop || {};
+  const expertGov = rawParadigm.expert_in_the_loop || {};
+
+  return {
+    overall_score: overallScore,
+    level: getString(data.level, defaultLevel),
+    confidence: (['High', 'Medium', 'Low'].includes(String(data.confidence)) ? data.confidence : 'Medium') as 'High' | 'Medium' | 'Low',
+    role_type: (data.role_type === 'manager' || item?.template_id?.includes('manager')) ? 'manager' : 'officer',
+    cycle: getString(data.cycle, item?.template_id?.includes('end') ? 'End-Year' : 'Half-Year'),
+    period: getString(data.period, `${item?.start_date || '-'} ถึง ${item?.end_date || '-'}`),
+    executive_summary: getString(data.executive_summary, item?.raw_ai_report || `ผลการประเมินประวัติเดิม คะแนนรวม ${overallScore}/100`),
+    scores: safeScores,
+    evidences: safeEvidences,
+    work_status: safeWorkStatus,
+    jd_coverage: safeJdCoverage,
+    evidence_gaps: safeEvidenceGaps,
+    top_strengths: safeTopStrengths,
+    development_priorities: safeDevPriorities,
+    recommendations: safeRecommendations,
+    calendar_logging_guide: getString(data.calendar_logging_guide, 'แนะนำให้บันทึกตามสูตร: [What]: ชื่องาน -> [Action]: สิ่งที่ทำ -> [Result]: ผลลัพธ์ที่ได้'),
+    operating_paradigm: {
+      ai_lead: {
+        has_evidence: Boolean(aiLead.has_evidence),
+        count: typeof aiLead.count === 'number' ? aiLead.count : 0,
+        title: getString(aiLead.title, 'การใช้เทคโนโลยีและ AI'),
+        detail: getString(aiLead.detail, 'ประยุกต์ใช้เครื่องมือในการทำงาน'),
+        badge: getString(aiLead.badge, aiLead.has_evidence ? 'พบหลักฐาน' : 'ยังไม่มีหลักฐาน'),
+      },
+      human_in_the_loop: {
+        has_evidence: Boolean(humanTouch.has_evidence),
+        count: typeof humanTouch.count === 'number' ? humanTouch.count : 0,
+        title: getString(humanTouch.title, 'ความเข้าใจผู้ใช้และ Stakeholder'),
+        detail: getString(humanTouch.detail, 'ประสานงานและตอบโจทย์ผู้ใช้งานจริง'),
+        badge: getString(humanTouch.badge, humanTouch.has_evidence ? 'พบหลักฐาน' : 'ยังไม่มีหลักฐาน'),
+      },
+      expert_in_the_loop: {
+        has_evidence: Boolean(expertGov.has_evidence),
+        count: typeof expertGov.count === 'number' ? expertGov.count : 0,
+        title: getString(expertGov.title, 'ธรรมาภิบาลและการกำกับดูแล'),
+        detail: getString(expertGov.detail, 'ตรวจทานคุณภาพและปฏิบัติตามมาตรฐาน'),
+        badge: getString(expertGov.badge, expertGov.has_evidence ? 'พบหลักฐาน' : 'ยังไม่มีหลักฐาน'),
+      },
+    },
+    supervisor_notes: typeof data.supervisor_notes === 'string'
+      ? data.supervisor_notes
+      : (typeof item?.supervisor_notes === 'string' ? item.supervisor_notes : ''),
+    ai_provider: typeof data.ai_provider === 'string' ? data.ai_provider : undefined,
+    ai_model: typeof data.ai_model === 'string' ? data.ai_model : undefined,
+  };
 }
 
 export default function OfficialAppraisalPage() {
@@ -183,6 +386,27 @@ export default function OfficialAppraisalPage() {
   const [historyFilterTab, setHistoryFilterTab] = useState<'official' | 'all'>('official');
   const [savedHistory, setSavedHistory] = useState<AnalysisHistoryItem[]>([]);
   const [copiedReport, setCopiedReport] = useState<boolean>(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState<string>('');
+
+  // Pre-Flight Confirmation Modal & AI Engine State
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
+  const progressCardRef = useRef<HTMLDivElement>(null);
+  const [aiConfig, setAiConfig] = useState<{
+    provider: string;
+    model: string;
+    availableProviders: AvailableProviderItem[];
+  }>({
+    provider: 'openrouter',
+    model: 'openai/gpt-4o-mini',
+    availableProviders: [
+      { id: 'openrouter', label: 'OpenRouter', isConfigured: true },
+      { id: 'gemini', label: 'Google Gemini', isConfigured: false },
+      { id: 'openai', label: 'OpenAI', isConfigured: false },
+      { id: 'opencode', label: 'OpenCode AI', isConfigured: false },
+      { id: 'cloudflare', label: 'Cloudflare AI', isConfigured: false },
+    ],
+  });
 
   // 1. Guard Session
   useEffect(() => {
@@ -190,6 +414,7 @@ export default function OfficialAppraisalPage() {
       navigate('/login');
     }
   }, [currentUser, navigate]);
+
 
   // 2. Load Workspace Users for Manager/Admin Team Evaluation (Strictly Scoped)
   useEffect(() => {
@@ -293,6 +518,66 @@ export default function OfficialAppraisalPage() {
     }
     return usersList.find((u) => u.id === selectedTargetUserId) || currentUser;
   }, [evalMode, selectedTargetUserId, currentUser, usersList]);
+
+  // Load Workspace AI configuration
+  const currentWsId = evaluatedUser?.active_workspace_id || currentUser?.activeWorkspaceId || currentUser?.active_workspace_id || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
+
+  useEffect(() => {
+    async function loadWorkspaceAiConfig() {
+      try {
+        const { data: configsData } = await supabase
+          .from('tb_system_config')
+          .select('config_key, config_value')
+          .eq('workspace_id', currentWsId);
+
+        const configs: Record<string, string> = {};
+        (configsData || []).forEach((row) => {
+          configs[row.config_key] = row.config_value;
+        });
+
+        const activeProvider = configs.ai_provider || 'openrouter';
+        const activeModel = configs.ai_model || 'openai/gpt-4o-mini';
+
+        const providersList: AvailableProviderItem[] = [
+          {
+            id: 'openrouter',
+            label: 'OpenRouter',
+            isConfigured: !!configs.openrouter_api_key,
+          },
+          {
+            id: 'gemini',
+            label: 'Google Gemini',
+            isConfigured: !!configs.gemini_api_key,
+          },
+          {
+            id: 'openai',
+            label: 'OpenAI',
+            isConfigured: !!configs.openai_api_key,
+          },
+          {
+            id: 'opencode',
+            label: 'OpenCode AI',
+            isConfigured: !!configs.opencode_api_key,
+          },
+          {
+            id: 'cloudflare',
+            label: 'Cloudflare AI',
+            isConfigured: !!(configs.cloudflare_account_id && configs.cloudflare_api_token),
+          },
+        ];
+
+        setAiConfig({
+          provider: activeProvider,
+          model: activeModel,
+          availableProviders: providersList,
+        });
+      } catch (err) {
+        console.warn('Failed to load workspace AI configs:', err);
+      }
+    }
+
+    loadWorkspaceAiConfig();
+  }, [currentWsId]);
 
   // Evaluator Leader Status (Controls whether logged in user can switch to Team Evaluation)
   const isCurrentUserLeader = useMemo(() => {
@@ -450,10 +735,18 @@ export default function OfficialAppraisalPage() {
   }, [uniqueLoggedDays, businessDays]);
 
   // 4. Run Appraisal Engine
-  const handleStartAppraisal = async () => {
+  const handleStartAppraisal = async (overrideConfig?: {
+    provider?: string;
+    model?: string;
+    supervisorNotes?: string;
+  }) => {
     if (!evaluatedUser) return;
     setIsAnalyzing(true);
     setAnalysisPhase('ดึงข้อมูลกิจกรรมและบันทึกงานตามเกณฑ์มาตรฐาน HR...');
+
+    const chosenProvider = overrideConfig?.provider || aiConfig.provider;
+    const chosenModel = overrideConfig?.model || aiConfig.model;
+    const supervisorNotes = overrideConfig?.supervisorNotes || '';
 
     try {
       const totalEntries = candidateLogs.length;
@@ -537,6 +830,18 @@ export default function OfficialAppraisalPage() {
         expertGovRegex.test((l.action_name || '') + ' ' + (l.description || ''))
       );
 
+      // 10. Accountability: Follow-up & Issue tracking
+      const followUpRegex = /follow.?up|ติดตาม|อัพเดต|update.*status|รายงานความคืบหน้า|escalat/i;
+      const followUpLogs = candidateLogs.filter((l) =>
+        followUpRegex.test((l.action_name || '') + ' ' + (l.description || ''))
+      );
+
+      // 11. Quantitative Impact: Man-hour / Cost Saving / ROI evidence
+      const impactRegex = /(\d+[\d,.]*)\s*(man-?hour|hour|hr|ชม\.|ชั่วโมง|บาท|%|เท่า|เปอร์เซ็นต์|ประหยัด|ลดเวลา|เร็วขึ้น|cost saving|saving|roi)/i;
+      const impactLogs = candidateLogs.filter((l) =>
+        impactRegex.test((l.action_name || '') + ' ' + (l.description || ''))
+      );
+
       setAnalysisPhase('ประมวลผล 5 มิติหลักและวิเคราะห์ด้วย AI...');
 
       // 6. Invoke analyze-performance edge function (with perf_evaluation template)
@@ -555,6 +860,9 @@ export default function OfficialAppraisalPage() {
             end_date: dateRange.end,
             template_id: 'perf_evaluation',
             workspace_id: evaluatedUser.active_workspace_id || currentUser?.activeWorkspaceId || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001',
+            provider: chosenProvider,
+            model: chosenModel,
+            supervisor_notes: supervisorNotes,
           },
         });
         if (!aiErr && aiData) {
@@ -578,6 +886,181 @@ export default function OfficialAppraisalPage() {
         logCount >= 10 && ratio >= 0.6 ? 'High' : logCount >= 3 ? 'Medium' : 'Low';
 
       // ─────────────────────────────────────────────────────────────────
+      // Smart Evidence Matcher: Bridges 5 Evaluation Dimensions & Role-Based JDs
+      // ─────────────────────────────────────────────────────────────────
+      const matchResponsibilityEvidence = (kr: { category: string; weight?: number }) => {
+        const cat = (kr.category || '').trim();
+        const catLower = cat.toLowerCase();
+        const weightLabel = kr.weight ? ` (${kr.weight}%)` : '';
+        const itemLabel = `${cat}${weightLabel}`;
+
+        // 1. Dimension: Execution / Delivery / ส่งมอบ
+        if (/execution|การลงมือทำ|deliver|ส่งมอบ|ผลลัพธ์|milestone|เป้าหมาย.*จริง/i.test(cat)) {
+          const matched = deliverableLogs.length > 0
+            ? deliverableLogs
+            : candidateLogs.filter((l) =>
+                /deploy|release|uat|sign.?off|deliver|ส่งมอบ|ผลลัพธ์|result|เสร็จ|milestone|production|implement|coding|develop|build|ship|สำเร็จ/i.test(
+                  (l.project_name || '') + ' ' + (l.action_name || '') + ' ' + (l.description || '')
+                )
+              );
+          if (matched.length > 0) {
+            const sampleProj = Array.from(new Set(matched.map((m) => m.project_name).filter(Boolean))).slice(0, 2).join(', ');
+            return {
+              item: itemLabel,
+              status: 'Found' as const,
+              count: matched.length,
+              details: `พบหลักฐานส่งมอบงาน/ผลลัพธ์สำเร็จ ${matched.length} รายการ (${sampleProj || 'โครงการหลัก'})`,
+            };
+          }
+          return {
+            item: itemLabel,
+            status: 'Missing' as const,
+            count: 0,
+            details: 'ยังขาดการบันทึกหลักฐานการส่งมอบงาน (UAT, Deploy หรือผลลัพธ์ [Result])',
+          };
+        }
+
+        // 2. Dimension: Accountability / ความรับผิดชอบ / ปัญหาเฉพาะหน้า / Owner
+        if (/accountability|ความรับผิดชอบ|ปัญหาเฉพาะหน้า|owner|ติดตาม|closure/i.test(cat)) {
+          const matched = candidateLogs.filter((l) =>
+            /follow.?up|ติดตาม|อัพเดต|update.*status|escalat|hotfix|incident|bug|rca|root.?cause|แก้ปัญหา|fix|patch|on-?call|troubleshoot|resolve|owner|รับผิดชอบ|sla|closure/i.test(
+              (l.project_name || '') + ' ' + (l.action_name || '') + ' ' + (l.description || '')
+            )
+          );
+          const totalAcctCount = matched.length + (isManagerEvaluated ? (coachingLogs.length + delegationLogs.length) : 0);
+          if (totalAcctCount > 0) {
+            const sampleProj = Array.from(new Set(matched.map((m) => m.project_name).filter(Boolean))).slice(0, 2).join(', ');
+            return {
+              item: itemLabel,
+              status: 'Found' as const,
+              count: totalAcctCount,
+              details: `พบหลักฐานการแก้ปัญหา ติดตามงาน และ Closure ${totalAcctCount} รายการ (${sampleProj || 'งานที่รับผิดชอบ'})`,
+            };
+          }
+          return {
+            item: itemLabel,
+            status: 'Missing' as const,
+            count: 0,
+            details: 'ยังขาดการบันทึกการแก้ปัญหาเฉพาะหน้า (RCA/Hotfix) หรือการติดตามงานจนปิดลูป',
+          };
+        }
+
+        // 3. Dimension: Reflection & Improvement / การเรียนรู้และพัฒนา / Case Study / WI
+        if (/reflection|improvement|การเรียนรู้|พัฒนา|case study|wi\b|knowledge/i.test(cat)) {
+          const matched = candidateLogs.filter((l) =>
+            /train|อบรม|workshop|learn|knowledge|ศึกษา|ทบทวน|wi\b|case study|แชร์|transfer|lesson|sharing|คู่มือ|retrospective|retro|ปรับปรุง|improve|sop|sharing/i.test(
+              (l.project_name || '') + ' ' + (l.action_name || '') + ' ' + (l.description || '')
+            )
+          );
+          if (matched.length > 0) {
+            const sampleProj = Array.from(new Set(matched.map((m) => m.project_name).filter(Boolean))).slice(0, 2).join(', ');
+            return {
+              item: itemLabel,
+              status: 'Found' as const,
+              count: matched.length,
+              details: `พบหลักฐานการเรียนรู้ จัดทำ WI/Case Study และแชร์ความรู้ ${matched.length} รายการ (${sampleProj || 'งานพัฒนา'})`,
+            };
+          }
+          return {
+            item: itemLabel,
+            status: 'Missing' as const,
+            count: 0,
+            details: 'ยังไม่พบการบันทึกการจัดทำ Case Study, คู่มือ WI หรือการแชร์ความรู้ในองค์กร',
+          };
+        }
+
+        // 4. Dimension: Work Logging Quality / คุณภาพการบันทึกงาน / Calendar Logging
+        if (/work logging|logging quality|คุณภาพการบันทึก|calendar|ปฏิทินงาน|consistency/i.test(cat)) {
+          if (loggingCoveragePct >= 60 || totalEntries >= 15) {
+            return {
+              item: itemLabel,
+              status: 'Found' as const,
+              count: totalEntries,
+              details: `บันทึกงานสม่ำเสมอครอบคลุม ${loggingCoveragePct}% (${uniqueLoggedDays}/${businessDays} วันทำการ) รวม ${totalEntries} รายการ มี Traceability สูง`,
+            };
+          }
+          return {
+            item: itemLabel,
+            status: 'Missing' as const,
+            count: totalEntries,
+            details: `อัตราการบันทึกงาน ${loggingCoveragePct}% (${uniqueLoggedDays}/${businessDays} วัน) ยังต่ำกว่าเกณฑ์ 60% — ต้องเพิ่มความสม่ำเสมอ`,
+          };
+        }
+
+        // 5. Dimension: Planning / การวางแผน / จัดการเวลา
+        if (/planning|การวางแผน|จัดการเวลา|roadmap|timeline/i.test(cat)) {
+          const matched = candidateLogs.filter((l) =>
+            /plan|วางแผน|sprint|roadmap|wbs|timeline|priorit|schedule|kick.?off|จัดสรรเวลา|เป้าหมาย|estimate|scope/i.test(
+              (l.project_name || '') + ' ' + (l.action_name || '') + ' ' + (l.description || '')
+            )
+          );
+          if (matched.length > 0) {
+            const sampleProj = Array.from(new Set(matched.map((m) => m.project_name).filter(Boolean))).slice(0, 2).join(', ');
+            return {
+              item: itemLabel,
+              status: 'Found' as const,
+              count: matched.length,
+              details: `พบกิจกรรมวางแผนและจัดสรรเวลา ${matched.length} รายการ (${sampleProj || 'แผนงาน'})`,
+            };
+          }
+          return {
+            item: itemLabel,
+            status: 'Missing' as const,
+            count: 0,
+            details: 'ยังไม่พบบันทึกการวางแผนงานหรือ Roadmap ที่ชัดเจน',
+          };
+        }
+
+        // 6. Role-specific / Custom JD Category (Semantic & Keyword fallback)
+        const cleanCat = cat.replace(/\([^)]*\)/g, '').replace(/[^a-zA-Z0-9ก-๙\s]/g, ' ').trim();
+        const tokens = cleanCat.split(/\s+/).filter((t) => t.length > 2);
+
+        const extraRegexes: RegExp[] = [];
+        if (/dev|code|software|system|โปรแกรม|ระบบ|engineer|tech/i.test(catLower)) {
+          extraRegexes.push(/dev|code|coding|โปรแกรม|ระบบ|api|frontend|backend|database|feature|bug|build|deploy|github|gitlab|pr\b/i);
+        }
+        if (/consult|ที่ปรึกษา|advis|solution|business/i.test(catLower)) {
+          extraRegexes.push(/consult|advis|ที่ปรึกษา|workshop|ลูกค้า|client|requirement|brd|srs|presentation|ประชุม/i);
+        }
+        if (/qa|test|qc|คุณภาพ|ตรวจ/i.test(catLower)) {
+          extraRegexes.push(/test|qa|qc|uat|tester|check|verify|ตรวจ|defect|test.?case/i);
+        }
+        if (/design|ui|ux|กราฟิก|ออกแบบ/i.test(catLower)) {
+          extraRegexes.push(/design|figma|ux|ui|wireframe|prototype|mockup|ออกแบบ/i);
+        }
+        if (/data|analytics|วิเคราะห์|report/i.test(catLower)) {
+          extraRegexes.push(/data|dashboard|analyt|bi|report|รายงาน|สถิติ|sql|excel/i);
+        }
+        if (/support|ops|admin|บริการ|ดูแล/i.test(catLower)) {
+          extraRegexes.push(/support|ticket|helpdesk|บริการ|ดูแล|operation|service|แก้ปัญหา/i);
+        }
+
+        const matched = candidateLogs.filter((l) => {
+          const logText = ((l.project_name || '') + ' ' + (l.action_name || '') + ' ' + (l.description || '')).toLowerCase();
+          const tokenMatch = tokens.length > 0 && tokens.some((t) => logText.includes(t.toLowerCase()));
+          const synonymMatch = extraRegexes.some((r) => r.test(logText));
+          return tokenMatch || synonymMatch;
+        });
+
+        if (matched.length > 0) {
+          const sampleProj = Array.from(new Set(matched.map((m) => m.project_name).filter(Boolean))).slice(0, 2).join(', ');
+          return {
+            item: itemLabel,
+            status: 'Found' as const,
+            count: matched.length,
+            details: `พบบันทึกสอดคล้อง ${matched.length} รายการ (${sampleProj || 'งานที่เกี่ยวข้อง'})`,
+          };
+        }
+
+        return {
+          item: itemLabel,
+          status: 'Missing' as const,
+          count: 0,
+          details: 'ไม่พบบันทึกงานที่สอดคล้องกับหน้าที่นี้ในช่วงเวลาประเมิน',
+        };
+      };
+
+      // ─────────────────────────────────────────────────────────────────
       // 7. Pillar 1: Quantity (20%)
       // Best Practice: 50% Consistency (Logging Coverage) + 30% Output Volume + 20% Project/JD Diversity
       // Prevents exact keyword mismatches from penalizing prolific employees
@@ -587,13 +1070,7 @@ export default function OfficialAppraisalPage() {
         : [];
       const jdTotal = Math.max(jdResponsibilities.length, 1);
       const jdMatchCount = jdResponsibilities.filter((kr) => {
-        const cat = (kr.category || '').toLowerCase().trim();
-        if (!cat) return false;
-        const tokens = cat.split(/[\s,/-]+/).filter((t) => t.length > 2);
-        return candidateLogs.some((l) => {
-          const logText = ((l.project_name || '') + ' ' + (l.action_name || '') + ' ' + (l.description || '')).toLowerCase();
-          return tokens.some((t) => logText.includes(t));
-        });
+        return matchResponsibilityEvidence(kr).status === 'Found';
       }).length;
       const jdCoverageRatio = jdResponsibilities.length > 0 ? jdMatchCount / jdTotal : 1.0;
 
@@ -716,10 +1193,6 @@ export default function OfficialAppraisalPage() {
         acctReason = `TeamOps/ติดตาม ${teamOpsLogs.length} ครั้ง | Coaching ${coachingLogs.length} ครั้ง | Delegation ${delegationLogs.length} ครั้ง — ถ่วงน้ำหนัก 40%/35%/25% ตามมาตรฐาน Manager`;
         if (acctSufficiency === 'Low') acctReason += ' — หลักฐานยังน้อย ควรบันทึก Coaching Session และการมอบหมายงานให้ชัดเจน';
       } else {
-        const followUpRegex = /follow.?up|ติดตาม|อัพเดต|update.*status|รายงานความคืบหน้า|escalat/i;
-        const followUpLogs = candidateLogs.filter((l) =>
-          followUpRegex.test((l.action_name || '') + ' ' + (l.description || ''))
-        );
         const closureRatio = Math.min(1, deliverableLogs.length / Math.max(sortedProjects.length * 0.5, 2));
         const followUpRatio = Math.min(1, followUpLogs.length / Math.max(businessDays / 10, 2));
         const acctRatio = 0.6 * closureRatio + 0.4 * followUpRatio;
@@ -830,18 +1303,12 @@ export default function OfficialAppraisalPage() {
       let jdCoverageItems: { item: string; status: 'Found' | 'Missing'; details: string }[] = [];
       if (jdResponsibilities.length > 0) {
         jdCoverageItems = jdResponsibilities.map((kr) => {
-          const cat = kr.category || '';
-          const matched = candidateLogs.filter((l) =>
-            new RegExp(cat.replace(/[^a-zA-Z0-9ก-๙\s]/g, '.'), 'i').test(
-              (l.project_name || '') + ' ' + (l.action_name || '') + ' ' + (l.description || '')
-            )
-          );
-          const label = `${cat}${kr.weight ? ` (${kr.weight}%)` : ''}`;
-          if (matched.length > 0) {
-            const sampleProj = Array.from(new Set(matched.map((m) => m.project_name).filter(Boolean))).slice(0, 2).join(', ');
-            return { item: label, status: 'Found' as const, details: `พบบันทึกสอดคล้อง ${matched.length} รายการ (${sampleProj || 'งานที่เกี่ยวข้อง'})` };
-          }
-          return { item: label, status: 'Missing' as const, details: 'ไม่พบบันทึกงานที่สอดคล้องกับหน้าที่นี้ในช่วงเวลาประเมิน' };
+          const res = matchResponsibilityEvidence(kr);
+          return {
+            item: res.item,
+            status: res.status,
+            details: res.details,
+          };
         });
       } else {
         jdCoverageItems = [
@@ -920,7 +1387,13 @@ export default function OfficialAppraisalPage() {
       const evidenceGaps: string[] = jdCoverageItems
         .filter((i) => i.status === 'Missing')
         .map((i) => `ไม่พบหลักฐานสำหรับ: ${i.item} — ต้องขอยืนยันจาก Supervisor`);
-      evidenceGaps.push('ตัวเลขสถิติผลกระทบเชิงปริมาณ (Man-hour/Cost Saving) ต้องขอยืนยันจาก Supervisor');
+
+      if (impactLogs.length > 0) {
+        evidenceGaps.push(`พบการระบุผลกระทบเชิงปริมาณ ${impactLogs.length} รายการ — แนะนำสรุปตัวเลขสุทธิ (Total Saving) เพื่อขอยืนยันรับรองจาก Supervisor`);
+      } else {
+        evidenceGaps.push('ตัวเลขสถิติผลกระทบเชิงปริมาณ (Man-hour/Cost Saving) ต้องขอยืนยันจาก Supervisor');
+      }
+
       if (overdueList.length > 0) evidenceGaps.push('พบโครงการที่หยุดบันทึกงานนาน — ต้องตรวจสอบสถานะกับผู้รับผิดชอบ');
 
       const generatedResult: AppraisalResult = {
@@ -991,40 +1464,105 @@ export default function OfficialAppraisalPage() {
             badge: expertGovLogs.length > 0 ? `พบ ${expertGovLogs.length} รายการ` : 'ยังไม่พบการรีวิว',
           },
         },
+        supervisor_notes: supervisorNotes,
+        ai_provider: chosenProvider,
+        ai_model: chosenModel,
       };
 
       setAppraisalResult(generatedResult);
 
-      // Save to tb_ai_individual_analysis — upsert to prevent duplicates
-      try {
-        const templateId = isManagerEvaluated ? 'half_year_manager' : 'half_year_officer';
-        await supabase.from('tb_ai_individual_analysis').upsert(
-          {
-            user_id: evaluatedUser.id,
-            template_id: templateId,
-            analysis_data: generatedResult,
-            score: generatedResult.overall_score,
-            jd_alignment_score: Math.round(generatedResult.overall_score),
-            strengths: generatedResult.top_strengths || [],
-            improvements: generatedResult.development_priorities || [],
-            raw_ai_report: generatedResult.executive_summary || '',
-            analysis_date: new Date().toISOString(),
-            start_date: dateRange.start,
-            end_date: dateRange.end,
-            evaluated_full_name: evaluatedUser.full_name,
-            evaluated_position: evaluatedUser.position,
-            evaluated_department: evaluatedUser.department,
-          },
-          { onConflict: 'user_id,template_id,start_date,end_date', ignoreDuplicates: false }
-        );
-      } catch (saveErr) {
-        console.warn('Could not cache analysis row to DB:', saveErr);
-      }
+      // Persist to tb_ai_individual_analysis with robust fallback for missing DB constraint
+      await persistAppraisalResult(generatedResult);
     } catch (e: unknown) {
       console.error('Appraisal error:', e);
     } finally {
       setIsAnalyzing(false);
       setAnalysisPhase('');
+    }
+  };
+
+  const handleConfirmAndRunAppraisal = (config: {
+    provider: string;
+    model: string;
+    supervisorNotes: string;
+  }) => {
+    setIsConfirmModalOpen(false);
+    setTimeout(() => {
+      progressCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    handleStartAppraisal(config);
+  };
+
+  // Robust Database Persistence (Upsert with Query Check Fallback)
+  const persistAppraisalResult = async (result: AppraisalResult) => {
+    if (!evaluatedUser?.id) return;
+    setSaveStatus('saving');
+    setSaveMessage('กำลังบันทึกประวัติการประเมินลงฐานข้อมูล...');
+    try {
+      const templateId = isManagerEvaluated ? 'half_year_manager' : 'half_year_officer';
+      const payload = {
+        user_id: evaluatedUser.id,
+        template_id: templateId,
+        analysis_data: result,
+        score: result.overall_score,
+        jd_alignment_score: Math.round(result.overall_score),
+        strengths: result.top_strengths || [],
+        improvements: result.development_priorities || [],
+        raw_ai_report: result.executive_summary || '',
+        analysis_date: new Date().toISOString(),
+        start_date: dateRange.start,
+        end_date: dateRange.end,
+        evaluated_full_name: evaluatedUser.full_name,
+        evaluated_position: evaluatedUser.position,
+        evaluated_department: evaluatedUser.department,
+        engine_model: result.ai_model || null,
+      };
+
+      // 1. Try upsert first
+      const { error: upsertErr } = await supabase
+        .from('tb_ai_individual_analysis')
+        .upsert(payload, { onConflict: 'user_id,template_id,start_date,end_date', ignoreDuplicates: false });
+
+      // 2. If upsert fails (e.g. missing unique constraint in db), fallback to check-then-update/insert
+      if (upsertErr) {
+        console.warn('Upsert onConflict error, attempting query fallback:', upsertErr.message);
+        const { data: existing } = await supabase
+          .from('tb_ai_individual_analysis')
+          .select('id')
+          .eq('user_id', evaluatedUser.id)
+          .eq('template_id', templateId)
+          .eq('start_date', dateRange.start)
+          .eq('end_date', dateRange.end)
+          .maybeSingle();
+
+        if (existing?.id) {
+          const { error: updateErr } = await supabase
+            .from('tb_ai_individual_analysis')
+            .update(payload)
+            .eq('id', existing.id);
+          if (updateErr) throw updateErr;
+        } else {
+          const { error: insertErr } = await supabase
+            .from('tb_ai_individual_analysis')
+            .insert(payload);
+          if (insertErr) throw insertErr;
+        }
+      }
+
+      setSaveStatus('saved');
+      setSaveMessage('บันทึกประวัติการประเมินสำเร็จเรียบร้อย');
+      setTimeout(() => setSaveStatus('idle'), 4000);
+    } catch (saveErr) {
+      console.warn('Could not cache analysis row to DB:', saveErr);
+      setSaveStatus('error');
+      setSaveMessage('ไม่สามารถบันทึกประวัติลงฐานข้อมูลได้ โปรดตรวจสอบสิทธิ์');
+      setTimeout(() => setSaveStatus('idle'), 4000);
+    }
+  };
+
+  const handleManualSave = () => {
+    if (appraisalResult) {
+      persistAppraisalResult(appraisalResult);
     }
   };
 
@@ -1045,19 +1583,19 @@ ${r.executive_summary}
 
 ---
 ## ตารางสรุปคะแนน 5 มิติหลัก
-- Quantity (ความครบถ้วน): ${r.scores.quantity.score}/20 [${r.scores.quantity.sufficiency}] - ${r.scores.quantity.reason}
-- Quality (คุณภาพ): ${r.scores.quality.score}/20 [${r.scores.quality.sufficiency}] - ${r.scores.quality.reason}
-- Learning (การเรียนรู้): ${r.scores.learning.score}/20 [${r.scores.learning.sufficiency}] - ${r.scores.learning.reason}
-- Accountability (ความรับผิดชอบ): ${r.scores.accountability.score}/20 [${r.scores.accountability.sufficiency}] - ${r.scores.accountability.reason}
-- Proactiveness (การริเริ่ม): ${r.scores.proactiveness.score}/20 [${r.scores.proactiveness.sufficiency}] - ${r.scores.proactiveness.reason}
+- Quantity (ความครบถ้วน): ${r.scores?.quantity?.score ?? 0}/20 [${r.scores?.quantity?.sufficiency ?? 'Medium'}] - ${r.scores?.quantity?.reason ?? '-'}
+- Quality (คุณภาพ): ${r.scores?.quality?.score ?? 0}/20 [${r.scores?.quality?.sufficiency ?? 'Medium'}] - ${r.scores?.quality?.reason ?? '-'}
+- Learning (การเรียนรู้): ${r.scores?.learning?.score ?? 0}/20 [${r.scores?.learning?.sufficiency ?? 'Medium'}] - ${r.scores?.learning?.reason ?? '-'}
+- Accountability (ความรับผิดชอบ): ${r.scores?.accountability?.score ?? 0}/20 [${r.scores?.accountability?.sufficiency ?? 'Medium'}] - ${r.scores?.accountability?.reason ?? '-'}
+- Proactiveness (การริเริ่ม): ${r.scores?.proactiveness?.score ?? 0}/20 [${r.scores?.proactiveness?.sufficiency ?? 'Medium'}] - ${r.scores?.proactiveness?.reason ?? '-'}
 
 ---
 ## จุดแข็งหลัก 3 ประการ
-${r.top_strengths.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+${(r.top_strengths || []).map((s, i) => `${i + 1}. ${s}`).join('\n')}
 
 ---
 ## จุดที่ควรพัฒนา 3 ประการ
-${r.development_priorities.map((d, i) => `${i + 1}. ${d}`).join('\n')}
+${(r.development_priorities || []).map((d, i) => `${i + 1}. ${d}`).join('\n')}
 
 ---
 ## คำแนะนำการลงบันทึกในรอบถัดไป
@@ -1458,7 +1996,7 @@ ${r.calendar_logging_guide}
 
             {/* Action Button: Start Appraisal */}
             <button
-              onClick={handleStartAppraisal}
+              onClick={() => setIsConfirmModalOpen(true)}
               disabled={isAnalyzing || isPreflightLoading || candidateLogs.length === 0}
               className={`w-full py-3 px-4 rounded-xl font-bold text-xs tracking-wide flex items-center justify-center gap-2 shadow-lg transition-all ${
                 isAnalyzing || candidateLogs.length === 0
@@ -1488,7 +2026,7 @@ ${r.calendar_logging_guide}
         {/* ========================================================= */}
         {/* Loading / Analyzing Progress Card */}
         {isAnalyzing && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 p-8 text-center space-y-4 shadow-lg animate-pulse">
+          <div ref={progressCardRef} className="bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 p-8 text-center space-y-4 shadow-lg animate-pulse">
             <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center">
               <RefreshCw size={28} className="animate-spin" />
             </div>
@@ -1533,7 +2071,7 @@ ${r.calendar_logging_guide}
             </div>
             <div className="pt-2">
               <button
-                onClick={handleStartAppraisal}
+                onClick={() => setIsConfirmModalOpen(true)}
                 disabled={candidateLogs.length === 0}
                 className="px-6 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-500 hover:to-purple-500 shadow-md hover:shadow-indigo-500/25 transition-all inline-flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -1586,8 +2124,37 @@ ${r.calendar_logging_guide}
                 </button>
               </div>
 
-              {/* Action Buttons: Copy / Print */}
-              <div className="flex items-center gap-2 self-stretch sm:self-auto">
+              {/* Action Buttons: Copy / Print / Save */}
+              <div className="flex items-center gap-2 self-stretch sm:self-auto flex-wrap">
+                <button
+                  onClick={handleManualSave}
+                  disabled={saveStatus === 'saving'}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    saveStatus === 'saved'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
+                      : saveStatus === 'saving'
+                      ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700'
+                  }`}
+                >
+                  {saveStatus === 'saved' ? (
+                    <>
+                      <Check size={14} className="text-emerald-500" />
+                      <span>บันทึกประวัติแล้ว</span>
+                    </>
+                  ) : saveStatus === 'saving' ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin text-slate-400" />
+                      <span>กำลังบันทึก...</span>
+                    </>
+                  ) : (
+                    <>
+                      <History size={14} />
+                      <span>บันทึกประวัติ (Save)</span>
+                    </>
+                  )}
+                </button>
+
                 <button
                   onClick={handleCopyReport}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700"
@@ -1605,6 +2172,35 @@ ${r.calendar_logging_guide}
                 </button>
               </div>
             </div>
+
+            {/* Sparse Worklog Notice (Best Practice Advisory for intermittent logs) */}
+            {loggingCoveragePct < 60 && (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3 text-xs print:hidden">
+                <AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                  <div className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                    <span>ข้อแนะนำสำหรับรอบที่มีการบันทึกงานไม่ต่อเนื่อง (Sparse Worklog Advisory)</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold">
+                      บันทึกงาน {loggingCoveragePct}% ({uniqueLoggedDays} จาก {businessDays} วันทำการ)
+                    </span>
+                  </div>
+                  <div className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                    ระบบคำนวณคะแนนตามหลักฐานเชิงประจักษ์ที่มีจริง สำหรับการทำงานจริงตาม Best Practices แนะนำให้พนักงานและ Supervisor ยืนยันผลงานส่งมอบสำคัญ (Milestone Deliverable) หรือใช้สูตรคำนวณ Man-hour Saving นำเสนอเพิ่มเติมในรอบประเมินเพื่อความเที่ยงธรรม
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {saveMessage && (
+              <div className={`p-2.5 rounded-lg text-xs font-medium border flex items-center gap-2 print:hidden ${
+                saveStatus === 'saved'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800'
+                  : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-800'
+              }`}>
+                <Info size={14} />
+                <span>{saveMessage}</span>
+              </div>
+            )}
 
             {/* Printable Document Container */}
             <div className="print-appraisal-sheet print:w-full print:p-0 print:m-0 space-y-6">
@@ -1797,75 +2393,75 @@ ${r.calendar_logging_guide}
                           <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                             <div className="flex justify-between text-xs font-semibold">
                               <span className="text-slate-800 dark:text-slate-200">1. Quantity (ความครบถ้วนของงาน)</span>
-                              <span className="text-cyan-600 dark:text-cyan-400 font-bold">{appraisalResult.scores.quantity.score} / 20</span>
+                              <span className="text-cyan-600 dark:text-cyan-400 font-bold">{appraisalResult.scores?.quantity?.score ?? 0} / 20</span>
                             </div>
                             <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                               <div
                                 className="h-full bg-cyan-500 rounded-full"
-                                style={{ width: `${(appraisalResult.scores.quantity.score / 20) * 100}%` }}
+                                style={{ width: `${((appraisalResult.scores?.quantity?.score ?? 0) / 20) * 100}%` }}
                               />
                             </div>
-                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores.quantity.reason}</div>
+                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores?.quantity?.reason ?? ''}</div>
                           </div>
 
                           {/* Pillar 2 */}
                           <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                             <div className="flex justify-between text-xs font-semibold">
                               <span className="text-slate-800 dark:text-slate-200">2. Quality (คุณภาพและผลลัพธ์)</span>
-                              <span className="text-sky-600 dark:text-sky-400 font-bold">{appraisalResult.scores.quality.score} / 20</span>
+                              <span className="text-sky-600 dark:text-sky-400 font-bold">{appraisalResult.scores?.quality?.score ?? 0} / 20</span>
                             </div>
                             <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                               <div
                                 className="h-full bg-sky-500 rounded-full"
-                                style={{ width: `${(appraisalResult.scores.quality.score / 20) * 100}%` }}
+                                style={{ width: `${((appraisalResult.scores?.quality?.score ?? 0) / 20) * 100}%` }}
                               />
                             </div>
-                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores.quality.reason}</div>
+                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores?.quality?.reason ?? ''}</div>
                           </div>
 
                           {/* Pillar 3 */}
                           <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                             <div className="flex justify-between text-xs font-semibold">
                               <span className="text-slate-800 dark:text-slate-200">3. Learning (การเรียนรู้และการส่งต่อ)</span>
-                              <span className="text-purple-600 dark:text-purple-400 font-bold">{appraisalResult.scores.learning.score} / 20</span>
+                              <span className="text-purple-600 dark:text-purple-400 font-bold">{appraisalResult.scores?.learning?.score ?? 0} / 20</span>
                             </div>
                             <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                               <div
                                 className="h-full bg-purple-500 rounded-full"
-                                style={{ width: `${(appraisalResult.scores.learning.score / 20) * 100}%` }}
+                                style={{ width: `${((appraisalResult.scores?.learning?.score ?? 0) / 20) * 100}%` }}
                               />
                             </div>
-                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores.learning.reason}</div>
+                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores?.learning?.reason ?? ''}</div>
                           </div>
 
                           {/* Pillar 4 */}
                           <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                             <div className="flex justify-between text-xs font-semibold">
                               <span className="text-slate-800 dark:text-slate-200">4. Accountability (ความรับผิดชอบและการดูแลทีม)</span>
-                              <span className="text-amber-600 dark:text-amber-400 font-bold">{appraisalResult.scores.accountability.score} / 20</span>
+                              <span className="text-amber-600 dark:text-amber-400 font-bold">{appraisalResult.scores?.accountability?.score ?? 0} / 20</span>
                             </div>
                             <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                               <div
                                 className="h-full bg-amber-500 rounded-full"
-                                style={{ width: `${(appraisalResult.scores.accountability.score / 20) * 100}%` }}
+                                style={{ width: `${((appraisalResult.scores?.accountability?.score ?? 0) / 20) * 100}%` }}
                               />
                             </div>
-                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores.accountability.reason}</div>
+                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores?.accountability?.reason ?? ''}</div>
                           </div>
 
                           {/* Pillar 5 */}
                           <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                             <div className="flex justify-between text-xs font-semibold">
                               <span className="text-slate-800 dark:text-slate-200">5. Proactiveness (การคิดและลงมือก่อน)</span>
-                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">{appraisalResult.scores.proactiveness.score} / 20</span>
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">{appraisalResult.scores?.proactiveness?.score ?? 0} / 20</span>
                             </div>
                             <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                               <div
                                 className="h-full bg-emerald-500 rounded-full"
-                                style={{ width: `${(appraisalResult.scores.proactiveness.score / 20) * 100}%` }}
+                                style={{ width: `${((appraisalResult.scores?.proactiveness?.score ?? 0) / 20) * 100}%` }}
                               />
                             </div>
-                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores.proactiveness.reason}</div>
+                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores?.proactiveness?.reason ?? ''}</div>
                           </div>
                         </div>
 
@@ -2021,13 +2617,36 @@ ${r.calendar_logging_guide}
               <div className="space-y-6 text-slate-900 dark:text-slate-100">
                 {/* Executive Summary */}
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-2">
-                  <h4 className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
-                    Executive Summary (สรุปภาพรวม)
-                  </h4>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <h4 className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
+                      Executive Summary (สรุปภาพรวม)
+                    </h4>
+                    {(appraisalResult.ai_provider || appraisalResult.ai_model) && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300 font-mono flex items-center gap-1">
+                        <Cpu size={11} className="text-indigo-500" />
+                        <span>AI Engine: {appraisalResult.ai_provider || 'openrouter'} ({appraisalResult.ai_model || 'default'})</span>
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
                     {appraisalResult.executive_summary}
                   </p>
                 </div>
+
+                {/* Supervisor Focus & Offline Milestones (If provided) */}
+                {appraisalResult.supervisor_notes && (
+                  <div className="p-4 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <FileCheck size={14} className="text-purple-600 dark:text-purple-400" />
+                      <h4 className="text-xs font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider">
+                        ข้อคิดเห็น & ผลงานเสริมนอกระบบจากหัวหน้างาน (Supervisor Focus & Milestones)
+                      </h4>
+                    </div>
+                    <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-line pl-6">
+                      {appraisalResult.supervisor_notes}
+                    </p>
+                  </div>
+                )}
 
                 {/* 5-Pillar Score Summary Table */}
                 <div className="space-y-2">
@@ -2051,80 +2670,80 @@ ${r.calendar_logging_guide}
                           <td className="py-2.5 px-4 font-semibold">1. Quantity (ความครบถ้วนของงาน)</td>
                           <td className="py-2.5 px-3 text-center">20</td>
                           <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
-                            {appraisalResult.scores.quantity.score}
+                            {appraisalResult.scores?.quantity?.score ?? 0}
                           </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores.quantity.level}</td>
+                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.quantity?.level ?? '-'}</td>
                           <td className="py-2.5 px-3 text-center">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
-                              {appraisalResult.scores.quantity.sufficiency}
+                              {appraisalResult.scores?.quantity?.sufficiency ?? 'Medium'}
                             </span>
                           </td>
                           <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
-                            {appraisalResult.scores.quantity.reason}
+                            {appraisalResult.scores?.quantity?.reason ?? '-'}
                           </td>
                         </tr>
                         <tr>
                           <td className="py-2.5 px-4 font-semibold">2. Quality (คุณภาพและผลลัพธ์)</td>
                           <td className="py-2.5 px-3 text-center">20</td>
                           <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
-                            {appraisalResult.scores.quality.score}
+                            {appraisalResult.scores?.quality?.score ?? 0}
                           </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores.quality.level}</td>
+                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.quality?.level ?? '-'}</td>
                           <td className="py-2.5 px-3 text-center">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400">
-                              {appraisalResult.scores.quality.sufficiency}
+                              {appraisalResult.scores?.quality?.sufficiency ?? 'Medium'}
                             </span>
                           </td>
                           <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
-                            {appraisalResult.scores.quality.reason}
+                            {appraisalResult.scores?.quality?.reason ?? '-'}
                           </td>
                         </tr>
                         <tr>
                           <td className="py-2.5 px-4 font-semibold">3. Learning (การเรียนรู้และการส่งต่อ)</td>
                           <td className="py-2.5 px-3 text-center">20</td>
                           <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
-                            {appraisalResult.scores.learning.score}
+                            {appraisalResult.scores?.learning?.score ?? 0}
                           </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores.learning.level}</td>
+                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.learning?.level ?? '-'}</td>
                           <td className="py-2.5 px-3 text-center">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
-                              {appraisalResult.scores.learning.sufficiency}
+                              {appraisalResult.scores?.learning?.sufficiency ?? 'Medium'}
                             </span>
                           </td>
                           <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
-                            {appraisalResult.scores.learning.reason}
+                            {appraisalResult.scores?.learning?.reason ?? '-'}
                           </td>
                         </tr>
                         <tr>
                           <td className="py-2.5 px-4 font-semibold">4. Accountability (ความรับผิดชอบต่องาน)</td>
                           <td className="py-2.5 px-3 text-center">20</td>
                           <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
-                            {appraisalResult.scores.accountability.score}
+                            {appraisalResult.scores?.accountability?.score ?? 0}
                           </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores.accountability.level}</td>
+                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.accountability?.level ?? '-'}</td>
                           <td className="py-2.5 px-3 text-center">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
-                              {appraisalResult.scores.accountability.sufficiency}
+                              {appraisalResult.scores?.accountability?.sufficiency ?? 'Medium'}
                             </span>
                           </td>
                           <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
-                            {appraisalResult.scores.accountability.reason}
+                            {appraisalResult.scores?.accountability?.reason ?? '-'}
                           </td>
                         </tr>
                         <tr>
                           <td className="py-2.5 px-4 font-semibold">5. Proactiveness (การคิดและลงมือก่อน)</td>
                           <td className="py-2.5 px-3 text-center">20</td>
                           <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
-                            {appraisalResult.scores.proactiveness.score}
+                            {appraisalResult.scores?.proactiveness?.score ?? 0}
                           </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores.proactiveness.level}</td>
+                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.proactiveness?.level ?? '-'}</td>
                           <td className="py-2.5 px-3 text-center">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
-                              {appraisalResult.scores.proactiveness.sufficiency}
+                              {appraisalResult.scores?.proactiveness?.sufficiency ?? 'Medium'}
                             </span>
                           </td>
                           <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
-                            {appraisalResult.scores.proactiveness.reason}
+                            {appraisalResult.scores?.proactiveness?.reason ?? '-'}
                           </td>
                         </tr>
                         <tr className="bg-slate-50 dark:bg-slate-800/40 font-bold">
@@ -2151,11 +2770,30 @@ ${r.calendar_logging_guide}
                     {appraisalResult.jd_coverage.map((jd, i) => (
                       <div
                         key={i}
-                        className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs flex items-start gap-2"
+                        className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
+                          jd.status === 'Found'
+                            ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800'
+                            : 'bg-amber-500/5 border-amber-500/20'
+                        }`}
                       >
-                        <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                        {jd.status === 'Found' ? (
+                          <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                        ) : (
+                          <AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0" />
+                        )}
                         <div>
-                          <div className="font-semibold text-slate-900 dark:text-white">{jd.item}</div>
+                          <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                            {jd.item}
+                            {jd.status === 'Found' ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-normal">
+                                พบหลักฐาน
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-normal">
+                                รอประสานเพิ่ม
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[11px] text-slate-500 mt-0.5">{jd.details}</div>
                         </div>
                       </div>
@@ -2164,16 +2802,27 @@ ${r.calendar_logging_guide}
                 </div>
 
                 {/* Evidence Gaps */}
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1.5">
-                  <div className="text-xs font-bold text-amber-500 dark:text-amber-400 flex items-center gap-1.5">
-                    <AlertCircle size={14} /> ข้อมูลที่ต้องประสานเพิ่มเติม (Evidence Gap)
+                {appraisalResult.evidence_gaps.length > 0 ? (
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1.5">
+                    <div className="text-xs font-bold text-amber-500 dark:text-amber-400 flex items-center gap-1.5">
+                      <AlertCircle size={14} /> ข้อมูลที่ต้องประสานเพิ่มเติม (Evidence Gap)
+                    </div>
+                    <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-1 list-disc list-inside">
+                      {appraisalResult.evidence_gaps.map((g, i) => (
+                        <li key={i}>{g}</li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-1 list-disc list-inside">
-                    {appraisalResult.evidence_gaps.map((g, i) => (
-                      <li key={i}>{g}</li>
-                    ))}
-                  </ul>
-                </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-1.5">
+                    <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle2 size={14} /> ข้อมูลหลักฐานครบถ้วนตามเกณฑ์มาตรฐาน (No Critical Evidence Gap)
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      พบบันทึกงานและหลักฐานเชิงประจักษ์ครอบคลุมหน้าที่ความรับผิดชอบตาม JD และกรอบการประเมิน พร้อมสำหรับการประเมินร่วมกับ Supervisor
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2449,51 +3098,9 @@ ${r.calendar_logging_guide}
                       <div
                         key={item.id}
                         onClick={() => {
-                          if (item.analysis_data) {
-                            setAppraisalResult(item.analysis_data as AppraisalResult);
-                            setIsHistoryModalOpen(false);
-                          } else {
-                            // Synthesize preview result for legacy row
-                            const scoreNum = displayScore ?? 75;
-                            const eachPillar = Math.round((scoreNum / 100) * 20);
-                            const legacyResult: AppraisalResult = {
-                              overall_score: scoreNum,
-                              level: scoreNum >= 85 ? 'ดีเยี่ยม (Exceptional)' : scoreNum >= 75 ? 'ดีมาก (Exceeds Standard)' : scoreNum >= 60 ? 'มาตรฐาน (Meets Standard)' : 'ต้องพัฒนา (Needs Improvement)',
-                              confidence: 'Medium',
-                              role_type: item.template_id?.includes('manager') ? 'manager' : 'officer',
-                              cycle: item.template_id?.includes('end') ? 'End-Year' : 'Half-Year',
-                              period: `${item.start_date || '-'} ถึง ${item.end_date || '-'}`,
-                              executive_summary: item.raw_ai_report?.slice(0, 300) || `ผลการประเมินประวัติเดิม คะแนนรวม ${scoreNum}/100`,
-                              scores: {
-                                quantity: { score: eachPillar, max: 20, level: 'Meets Standard', sufficiency: 'Medium', reason: 'ข้อมูลจากประวัติเดิม' },
-                                quality: { score: eachPillar, max: 20, level: 'Meets Standard', sufficiency: 'Medium', reason: 'ข้อมูลจากประวัติเดิม' },
-                                learning: { score: eachPillar, max: 20, level: 'Meets Standard', sufficiency: 'Medium', reason: 'ข้อมูลจากประวัติเดิม' },
-                                accountability: { score: eachPillar, max: 20, level: 'Meets Standard', sufficiency: 'Medium', reason: 'ข้อมูลจากประวัติเดิม' },
-                                proactiveness: { score: eachPillar, max: 20, level: 'Meets Standard', sufficiency: 'Medium', reason: 'ข้อมูลจากประวัติเดิม' },
-                              },
-                              evidences: {
-                                quantity: ['ดึงจากประวัติเดิมในระบบ'],
-                                quality: ['ดึงจากประวัติเดิมในระบบ'],
-                                learning: ['ดึงจากประวัติเดิมในระบบ'],
-                                accountability: ['ดึงจากประวัติเดิมในระบบ'],
-                                proactiveness: ['ดึงจากประวัติเดิมในระบบ'],
-                              },
-                              work_status: {
-                                completed: [],
-                                in_progress: [],
-                                pending: [],
-                                overdue: [],
-                              },
-                              jd_coverage: [],
-                              evidence_gaps: [],
-                              top_strengths: Array.isArray(item.strengths) ? (item.strengths as string[]).slice(0, 3) : [],
-                              development_priorities: Array.isArray(item.improvements) ? (item.improvements as string[]).slice(0, 3) : [],
-                              recommendations: item.raw_ai_report ? [item.raw_ai_report.slice(0, 200) + '...'] : ['สามารถกดประเมินใหม่ด้วยเกณฑ์ HR Standard ด้านบนเพื่อดูรายละเอียด 5 มิติล่าสุด'],
-                              calendar_logging_guide: 'แนะนำให้บันทึกงานอย่างสม่ำเสมอตามสูตร [What] -> [Action] -> [Result]',
-                            };
-                            setAppraisalResult(legacyResult);
-                            setIsHistoryModalOpen(false);
-                          }
+                          const safeData = normalizeAppraisalResult(item.analysis_data, item);
+                          setAppraisalResult(safeData);
+                          setIsHistoryModalOpen(false);
                         }}
                         className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50/70 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 cursor-pointer flex justify-between items-center text-xs transition-all"
                       >
@@ -2524,6 +3131,26 @@ ${r.calendar_logging_guide}
             </div>
           </div>
         )}
+
+        {/* Pre-Flight AI Appraisal Confirmation Modal */}
+        <AppraisalConfirmModal
+          isOpen={isConfirmModalOpen}
+          onClose={() => setIsConfirmModalOpen(false)}
+          onConfirm={handleConfirmAndRunAppraisal}
+          isLoading={isAnalyzing}
+          evaluatedUser={evaluatedUser}
+          isManagerEvaluated={isManagerEvaluated}
+          selectedCycle={selectedCycle}
+          dateRange={dateRange}
+          candidateLogsCount={candidateLogs.length}
+          uniqueLoggedDays={uniqueLoggedDays}
+          businessDays={businessDays}
+          holidayCountInPeriod={holidayCountInPeriod}
+          loggingCoveragePct={loggingCoveragePct}
+          systemProvider={aiConfig.provider}
+          systemModel={aiConfig.model}
+          availableProviders={aiConfig.availableProviders}
+        />
       </div>
     </AppLayout>
   );

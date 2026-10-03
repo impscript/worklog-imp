@@ -455,8 +455,8 @@ serve(async (req) => {
       configsData.forEach((row: any) => { configs[row.config_key] = row.config_value; });
     }
 
-    const provider = configs.ai_provider || 'openrouter';
-    const model = configs.ai_model || 'google/gemini-2.0-flash:free';
+    const provider = body.provider || configs.ai_provider || 'openrouter';
+    const model = body.model || configs.ai_model || 'google/gemini-2.0-flash:free';
 
     let apiKey = '';
     let endpoint = '';
@@ -1020,14 +1020,19 @@ Task instructions:
       .replace(/{{CADENCE_INSTRUCTION}}/g, cadenceInstructions[cadenceResolved] || cadenceInstructions.monthly)
       .replace(/{{ROLE_LEVEL_INSTRUCTION}}/g, levelInstructions[resolvedLevel] || levelInstructions.Senior);
 
+    let finalUserPrompt = userPromptFilled;
+    if (body.supervisor_notes && typeof body.supervisor_notes === 'string' && body.supervisor_notes.trim()) {
+      finalUserPrompt += `\n\n### ข้อคิดเห็นและผลงานเสริมนอกระบบจากหัวหน้างาน (Supervisor Focus & Milestones):\n${body.supervisor_notes.trim()}\n(คำแนะนำ: โปรดนำข้อมูลผลงานเสริมนอกระบบและข้อสังเกตที่หัวหน้าระบุข้างต้น มาประกอบการพิจารณาให้คะแนนมิติที่เกี่ยวข้อง เช่น Quality, Accountability, หรือ Reflection และระบุใน Executive Summary ด้วย)`;
+    }
+
     const systemPrompt = template.system_prompt;
 
     console.log(`[PROMPT:audit] template=${template_id} employee=${userProfile?.full_name} period=${start_date}~${end_date} logs=${logs.length} hours=${totalHours}`);
     console.log(`[PROMPT:audit:system] ${systemPrompt.substring(0, 150)}`);
-    console.log(`[PROMPT:audit:user] ${userPromptFilled.substring(0, 300)}...`);
+    console.log(`[PROMPT:audit:user] ${finalUserPrompt.substring(0, 300)}...`);
 
     const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
-      endpoint, llmHeaders, provider, model, systemPrompt, userPromptFilled, true
+      endpoint, llmHeaders, provider, model, systemPrompt, finalUserPrompt, true
     );
 
     console.log('[AI] callLlmWithFallback returned successfully.');
