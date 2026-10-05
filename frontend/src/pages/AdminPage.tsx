@@ -512,6 +512,32 @@ export default function AdminPage() {
     if (!query) return deptSuggestions;
     return deptSuggestions.filter(d => d.toLowerCase().includes(query));
   }, [deptSuggestions, formStructDept]);
+
+  // Active structure rows identical to the one being entered in every field except
+  // holding. They make the same project show up under several holdings in Log Work,
+  // so the form warns about them (this is how Real Estate projects ended up with a
+  // stray Double A copy).
+  const crossHoldingTwins = useMemo(() => {
+    if (activeTab !== 'map_project' || !isModalOpen || !Array.isArray(projectStructures)) return [];
+    const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+    const moduleKey = (v: unknown) => (norm(v) === '-' ? '' : norm(v));
+    const holding = norm(formStructHolding);
+    const name = norm(formStructProjName);
+    if (!holding || !name) return [];
+    return projectStructures.filter((p) =>
+      p.is_active !== false &&
+      p.id !== editRow?.id &&
+      norm(p.project_name) === name &&
+      norm(p.holding) !== holding &&
+      norm(p.project_type) === norm(formStructType) &&
+      moduleKey(p.module) === moduleKey(formStructModule) &&
+      norm(p.bu) === norm(formStructBU) &&
+      norm(p.department) === norm(formStructDept) &&
+      norm(p.department_operator) === norm(formStructRole)
+    );
+  }, [activeTab, isModalOpen, projectStructures, editRow, formStructHolding, formStructProjName, formStructType, formStructModule, formStructBU, formStructDept, formStructRole]);
+  const crossHoldingNames = Array.from(new Set(crossHoldingTwins.map((p) => String(p.holding)))).join(', ');
+
   // Export handler defined below getFilteredData() to access filtered records
 
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1178,6 +1204,21 @@ export default function AdminPage() {
           if (error) throw error;
         }
       } else if (activeTab === 'map_project') {
+        if (crossHoldingTwins.length > 0) {
+          const proceed = await showConfirm({
+            title: 'พบโครงสร้างซ้ำข้าม Holding',
+            message:
+              `โปรเจกต์ "${formStructProjName}" มีแถวที่เหมือนกันทุกช่อง (ประเภท, โมดูล, BU, แผนก, Role) อยู่ใน Holding: ${crossHoldingNames} แล้ว\n\n` +
+              `ถ้าบันทึกเป็น "${formStructHolding}" ด้วย โปรเจกต์นี้จะโผล่ให้เลือกในหลาย Holding ตอนบันทึกงาน และผู้ใช้อาจเลือกผิด\n\n` +
+              `ต้องการบันทึกต่อหรือไม่?`,
+            confirmText: 'บันทึกต่อ',
+            type: 'primary'
+          });
+          if (!proceed) {
+            setIsLoading(false);
+            return;
+          }
+        }
         const payload: any = {
           holding: formStructHolding,
           department_operator: formStructRole,
@@ -2993,6 +3034,17 @@ export default function AdminPage() {
                       className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                     />
                   </div>
+                  {crossHoldingTwins.length > 0 && (
+                    <div className="sm:col-span-2 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-300">
+                      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                      <div>
+                        <div className="font-bold">พบแถวที่เหมือนกันทุกช่องใน Holding อื่น: {crossHoldingNames}</div>
+                        <div className="mt-0.5 opacity-90">
+                          ถ้าบันทึกต่อ โปรเจกต์นี้จะโผล่ให้เลือกในหลาย Holding ตอนบันทึกงาน ตรวจสอบว่า Holding ที่เลือกถูกต้อง
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
