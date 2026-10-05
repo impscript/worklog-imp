@@ -4,6 +4,7 @@ import {
   TrendingUp, User as UserIcon, Users, Edit3, Eye, Brain, FolderKanban, Table, Download
 } from 'lucide-react';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
+import { MultiSelectFilter } from '../components/common/MultiSelectFilter';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
@@ -67,6 +68,46 @@ interface UserProfile {
   position?: string;
 }
 
+type DateFilter = 'this-week' | 'this-month' | 'q1' | 'q2' | 'q3' | 'q4' | 'all-time' | 'custom';
+type DateRange = { start: string; end: string };
+interface DateBoundaries {
+  week: DateRange;
+  month: DateRange;
+  quarters: DateRange[];
+}
+
+// Date range for a preset filter, or null for all-time / custom (handled by the caller).
+function getPresetRange(filter: DateFilter, boundaries: DateBoundaries): DateRange | null {
+  if (filter === 'this-week') return boundaries.week;
+  if (filter === 'this-month') return boundaries.month;
+  if (filter === 'q1' || filter === 'q2' || filter === 'q3' || filter === 'q4') {
+    return boundaries.quarters[Number(filter.slice(1)) - 1];
+  }
+  return null;
+}
+
+// Several periods can be picked at once; their union is what gets shown. A null bound
+// means open-ended (custom range with a blank side). Returns null for "no date limit".
+type OpenDateRange = { start: string | null; end: string | null };
+function resolveDateRanges(
+  filters: DateFilter[],
+  boundaries: DateBoundaries,
+  customStart: string,
+  customEnd: string
+): OpenDateRange[] | null {
+  if (filters.length === 0 || filters.includes('all-time')) return null;
+  const ranges: OpenDateRange[] = [];
+  filters.forEach((f) => {
+    if (f === 'custom') {
+      ranges.push({ start: customStart || null, end: customEnd || null });
+    } else {
+      const preset = getPresetRange(f, boundaries);
+      if (preset) ranges.push(preset);
+    }
+  });
+  return ranges.length > 0 ? ranges : null;
+}
+
 export default function ReportsPage() {
   const { showToast } = useNotification();
   const navigate = useNavigate();
@@ -90,10 +131,12 @@ export default function ReportsPage() {
   const entriesPerPage = 10;
 
   // Filters State
-  const [dateFilter, setDateFilter] = useState<'this-week' | 'this-month' | 'all-time' | 'custom'>('this-month');
+  const [dateFilters, setDateFilters] = useState<DateFilter[]>(['this-month']);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [typeFilters, setTypeFilters] = useState<string[]>([]);
+  // My Work Logs: who to show. null = just the signed-in user (the old default).
+  const [personalUserIds, setPersonalUserIds] = useState<string[] | null>(null);
   const [projectSearch, setProjectSearch] = useState('');
   const [workspaceProjectTypes, setWorkspaceProjectTypes] = useState<string[]>([]);
 
@@ -116,9 +159,12 @@ export default function ReportsPage() {
   };
 
   // Date boundary calculation
-  const dateBoundaries = useMemo(() => {
-    const today = new Date();
-    
+  const dateBoundaries = useMemo<DateBoundaries>(() => {
+    // `now` stays untouched: the week calculation below moves `today`, which used to
+    // drag the month range into the previous month early in a month.
+    const now = new Date();
+    const today = new Date(now);
+
     // This Week (Mon - Sun)
     const day = today.getDay();
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
@@ -129,12 +175,19 @@ export default function ReportsPage() {
     sunday.setHours(23, 59, 59, 999);
 
     // This Month
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    // Quarters of the current year (Q1 Jan-Mar ... Q4 Oct-Dec)
+    const quarters = [0, 1, 2, 3].map((q) => ({
+      start: formatDateToYMD(new Date(now.getFullYear(), q * 3, 1)),
+      end: formatDateToYMD(new Date(now.getFullYear(), q * 3 + 3, 0)),
+    }));
 
     return {
       week: { start: formatDateToYMD(monday), end: formatDateToYMD(sunday) },
-      month: { start: formatDateToYMD(firstDay), end: formatDateToYMD(lastDay) }
+      month: { start: formatDateToYMD(firstDay), end: formatDateToYMD(lastDay) },
+      quarters,
     };
   }, []);
 
@@ -232,21 +285,16 @@ export default function ReportsPage() {
           query = query.eq('workspace_id', targetWorkspaceId);
         }
 
-        if (dateFilter === 'this-week') {
-          query = query
-            .gte('work_date', dateBoundaries.week.start)
-            .lte('work_date', dateBoundaries.week.end);
-        } else if (dateFilter === 'this-month') {
-          query = query
-            .gte('work_date', dateBoundaries.month.start)
-            .lte('work_date', dateBoundaries.month.end);
-        } else if (dateFilter === 'custom') {
-          if (customStart) {
-            query = query.gte('work_date', customStart);
-          }
-          if (customEnd) {
-            query = query.lte('work_date', customEnd);
-          }
+        // Fetch the envelope of all selected periods; applyFilters then keeps
+        // exactly the union client-side.
+        const dateRanges = resolveDateRanges(dateFilters, dateBoundaries, customStart, customEnd);
+        if (dateRanges) {
+          const starts = dateRanges.map((r) => r.start);
+          const ends = dateRanges.map((r) => r.end);
+          const from = starts.some((s) => s === null) ? null : (starts as string[]).reduce((a, b) => (a < b ? a : b));
+          const to = ends.some((e) => e === null) ? null : (ends as string[]).reduce((a, b) => (a > b ? a : b));
+          if (from) query = query.gte('work_date', from);
+          if (to) query = query.lte('work_date', to);
         }
 
         const { data: logsData, error: logsErr } = await query;
@@ -277,7 +325,7 @@ export default function ReportsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [navigate, showToast, dateFilter, customStart, customEnd, dateBoundaries, selectedWorkspaceId]);
+  }, [navigate, showToast, dateFilters, customStart, customEnd, dateBoundaries, selectedWorkspaceId]);
 
   // Load list of viewable workspaces (own + granted)
   useEffect(() => {
@@ -322,7 +370,7 @@ export default function ReportsPage() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [dateFilter, customStart, customEnd, typeFilter, projectSearch]);
+  }, [dateFilters, customStart, customEnd, typeFilters, personalUserIds, projectSearch]);
 
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
@@ -332,22 +380,32 @@ export default function ReportsPage() {
     }
   }, [navigate]);
 
+  // "All Time" is exclusive: picking it clears the other periods, and picking any other
+  // period drops it. An empty selection also means no date limit.
+  const handleDateFiltersChange = (values: string[]) => {
+    const next = values as DateFilter[];
+    if (next.includes('all-time') && !dateFilters.includes('all-time')) {
+      setDateFilters(['all-time']);
+    } else {
+      setDateFilters(next.filter((v) => v !== 'all-time'));
+    }
+  };
+
   // General filter logic used across logs / graphs
   const applyFilters = (entriesToFilter: WorklogEntry[]) => {
     return entriesToFilter.filter((e) => {
       // 1. Date filter
-      if (dateFilter === 'this-week') {
-        if (e.work_date < dateBoundaries.week.start || e.work_date > dateBoundaries.week.end) return false;
-      } else if (dateFilter === 'this-month') {
-        if (e.work_date < dateBoundaries.month.start || e.work_date > dateBoundaries.month.end) return false;
-      } else if (dateFilter === 'custom') {
-        if (customStart && e.work_date < customStart) return false;
-        if (customEnd && e.work_date > customEnd) return false;
+      const dateRanges = resolveDateRanges(dateFilters, dateBoundaries, customStart, customEnd);
+      if (dateRanges) {
+        const inAnyRange = dateRanges.some(
+          (r) => (!r.start || e.work_date >= r.start) && (!r.end || e.work_date <= r.end)
+        );
+        if (!inAnyRange) return false;
       }
 
-      // 2. Project Type filter — exact match against workspace-loaded types
-      if (typeFilter !== 'all') {
-        if (e.project_type !== typeFilter) return false;
+      // 2. Project Type filter — exact match against any selected workspace type
+      if (typeFilters.length > 0) {
+        if (!typeFilters.includes(e.project_type)) return false;
       }
 
       // 3. Project Name Search
@@ -362,20 +420,21 @@ export default function ReportsPage() {
   // Memoized lists of logs based on filters
   const personalEntries = useMemo(() => {
     if (!sessionUser) return [];
-    if (selectedUser === 'all') {
+    // Empty selection = everyone; null (untouched) = the signed-in user only.
+    const targetIds = personalUserIds ?? [sessionUser.id];
+    if (targetIds.length === 0) {
       return allEntries;
     }
-    const currentTargetId = selectedUser || sessionUser.id;
-    return allEntries.filter(log => log.user_id === currentTargetId);
-  }, [allEntries, sessionUser, selectedUser]);
+    return allEntries.filter(log => targetIds.includes(log.user_id));
+  }, [allEntries, sessionUser, personalUserIds]);
 
   const filteredPersonalEntries = useMemo(() => {
     return applyFilters(personalEntries);
-  }, [personalEntries, dateFilter, customStart, customEnd, typeFilter, projectSearch]);
+  }, [personalEntries, dateFilters, customStart, customEnd, typeFilters, projectSearch]);
 
   const filteredAllEntries = useMemo(() => {
     return applyFilters(allEntries);
-  }, [allEntries, dateFilter, customStart, customEnd, typeFilter, projectSearch]);
+  }, [allEntries, dateFilters, customStart, customEnd, typeFilters, projectSearch]);
 
   // User map helper for Project Summary
   const userMap = useMemo(() => {
@@ -740,22 +799,24 @@ export default function ReportsPage() {
       const link = document.createElement('a');
 
       let nameSlug = 'all';
-      if (selectedUser !== 'all') {
-        const targetUser = usersList.find(u => u.id === (selectedUser || sessionUser?.id));
+      const exportUserIds = personalUserIds ?? (sessionUser ? [sessionUser.id] : []);
+      if (exportUserIds.length === 1) {
+        const targetUser = usersList.find(u => u.id === exportUserIds[0]);
         if (targetUser) {
           nameSlug = targetUser.nickname || targetUser.full_name.replace(/\s+/g, '_');
         }
+      } else if (exportUserIds.length > 1) {
+        nameSlug = `${exportUserIds.length}_users`;
       }
 
       let dateRangeStr = '';
-      if (dateFilter === 'this-week') {
-        dateRangeStr = `${dateBoundaries.week.start}_to_${dateBoundaries.week.end}`;
-      } else if (dateFilter === 'this-month') {
-        dateRangeStr = `${dateBoundaries.month.start}_to_${dateBoundaries.month.end}`;
-      } else if (dateFilter === 'custom') {
-        dateRangeStr = `${customStart || 'start'}_to_${customEnd || 'end'}`;
-      } else {
+      const exportRanges = resolveDateRanges(dateFilters, dateBoundaries, customStart, customEnd);
+      if (!exportRanges) {
         dateRangeStr = 'all_time';
+      } else if (exportRanges.length === 1) {
+        dateRangeStr = `${exportRanges[0].start || 'start'}_to_${exportRanges[0].end || 'end'}`;
+      } else {
+        dateRangeStr = 'multi_period';
       }
 
       link.setAttribute('href', url);
@@ -1548,7 +1609,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Shared Filters Toolbar */}
-        <div className="bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="relative z-20 bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-6 shadow-xl grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {/* Project Name Search (Disabled on Overview) */}
           <div className="flex flex-col">
             <label className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Project Name</label>
@@ -1564,34 +1625,41 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Date range filter */}
+          {/* Date range filter (multi-select: pick several periods, e.g. Q1 + Q3) */}
           <div className="flex flex-col">
             <label className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Date Range</label>
-            <select
-              value={dateFilter}
-              onChange={(e: any) => setDateFilter(e.target.value)}
-              className="bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-semibold"
-            >
-              <option value="this-week">This Week</option>
-              <option value="this-month">This Month</option>
-              <option value="all-time">All Time</option>
-              <option value="custom">Custom Range</option>
-            </select>
+            <MultiSelectFilter
+              className="w-full"
+              label="Date Range"
+              defaultAllLabel="All Time"
+              alwaysShowSearch
+              options={[
+                { value: 'this-week', label: 'This Week' },
+                { value: 'this-month', label: 'This Month' },
+                { value: 'q1', label: `Q1 ${new Date().getFullYear()} (Jan – Mar)` },
+                { value: 'q2', label: `Q2 ${new Date().getFullYear()} (Apr – Jun)` },
+                { value: 'q3', label: `Q3 ${new Date().getFullYear()} (Jul – Sep)` },
+                { value: 'q4', label: `Q4 ${new Date().getFullYear()} (Oct – Dec)` },
+                { value: 'all-time', label: 'All Time' },
+                { value: 'custom', label: 'Custom Range' },
+              ]}
+              selectedValues={dateFilters}
+              onChange={handleDateFiltersChange}
+            />
           </div>
 
           {/* Type filter */}
           <div className="flex flex-col">
             <label className="text-xs font-bold text-theme-text-secondary uppercase tracking-widest mb-2">Activity Type</label>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-semibold"
-            >
-              <option value="all">All Types</option>
-              {workspaceProjectTypes.map((typeName) => (
-                <option key={typeName} value={typeName}>{typeName}</option>
-              ))}
-            </select>
+            <MultiSelectFilter
+              className="w-full"
+              label="Activity Type"
+              defaultAllLabel="All Types"
+              alwaysShowSearch
+              options={workspaceProjectTypes.map((typeName) => ({ value: typeName, label: typeName }))}
+              selectedValues={typeFilters}
+              onChange={setTypeFilters}
+            />
           </div>
 
           {/* User Filter */}
@@ -1600,23 +1668,23 @@ export default function ReportsPage() {
               <label className="text-xs font-bold text-indigo-400/80 uppercase tracking-widest mb-2 flex items-center gap-1">
                 ผู้ใช้งาน / Target User
               </label>
-              <select
-                value={selectedUser}
-                onChange={(e) => setSelectedUser(e.target.value)}
-                className="bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-4 text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer text-xs font-semibold"
-              >
-                <option value="all">ทั้งหมด / Everyone</option>
-                {usersList.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.full_name} {u.nickname ? `(${u.nickname})` : ''}
-                  </option>
-                ))}
-              </select>
+              <MultiSelectFilter
+                className="w-full"
+                label="Target User"
+                defaultAllLabel="ทั้งหมด / Everyone"
+                alwaysShowSearch
+                options={usersList.map((u) => ({
+                  value: u.id,
+                  label: `${u.full_name}${u.nickname ? ` (${u.nickname})` : ''}`,
+                }))}
+                selectedValues={personalUserIds ?? (sessionUser ? [sessionUser.id] : [])}
+                onChange={setPersonalUserIds}
+              />
             </div>
           )}
 
           {/* Custom Date inputs */}
-          {dateFilter === 'custom' ? (
+          {dateFilters.includes('custom') ? (
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col">
                 <label className="text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1">Start</label>
