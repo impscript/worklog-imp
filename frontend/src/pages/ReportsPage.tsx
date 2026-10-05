@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import { 
   FileSpreadsheet, Search, Clock, Award, Layers, ChevronDown, ChevronUp,
-  TrendingUp, User as UserIcon, Users, Edit3, Eye, Brain, FolderKanban, Table, Download
+  TrendingUp, User as UserIcon, Users, Edit3, Eye, Brain, FolderKanban, Table, Download, RotateCcw
 } from 'lucide-react';
 import EditWorklogModal from '../components/modals/EditWorklogModal';
 import { MultiSelectFilter } from '../components/common/MultiSelectFilter';
@@ -379,6 +379,27 @@ export default function ReportsPage() {
       navigate(`/hrbp?share=${token}`);
     }
   }, [navigate]);
+
+  const isOwnUserOnly =
+    personalUserIds === null ||
+    (personalUserIds.length === 1 && sessionUser?.id === personalUserIds[0]);
+  const hasActiveFilters =
+    projectSearch.trim() !== '' ||
+    !(dateFilters.length === 1 && dateFilters[0] === 'this-month') ||
+    customStart !== '' ||
+    customEnd !== '' ||
+    typeFilters.length > 0 ||
+    !isOwnUserOnly;
+
+  // Back to the page defaults: this month, every type, just the signed-in user.
+  const handleResetFilters = () => {
+    setProjectSearch('');
+    setDateFilters(['this-month']);
+    setCustomStart('');
+    setCustomEnd('');
+    setTypeFilters([]);
+    setPersonalUserIds(null);
+  };
 
   // "All Time" is exclusive: picking it clears the other periods, and picking any other
   // period drops it. An empty selection also means no date limit.
@@ -1712,6 +1733,24 @@ export default function ReportsPage() {
               </span>
             </div>
           )}
+
+          {/* Reset filters */}
+          <div className="flex flex-col justify-end">
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              disabled={!hasActiveFilters}
+              className={cn(
+                'inline-flex items-center justify-center gap-1.5 rounded-xl border py-2.5 px-4 text-xs font-bold transition-all',
+                hasActiveFilters
+                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 cursor-pointer'
+                  : 'border-theme-border bg-theme-surface-secondary text-theme-text-muted opacity-60 cursor-not-allowed'
+              )}
+            >
+              <RotateCcw size={13} />
+              Reset Filters
+            </button>
+          </div>
         </div>
 
 
