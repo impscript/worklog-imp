@@ -338,19 +338,28 @@ export const GanttRoadmapCanvas: React.FC<GanttRoadmapCanvasProps> = ({
           <div className="divide-y divide-theme-border/40 relative">
             {/* Red "TODAY" Line */}
             {todayPositionPercent !== null && (
+              // A box exactly as wide as the timeline track (starts after the label
+              // column; fixed pixel width when the canvas is not stretched, otherwise the
+              // remaining width). Percent positions inside it therefore follow the zoom.
+              // Measuring against the whole row instead put the line at the same pixel in
+              // every zoom, because the row is always as wide as the screen while the
+              // Quarter/Year canvas can be narrower.
               <div
-                className="absolute top-0 bottom-0 z-10 pointer-events-none flex flex-col items-center"
-                style={{
-                  // 100% here resolves against this row's full rendered width (label
-                  // column + timeline), so this stays pixel-accurate whether the
-                  // timeline canvas has a fixed pixel width or fills the remaining space.
-                  left: `calc(480px + (100% - 480px) * ${todayPositionPercent / 100})`,
-                }}
+                className={cn(
+                  'absolute top-0 bottom-0 z-10 pointer-events-none left-96 sm:left-[480px]',
+                  fillTimelineWidth && 'right-0'
+                )}
+                style={fillTimelineWidth ? undefined : { width: timelineCanvasWidth }}
               >
-                <div className="bg-rose-500 text-white font-bold text-[9px] px-1.5 py-0.5 rounded-full shadow-md shrink-0 -translate-x-1/2">
-                  {t('gantt.canvas.today')}
+                <div
+                  className="absolute top-0 bottom-0 flex flex-col items-center -translate-x-1/2"
+                  style={{ left: `${todayPositionPercent}%` }}
+                >
+                  <div className="bg-rose-500 text-white font-bold text-[9px] px-1.5 py-0.5 rounded-full shadow-md shrink-0">
+                    {t('gantt.canvas.today')}
+                  </div>
+                  <div className="w-[1.5px] flex-1 bg-rose-500/80 border-r border-dashed border-rose-500/60 shadow-xs" />
                 </div>
-                <div className="w-[1.5px] flex-1 bg-rose-500/80 border-r border-dashed border-rose-500/60 shadow-xs" />
               </div>
             )}
 
