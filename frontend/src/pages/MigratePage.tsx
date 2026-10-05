@@ -967,22 +967,32 @@ export default function MigratePage() {
     setIsExporting(true);
 
     try {
-      const { data, error } = await supabase
-        .from('col_worklog')
-        .select('*')
-        .eq('user_id', selectedExportUserId)
-        .eq('workspace_id', currentUser.activeWorkspaceId)
-        .gte('work_date', exportStartDate)
-        .lte('work_date', exportEndDate)
-        .order('work_date', { ascending: true });
+      // One request returns at most 1,000 rows, so read every page.
+      const pageSize = 1000;
+      const data: Record<string, unknown>[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data: page, error } = await supabase
+          .from('col_worklog')
+          .select('*')
+          .eq('user_id', selectedExportUserId)
+          .eq('workspace_id', currentUser.activeWorkspaceId)
+          .gte('work_date', exportStartDate)
+          .lte('work_date', exportEndDate)
+          .order('work_date', { ascending: true })
+          .order('start_time', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, from + pageSize - 1);
 
-      if (error) {
-        console.error('Failed to export logs:', error);
-        showToast('Failed to export logs. Please try again.', 'error');
-        return;
+        if (error) {
+          console.error('Failed to export logs:', error);
+          showToast('Failed to export logs. Please try again.', 'error');
+          return;
+        }
+        data.push(...(page || []));
+        if (!page || page.length < pageSize) break;
       }
 
-      if (!data || data.length === 0) {
+      if (data.length === 0) {
         showToast('No worklogs found for the selected date range.', 'warning');
         return;
       }
@@ -1019,8 +1029,8 @@ export default function MigratePage() {
             val = '';
           }
           const strVal = String(val);
-          // Escape quotes and wrap in quotes if has comma or quotes
-          if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n')) {
+          // Escape quotes and wrap in quotes if it has a comma, quote or line break
+          if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n') || strVal.includes('\r')) {
             return `"${strVal.replace(/"/g, '""')}"`;
           }
           return strVal;
@@ -1028,16 +1038,20 @@ export default function MigratePage() {
         csvRows.push(values.join(','));
       });
 
-      const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + csvRows.join('\n');
-      const encodedUri = encodeURI(csvContent);
+      // Download through a Blob: a data: URI is cut at the first "#" in any field
+      // (encodeURI leaves it unescaped), which silently dropped most rows.
+      const csvContent = '\uFEFF' + csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       const selectedUser = usersList.find(u => u.id === selectedExportUserId);
       const nameSlug = selectedUser ? selectedUser.nickname || selectedUser.full_name.replace(/\s+/g, '_') : 'unknown';
-      link.setAttribute('href', encodedUri);
+      link.setAttribute('href', blobUrl);
       link.setAttribute('download', `worklog_${nameSlug}_${exportStartDate}_to_${exportEndDate}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error('Export error:', err);
     } finally {
