@@ -3962,6 +3962,7 @@ ${r.calendar_logging_guide}
           onConfirm={handleConfirmAndRunAppraisal}
           isLoading={isAnalyzing}
           evaluatedUser={evaluatedUser}
+          candidateJd={candidateJd}
           isManagerEvaluated={isManagerEvaluated}
           selectedCycle={selectedCycle}
           dateRange={dateRange}

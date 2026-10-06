@@ -8,7 +8,11 @@ import {
   FileText, 
   Layers, 
   CheckCircle2, 
-  Clock
+  Clock,
+  Briefcase,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import ModalPortal from './ModalPortal';
 
@@ -35,6 +39,12 @@ export interface AppraisalConfirmModalProps {
     department?: string;
     avatar_url?: string;
   } | null;
+  candidateJd?: {
+    id?: string;
+    jd_text?: string;
+    position_name?: string;
+    key_responsibilities?: Record<string, unknown>[];
+  } | null;
   isManagerEvaluated: boolean;
   selectedCycle: 'half_year' | 'end_year';
   dateRange: { start: string; end: string };
@@ -51,29 +61,51 @@ export interface AppraisalConfirmModalProps {
 
 const DEFAULT_APPRAISAL_PRESET_MODELS: Record<string, { id: string; label: string }[]> = {
   gemini: [
-    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (แนะนำ · เร็ว & แม่นยำ)' },
-    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (ฉลาดลึกซึ้ง)' },
-    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (ฉลาดลึกซึ้ง · แม่นยำสูงสุด)' },
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (เร็ว & คุณภาพสูง)' },
+    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (แนะนำ · เสถียร)' },
+    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Next-Gen Preview)' },
+    { id: 'gemini-2.0-flash-thinking-exp', label: 'Gemini 2.0 Flash Thinking (วิเคราะห์เชิงลึก)' },
+    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (บริบท 2M)' },
   ],
   openrouter: [
+    { id: 'anthropic/claude-3.7-sonnet', label: 'Claude 3.7 Sonnet (Hybrid Reasoning · ล่าสุด)' },
+    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (ฉลาดที่สุด · ยอดนิยม)' },
+    { id: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5 (Next-Gen Preview)' },
+    { id: 'openai/gpt-5', label: 'GPT-5 (Next-Gen Preview)' },
+    { id: 'openai/gpt-4.5-preview', label: 'GPT-4.5 Preview (Orion · ลึกซึ้ง)' },
+    { id: 'openai/o3-mini', label: 'OpenAI o3-mini (Reasoning Model ความเร็วสูง)' },
+    { id: 'openai/gpt-4o', label: 'GPT-4o (เต็มประสิทธิภาพ)' },
     { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini (คุ้มค่า · สมดุล)' },
-    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (ฉลาดที่สุด)' },
-    { id: 'deepseek/deepseek-chat', label: 'DeepSeek Chat (ประหยัด)' },
+    { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro (ฉลาดวิเคราะห์)' },
+    { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (เร็ว & คุณภาพสูง)' },
+    { id: 'google/gemini-3.8-flash', label: 'Gemini 3.8 Flash (Next-Gen Preview)' },
     { id: 'google/gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { id: 'google/gemini-2.0-flash:free', label: 'Gemini 2.0 Flash (Free ใช้งานฟรี)' },
+    { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1 (Reasoning ชั้นนำ)' },
+    { id: 'deepseek/deepseek-chat', label: 'DeepSeek V3 (ประหยัด)' },
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' },
   ],
   openai: [
-    { id: 'gpt-4o-mini', label: 'GPT-4o Mini (แนะนำ)' },
+    { id: 'gpt-5', label: 'GPT-5 (Next-Gen Preview)' },
+    { id: 'gpt-4.5-preview', label: 'GPT-4.5 Preview' },
+    { id: 'o3-mini', label: 'o3-mini (Reasoning Model แนะนำ)' },
     { id: 'gpt-4o', label: 'GPT-4o (เต็มประสิทธิภาพ)' },
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini (คุ้มค่า)' },
   ],
   opencode: [
     { id: 'deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
+    { id: 'gemini-3.8-flash-free', label: 'Gemini 3.8 Flash Free (Next-Gen)' },
+    { id: 'claude-sonnet-5-preview', label: 'Claude Sonnet 5 Preview' },
     { id: 'nemotron-3-super-free', label: 'Nemotron 3 Super Free' },
     { id: 'big-pickle', label: 'Big Pickle' },
   ],
   cloudflare: [
     { id: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', label: 'Llama 3.3 70B Fast (Free)' },
-    { id: '@cf/meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B (เร็ว)' },
     { id: '@cf/qwen/qwen2.5-72b-instruct', label: 'Qwen 2.5 72B (แม่นยำ)' },
+    { id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', label: 'DeepSeek R1 Distill 32B (Reasoning)' },
+    { id: '@cf/meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B (เร็ว)' },
+    { id: '@cf/google/gemma-7b-it', label: 'Gemma 7B (Free)' },
   ],
 };
 
@@ -82,6 +114,7 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
   onConfirm,
   isLoading = false,
   evaluatedUser,
+  candidateJd,
   isManagerEvaluated,
   selectedCycle,
   dateRange,
@@ -97,6 +130,8 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
 }) => {
   const [selectedProvider, setSelectedProvider] = useState<string>(systemProvider || 'openrouter');
   const [selectedModel, setSelectedModel] = useState<string>(systemModel || 'google/gemini-2.0-flash:free');
+  const [isCustomModelInput, setIsCustomModelInput] = useState<boolean>(false);
+  const [isJdExpanded, setIsJdExpanded] = useState<boolean>(true);
   const [supervisorNotes, setSupervisorNotes] = useState<string>('');
 
   // When provider changes, select the first preset model for that provider if current model doesn't match
@@ -226,6 +261,103 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
               </div>
             </div>
 
+            {/* 1.5 Job Description (JD) Review Card */}
+            <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-slate-850 border border-indigo-100/90 dark:border-indigo-900/40 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Briefcase size={16} className="text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                    ขอบเขตหน้าที่ความรับผิดชอบ (Job Description - JD)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${
+                      candidateJd?.jd_text
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50'
+                        : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50'
+                    }`}
+                  >
+                    {candidateJd?.jd_text ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
+                    {candidateJd?.jd_text ? 'พบเอกสาร JD ในระบบ' : 'อ้างอิงตำแหน่งมาตรฐาน'}
+                  </span>
+                  {candidateJd?.jd_text && (
+                    <button
+                      type="button"
+                      onClick={() => setIsJdExpanded(!isJdExpanded)}
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-semibold flex items-center gap-0.5 cursor-pointer ml-1"
+                    >
+                      <span>{isJdExpanded ? 'ย่อ' : 'ดู JD'}</span>
+                      {isJdExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Position Header & Responsibilities Count */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="text-xs text-slate-700 dark:text-slate-300">
+                  <span className="text-slate-500 dark:text-slate-400">ตำแหน่งงาน: </span>
+                  <strong className="text-indigo-700 dark:text-indigo-300 font-semibold">
+                    {candidateJd?.position_name || evaluatedUser?.position || 'ตำแหน่งงานทั่วไป'}
+                  </strong>
+                </div>
+                {candidateJd?.key_responsibilities && candidateJd.key_responsibilities.length > 0 && (
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    ({candidateJd.key_responsibilities.length} หมวดภารกิจ)
+                  </span>
+                )}
+              </div>
+
+              {/* Responsibilities Chips */}
+              {candidateJd?.key_responsibilities && candidateJd.key_responsibilities.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {candidateJd.key_responsibilities.map((resp, i) => {
+                    const category = (resp as { category?: string }).category || `หมวดที่ ${i + 1}`;
+                    const weight = (resp as { weight?: number; weight_percentage?: number }).weight ?? (resp as { weight?: number; weight_percentage?: number }).weight_percentage;
+                    return (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs"
+                      >
+                        <span>{category}</span>
+                        {weight != null && (
+                          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                            {weight}%
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* JD Text Display (Scrollable review area) */}
+              {candidateJd?.jd_text ? (
+                isJdExpanded && (
+                  <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-1.5 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                      <span>เนื้อหา Job Description ที่ใช้เป็นเกณฑ์เปรียบเทียบ:</span>
+                      <span className="font-mono text-[10px]">{candidateJd.jd_text.length.toLocaleString()} ตัวอักษร</span>
+                    </div>
+                    <div className="max-h-36 overflow-y-auto custom-scrollbar text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed select-text font-sans pr-1">
+                      {candidateJd.jd_text}
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/40 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                  <div className="space-y-0.5 leading-relaxed">
+                    <div className="font-bold text-[11px]">ยังไม่พบเอกสาร JD เฉพาะบุคคลในระบบ</div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                      ระบบจะวิเคราะห์จากกิจกรรมในบันทึกจริง (Worklog) ควบคู่กับกรอบมาตรฐานตำแหน่ง <strong>{evaluatedUser?.position || 'Officer'}</strong> ({isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md'}) โดยอัตโนมัติ
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* 2. Evidence Health & Readiness Meter */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
@@ -305,26 +437,46 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
 
                 {/* Model Selector */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                    AI Model (โมเดล)
-                  </label>
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    disabled={isLoading}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30"
-                  >
-                    {currentPresets.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label}
-                      </option>
-                    ))}
-                    {!currentPresets.some((m) => m.id === selectedModel) && (
-                      <option value={selectedModel}>
-                        {selectedModel} (กำหนดเอง)
-                      </option>
-                    )}
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                      AI Model (โมเดล)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomModelInput(!isCustomModelInput)}
+                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer font-medium"
+                    >
+                      {isCustomModelInput ? 'เลือกจาก Preset' : 'พิมพ์ Model เอง'}
+                    </button>
+                  </div>
+                  {isCustomModelInput ? (
+                    <input
+                      type="text"
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      disabled={isLoading}
+                      placeholder="เช่น google/gemini-3.8-flash, anthropic/claude-sonnet-5"
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-mono"
+                    />
+                  ) : (
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      disabled={isLoading}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30"
+                    >
+                      {currentPresets.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                      {!currentPresets.some((m) => m.id === selectedModel) && (
+                        <option value={selectedModel}>
+                          {selectedModel} (กำหนดเอง)
+                        </option>
+                      )}
+                    </select>
+                  )}
                 </div>
               </div>
 

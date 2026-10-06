@@ -3405,33 +3405,52 @@ export default function AdminPage() {
 
 const PROVIDER_PRESET_MODELS: Record<string, { id: string; label: string }[]> = {
   opencode: [
-    { id: 'big-pickle', label: 'Big Pickle' },
-    { id: 'deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
-    { id: 'nemotron-3-super-free', label: 'Nemotron 3 Super Free' }
+    { id: 'deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free (เร็ว · ประหยัด)' },
+    { id: 'gemini-3.8-flash-free', label: 'Gemini 3.8 Flash Free (Next-Gen Preview)' },
+    { id: 'claude-sonnet-5-preview', label: 'Claude Sonnet 5 Preview (ฉลาดสูงสุด)' },
+    { id: 'nemotron-3-super-free', label: 'Nemotron 3 Super Free' },
+    { id: 'big-pickle', label: 'Big Pickle' }
   ],
   openrouter: [
-    { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini (แนะนำ · คุ้มค่าที่สุด)' },
-    { id: 'deepseek/deepseek-chat', label: 'DeepSeek Chat (ฉลาด · ราคาประหยัด)' },
+    { id: 'anthropic/claude-3.7-sonnet', label: 'Claude 3.7 Sonnet (ล่าสุด · เหตุผลลึกซึ้ง)' },
+    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (ฉลาดที่สุด · แนะนำ)' },
+    { id: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5 (Next-Gen Preview)' },
+    { id: 'openai/gpt-5', label: 'GPT-5 (Next-Gen Preview)' },
+    { id: 'openai/gpt-4.5-preview', label: 'GPT-4.5 Preview (ทรงพลัง)' },
+    { id: 'openai/o3-mini', label: 'o3-mini (Reasoning Model แนะนำ)' },
+    { id: 'openai/gpt-4o', label: 'GPT-4o (อเนกประสงค์)' },
+    { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini (คุ้มค่า · รวดเร็ว)' },
+    { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro (ฉลาด · วิเคราะห์ยาว)' },
+    { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (เร็ว · แม่นยำ)' },
+    { id: 'google/gemini-3.8-flash', label: 'Gemini 3.8 Flash (Next-Gen Preview)' },
     { id: 'google/gemini-2.0-flash', label: 'Gemini 2.0 Flash (Paid)' },
-    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (ฉลาดที่สุด)' },
     { id: 'google/gemini-2.0-flash:free', label: 'Gemini 2.0 Flash (Free)' },
+    { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1 (Reasoning)' },
+    { id: 'deepseek/deepseek-chat', label: 'DeepSeek Chat (V3 · ประหยัด)' },
     { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' }
   ],
   cloudflare: [
-    { id: '@cf/meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B (Free · เร็ว)' },
     { id: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', label: 'Llama 3.3 70B Fast (Free)' },
     { id: '@cf/qwen/qwen2.5-72b-instruct', label: 'Qwen 2.5 72B (Free · แม่นยำ)' },
+    { id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', label: 'DeepSeek R1 Distill Qwen 32B (Free)' },
+    { id: '@cf/meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B (Free · เร็ว)' },
     { id: '@cf/google/gemma-7b-it', label: 'Gemma 7B (Free)' },
     { id: '@cf/mistral/mistral-7b-instruct-v0.2', label: 'Mistral 7B (Free)' },
   ],
   gemini: [
-    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (ฉลาดสูงสุด)' },
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (สมดุล · แนะนำ)' },
+    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (มาตรฐาน)' },
+    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Next-Gen Preview)' },
+    { id: 'gemini-2.0-flash-thinking-exp', label: 'Gemini 2.0 Flash Thinking (Experimental)' },
     { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }
   ],
   openai: [
-    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-    { id: 'gpt-4o', label: 'GPT-4o' }
+    { id: 'gpt-5', label: 'GPT-5 (Next-Gen Preview)' },
+    { id: 'gpt-4.5-preview', label: 'GPT-4.5 Preview (รุ่นใหม่)' },
+    { id: 'o3-mini', label: 'o3-mini (Reasoning Model แนะนำ)' },
+    { id: 'gpt-4o', label: 'GPT-4o (ฉลาดรอบด้าน)' },
+    { id: 'gpt-4o-mini', label: 'GPT-4o Mini (ประหยัด · แนะนำ)' }
   ]
 };
 
