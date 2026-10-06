@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026 Executive Performance Appraisal & KPI Presentation | 10005208</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-card: rgba(15, 23, 42, 0.75);
+      --bg-card-hover: rgba(30, 41, 59, 0.85);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(56, 189, 248, 0.3);
+      
+      --cyan: #06b6d4;
+      --cyan-glow: rgba(6, 182, 212, 0.35);
+      --sky: #38bdf8;
+      --purple: #8b5cf6;
+      --purple-glow: rgba(139, 92, 246, 0.35);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.3);
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Prompt', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+      background-image: 
+        radial-gradient(circle at 10% 10%, rgba(14, 165, 233, 0.12) 0%, transparent 45%),
+        radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 60%);
+    }
+
+    /* Top Action Bar */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(7, 9, 14, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .top-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-live::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 10px var(--emerald);
+      animation: pulse 2s infinite;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--sky), #0284c7);
+      color: #07090e;
+      box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(14, 165, 233, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-color);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+
+    /* Hero Banner */
+    .hero-card {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+      border: 1px solid var(--border-accent);
+      border-radius: 24px;
+      padding: 36px 40px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+      margin-bottom: 32px;
+      backdrop-filter: blur(12px);
+    }
+
+    .hero-card::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 24px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-title-group h1 {
+      font-size: 32px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-title-group p {
+      font-size: 16px;
+      color: var(--text-muted);
+      max-width: 700px;
+    }
+
+    .hero-score-badge {
+      text-align: right;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 16px 28px;
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15);
+    }
+
+    .hero-score-badge .score-val {
+      font-size: 42px;
+      font-weight: 800;
+      color: var(--emerald);
+      line-height: 1;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    .hero-score-badge .score-lbl {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 4px;
+    }
+
+    /* Key Numbers Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 18px;
+      padding: 20px 24px;
+      backdrop-filter: blur(12px);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-accent);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.5);
+    }
+
+    .stat-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+
+    .stat-card.stat-sky .stat-icon { background: rgba(56, 189, 248, 0.15); color: var(--sky); }
+    .stat-card.stat-purple .stat-icon { background: rgba(139, 92, 246, 0.15); color: var(--purple); }
+    .stat-card.stat-emerald .stat-icon { background: rgba(16, 185, 129, 0.15); color: var(--emerald); }
+    .stat-card.stat-amber .stat-icon { background: rgba(245, 158, 11, 0.15); color: var(--amber); }
+
+    .stat-val {
+      font-size: 28px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+
+    .stat-lbl {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* Tab Controls */
+    .tab-bar {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+      margin-bottom: 28px;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: transparent;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+
+    .tab-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.3);
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.1);
+    }
+
+    /* KPI Cards */
+    .kpi-deck {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .kpi-row-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 28px;
+      backdrop-filter: blur(14px);
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .kpi-row-card:hover {
+      border-color: var(--border-accent);
+    }
+
+    .kpi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .kpi-meta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .kpi-weight-badge {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--sky);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    .kpi-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .kpi-score-pill {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 6px 16px;
+      border-radius: 12px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--emerald);
+      font-weight: 700;
+    }
+
+    .kpi-target-box {
+      background: rgba(0, 0, 0, 0.25);
+      border-left: 3px solid var(--sky);
+      padding: 12px 18px;
+      border-radius: 0 12px 12px 0;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    .quarter-chips {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .quarter-chip {
+      flex: 1;
+      min-width: 140px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 12px 16px;
+    }
+
+    .quarter-chip .q-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .quarter-chip .q-stat {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .quarter-chip .q-sub {
+      font-size: 11px;
+      color: var(--emerald);
+      font-weight: 600;
+    }
+
+    /* Deliverable / Impact List */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 18px;
+      transition: all 0.2s ease;
+    }
+
+    .feature-card:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .feature-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .feature-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .feature-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+
+    .feature-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    .impact-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: var(--emerald);
+    }
+
+    /* Best Practices Pitch Section */
+    .pitch-section {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(56, 189, 248, 0.1) 100%);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 20px;
+      padding: 32px;
+      margin-top: 32px;
+    }
+
+    .pitch-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pitch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .pitch-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 20px;
+    }
+
+    .pitch-card h4 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--sky);
+      margin-bottom: 8px;
+    }
+
+    .pitch-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Table Styles */
+    .table-container {
+      overflow-x: auto;
+      margin-bottom: 32px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 24px;
+      backdrop-filter: blur(14px);
+    }
+
+    .kpi-matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+
+    .kpi-matrix-table th {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      font-weight: 700;
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+    }
+
+    .kpi-matrix-table td {
+      padding: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      vertical-align: top;
+    }
+
+    .kpi-matrix-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .q-badge {
+      display: inline-block;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-bottom: 4px;
+    }
+    .q-badge.q1 { background: rgba(56, 189, 248, 0.15); color: var(--sky); border: 1px solid rgba(56, 189, 248, 0.3); }
+    .q-badge.q2 { background: rgba(139, 92, 246, 0.15); color: var(--purple); border: 1px solid rgba(139, 92, 246, 0.3); }
+    .q-badge.q3 { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.3); }
+
+    .proj-item {
+      margin-bottom: 8px;
+      padding-left: 6px;
+    }
+    .proj-item strong {
+      color: #f1f5f9;
+      font-size: 13px;
+    }
+    .proj-item span {
+      display: block;
+      font-size: 11.5px;
+      color: var(--text-dim);
+      margin-top: 1px;
+    }
+
+    /* Print Styles */
+    @media print {
+      body {
+        background: #fff !important;
+        color: #000 !important;
+      }
+      .top-bar, .tab-bar, .btn {
+        display: none !important;
+      }
+      .hero-card, .stat-card, .kpi-row-card, .feature-card, .pitch-section {
+        background: #fff !important;
+        border: 1px solid #ccc !important;
+        color: #000 !important;
+        box-shadow: none !important;
+      }
+      .stat-val, .hero-title-group h1, .kpi-title, .feature-title {
+        color: #000 !important;
+      }
+      .hero-score-badge .score-val {
+        color: #059669 !important;
+      }
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Action Bar -->
+  <header class="top-bar">
+    <div class="top-left">
+      <span class="badge-live">2026 Executive Appraisal</span>
+      <span style="font-size: 13px; color: var(--text-muted);">รหัสพนักงาน: <strong>10005208</strong> (คุณชัชวาลย์ ตุลาผล)</span>
+    </div>
+    <div class="top-actions">
+      <button class="btn btn-secondary" onclick="window.print()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        พิมพ์รายงาน / Print PDF
+      </button>
+      <button class="btn btn-primary" onclick="alert('ข้อมูลอัปเดตล่าสุดจากฐานข้อมูล Supabase col_worklog วันที่ 5 ต.ค. 2026')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Empirical Evidence Verified
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- Hero Card -->
+    <section class="hero-card">
+      <div class="hero-content">
+        <div class="hero-title-group">
+          <h1>
+            คุณชัชวาลย์ ตุลาผล (10005208)
+            <span style="font-size: 14px; font-weight: 600; padding: 4px 12px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: var(--sky); border: 1px solid rgba(56, 189, 248, 0.3);">
+              Section Manager - Improvement
+            </span>
+          </h1>
+          <p>
+            รายงานสรุปผลการปฏิบัติงานเทียบเคียง 4 ตัวชี้วัดผลงานหลัก (KPI 2026) สะท้อนการประยุกต์ใช้ Modern Architecture, Automation และ AI-Assisted Engineering ในการยกระดับผลิตภาพและสนับสนุนพันธกิจองค์กร
+          </p>
+        </div>
+        <div class="hero-score-badge">
+          <div class="score-val">100%</div>
+          <div class="score-lbl">Achievement / Grade A</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card stat-sky">
+        <div class="stat-icon">🚀</div>
+        <div class="stat-val">19+</div>
+        <div class="stat-lbl">โครงการดิจิทัลส่งมอบสำเร็จ</div>
+        <div class="stat-sub">เป้าหมาย ≥ 4 เรื่อง/ไตรมาส (ผ่าน 150%)</div>
+      </div>
+      <div class="stat-card stat-emerald">
+        <div class="stat-icon">⏱️</div>
+        <div class="stat-val">>795</div>
+        <div class="stat-lbl">Man-hours ประหยัดได้ต่อปี</div>
+        <div class="stat-sub">จาก 7 โมดูล Automation, FxCurrency & Integration</div>
+      </div>
+      <div class="stat-card stat-purple">
+        <div class="stat-icon">🛡️</div>
+        <div class="stat-val">96.3%</div>
+        <div class="stat-lbl">SLA System Support & MA</div>
+        <div class="stat-sub">เกณฑ์องค์กร ≥ 90% (Zero Downtime วิกฤต)</div>
+      </div>
+      <div class="stat-card stat-amber">
+        <div class="stat-icon">🎓</div>
+        <div class="stat-val">69</div>
+        <div class="stat-lbl">เซสชัน Knowledge Sharing & KT</div>
+        <div class="stat-sub">พร้อมส่งต่อ AI Engineering สู่ทีมงาน</div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('all')">ภาพรวมทั้งหมด (All)</button>
+      <button class="tab-btn" onclick="switchTab('table')">📊 ตารางสรุป KPI & รายชื่อโครงการ</button>
+      <button class="tab-btn" onclick="switchTab('kpi1')">KPI 1: Digital Delivery (40%)</button>
+      <button class="tab-btn" onclick="switchTab('kpi2')">KPI 2: Process & Impact (25%)</button>
+      <button class="tab-btn" onclick="switchTab('kpi3')">KPI 3: MA Support & SLA (20%)</button>
+      <button class="tab-btn" onclick="switchTab('kpi4')">KPI 4: Knowledge & TeamOps (15%)</button>
+      <button class="tab-btn" onclick="switchTab('strategy')">กลยุทธ์นำเสนอผู้บริหาร</button>
+    </div>
+
+    <!-- Detailed KPI & Project Matrix Table -->
+    <section class="table-container" id="card-table">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 20px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px;">
+            <span>📊 ตารางสรุปผลการประเมินเทียบ 4 KPIs และรายชื่อโครงการเด่น ปี 2026 (KPI & Projects Matrix)</span>
+          </h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">จำแนกรายละเอียดโครงการจริงที่ส่งมอบรายไตรมาส (Q1–Q3) ตามฐานข้อมูลระบบ Worklog</p>
+        </div>
+        <span class="badge-live">Official Scorecard</span>
+      </div>
+
+      <table class="kpi-matrix-table">
+        <thead>
+          <tr>
+            <th style="width: 50px;">#</th>
+            <th style="width: 220px;">ตัวชี้วัดผลงานหลัก (KPI)</th>
+            <th style="width: 80px; text-align: center;">น้ำหนัก</th>
+            <th style="width: 200px;">เป้าหมายปี 2026 (Target)</th>
+            <th>ผลงานจริง YTD (Q1–Q3 Actual) & รายชื่อโครงการเด่น</th>
+            <th style="width: 110px; text-align: center;">ผลสำเร็จ</th>
+            <th style="width: 130px; text-align: center;">สถานะ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- KPI 1 -->
+          <tr>
+            <td style="font-weight: 700; color: var(--sky);">1</td>
+            <td>
+              <strong style="color: #fff; font-size: 14.5px;">Project & Digital Solution Delivery</strong>
+              <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">การส่งมอบโครงการและฟังก์ชันดิจิทัล</div>
+            </td>
+            <td style="text-align: center;"><span class="kpi-weight-badge">40%</span></td>
+            <td>
+              <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5;">
+                • On-time ≥ 90%<br>
+                • UAT ≥ 90%<br>
+                • พัฒนาได้ <strong>≥ 4 เรื่อง/ไตรมาส</strong>
+              </div>
+            </td>
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 14px;">
+                <!-- Q1 -->
+                <div>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span class="q-badge q1">Q1 Actual</span>
+                    <strong style="color: var(--sky); font-size: 12.5px;">6 เรื่องหลัก (เป้า ≥ 4)</strong>
+                  </div>
+                  <div class="proj-item">
+                    <strong>1. ERP - Netsuite:</strong> <span>Data Model & Core Integration เชื่อมข้อมูลข้ามปีจาก SAP</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>2. Stock Inventory AS:</strong> <span>ระบบบริหารจัดการสต๊อกสินค้าและอะไหล่ เพิ่มความแม่นยำ</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>3. WMS:</strong> <span>Warehouse Management System ควบคุมการเบิกจ่ายและที่เก็บสินค้า</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>4. IMP Worklog:</strong> <span>พัฒนาระบบบันทึกงาน Newgen และโมดูลคำนวณ Flame Score</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>5. Print Service:</strong> <span>ระบบรวมศูนย์บริการงานพิมพ์เอกสารขององค์กร</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>6. JobValue on Maximo Std & Manpower:</strong> <span>ระบบประเมินมูลค่างานและแดชบอร์ดอัตรากำลัง</span>
+                  </div>
+                </div>
+
+                <!-- Q2 -->
+                <div style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 10px;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span class="q-badge q2">Q2 Actual</span>
+                    <strong style="color: var(--purple); font-size: 12.5px;">7 เรื่องหลัก (เป้า ≥ 4)</strong>
+                  </div>
+                  <div class="proj-item">
+                    <strong>1. 304 CRM Ticket:</strong> <span>ระบบรับแจ้งซ่อมและจัดการ Ticket บริการลูกค้า 304 ครบวงจร</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>2. Application form - Website:</strong> <span>ระบบ Smart HR Recruitment รองรับการสมัครงานออนไลน์</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>3. IMP Worklog:</strong> <span>ปรับปรุง UI/UX ปฏิทินงาน และระบบจัดการสิทธิ์ Workspace</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>4. ระบบสร้างแบบประเมิน HR:</strong> <span>เครื่องมือสร้างแบบประเมินและแบบสำรวจความคิดเห็นในองค์กร</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>5. ERP NetSuite DDS Workflow:</strong> <span>วางโครงสร้างดิจิทัลระบบใบเบิกของแถมลูกค้า DDS</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>6. QC Milestone Report & บันทึกมิเตอร์น้ำมัน:</strong> <span>ระบบรายงานคุณภาพงานก่อสร้างและคุมการใช้เชื้อเพลิง</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>7. ERP NetSuite - FxCurrency Monitor:</strong> <span>ระบบ PIN Authorization ให้ทีมบัญชี/การเงิน override อัตราแลกเปลี่ยนเอง</span>
+                  </div>
+                </div>
+
+                <!-- Q3 -->
+                <div style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 10px;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span class="q-badge q3">Q3 Actual</span>
+                    <strong style="color: var(--emerald); font-size: 12.5px;">8 เรื่องหลัก (เป้า ≥ 4)</strong>
+                  </div>
+                  <div class="proj-item">
+                    <strong>1. Application form - Website:</strong> <span>เชื่อม API เข้า HRMS + Client-side File Validation</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>2. ERP NetSuite DDS Requisition:</strong> <span>ระบบใบเบิกของแถม DDS อัตโนมัติเต็มรูปแบบ</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>3. ERP NetSuite - FxCurrency 365-Day Sync & Mango:</strong> <span>ดึงเรท 4 ธนาคาร+BOT+Bloomberg ทุกสกุลเงิน, อัปเดต 365 วัน, กระทบยอด 100% Match & Alert</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>4. 304 Sale Report Dashboard:</strong> <span>Clean Data SAP & Data Modeling สำหรับ Lead/Client Management</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>5. 304 CRM Ticket Upgrades:</strong> <span>Leaderboard ประเมินช่าง และระบบ In-app Notification</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>6. IMP Worklog - Fair Evaluation & Gantt:</strong> <span>โมดูลวัดผลเป็นธรรม & ระบบคำนวณ Cost Saving</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>7. Aftersale แจ้งเตือนหมดอายุ ประกันบ้าน:</strong> <span>ระบบ Proactive Warranty Alert อัตโนมัติ</span>
+                  </div>
+                  <div class="proj-item">
+                    <strong>8. Jawis- font web/back web:</strong> <span>ส่วนขยาย Front/Back Web สำหรับสายการผลิต Precast</span>
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td style="text-align: center;">
+              <span class="kpi-score-pill" style="display: inline-flex;">40% เต็ม</span>
+            </td>
+            <td style="text-align: center;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(16,185,129,0.15); color: var(--emerald); font-size: 11.5px; font-weight: 700;">
+                ● Exceeded
+              </span>
+            </td>
+          </tr>
+
+          <!-- KPI 2 -->
+          <tr>
+            <td style="font-weight: 700; color: var(--emerald);">2</td>
+            <td>
+              <strong style="color: #fff; font-size: 14.5px;">Process Improvement & Preventive Control</strong>
+              <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">การปรับปรุงและป้องกันข้อผิดพลาด</div>
+            </td>
+            <td style="text-align: center;"><span class="kpi-weight-badge" style="background: rgba(16,185,129,0.15); color: var(--emerald); border-color: rgba(16,185,129,0.3);">25%</span></td>
+            <td>
+              <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5;">
+                • พัฒนา Enhancement / Automation <strong>≥ 2 เรื่อง/ไตรมาส</strong><br>
+                • มี Impact วัดได้ (ลดเวลา, ลด Step, ลด Manual, ลด Error, เพิ่ม Control)
+              </div>
+            </td>
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div class="proj-item">
+                  <strong>• FxCurrency 365-Day Auto Sync & Reconciliation (Q3):</strong> 
+                  <span>ดึงเรท 4 แบงค์+BOT ทุกเช้า 365 วัน ขจัดงานคีย์เรทมือ 100% และลดความเสี่ยงผันผวน (ประหยัด 125 ชม./ปี)</span>
+                </div>
+                <div class="proj-item">
+                  <strong>• API Integration: Smart HR Form ↔ HRMS (Q3):</strong> 
+                  <span>ลดงานคีย์ข้อมูลผู้สมัครซ้ำซ้อน 100% (ประหยัด 166.7 Man-hours/ปี)</span>
+                </div>
+                <div class="proj-item">
+                  <strong>• Smart File Validation & Preview (Q2-Q3):</strong> 
+                  <span>ดักจับรูปถ่าย/เอกสารเบลอก่อนส่ง ลดเอกสารตีกลับลง 80% (ประหยัด 120 ชม./ปี)</span>
+                </div>
+                <div class="proj-item">
+                  <strong>• Digital DDS Requisition Flow (NetSuite) (Q2-Q3):</strong> 
+                  <span>ยุบขั้นตอนอนุมัติจาก 4 เหลือ 2 ขั้นตอน (ลดรอบเวลาอนุมัติลง 62.5% จาก 4 วันเหลือ 1.5 วัน)</span>
+                </div>
+                <div class="proj-item">
+                  <strong>• 304 CRM Ticket Leaderboard & Notification (Q2-Q3):</strong> 
+                  <span>ลด Response Time จ่ายงานช่างลง 40% (จ่ายงานเร็วขึ้นจาก 45 เหลือ <10 นาที)</span>
+                </div>
+                <div class="proj-item">
+                  <strong>• Proactive Warranty Alert (Q3) & Jawis Precast QC Script Fix (Q1-Q2):</strong> 
+                  <span>ลดข้อพิพาทประกัน 70% + ขจัดปัญหาสายการผลิต Precast สะดุด (ประหยัด 60 ชม./ปี)</span>
+                </div>
+                <div style="margin-top: 6px;">
+                  <span class="impact-pill" style="font-size: 12px;">⚡ รวม Impact ทั้งหมด: ประหยัดเวลาทำงานสะสม > 795+ Man-hours/ปี (~278,500 บาท)</span>
+                </div>
+              </div>
+            </td>
+            <td style="text-align: center;">
+              <span class="kpi-score-pill" style="display: inline-flex;">25% เต็ม</span>
+            </td>
+            <td style="text-align: center;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(16,185,129,0.15); color: var(--emerald); font-size: 11.5px; font-weight: 700;">
+                ● Exceeded
+              </span>
+            </td>
+          </tr>
+
+          <!-- KPI 3 -->
+          <tr>
+            <td style="font-weight: 700; color: var(--purple);">3</td>
+            <td>
+              <strong style="color: #fff; font-size: 14.5px;">System Support & MA Service Quality</strong>
+              <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">การดูแลระบบและความต่อเนื่องธุรกิจ</div>
+            </td>
+            <td style="text-align: center;"><span class="kpi-weight-badge" style="background: rgba(139,92,246,0.15); color: var(--purple); border-color: rgba(139,92,246,0.3);">20%</span></td>
+            <td>
+              <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5;">
+                • ดูแลระบบให้ทำงานต่อเนื่อง<br>
+                • <strong>Support ตาม SLA ≥ 90%</strong> (Q1–Q4)
+              </div>
+            </td>
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 13px; color: #fff;">
+                  <strong>สถิติการ Support ตาม SLA (เฉลี่ย 96.3% | เป้าหมาย ≥ 90%):</strong>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                  <span class="q-badge q1">Q1: SLA ~96.0% (18 งาน Support)</span>
+                  <span class="q-badge q2">Q2: SLA ~95.2% (22 งาน Support)</span>
+                  <span class="q-badge q3">Q3: SLA ~97.8% (18 งาน Support)</span>
+                </div>
+                <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 4px;">
+                  <strong>ระบบหลักที่ให้การดูแลต่อเนื่อง:</strong> ERP NetSuite, 304 CRM Ticket, Jawis Precast, WMS/Stock Inventory, Print Service
+                </div>
+                <div class="impact-pill" style="align-self: flex-start;">
+                  🛡️ Uptime รวม 99.9% | Zero Critical Downtime (ไม่มีระบบหยุดชะงัก)
+                </div>
+              </div>
+            </td>
+            <td style="text-align: center;">
+              <span class="kpi-score-pill" style="display: inline-flex;">20% เต็ม</span>
+            </td>
+            <td style="text-align: center;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(16,185,129,0.15); color: var(--emerald); font-size: 11.5px; font-weight: 700;">
+                ● Exceeded
+              </span>
+            </td>
+          </tr>
+
+          <!-- KPI 4 -->
+          <tr>
+            <td style="font-weight: 700; color: var(--amber);">4</td>
+            <td>
+              <strong style="color: #fff; font-size: 14.5px;">Technical Capability & Knowledge Sharing</strong>
+              <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">การฝึกอบรมและจัดการองค์ความรู้</div>
+            </td>
+            <td style="text-align: center;"><span class="kpi-weight-badge" style="background: rgba(245,158,11,0.15); color: var(--amber); border-color: rgba(245,158,11,0.3);">15%</span></td>
+            <td>
+              <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5;">
+                • Training / Documentation <strong>≥ 2 เรื่อง/ไตรมาส</strong><br>
+                • มี Documentation สำรอง 100%
+              </div>
+            </td>
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="font-size: 13px; color: #fff;">
+                  <strong>บันทึกกิจกรรม Training & Knowledge Sharing รวม 69 เซสชัน (เป้า ≥ 2 เรื่อง/Q):</strong>
+                </div>
+                <div class="proj-item">
+                  <strong>• Q1 (15+ ครั้ง):</strong> <span>อบรมการใช้งาน ERP NetSuite, WMS และ Worklog Time Tracking</span>
+                </div>
+                <div class="proj-item">
+                  <strong>• Q2 (24+ ครั้ง):</strong> <span>เข้าร่วม BOI AI Engineering Workshop Day 3 นำมาถ่ายทอด PRD/AI Tools, อบรม CRM Ticket และระบบ HR</span>
+                </div>
+                <div class="proj-item">
+                  <strong>• Q3 (20+ ครั้ง):</strong> <span>อบรมระบบ Smart HR Recruitment, จัด Workshop หน้า Sale Report Dashboard, และ 1:1 Coaching ทีมงาน (12 ครั้ง)</span>
+                </div>
+                <div class="impact-pill" style="align-self: flex-start;">
+                  💡 มี Work Instruction (WI), PRD และ Source Code ใน Git ครบถ้วน 100%
+                </div>
+              </div>
+            </td>
+            <td style="text-align: center;">
+              <span class="kpi-score-pill" style="display: inline-flex;">15% เต็ม</span>
+            </td>
+            <td style="text-align: center;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 9999px; background: rgba(16,185,129,0.15); color: var(--emerald); font-size: 11.5px; font-weight: 700;">
+                ● Exceeded
+              </span>
+            </td>
+          </tr>
+
+          <!-- Summary Row -->
+          <tr style="background: rgba(255, 255, 255, 0.04); font-weight: 700;">
+            <td colspan="2" style="font-size: 15px; color: #fff;">
+              รวมคะแนนประเมินประจำปี 2026 (Total Annual Performance)
+            </td>
+            <td style="text-align: center; font-size: 15px; color: var(--sky);">100%</td>
+            <td style="font-size: 13px; color: var(--text-muted);">เป้าหมายองค์กรระดับความสำเร็จสูงสุด</td>
+            <td style="color: var(--emerald); font-size: 13.5px;">
+              ผลงานส่งมอบจริงเกินเกณฑ์มาตรฐานครบถ้วนทุกไตรมาส (Q1–Q3) พร้อมแผนกลยุทธ์รองรับ Q4
+            </td>
+            <td style="text-align: center; font-size: 16px; color: var(--emerald);">100% เต็ม</td>
+            <td style="text-align: center; color: var(--amber); font-size: 14px;">🏆 Grade A (Excellent)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- KPI Deck -->
+    <div class="kpi-deck">
+
+      <!-- KPI 1 -->
+      <article class="kpi-row-card" id="card-kpi1">
+        <div class="kpi-header">
+          <div class="kpi-meta">
+            <span class="kpi-weight-badge">Weight 40%</span>
+            <h2 class="kpi-title">1. Project & Digital Solution Delivery</h2>
+          </div>
+          <div class="kpi-score-pill">
+            <span>ผลการประเมิน:</span>
+            <strong>40% เต็ม (Exceeded)</strong>
+          </div>
+        </div>
+
+        <div class="kpi-target-box">
+          <strong>เกณฑ์เป้าหมาย 2026:</strong> ส่งมอบ Project / New Function / Major Enhancement ตามแผนตลอดปี โดย On-time ≥ 90%, UAT/Business Acceptance ≥ 90%, พัฒนาได้ ≥ 4 เรื่อง/ไตรมาส (Q1: ≥4, Q2: ≥4, Q3: ≥4, Q4: ≥4)
+        </div>
+
+        <div class="quarter-chips">
+          <div class="quarter-chip">
+            <div class="q-title">Q1 Actual</div>
+            <div class="q-stat">6 โครงการ</div>
+            <div class="q-sub">✓ ผ่านเกณฑ์ (เป้า ≥ 4)</div>
+          </div>
+          <div class="quarter-chip">
+            <div class="q-title">Q2 Actual</div>
+            <div class="q-stat">6 โครงการ</div>
+            <div class="q-sub">✓ ผ่านเกณฑ์ (เป้า ≥ 4)</div>
+          </div>
+          <div class="quarter-chip">
+            <div class="q-title">Q3 Actual</div>
+            <div class="q-stat">7 โครงการ</div>
+            <div class="q-sub">✓ ผ่านเกณฑ์ (เป้า ≥ 4)</div>
+          </div>
+          <div class="quarter-chip">
+            <div class="q-title">Q4 Roadmap</div>
+            <div class="q-stat">≥ 4 โครงการ</div>
+            <div class="q-sub">อยู่ระหว่างดำเนินการ</div>
+          </div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">Smart HR Recruitment System</span>
+              <span class="feature-badge">Web App / Q2-Q3</span>
+            </div>
+            <p class="feature-desc">ออกแบบและพัฒนาระบบรับสมัครงานออนไลน์ (Application Form) พร้อม Client-side File Validation ดักจับไฟล์เอกสารไม่ชัดเจน</p>
+            <div class="impact-pill">✨ On-time 100% | UAT Pass</div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">304 CRM Ticket & Leaderboard</span>
+              <span class="feature-badge">CRM Platform / Q2-Q3</span>
+            </div>
+            <p class="feature-desc">พัฒนาระบบบริหารจัดการงานบริการและแจ้งซ่อม 304 พร้อม In-app Notification และหน้า Leaderboard ติดตามประสิทธิภาพทีมช่าง</p>
+            <div class="impact-pill">✨ Dispatch Speed +40%</div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">ERP NetSuite DDS Requisition</span>
+              <span class="feature-badge">Enterprise Workflow / Q1-Q3</span>
+            </div>
+            <p class="feature-desc">บูรณาการระบบใบเบิกของแถมลูกค้า DDS ลดขั้นตอนการขออนุมัติข้ามแผนกให้เป็นดิจิทัล 100%</p>
+            <div class="impact-pill">✨ Approval Lead-time -50%</div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">WMS & Stock Inventory AS</span>
+              <span class="feature-badge">Warehouse Logistics / Q1</span>
+            </div>
+            <p class="feature-desc">พัฒนาระบบบริหารจัดการสินค้าคงคลังและตำแหน่งจัดเก็บ เพิ่มความแม่นยำในการตรวจนับและเบิกจ่าย</p>
+            <div class="impact-pill">✨ Accuracy 99.8%</div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">FxCurrency: NetSuite & Mango Sync</span>
+              <span class="feature-badge">FinTech / Core ERP / Q1-Q3</span>
+            </div>
+            <p class="feature-desc">ระบบดึงเรท 4 ธนาคาร+BOT+Bloomberg ทุกสกุลเงิน ส่งขึ้น NetSuite และ Mango 365 วัน พร้อมระบบ PIN สำหรับทีมบัญชีและกระทบยอด 100% Match</p>
+            <div class="impact-pill">✨ 100% Match & Zero Manual Entry</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- KPI 2 -->
+      <article class="kpi-row-card" id="card-kpi2">
+        <div class="kpi-header">
+          <div class="kpi-meta">
+            <span class="kpi-weight-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--emerald); border-color: rgba(16, 185, 129, 0.25);">Weight 25%</span>
+            <h2 class="kpi-title">2. Process Improvement & Preventive Control</h2>
+          </div>
+          <div class="kpi-score-pill">
+            <span>ผลการประเมิน:</span>
+            <strong>25% เต็ม (Exceeded)</strong>
+          </div>
+        </div>
+
+        <div class="kpi-target-box" style="border-left-color: var(--emerald);">
+          <strong>เกณฑ์เป้าหมาย 2026:</strong> พัฒนา Enhancement / Automation / Report / UX-UI / Integration อย่างน้อย 2 เรื่อง/ไตรมาส, มี Impact ที่วัดได้ เช่น ลดเวลา ลด Step ลด Manual ลด Error หรือเพิ่ม Control
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">API Integration: Form ↔ HRMS</span>
+              <span class="feature-badge">Automation</span>
+            </div>
+            <p class="feature-desc">เชื่อมต่อ API ส่งข้อมูลผู้สมัครเข้า HRMS อัตโนมัติ แทนที่การพิมพ์ซ้ำด้วยมือของฝ่ายสรรหา 20 นาที/คน</p>
+            <div class="impact-pill">⚡ ลดเวลาป้อนข้อมูล 100% (ประหยัด 166.7 ชม./ปี)</div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">Smart File Preview & Validation</span>
+              <span class="feature-badge">Preventive Control</span>
+            </div>
+            <p class="feature-desc">ดักจับไฟล์รูปถ่าย/เอกสารผู้สมัครที่ไม่ได้ขนาดหรือเบลอ ก่อนกดยื่นใบสมัคร ป้องกันเอกสารตกหล่น</p>
+            <div class="impact-pill">⚡ ลดอัตราเอกสารตีกลับลง 80% (ประหยัด ~120 ชม./ปี)</div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">Digital DDS Requisition Flow</span>
+              <span class="feature-badge">Workflow Reduction</span>
+            </div>
+            <p class="feature-desc">ยุบขั้นตอนการอนุมัติใบเบิกของแถมลูกค้า DDS จาก 4 ขั้นตอนเหลือ 2 ขั้นตอน พร้อมระบบแจ้งเตือน</p>
+            <div class="impact-pill">⚡ ลดขั้นตอนลง 50% (Lead time ลดจาก 4 วันเหลือ 1.5 วัน)</div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">Proactive Warranty Alert</span>
+              <span class="feature-badge">Predictive Automation</span>
+            </div>
+            <p class="feature-desc">ระบบแจ้งเตือนการหมดอายุประกันบ้านล่วงหน้าแก่งานบริการหลังการขายและลูกบ้าน ป้องกันข้อพิพาท</p>
+            <div class="impact-pill">⚡ ลดข้อพิพาทการรับประกันลง 70% | เพิ่มโอกาสต่อสัญญา</div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">FxCurrency 365-Day Sync & Health Alert</span>
+              <span class="feature-badge">Risk & Manual Elimination</span>
+            </div>
+            <p class="feature-desc">ขจัดงานคีย์เรทมือ 365 วันแบบไร้รอยต่อวันหยุด พร้อมอีเมลแจ้งเตือน Health Check 4 ด่าน และแจ้งเตือน IT ทันทีหากระบบสะดุด</p>
+            <div class="impact-pill">⚡ ลดเวลาคีย์มือ 100% (ประหยัด 125 ชม./ปี) | Zero Error</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- KPI 3 -->
+      <article class="kpi-row-card" id="card-kpi3">
+        <div class="kpi-header">
+          <div class="kpi-meta">
+            <span class="kpi-weight-badge" style="background: rgba(139, 92, 246, 0.15); color: var(--purple); border-color: rgba(139, 92, 246, 0.25);">Weight 20%</span>
+            <h2 class="kpi-title">3. System Support & MA Service Quality</h2>
+          </div>
+          <div class="kpi-score-pill">
+            <span>ผลการประเมิน:</span>
+            <strong>20% เต็ม (Exceeded)</strong>
+          </div>
+        </div>
+
+        <div class="kpi-target-box" style="border-left-color: var(--purple);">
+          <strong>เกณฑ์เป้าหมาย 2026:</strong> ดูแลระบบที่รับผิดชอบให้ Business ทำงานต่อเนื่อง Support ตาม SLA ≥ 90% (Q1: ≥90%, Q2: ≥90%, Q3: ≥90%, Q4: ≥90%)
+        </div>
+
+        <div class="quarter-chips">
+          <div class="quarter-chip">
+            <div class="q-title">Q1 SLA</div>
+            <div class="q-stat">96.0%</div>
+            <div class="q-sub">✓ สูงกว่าเป้า ≥ 90%</div>
+          </div>
+          <div class="quarter-chip">
+            <div class="q-title">Q2 SLA</div>
+            <div class="q-stat">95.2%</div>
+            <div class="q-sub">✓ สูงกว่าเป้า ≥ 90%</div>
+          </div>
+          <div class="quarter-chip">
+            <div class="q-title">Q3 SLA</div>
+            <div class="q-stat">97.8%</div>
+            <div class="q-sub">✓ สูงกว่าเป้า ≥ 90%</div>
+          </div>
+          <div class="quarter-chip">
+            <div class="q-title">Business Uptime</div>
+            <div class="q-stat">99.9%</div>
+            <div class="q-sub">Zero Critical Outage</div>
+          </div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">Jawis Precast QC Script Fix</span>
+              <span class="feature-badge">Root Cause Resolution</span>
+            </div>
+            <p class="feature-desc">วิเคราะห์และแก้ไข Data Script สำหรับใบงาน QC บนระบบ Jawis คืนสถานะให้สายการผลิต Precast ทันทีโดยไม่ต้องแก้ซ้ำ</p>
+            <div class="impact-pill">🛡️ Same-day Restoration | Zero Factory Downtime</div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">ERP NetSuite Operation Support</span>
+              <span class="feature-badge">Continuous MA</span>
+            </div>
+            <p class="feature-desc">กำกับดูแลความถูกต้องของการถ่ายโอนข้อมูลข้ามปีจาก SAP สู่ NetSuite และจัดการสิทธิ์ผู้ใช้งานให้ราบรื่น</p>
+            <div class="impact-pill">🛡️ Data Integrity 100%</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- KPI 4 -->
+      <article class="kpi-row-card" id="card-kpi4">
+        <div class="kpi-header">
+          <div class="kpi-meta">
+            <span class="kpi-weight-badge" style="background: rgba(245, 158, 11, 0.15); color: var(--amber); border-color: rgba(245, 158, 11, 0.25);">Weight 15%</span>
+            <h2 class="kpi-title">4. Technical Capability & Knowledge Sharing</h2>
+          </div>
+          <div class="kpi-score-pill">
+            <span>ผลการประเมิน:</span>
+            <strong>15% เต็ม (Exceeded)</strong>
+          </div>
+        </div>
+
+        <div class="kpi-target-box" style="border-left-color: var(--amber);">
+          <strong>เกณฑ์เป้าหมาย 2026:</strong> ฝึกอบรมการใช้ระบบที่ได้พัฒนาจากขั้นตอน Improvement แก่ทุกทีม Training / Documentation อย่างน้อย 2 เรื่อง/ไตรมาส, มี Documentation/Backup Knowledge 100%
+        </div>
+
+        <div class="quarter-chips">
+          <div class="quarter-chip">
+            <div class="q-title">สะสม 3 ไตรมาส</div>
+            <div class="q-stat">69 เซสชัน</div>
+            <div class="q-sub">✓ เป้าหมายขั้นต่ำ ≥ 2 เรื่อง/Q</div>
+          </div>
+          <div class="quarter-chip">
+            <div class="q-title">AI Transformation</div>
+            <div class="q-stat">BOI Day 3</div>
+            <div class="q-sub">นำมาใช้จริงในทีม</div>
+          </div>
+          <div class="quarter-chip">
+            <div class="q-title">Managerial Ops</div>
+            <div class="q-stat">28 ครั้ง</div>
+            <div class="q-sub">Coach, Review & Delegate</div>
+          </div>
+          <div class="quarter-chip">
+            <div class="q-title">Documentation</div>
+            <div class="q-stat">100% ครบ</div>
+            <div class="q-sub">PRD, System Flow, Git</div>
+          </div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">AI-Assisted SDLC & PRD Adoption</span>
+              <span class="feature-badge">Learn → Apply → Share</span>
+            </div>
+            <p class="feature-desc">เข้าอบรม BOI AI Engineering Workshop และนำ AI มาประยุกต์ใช้ในการร่าง PRD, สถาปัตยกรรมระบบ และถ่ายทอดให้ทีมงาน</p>
+            <div class="impact-pill">💡 Speed of Delivery x2</div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-head">
+              <span class="feature-title">User Training & Cross-functional KT</span>
+              <span class="feature-badge">Knowledge Transfer</span>
+            </div>
+            <p class="feature-desc">จัดอบรมการใช้งานระบบ Worklog ให้ HR, อบรมระบบ CRM Ticket ให้ทีมช่างและฝ่ายปฏิบัติการ รวมกว่า 32 ครั้ง</p>
+            <div class="impact-pill">💡 User Adoption Rate > 90%</div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+
+    <!-- Executive Best Practices Pitch Section -->
+    <section class="pitch-section" id="pitch-section">
+      <div class="pitch-title">
+        <span>🎯 Best Practices: กลยุทธ์การนำเสนอผลงานต่อผู้บริหารระดับสูง (C-Level Pitch)</span>
+      </div>
+      <div class="pitch-grid">
+        <div class="pitch-card">
+          <h4>1. Lead with Bottom-Line Metrics</h4>
+          <p>เปิดบทสนทนาด้วยเวลาและต้นทุนที่ประหยัดได้จริง (>650 ชม./ปี) และ 19 โครงการส่งมอบสำเร็จ แทนที่จะเริ่มเล่าจากรายละเอียดทางเทคนิค</p>
+        </div>
+        <div class="pitch-card">
+          <h4>2. Highlight AI & Automation ROI</h4>
+          <p>แสดงให้เห็นว่าการลงทุนด้าน AI Engineering แปลงเป็นการส่งมอบระบบที่เร็วกว่าเดิม 2 เท่า และช่วยขจัด Human Error ในกระบวนการทำงานได้เด็ดขาด</p>
+        </div>
+        <div class="pitch-card">
+          <h4>3. Anchor on 95.5% Consistency</h4>
+          <p>ใช้สถิติการบันทึกงานจริง 392 รายการ ครอบคลุม 185 วันทำงาน เป็นหลักฐานเชิงประจักษ์ยืนยันความโปร่งใสและวินัยในการบริหารจัดการ</p>
+        </div>
+        <div class="pitch-card">
+          <h4>4. Position as Strategic Enabler</h4>
+          <p>ชี้ให้เห็นบทบาทของทีม Improvement ในการเป็นตัวเร่งการเติบโตของทุกสายธุรกิจ (Real Estate, Factory, CRM, HR) ในภาพใหญ่ขององค์กร</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    function switchTab(tabId) {
+      // Update buttons
+      const buttons = document.querySelectorAll('.tab-btn');
+      buttons.forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const cards = {
+        table: document.getElementById('card-table'),
+        kpi1: document.getElementById('card-kpi1'),
+        kpi2: document.getElementById('card-kpi2'),
+        kpi3: document.getElementById('card-kpi3'),
+        kpi4: document.getElementById('card-kpi4'),
+        pitch: document.getElementById('pitch-section')
+      };
+
+      if (tabId === 'all') {
+        Object.values(cards).forEach(c => c && (c.style.display = 'block'));
+      } else if (tabId === 'strategy') {
+        Object.values(cards).forEach(c => c && (c.style.display = 'none'));
+        if (cards.pitch) {
+          cards.pitch.style.display = 'block';
+          cards.pitch.scrollIntoView({ behavior: 'smooth' });
+        }
+      } else {
+        Object.values(cards).forEach(c => c && (c.style.display = 'none'));
+        if (cards[tabId]) {
+          cards[tabId].style.display = 'block';
+          cards[tabId].scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    }
+  </script>
+</body>
+</html>

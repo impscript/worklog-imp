@@ -22,10 +22,22 @@ import {
   Info,
   X,
   ShieldCheck,
-  Cpu
+  Cpu,
+  Globe,
+  Lock,
+  Share2,
+  Download,
+  FileText
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { AppraisalConfirmModal, type AvailableProviderItem } from '../components/modals/AppraisalConfirmModal';
+import { useNotification } from '../context/NotificationContext';
+import {
+  MANAGER_PROMPT_MD,
+  OFFICER_PROMPT_MD,
+  buildExecutedPrompt,
+  downloadMarkdownFile
+} from '../lib/appraisalPromptStandards';
 
 interface UserProfile {
   id: string;
@@ -102,6 +114,12 @@ interface AppraisalResult {
   supervisor_notes?: string;
   ai_provider?: string;
   ai_model?: string;
+  prompt_info?: {
+    systemPrompt: string;
+    userPrompt: string;
+    fullPrompt: string;
+    templateFile: string;
+  };
 }
 
 interface AnalysisHistoryItem {
@@ -118,6 +136,9 @@ interface AnalysisHistoryItem {
   start_date?: string;
   end_date?: string;
   supervisor_notes?: string;
+  is_public?: boolean;
+  share_token?: string;
+  expires_at?: string;
 }
 
 /**
@@ -314,7 +335,16 @@ function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): App
       : (typeof item?.supervisor_notes === 'string' ? item.supervisor_notes : ''),
     ai_provider: typeof data.ai_provider === 'string' ? data.ai_provider : undefined,
     ai_model: typeof data.ai_model === 'string' ? data.ai_model : undefined,
+    prompt_info: data.prompt_info && typeof data.prompt_info === 'object'
+      ? (data.prompt_info as AppraisalResult['prompt_info'])
+      : undefined,
   };
+}
+
+function computeFutureExpiryIso(days = 30): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
 }
 
 export default function OfficialAppraisalPage() {
@@ -389,6 +419,29 @@ export default function OfficialAppraisalPage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState<string>('');
 
+  // Public Sharing & Shared View States
+  const { showToast } = useNotification();
+  const [isSharedView, setIsSharedView] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('share');
+  });
+  const [isShareLoading, setIsShareLoading] = useState<boolean>(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
+  const [currentShareToken, setCurrentShareToken] = useState<string | null>(null);
+  const [isCurrentPublic, setIsCurrentPublic] = useState<boolean>(false);
+  const [currentExpiresAt, setCurrentExpiresAt] = useState<string | null>(null);
+  const [isExtendingShare, setIsExtendingShare] = useState<boolean>(false);
+  const [evaluatedUserOverride, setEvaluatedUserOverride] = useState<UserProfile | null>(null);
+  const [sharedDateRange, setSharedDateRange] = useState<{ start: string; end: string } | null>(null);
+
+  // Verbatim Prompt Preview Modal State
+  const [previewPromptModal, setPreviewPromptModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    content: string;
+    filename: string;
+  } | null>(null);
+
   // Pre-Flight Confirmation Modal & AI Engine State
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
   const progressCardRef = useRef<HTMLDivElement>(null);
@@ -408,12 +461,87 @@ export default function OfficialAppraisalPage() {
     ],
   });
 
-  // 1. Guard Session
+  // 1. Guard Session or Allow Public Share Access
   useEffect(() => {
-    if (!currentUser) {
+    const queryParams = new URLSearchParams(window.location.search);
+    const token = queryParams.get('share');
+    if (!token && !currentUser) {
       navigate('/login');
     }
   }, [currentUser, navigate]);
+
+  // 1.1 Load Shared Public Appraisal when ?share= is in URL
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const token = queryParams.get('share');
+    if (!token) return;
+
+    async function loadSharedAppraisal() {
+      setIsShareLoading(true);
+      setShareError(null);
+      setIsSharedView(true);
+      try {
+        const { data, error } = await supabase
+          .from('tb_ai_individual_analysis')
+          .select('*')
+          .eq('share_token', token)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error fetching shared analysis:', error);
+          setShareError('ไม่สามารถดึงข้อมูลรายงานได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+          return;
+        }
+
+        if (!data) {
+          setShareError('ไม่พบรายงานผลการประเมินที่ระบุ หรือลิงก์การแชร์ไม่ถูกต้อง');
+          return;
+        }
+
+        if (!data.is_public) {
+          setShareError('รายงานนี้ถูกตั้งค่าเป็นส่วนตัวแล้ว (Private Report) กรุณาติดต่อผู้รับการประเมินเพื่อขอเปิดสิทธิ์แชร์');
+          return;
+        }
+
+        if (data.expires_at && new Date(data.expires_at) < new Date()) {
+          const expiryDateStr = new Date(data.expires_at).toLocaleDateString('th-TH');
+          setShareError(`ลิงก์แชร์รายงานนี้หมดอายุแล้วเมื่อ ${expiryDateStr} กรุณาขอให้เจ้าของรายงานต่ออายุลิงก์ใหม่`);
+          return;
+        }
+
+        // Set shared evaluated user snapshot
+        const sharedUser: UserProfile = {
+          id: data.user_id || 'shared-user',
+          emp_id: data.user_id || '',
+          full_name: data.evaluated_full_name || 'พนักงาน',
+          position: data.evaluated_position || 'ไม่ระบุ',
+          department: data.evaluated_department || 'ไม่ระบุ',
+        };
+        setEvaluatedUserOverride(sharedUser);
+
+        // Normalize and populate appraisal result
+        const normalized = normalizeAppraisalResult(data.analysis_data, data);
+        setAppraisalResult(normalized);
+
+        // Preserve record tracking for UI
+        setCurrentRecordId(data.id);
+        setCurrentShareToken(data.share_token);
+        setIsCurrentPublic(data.is_public ?? true);
+        setCurrentExpiresAt(data.expires_at);
+
+        if (data.start_date && data.end_date) {
+          setSharedDateRange({ start: data.start_date, end: data.end_date });
+        }
+      } catch (err: unknown) {
+        console.error('Failed to load shared appraisal:', err);
+        setShareError('เกิดข้อผิดพลาดในการโหลดรายงานที่แชร์');
+      } finally {
+        setIsShareLoading(false);
+      }
+    }
+
+    loadSharedAppraisal();
+  }, []);
 
 
   // 2. Load Workspace Users for Manager/Admin Team Evaluation (Strictly Scoped)
@@ -513,11 +641,14 @@ export default function OfficialAppraisalPage() {
 
   // Target Evaluated User
   const evaluatedUser = useMemo(() => {
+    if (evaluatedUserOverride) {
+      return evaluatedUserOverride;
+    }
     if (evalMode === 'self' || !selectedTargetUserId) {
       return currentUser;
     }
     return usersList.find((u) => u.id === selectedTargetUserId) || currentUser;
-  }, [evalMode, selectedTargetUserId, currentUser, usersList]);
+  }, [evaluatedUserOverride, evalMode, selectedTargetUserId, currentUser, usersList]);
 
   // Load Workspace AI configuration
   const currentWsId = evaluatedUser?.active_workspace_id || currentUser?.activeWorkspaceId || currentUser?.active_workspace_id || 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001';
@@ -605,6 +736,9 @@ export default function OfficialAppraisalPage() {
 
   // Date Range calculation
   const dateRange = useMemo(() => {
+    if (sharedDateRange) {
+      return sharedDateRange;
+    }
     if (isCustomDate && customStartDate && customEndDate) {
       return { start: customStartDate, end: customEndDate };
     }
@@ -619,7 +753,7 @@ export default function OfficialAppraisalPage() {
       start: `${selectedYear}-09-01`,
       end: `${selectedYear}-12-31`,
     };
-  }, [selectedCycle, selectedYear, isCustomDate, customStartDate, customEndDate]);
+  }, [sharedDateRange, selectedCycle, selectedYear, isCustomDate, customStartDate, customEndDate]);
 
   // NOTE: appraisalResult & roleOverride are reset directly in event handlers below (no useEffect needed)
 
@@ -627,7 +761,7 @@ export default function OfficialAppraisalPage() {
   useEffect(() => {
     let isMounted = true;
     async function fetchPreflight() {
-      if (!evaluatedUser?.id) return;
+      if (isSharedView || !evaluatedUser?.id) return;
       setIsPreflightLoading(true);
       try {
         // Fetch JD, Logs, and Company Holidays in parallel
@@ -682,7 +816,7 @@ export default function OfficialAppraisalPage() {
     return () => {
       isMounted = false;
     };
-  }, [evaluatedUser, dateRange.start, dateRange.end]);
+  }, [evaluatedUser, dateRange.start, dateRange.end, isSharedView]);
 
   // Preflight Metrics
   const uniqueLoggedDays = useMemo(() => {
@@ -1467,6 +1601,29 @@ export default function OfficialAppraisalPage() {
         supervisor_notes: supervisorNotes,
         ai_provider: chosenProvider,
         ai_model: chosenModel,
+        prompt_info: buildExecutedPrompt({
+          role: isManagerEvaluated ? 'manager' : 'officer',
+          employeeName: evaluatedUser.full_name,
+          empId: evaluatedUser.emp_id,
+          position: evaluatedUser.position,
+          department: evaluatedUser.department,
+          period: `${dateRange.start} ถึง ${dateRange.end}`,
+          totalWorkingDays: businessDays,
+          loggedDays: uniqueLoggedDays,
+          coveragePercent: loggingCoveragePct,
+          totalLogsCount: totalEntries,
+          deliverablesCount: deliverableLogs.length,
+          learningCount: learningLogs.length,
+          proactiveCount: proactiveLogs.length,
+          jdText: candidateJd?.jd_text,
+          sampleWorklogs: candidateLogs.slice(0, 15).map((l) => ({
+            date: l.work_date,
+            project: l.project_name,
+            action: l.action_name,
+            description: l.description,
+          })),
+          supervisorNotes: supervisorNotes,
+        }),
       };
 
       setAppraisalResult(generatedResult);
@@ -1500,7 +1657,7 @@ export default function OfficialAppraisalPage() {
     setSaveMessage('กำลังบันทึกประวัติการประเมินลงฐานข้อมูล...');
     try {
       const templateId = isManagerEvaluated ? 'half_year_manager' : 'half_year_officer';
-      const payload = {
+      const payload: Record<string, unknown> = {
         user_id: evaluatedUser.id,
         template_id: templateId,
         analysis_data: result,
@@ -1518,17 +1675,22 @@ export default function OfficialAppraisalPage() {
         engine_model: result.ai_model || null,
       };
 
-      // 1. Try upsert first
-      const { error: upsertErr } = await supabase
-        .from('tb_ai_individual_analysis')
-        .upsert(payload, { onConflict: 'user_id,template_id,start_date,end_date', ignoreDuplicates: false });
+      let savedRow: { id: string; share_token?: string; is_public?: boolean; expires_at?: string } | null = null;
 
-      // 2. If upsert fails (e.g. missing unique constraint in db), fallback to check-then-update/insert
-      if (upsertErr) {
-        console.warn('Upsert onConflict error, attempting query fallback:', upsertErr.message);
+      // 1. Try upsert first
+      const { data: upsertData, error: upsertErr } = await supabase
+        .from('tb_ai_individual_analysis')
+        .upsert(payload, { onConflict: 'user_id,template_id,start_date,end_date', ignoreDuplicates: false })
+        .select('id, share_token, is_public, expires_at')
+        .maybeSingle();
+
+      if (!upsertErr && upsertData) {
+        savedRow = upsertData;
+      } else {
+        console.warn('Upsert onConflict error, attempting query fallback:', upsertErr?.message);
         const { data: existing } = await supabase
           .from('tb_ai_individual_analysis')
-          .select('id')
+          .select('id, share_token, is_public, expires_at')
           .eq('user_id', evaluatedUser.id)
           .eq('template_id', templateId)
           .eq('start_date', dateRange.start)
@@ -1541,12 +1703,23 @@ export default function OfficialAppraisalPage() {
             .update(payload)
             .eq('id', existing.id);
           if (updateErr) throw updateErr;
+          savedRow = existing;
         } else {
-          const { error: insertErr } = await supabase
+          const { data: insertData, error: insertErr } = await supabase
             .from('tb_ai_individual_analysis')
-            .insert(payload);
+            .insert(payload)
+            .select('id, share_token, is_public, expires_at')
+            .maybeSingle();
           if (insertErr) throw insertErr;
+          savedRow = insertData;
         }
+      }
+
+      if (savedRow?.id) {
+        setCurrentRecordId(savedRow.id);
+        setCurrentShareToken(savedRow.share_token || null);
+        setIsCurrentPublic(savedRow.is_public ?? false);
+        setCurrentExpiresAt(savedRow.expires_at || null);
       }
 
       setSaveStatus('saved');
@@ -1566,7 +1739,140 @@ export default function OfficialAppraisalPage() {
     }
   };
 
-  // Copy Markdown Report
+  // Share Public / Private Toggle
+  const handleToggleSharePublicly = async () => {
+    if (!currentRecordId) {
+      if (appraisalResult) {
+        await persistAppraisalResult(appraisalResult);
+      } else {
+        showToast('ยังไม่มีผลการประเมิน กรุณาดำเนินการประเมินก่อน', 'warning');
+        return;
+      }
+    }
+    const targetId = currentRecordId;
+    if (!targetId) return;
+
+    const newIsPublic = !isCurrentPublic;
+    try {
+      let tokenToUse = currentShareToken;
+      if (!tokenToUse && newIsPublic) {
+        tokenToUse = crypto.randomUUID();
+      }
+      const updatePayload: Record<string, unknown> = {
+        is_public: newIsPublic,
+      };
+      if (tokenToUse) {
+        updatePayload.share_token = tokenToUse;
+      }
+      if (newIsPublic && (!currentExpiresAt || new Date(currentExpiresAt) < new Date())) {
+        updatePayload.expires_at = computeFutureExpiryIso(30);
+      }
+
+      const { error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .update(updatePayload)
+        .eq('id', targetId);
+
+      if (error) throw error;
+
+      setIsCurrentPublic(newIsPublic);
+      if (tokenToUse) setCurrentShareToken(tokenToUse);
+      if (updatePayload.expires_at) setCurrentExpiresAt(updatePayload.expires_at as string);
+
+      setSavedHistory((prev) =>
+        prev.map((h) =>
+          h.id === targetId ? { ...h, is_public: newIsPublic, share_token: tokenToUse || h.share_token } : h
+        )
+      );
+
+      showToast(newIsPublic ? 'เปิดแชร์ผลการประเมินสู่สาธารณะแล้ว (Public)' : 'ปิดการแชร์เป็นส่วนตัวเรียบร้อย (Private)', 'success');
+    } catch (err: unknown) {
+      console.error('Error toggling share status:', err);
+      showToast('ไม่สามารถเปลี่ยนสถานะการแชร์ได้', 'error');
+    }
+  };
+
+  const copyShareLink = () => {
+    if (!currentShareToken) {
+      showToast('ยังไม่มีลิงก์แชร์ กรุณากดเปิด Public ก่อน', 'warning');
+      return;
+    }
+    const shareUrl = `${window.location.origin}/appraisal?share=${currentShareToken}`;
+    navigator.clipboard.writeText(shareUrl);
+    showToast('คัดลอกลิงก์แชร์ลง Clipboard เรียบร้อยแล้ว สามารถส่งให้ HR ตรวจสอบได้ทันที', 'success');
+  };
+
+  const extendShareExpiry = async () => {
+    if (!currentRecordId) return;
+    try {
+      setIsExtendingShare(true);
+      const newExpiry = computeFutureExpiryIso(30);
+      const { error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .update({ expires_at: newExpiry, is_public: true })
+        .eq('id', currentRecordId);
+
+      if (error) throw error;
+
+      setCurrentExpiresAt(newExpiry);
+      setIsCurrentPublic(true);
+      setSavedHistory((prev) =>
+        prev.map((h) => (h.id === currentRecordId ? { ...h, expires_at: newExpiry, is_public: true } : h))
+      );
+      showToast('ต่ออายุลิงก์แชร์อีก 30 วันเรียบร้อย', 'success');
+    } catch (err: unknown) {
+      console.error('Error extending share expiry:', err);
+      showToast('ไม่สามารถต่ออายุลิงก์ได้', 'error');
+    } finally {
+      setIsExtendingShare(false);
+    }
+  };
+
+  const handleToggleHistoryItemShare = async (historyId: string, currentPublicState: boolean) => {
+    const nextPublic = !currentPublicState;
+    try {
+      const item = savedHistory.find((h) => h.id === historyId);
+      let tokenToUse = item?.share_token;
+      if (!tokenToUse && nextPublic) {
+        tokenToUse = crypto.randomUUID();
+      }
+      const updatePayload: Record<string, unknown> = {
+        is_public: nextPublic,
+      };
+      if (tokenToUse) updatePayload.share_token = tokenToUse;
+      if (nextPublic && (!item?.expires_at || new Date(item.expires_at) < new Date())) {
+        updatePayload.expires_at = computeFutureExpiryIso(30);
+      }
+
+      const { error } = await supabase
+        .from('tb_ai_individual_analysis')
+        .update(updatePayload)
+        .eq('id', historyId);
+
+      if (error) throw error;
+
+      setSavedHistory((prev) =>
+        prev.map((h) =>
+          h.id === historyId
+            ? { ...h, is_public: nextPublic, share_token: tokenToUse || h.share_token, expires_at: (updatePayload.expires_at as string) || h.expires_at }
+            : h
+        )
+      );
+
+      if (currentRecordId === historyId) {
+        setIsCurrentPublic(nextPublic);
+        if (tokenToUse) setCurrentShareToken(tokenToUse);
+        if (updatePayload.expires_at) setCurrentExpiresAt(updatePayload.expires_at as string);
+      }
+
+      showToast(nextPublic ? 'เปิดแชร์สู่สาธารณะแล้ว' : 'ปิดการแชร์เป็นส่วนตัวแล้ว', 'success');
+    } catch (err: unknown) {
+      console.error('Failed to toggle history share:', err);
+      showToast('ไม่สามารถเปลี่ยนสถานะแชร์ได้', 'error');
+    }
+  };
+
+  // Copy Markdown Report with AI Audit Trail
   const handleCopyReport = () => {
     if (!appraisalResult || !evaluatedUser) return;
     const r = appraisalResult;
@@ -1600,6 +1906,13 @@ ${(r.development_priorities || []).map((d, i) => `${i + 1}. ${d}`).join('\n')}
 ---
 ## คำแนะนำการลงบันทึกในรอบถัดไป
 ${r.calendar_logging_guide}
+
+---
+## การตรวจสอบชุดคำสั่งประเมิน (AI Governance & Audit Trail)
+- แม่บทมาตรฐาน: ${isManagerEvaluated ? 'evaluation-hr/half-year-manager.md' : 'evaluation-hr/half-year-officer.md'}
+- ระเบียบปฏิบัติ: 100% Verbatim Corporate HR Standard (ไร้การเสริมแต่งหรือลดหย่อนเกณฑ์)
+- สถานะการแชร์: ${isCurrentPublic && currentShareToken ? `Public Share URL: ${window.location.origin}/appraisal?share=${currentShareToken}` : 'Private (เฉพาะภายใน)'}
+- วันที่ประเมิน: ${new Date().toLocaleDateString('th-TH')}
 `;
 
     navigator.clipboard.writeText(text);
@@ -1671,12 +1984,99 @@ ${r.calendar_logging_guide}
           </div>
         </div>
 
+        {/* Shared View Loading State */}
+        {isShareLoading && (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 p-12 text-center space-y-4 shadow-lg animate-pulse">
+            <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center">
+              <RefreshCw size={28} className="animate-spin" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">กำลังโหลดผลการประเมินที่แชร์...</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">กำลังดึงข้อมูลรายงานและชุดคำสั่ง AI จากระบบคลาวด์</p>
+            </div>
+          </div>
+        )}
+
+        {/* Shared View Error State */}
+        {shareError && (
+          <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 rounded-2xl p-8 text-center space-y-4 shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center">
+              <AlertCircle size={28} />
+            </div>
+            <div className="space-y-1 max-w-md mx-auto">
+              <h3 className="text-base font-bold text-rose-800 dark:text-rose-300">ไม่สามารถเข้าถึงผลการประเมินนี้ได้</h3>
+              <p className="text-xs text-rose-600 dark:text-rose-400 leading-relaxed">{shareError}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                ลิงก์อาจถูกตั้งค่าเป็นส่วนตัว (Private) หรือหมดอายุการเข้าถึงแล้ว กรุณาติดต่อผู้รับการประเมินเพื่อขอลิงก์ใหม่
+              </p>
+            </div>
+            <div className="pt-2">
+              <button
+                onClick={() => {
+                  window.location.href = '/appraisal';
+                }}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 transition-all inline-flex items-center gap-2 cursor-pointer shadow-sm"
+              >
+                <span>ไปที่หน้าประเมินผลหลัก</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Shared View Header Banner */}
+        {isSharedView && !shareError && appraisalResult && (
+          <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 dark:border-emerald-500/20 rounded-2xl p-5 text-slate-900 dark:text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs print:hidden">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5">
+                <Globe size={22} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 uppercase tracking-wide">
+                    Public Shared Appraisal
+                  </span>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    {evaluatedUser?.full_name} ({evaluatedUser?.emp_id || 'Employee'})
+                  </span>
+                  <span className="text-xs text-slate-500">•</span>
+                  <span className="text-xs text-slate-600 dark:text-slate-400">
+                    {evaluatedUser?.position || 'Position'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                  รายงานผลการประเมินรอบ {selectedCycle === 'half_year' ? 'Half-Year' : 'End-Year'} ({dateRange.start} ถึง {dateRange.end}) พร้อมชุดคำสั่ง Prompt ตามเกณฑ์ HR 100%
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-stretch md:self-auto shrink-0">
+              <button
+                onClick={copyShareLink}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              >
+                <Share2 size={13} />
+                <span>คัดลอกลิงก์นี้</span>
+              </button>
+              {currentUser && (
+                <button
+                  onClick={() => {
+                    window.location.href = '/appraisal';
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
+                  กลับสู่ระบบของฉัน
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ========================================================= */}
         {/* 2. Setup Controls: Cycle, Mode, Role & Dates              */}
         {/* ========================================================= */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 print:hidden">
-          {/* Left Column: Target & Mode (5 cols) */}
-          <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs p-5 space-y-4">
+        {!isSharedView && !shareError && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 print:hidden">
+            {/* Left Column: Target & Mode (5 cols) */}
+            <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <BrainCircuit size={18} className="text-indigo-500" />
@@ -2020,6 +2420,7 @@ ${r.calendar_logging_guide}
             </button>
           </div>
         </div>
+      )}
 
         {/* ========================================================= */}
         {/* 3. Results Hub (Infographic / Official Report / Growth)   */}
@@ -2045,7 +2446,7 @@ ${r.calendar_logging_guide}
         )}
 
         {/* Un-evaluated Readiness Card (Shown when employee switched or not evaluated yet) */}
-        {!appraisalResult && !isAnalyzing && (
+        {!appraisalResult && !isAnalyzing && !isSharedView && !shareError && (
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 p-8 text-center space-y-4 shadow-2xs">
             <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800/80 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center">
               <Sparkles size={28} />
@@ -2124,48 +2525,115 @@ ${r.calendar_logging_guide}
                 </button>
               </div>
 
-              {/* Action Buttons: Copy / Print / Save */}
+              {/* Action Buttons: Share / Copy / Print / Save */}
               <div className="flex items-center gap-2 self-stretch sm:self-auto flex-wrap">
-                <button
-                  onClick={handleManualSave}
-                  disabled={saveStatus === 'saving'}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    saveStatus === 'saved'
-                      ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
-                      : saveStatus === 'saving'
-                      ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700'
-                  }`}
-                >
-                  {saveStatus === 'saved' ? (
-                    <>
-                      <Check size={14} className="text-emerald-500" />
-                      <span>บันทึกประวัติแล้ว</span>
-                    </>
-                  ) : saveStatus === 'saving' ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin text-slate-400" />
-                      <span>กำลังบันทึก...</span>
-                    </>
-                  ) : (
-                    <>
-                      <History size={14} />
-                      <span>บันทึกประวัติ (Save)</span>
-                    </>
-                  )}
-                </button>
+                {/* 1. Public / Private Toggle & Link Sharing */}
+                {!isSharedView ? (
+                  <>
+                    <button
+                      onClick={handleToggleSharePublicly}
+                      title={isCurrentPublic ? 'คลิกเพื่อเปลี่ยนเป็น Private (ปิดการเข้าถึงภายนอก)' : 'คลิกเพื่อเปิดเป็น Public (อนุญาตให้ HR/ผู้ตรวจ ดูผ่านลิงก์ได้)'}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                        isCurrentPublic
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700'
+                      }`}
+                    >
+                      {isCurrentPublic ? (
+                        <Globe size={14} className="text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <Lock size={14} className="text-slate-400" />
+                      )}
+                      <span>{isCurrentPublic ? 'แชร์สาธารณะ (Public)' : 'ส่วนตัว (Private)'}</span>
+                    </button>
 
+                    {isCurrentPublic && currentShareToken && (
+                      <button
+                        onClick={copyShareLink}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-700/60 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Share2 size={13} />
+                        <span>คัดลอกลิงก์แชร์</span>
+                      </button>
+                    )}
+
+                    {isCurrentPublic && currentExpiresAt && (
+                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                        <span>
+                          หมดอายุ: {new Date(currentExpiresAt).toLocaleDateString('th-TH')}
+                        </span>
+                        <button
+                          onClick={extendShareExpiry}
+                          disabled={isExtendingShare}
+                          className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline ml-1 cursor-pointer"
+                          title="ต่ออายุลิงก์แชร์เพิ่มอีก 30 วัน"
+                        >
+                          {isExtendingShare ? '...' : '+30 วัน'}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50">
+                      <Globe size={13} className="text-emerald-500" />
+                      <span>แชร์สาธารณะ (Public View)</span>
+                    </div>
+                    <button
+                      onClick={copyShareLink}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 cursor-pointer"
+                    >
+                      <Share2 size={13} />
+                      <span>คัดลอกลิงก์นี้</span>
+                    </button>
+                  </>
+                )}
+
+                {/* 2. Manual Save (Only in private/logged-in view) */}
+                {!isSharedView && (
+                  <button
+                    onClick={handleManualSave}
+                    disabled={saveStatus === 'saving'}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                      saveStatus === 'saved'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
+                        : saveStatus === 'saving'
+                        ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700'
+                    }`}
+                  >
+                    {saveStatus === 'saved' ? (
+                      <>
+                        <Check size={14} className="text-emerald-500" />
+                        <span>บันทึกประวัติแล้ว</span>
+                      </>
+                    ) : saveStatus === 'saving' ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin text-slate-400" />
+                        <span>กำลังบันทึก...</span>
+                      </>
+                    ) : (
+                      <>
+                        <History size={14} />
+                        <span>บันทึกประวัติ (Save)</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* 3. Copy Markdown Report */}
                 <button
                   onClick={handleCopyReport}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 cursor-pointer"
                 >
                   {copiedReport ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
                   <span>{copiedReport ? 'คัดลอกรายงานแล้ว!' : 'คัดลอก Markdown'}</span>
                 </button>
 
+                {/* 4. Print / PDF */}
                 <button
                   onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition-all active:scale-[0.98]"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition-all active:scale-[0.98] cursor-pointer"
                 >
                   <Printer size={14} />
                   <span>Export to PDF / พิมพ์</span>
@@ -2615,6 +3083,127 @@ ${r.calendar_logging_guide}
             {/* TAB 2: OFFICIAL HR REPORT */}
             {activeResultTab === 'report' && (
               <div className="space-y-6 text-slate-900 dark:text-slate-100">
+                {/* AI Prompt Transparency & Governance Card */}
+                {(() => {
+                  const templateFilename = isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md';
+                  const baseSystemPrompt = isManagerEvaluated ? MANAGER_PROMPT_MD : OFFICER_PROMPT_MD;
+
+                  // If appraisalResult already has prompt_info, use it. Otherwise, construct accurate representation
+                  const promptInfo = appraisalResult.prompt_info || {
+                    systemPrompt: baseSystemPrompt,
+                    templateFile: templateFilename,
+                    fullPrompt: buildExecutedPrompt({
+                      role: isManagerEvaluated ? 'manager' : 'officer',
+                      employeeName: evaluatedUser?.full_name || 'พนักงาน',
+                      empId: evaluatedUser?.emp_id,
+                      position: evaluatedUser?.position || 'Officer',
+                      department: evaluatedUser?.department || 'IMP',
+                      period: `${dateRange.start} ถึง ${dateRange.end}`,
+                      totalWorkingDays: businessDays,
+                      loggedDays: uniqueLoggedDays,
+                      coveragePercent: loggingCoveragePct,
+                      totalLogsCount: candidateLogs.length,
+                      deliverablesCount: (appraisalResult.work_status?.completed || []).length,
+                      learningCount: (appraisalResult.evidences?.learning || []).length,
+                      proactiveCount: (appraisalResult.evidences?.proactiveness || []).length,
+                      jdText: candidateJd?.jd_text,
+                      supervisorNotes: appraisalResult.supervisor_notes || undefined,
+                      sampleWorklogs: candidateLogs.slice(0, 15).map((l) => ({
+                        date: l.work_date,
+                        project: l.project_name,
+                        action: l.action_name,
+                        description: l.description,
+                      })),
+                    }).fullPrompt,
+                    userPrompt: ''
+                  };
+
+                  return (
+                    <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-50/90 via-purple-50/40 to-white dark:from-slate-900/90 dark:via-indigo-950/40 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-500/30 shadow-xs space-y-3.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-indigo-100 dark:border-indigo-900/50">
+                        <div className="flex items-center gap-2">
+                          <BrainCircuit size={18} className="text-indigo-600 dark:text-indigo-400" />
+                          <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                            ความโปร่งใสของชุดคำสั่งประเมิน (AI Prompt Transparency & Governance)
+                          </h4>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                            <ShieldCheck size={11} /> 100% Verbatim HR Standard
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-mono font-semibold">
+                            {templateFilename}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        ฝ่ายบุคคล (HR) และผู้บริหารสามารถตรวจสอบชุดคำสั่ง (System Prompt + ข้อมูลประจักษ์จริง + JD) ที่ส่งเข้า AI ได้อย่างโปร่งใส 
+                        เพื่อยืนยันว่าไม่มีการเสริมแต่งหรือผ่อนปรนเกณฑ์ สามารถคัดลอกไปทดสอบรันผลใน Gemini หรือดาวน์โหลดแม่บท .md ได้ทันที
+                      </p>
+
+                      {/* Action Buttons Row */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPreviewPromptModal({
+                              isOpen: true,
+                              title: `Prompt ฉบับเต็มที่ส่งให้ AI ประเมิน (${evaluatedUser?.full_name || 'พนักงาน'})`,
+                              content: promptInfo.fullPrompt || promptInfo.systemPrompt,
+                              filename: `executed-prompt-${evaluatedUser?.emp_id || 'employee'}.txt`
+                            });
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+                        >
+                          <Eye size={13} />
+                          <span>ดู Prompt ฉบับเต็ม (Inspect Prompt)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(promptInfo.fullPrompt || promptInfo.systemPrompt);
+                            showToast('คัดลอกชุดคำสั่ง Prompt ทั้งหมดลง Clipboard แล้ว นำไปทดสอบใน Gemini ได้ทันที', 'success');
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                        >
+                          <Copy size={13} />
+                          <span>คัดลอก Prompt สำหรับทดสอบใน Gemini</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            downloadMarkdownFile(templateFilename, baseSystemPrompt);
+                            showToast(`ดาวน์โหลดไฟล์เกณฑ์แม่บท ${templateFilename} เรียบร้อย`, 'success');
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                        >
+                          <Download size={13} />
+                          <span>ดาวน์โหลดเกณฑ์ HR ({templateFilename})</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPreviewPromptModal({
+                              isOpen: true,
+                              title: `แม่บทคำสั่งมาตรฐาน HR (${templateFilename})`,
+                              content: baseSystemPrompt,
+                              filename: templateFilename
+                            });
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <FileText size={13} />
+                          <span>ดูแม่บทมาตรฐาน</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Executive Summary */}
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-2">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -2943,22 +3532,113 @@ ${r.calendar_logging_guide}
                 </div>
 
                 <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
-                  <h4 className="text-sm font-bold text-emerald-700 dark:text-emerald-400">2. การแบ่งระดับตามตำแหน่ง</h4>
-                  <div className="grid grid-cols-2 gap-3 text-[11px]">
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                      <div className="font-bold text-slate-900 dark:text-white mb-1">👔 ระดับ Section Manager ขึ้นไป</div>
-                      <div className="text-slate-600 dark:text-slate-400">
-                        ไฟล์อ้างอิง: <code>evaluation-hr/half-year-manager.md</code>
-                        <br />
-                        เน้นย้ำ: ภาวะผู้นำ, การวางแผน TeamOps, การมอบหมายงาน, และการโค้ชชิ่งทีม
+                  <h4 className="text-sm font-bold text-emerald-700 dark:text-emerald-400">2. การแบ่งระดับตามตำแหน่ง และไฟล์ Prompt แม่บท</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+                    {/* Manager Card */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5 flex flex-col justify-between">
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-white flex items-center justify-between mb-1">
+                          <span>👔 ระดับ Section Manager ขึ้นไป</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-mono">
+                            half-year-manager.md
+                          </span>
+                        </div>
+                        <div className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                          เน้นย้ำ: ภาวะผู้นำ, การวางแผน TeamOps, การมอบหมายงาน, การติดตามงาน, และการโค้ชชิ่งทีม
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPreviewPromptModal({
+                              isOpen: true,
+                              title: 'แม่บทคำสั่ง HR: Section Manager (half-year-manager.md)',
+                              content: MANAGER_PROMPT_MD,
+                              filename: 'half-year-manager.md'
+                            });
+                          }}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Eye size={12} />
+                          <span>ดู Prompt</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(MANAGER_PROMPT_MD);
+                            showToast('คัดลอก Prompt สำหรับ Section Manager เรียบร้อย', 'success');
+                          }}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Copy size={12} />
+                          <span>คัดลอก</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            downloadMarkdownFile('half-year-manager.md', MANAGER_PROMPT_MD);
+                            showToast('ดาวน์โหลด half-year-manager.md สำเร็จ', 'success');
+                          }}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Download size={12} />
+                          <span>ดาวน์โหลด .md</span>
+                        </button>
                       </div>
                     </div>
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                      <div className="font-bold text-slate-900 dark:text-white mb-1">💼 ระดับ Officer ทั่วไป</div>
-                      <div className="text-slate-600 dark:text-slate-400">
-                        ไฟล์อ้างอิง: <code>evaluation-hr/half-year-officer.md</code>
-                        <br />
-                        เน้นย้ำ: การส่งมอบงานตาม JD, ความถูกต้องแม่นยำ, วินัย และการพัฒนาตนเอง
+
+                    {/* Officer Card */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5 flex flex-col justify-between">
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-white flex items-center justify-between mb-1">
+                          <span>💼 ระดับ Officer ทั่วไป</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-mono">
+                            half-year-officer.md
+                          </span>
+                        </div>
+                        <div className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                          เน้นย้ำ: การส่งมอบงานตาม JD, ความถูกต้องแม่นยำ, วินัย และการพัฒนาตนเองอย่างต่อเนื่อง
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPreviewPromptModal({
+                              isOpen: true,
+                              title: 'แม่บทคำสั่ง HR: Officer ทั่วไป (half-year-officer.md)',
+                              content: OFFICER_PROMPT_MD,
+                              filename: 'half-year-officer.md'
+                            });
+                          }}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-300 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Eye size={12} />
+                          <span>ดู Prompt</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(OFFICER_PROMPT_MD);
+                            showToast('คัดลอก Prompt สำหรับ Officer เรียบร้อย', 'success');
+                          }}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Copy size={12} />
+                          <span>คัดลอก</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            downloadMarkdownFile('half-year-officer.md', OFFICER_PROMPT_MD);
+                            showToast('ดาวน์โหลด half-year-officer.md สำเร็จ', 'success');
+                          }}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Download size={12} />
+                          <span>ดาวน์โหลด .md</span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -3100,23 +3780,72 @@ ${r.calendar_logging_guide}
                         onClick={() => {
                           const safeData = normalizeAppraisalResult(item.analysis_data, item);
                           setAppraisalResult(safeData);
+                          setCurrentRecordId(item.id);
+                          setCurrentShareToken(item.share_token || null);
+                          setIsCurrentPublic(item.is_public ?? false);
+                          setCurrentExpiresAt(item.expires_at || null);
                           setIsHistoryModalOpen(false);
                         }}
                         className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50/70 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 cursor-pointer flex justify-between items-center text-xs transition-all"
                       >
-                        <div>
+                        <div className="space-y-1">
                           <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
                             <span>รอบ {item.start_date} ถึง {item.end_date}</span>
                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${roleBadgeColor}`}>
                               {roleLabel}
                             </span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1 ${
+                                item.is_public
+                                  ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
+                                  : 'bg-slate-200/80 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {item.is_public ? <Globe size={10} /> : <Lock size={10} />}
+                              <span>{item.is_public ? 'Public' : 'Private'}</span>
+                            </span>
                           </div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
                             ประเมินเมื่อ: {item.created_at || item.analysis_date
                               ? new Date(item.created_at || item.analysis_date || '').toLocaleDateString('th-TH')
                               : '-'}
                           </div>
+
+                          {/* Quick Share Toggle in History item */}
+                          <div
+                            className="flex items-center gap-2 pt-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleToggleHistoryItemShare(item.id, !!item.is_public)}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all cursor-pointer flex items-center gap-1 ${
+                                item.is_public
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/50 hover:bg-emerald-100'
+                                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              {item.is_public ? <Globe size={11} className="text-emerald-500" /> : <Lock size={11} />}
+                              <span>{item.is_public ? 'เปิดแชร์อยู่ (เปลี่ยนเป็น Private)' : 'ตั้งเป็น Public'}</span>
+                            </button>
+
+                            {item.is_public && item.share_token && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const url = `${window.location.origin}/appraisal?share=${item.share_token}`;
+                                  navigator.clipboard.writeText(url);
+                                  showToast('คัดลอกลิงก์แชร์ของรายการนี้แล้ว', 'success');
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 flex items-center gap-1 cursor-pointer"
+                              >
+                                <Share2 size={11} />
+                                <span>คัดลอกลิงก์</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
+
                         <div className="text-right shrink-0 ml-3">
                           <span className={`text-base font-extrabold ${scoreColor}`}>
                             {displayScore != null ? displayScore : '-'}
@@ -3127,6 +3856,100 @@ ${r.calendar_logging_guide}
                     );
                   });
                 })()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* 6. MODAL: Verbatim AI Prompt Inspector Modal              */}
+        {/* ========================================================= */}
+        {previewPromptModal?.isOpen && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-4xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-900 dark:text-white">
+              {/* Modal Header */}
+              <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
+                    <FileText size={18} />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>{previewPromptModal.title}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                        <ShieldCheck size={11} /> 100% Verbatim Standard
+                      </span>
+                    </h3>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+                      ไฟล์อ้างอิง: {previewPromptModal.filename} • ความยาว: {previewPromptModal.content.length.toLocaleString()} ตัวอักษร
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewPromptModal(null)}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Informative Governance Banner */}
+              <div className="px-6 py-2.5 bg-indigo-50/70 dark:bg-indigo-950/40 border-b border-indigo-100 dark:border-indigo-900/40 text-[11px] text-indigo-900 dark:text-indigo-200 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={14} className="text-emerald-500 shrink-0" />
+                  <span>
+                    สามารถคัดลอกชุดคำสั่งนี้ทั้งหมดไปวางลงใน Google Gemini หรือ AI Chat อื่นๆ เพื่อยืนยันความโปร่งใสและผลการประเมินได้
+                  </span>
+                </div>
+                <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">
+                  Zero Prompt Modification
+                </span>
+              </div>
+
+              {/* Modal Body / Preformatted Prompt Content */}
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-950 text-slate-100 font-mono text-xs leading-relaxed select-text">
+                <pre className="whitespace-pre-wrap break-words font-mono text-[11px] text-slate-200 selection:bg-indigo-500 selection:text-white">
+                  {previewPromptModal.content}
+                </pre>
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  ความโปร่งใสตามมาตรฐานฝ่ายบุคคล (HR Transparency Standard)
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(previewPromptModal.content);
+                      showToast('คัดลอกเนื้อหา Prompt ทั้งหมดเรียบร้อยแล้ว', 'success');
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Copy size={13} />
+                    <span>คัดลอกทั้งหมด (Copy Prompt)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadMarkdownFile(previewPromptModal.filename, previewPromptModal.content);
+                      showToast(`ดาวน์โหลดไฟล์ ${previewPromptModal.filename} เรียบร้อย`, 'success');
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+                  >
+                    <Download size={13} />
+                    <span>ดาวน์โหลดไฟล์ (.md / .txt)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPromptModal(null)}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                  >
+                    ปิด
+                  </button>
+                </div>
               </div>
             </div>
           </div>

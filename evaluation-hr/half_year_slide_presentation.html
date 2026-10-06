@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Executive Half-Year Performance Slide Deck | 10005208</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-slide: #0d121f;
+      --bg-card: rgba(18, 26, 45, 0.7);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(56, 189, 248, 0.3);
+      
+      --cyan: #06b6d4;
+      --sky: #38bdf8;
+      --purple: #8b5cf6;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Prompt', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(14, 165, 233, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.12) 0%, transparent 45%);
+    }
+
+    /* Top Controls Bar */
+    .top-controls {
+      width: 100%;
+      max-width: 1200px;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 50;
+    }
+
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-live::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--sky), #0284c7);
+      color: #07090e;
+      border: none;
+      font-weight: 700;
+    }
+
+    /* 16:9 Presentation Frame */
+    .slide-viewport {
+      width: 100%;
+      max-width: 1200px;
+      aspect-ratio: 16 / 9;
+      background: var(--bg-slide);
+      border: 1px solid var(--border-accent);
+      border-radius: 20px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 24px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px rgba(56, 189, 248, 0.08);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide {
+      display: none;
+      width: 100%;
+      height: 100%;
+      padding: 40px 48px 60px;
+      flex-direction: column;
+      justify-content: space-between;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .slide.active {
+      display: flex;
+      opacity: 1;
+    }
+
+    /* Slide Header */
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .slide-category {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--sky);
+      margin-bottom: 4px;
+    }
+
+    .slide-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.01em;
+      line-height: 1.25;
+    }
+
+    .slide-subtitle {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Slide Content Bodies */
+    .slide-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* Slide 1: Hero Cover */
+    .hero-layout {
+      display: grid;
+      grid-template-columns: 1.3fr 0.9fr;
+      gap: 36px;
+      align-items: center;
+      height: 100%;
+    }
+
+    .hero-main h1 {
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1.2;
+      color: #fff;
+      margin-bottom: 14px;
+    }
+
+    .hero-main p {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .presenter-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 18px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      width: fit-content;
+    }
+
+    .presenter-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--sky), var(--purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #fff;
+      font-size: 16px;
+    }
+
+    .metrics-2x2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 16px 20px;
+    }
+    .metric-card.sky { border-left: 3px solid var(--sky); }
+    .metric-card.emerald { border-left: 3px solid var(--emerald); }
+    .metric-card.purple { border-left: 3px solid var(--purple); }
+    .metric-card.amber { border-left: 3px solid var(--amber); }
+
+    .metric-val {
+      font-size: 26px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+    .metric-lbl {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .metric-sub {
+      font-size: 10.5px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    /* Slide 2: Gantt Timeline Visual */
+    .gantt-board {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 14px 18px;
+      min-height: 380px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .gantt-month-header {
+      display: grid;
+      grid-template-columns: 285px repeat(12, 1fr);
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-align: center;
+    }
+
+    .gantt-row {
+      display: grid;
+      grid-template-columns: 285px 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .gantt-proj-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #e2e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .gantt-track {
+      position: relative;
+      height: 20px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 4px;
+      width: 100%;
+    }
+
+    .gantt-bar {
+      position: absolute;
+      top: 1px;
+      bottom: 1px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-size: 9.5px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    .gantt-callout {
+      position: absolute;
+      top: 1px;
+      bottom: 1px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 9.5px;
+      font-weight: 800;
+      white-space: nowrap;
+      padding: 0 6px;
+      border-radius: 4px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: var(--emerald);
+    }
+
+    .bar-completed { background: linear-gradient(90deg, #059669, #10b981); }
+    .bar-testing { background: linear-gradient(90deg, #7c3aed, #a855f7); }
+    .bar-progress { background: linear-gradient(90deg, #d97706, #f59e0b); }
+    .bar-planning { background: linear-gradient(90deg, #2563eb, #3b82f6); }
+
+    /* Slide 3: 4-Cards and 6-Cards Grid */
+    .grid-4cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .grid-6cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .grid-6cards .card-item {
+      padding: 12px 16px;
+    }
+
+    .card-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px 20px;
+    }
+    .card-item:hover { border-color: var(--border-accent); }
+
+    .card-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 6px;
+    }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-purple { background: rgba(139, 92, 246, 0.15); color: var(--purple); border: 1px solid rgba(139, 92, 246, 0.3); }
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .card-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .card-metric {
+      font-size: 11.5px;
+      color: var(--sky);
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    /* Slide Footer & Navigation */
+    .slide-footer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      padding: 0 32px;
+      background: rgba(7, 9, 14, 0.85);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .slide-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .nav-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .nav-btn:hover { background: rgba(255, 255, 255, 0.15); }
+
+    /* Speaker Notes Drawer */
+    .speaker-drawer {
+      width: 100%;
+      max-width: 1200px;
+      margin-top: 16px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 16px 24px;
+      font-size: 13px;
+      color: var(--text-muted);
+      display: none;
+    }
+    .speaker-drawer.show { display: block; }
+    .speaker-drawer strong { color: var(--sky); }
+
+    @media print {
+      body { background: #fff !important; color: #000 !important; }
+      .top-controls, .slide-footer, .speaker-drawer, .nav-btn { display: none !important; }
+      .slide-viewport { border: none !important; box-shadow: none !important; aspect-ratio: auto !important; height: auto !important; }
+      .slide { display: flex !important; opacity: 1 !important; page-break-after: always; height: 100vh !important; }
+      .metric-card, .card-item, .gantt-board { background: #f8fafc !important; border-color: #cbd5e1 !important; color: #000 !important; }
+      .slide-title, .hero-main h1, .metric-val, .card-title { color: #000 !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Controls Bar -->
+  <div class="top-controls">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span class="badge-live">Executive Slide Deck</span>
+      <span style="font-size: 13px; color: var(--text-muted);">10005208 • คุณชัชวาลย์ ตุลาผล (Section Manager - Improvement)</span>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn" onclick="toggleSpeakerNotes()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+        Speaker Notes (S)
+      </button>
+      <button class="btn" onclick="toggleFullScreen()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+        Fullscreen (F)
+      </button>
+      <button class="btn btn-primary" onclick="window.print()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        Print PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- 16:9 Presentation Viewport -->
+  <div class="slide-viewport" id="slideViewport">
+
+    <!-- SLIDE 1: Cover & Dashboard -->
+    <div class="slide active" id="slide-1">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">Half-Year Performance Review 2026</div>
+          <div class="slide-title">Empowering Business Productivity via Automation</div>
+          <div class="slide-subtitle">การขับเคลื่อนผลิตภาพองค์กรด้วยโซลูชันดิจิทัลและวิศวกรรมกระบวนการ</div>
+        </div>
+        <span class="badge-live">H1 Achievement: 100%</span>
+      </div>
+
+      <div class="slide-body">
+        <div class="hero-layout">
+          <div class="hero-main">
+            <h1>รายงานสรุปผลงานรอบครึ่งปี 2026</h1>
+            <p>
+              มุ่งเน้นการส่งมอบโซลูชันดิจิทัลที่วัดผลได้จริง (Value Realization), การลดขั้นตอนและกำจัดงาน Manual ซ้ำซ้อน, พร้อมสร้างความต่อเนื่องทางธุรกิจในสายงาน Real Estate, Logistics, HR และ Precast Factory
+            </p>
+            <div class="presenter-card">
+              <div class="presenter-avatar">ชต</div>
+              <div>
+                <strong style="color: #fff; font-size: 13.5px;">คุณชัชวาลย์ ตุลาผล (10005208)</strong>
+                <div style="font-size: 12px; color: var(--sky);">Section Manager - Improvement (IMP)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="metrics-2x2">
+            <div class="metric-card sky">
+              <div class="metric-val">19+</div>
+              <div class="metric-lbl">โครงการดิจิทัลส่งมอบ</div>
+              <div class="metric-sub">เป้าหมาย ≥ 4 เรื่อง/Q (Achievement > 150%)</div>
+            </div>
+            <div class="metric-card emerald">
+              <div class="metric-val">>795</div>
+              <div class="metric-lbl">Man-hours ประหยัดได้ต่อปี</div>
+              <div class="metric-sub">จาก 7 ฟังก์ชัน Automation, FxCurrency & Integration</div>
+            </div>
+            <div class="metric-card purple">
+              <div class="metric-val">96.3%</div>
+              <div class="metric-lbl">SLA Service Quality</div>
+              <div class="metric-sub">ดูแล 58 งาน Support ไร้ Critical Outage</div>
+            </div>
+            <div class="metric-card amber">
+              <div class="metric-val">69</div>
+              <div class="metric-lbl">Knowledge Transfer Sessions</div>
+              <div class="metric-sub">ถ่ายทอด AI Engineering สู่ทีมงานและ HR</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: Gantt Roadmap & Delivery Journey -->
+    <div class="slide" id="slide-2">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">Portfolio Timeline Execution</div>
+          <div class="slide-title">2026 Gantt Roadmap: จังหวะการส่งมอบรายไตรมาส</div>
+          <div class="slide-subtitle">การบริหารจัดการโครงการจริงตามแผนแม่บทของหน่วยงาน Improvement</div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <span style="font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(16,185,129,0.2); color: var(--emerald); font-weight: 700;">● Completed</span>
+          <span style="font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(139,92,246,0.2); color: var(--purple); font-weight: 700;">● Testing 70-90%</span>
+          <span style="font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(245,158,11,0.2); color: var(--amber); font-weight: 700;">● In Progress</span>
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="gantt-board">
+          <div class="gantt-month-header">
+            <div style="text-align: left;">โครงการ & โมดูลย่อย (Gantt Tracker)</div>
+            <div>ม.ค.</div><div>ก.พ.</div><div>มี.ค.</div><div>เม.ย.</div><div>พ.ค.</div><div>มิ.ย.</div>
+            <div>ก.ค.</div><div>ส.ค.</div><div>ก.ย.</div><div>ต.ค.</div><div>พ.ย.</div><div>ธ.ค.</div>
+          </div>
+
+          <!-- Row 1: PDF Studio -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="PDF Studio (Add-on)"><span>📄</span> PDF Studio (Add-on)</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-completed" style="left: 66.6%; width: 8.3%; justify-content: center; padding: 0 2px;">100%</div>
+              <span class="gantt-callout" style="left: calc(66.6% + 8.3% + 6px);">COMPLETED</span>
+            </div>
+          </div>
+
+          <!-- Row 2: Aftersale -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="Aftersale แจ้งเตือนหมดอายุ ประกันบ้าน"><span>🔔</span> Aftersale แจ้งเตือนหมดอายุ ประกันบ้าน</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-testing" style="left: 45%; width: 38%;">TESTING 90%</div>
+            </div>
+          </div>
+
+          <!-- Row 3: ขอหนังสือรับรอง -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="ระบบขอหนังสือรับรองการทำงาน"><span>📝</span> ระบบขอหนังสือรับรองการทำงาน</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-testing" style="left: 36%; width: 45%;">TESTING 70%</div>
+            </div>
+          </div>
+
+          <!-- Row 4: 304 Sale Report -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="304 Sale Report (Lead/Client)"><span>📊</span> 304 Sale Report (Lead/Client)</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-progress" style="left: 54%; width: 44%;">IN_PROGRESS 50%</div>
+            </div>
+          </div>
+
+          <!-- Row 5: ระบบติดตามเคลม -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="ระบบติดตามลูกค้าเคลมกับช่าง"><span>🛠️</span> ระบบติดตามลูกค้าเคลมกับช่าง</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-planning" style="left: 78%; width: 22%;">PLANNING 0% (Q4)</div>
+            </div>
+          </div>
+
+          <!-- Row 6: บันทึกมิเตอร์น้ำมัน -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="บันทึกมิเตอร์น้ำมัน (Logistics)"><span>⛽</span> บันทึกมิเตอร์น้ำมัน (Logistics)</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-completed" style="left: 33.3%; width: 8.3%; justify-content: center; padding: 0 2px;">100%</div>
+              <span class="gantt-callout" style="left: calc(33.3% + 8.3% + 6px);">COMPLETED</span>
+            </div>
+          </div>
+
+          <!-- Row 7: Application form -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="Application form - Website (Smart HR)"><span>💼</span> Application form - Website (Smart HR)</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-completed" style="left: 27%; width: 55%;">COMPLETED 90-100%</div>
+            </div>
+          </div>
+
+          <!-- Row 8: Daily task DAP -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="Daily task project DAP & CSAT"><span>📋</span> Daily task project DAP & CSAT</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-completed" style="left: 0%; width: 25%;">COMPLETED 100%</div>
+            </div>
+          </div>
+
+          <!-- Row 9: 304 CRM Ticket -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="304 CRM Ticket & Leaderboard"><span>🎫</span> 304 CRM Ticket & Leaderboard</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-testing" style="left: 45%; width: 38%;">TESTING 75%</div>
+            </div>
+          </div>
+
+          <!-- Row 10: DashBoard QC -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="DashBoard QC & Precast Stamp"><span>🏭</span> DashBoard QC & Precast Stamp</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-completed" style="left: 0%; width: 25%;">COMPLETED 100%</div>
+            </div>
+          </div>
+
+          <!-- Row 11: Print Service -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="Print Service (รวมศูนย์งานพิมพ์เอกสาร DACP)"><span>🖨️</span> Print Service (Centralized Print)</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-completed" style="left: 6.6%; width: 22%;">COMPLETED 100% (ม.ค. – เม.ย.)</div>
+            </div>
+          </div>
+
+          <!-- Row 12: IMP Worklog -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="IMP Worklog Newgen (Timesheet & Gantt Roadmap)"><span>⚡</span> IMP Worklog Newgen (Core Platform)</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-completed" style="left: 2%; width: 78%; background: linear-gradient(90deg, #0284c7, #10b981);">COMPLETED 95% (CORE + GANTT + APPRAISAL)</div>
+            </div>
+          </div>
+
+          <!-- Row 13: ERP NetSuite FxCurrency -->
+          <div class="gantt-row">
+            <div class="gantt-proj-title" title="ERP NetSuite: FxCurrency Platform (Auto Sync 365 วัน & PIN Web Monitor)"><span>💱</span> ERP NetSuite: FxCurrency Platform</div>
+            <div class="gantt-track">
+              <div class="gantt-bar bar-completed" style="left: 16%; width: 62%; background: linear-gradient(90deg, #10b981, #06b6d4);">COMPLETED 100% (365-DAY AUTO SYNC + RECONCILIATION)</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: Completed Deliverables Showcase -->
+    <div class="slide" id="slide-3">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">Key Deliverables (100% Completed)</div>
+          <div class="slide-title">โครงการส่งมอบสำเร็จและขึ้นระบบใช้งานจริง</div>
+          <div class="slide-subtitle">ผลผลิตที่พร้อมใช้งาน ช่วยเพิ่มประสิทธิภาพและลดความผิดพลาด</div>
+        </div>
+        <span class="badge-live">Operational Ready</span>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-6cards">
+          <div class="card-item">
+            <span class="card-badge badge-green">Core System / HR Tech</span>
+            <div class="card-title">1. Smart HR Recruitment Form</div>
+            <div class="card-desc">
+              ระบบรับสมัครงานออนไลน์ พร้อม API ส่งข้อมูลเข้าสู่ฐานข้อมูล HRMS อัตโนมัติ และ Client-side File Validation ดักจับเอกสารไม่ชัดเจน
+            </div>
+            <div class="card-metric">✨ ลดเวลาคีย์ซ้ำ 100% (ประหยัด 166.7 ชม./ปี)</div>
+          </div>
+
+          <div class="card-item" style="border-left: 3px solid var(--sky);">
+            <span class="card-badge badge-green">Core Platform / Operations</span>
+            <div class="card-title">2. IMP Worklog Newgen</div>
+            <div class="card-desc">
+              ระบบบันทึกงานองค์กร ปฏิทินงาน คำนวณ Flame Score อัตโนมัติ พร้อม Gantt Roadmap และระบบวัดผลความคุ้มค่าโครงการ (Cost Savings Engine)
+            </div>
+            <div class="card-metric">⚡ ประหยัดเวลารวมข้อมูล 144 ชม./ปี (40 บันทึกงาน)</div>
+          </div>
+
+          <div class="card-item">
+            <span class="card-badge badge-green">Centralized Tools</span>
+            <div class="card-title">3. Print Service & PDF Studio</div>
+            <div class="card-desc">
+              รวมศูนย์บริการงานพิมพ์เอกสาร DACP และเครื่องมือแปลง รวมไฟล์ บีบอัด PDF ขององค์กร ลดต้นทุนจัดซื้อ License ซอฟต์แวร์ภายนอก
+            </div>
+            <div class="card-metric">✨ รวมศูนย์งานพิมพ์สำเร็จ 100% (18 บันทึกงาน)</div>
+          </div>
+
+          <div class="card-item">
+            <span class="card-badge badge-green">Logistics & Precast</span>
+            <div class="card-title">4. บันทึกมิเตอร์น้ำมัน & Dashboard QC</div>
+            <div class="card-desc">
+              ดิจิทัลฟอร์มและแดชบอร์ดตรวจสอบคุณภาพงาน Precast พร้อมระบบคุมการใช้น้ำมันเชื้อเพลิงยานพาหนะ ตรวจสอบย้อนหลังได้ 100%
+            </div>
+            <div class="card-metric">✨ ป้องกันความสูญหายและคุมต้นทุนพลังงาน</div>
+          </div>
+
+          <div class="card-item" style="border-left: 3px solid var(--emerald);">
+            <span class="card-badge badge-green">FinTech / Core ERP</span>
+            <div class="card-title">5. FxCurrency Platform & 365-Day Sync</div>
+            <div class="card-desc">
+              ระบบดึงเรท 4 ธนาคาร+BOT+Bloomberg ทุกสกุลเงิน ส่งขึ้น NetSuite & Mango 365 วัน พร้อมระบบ PIN สำหรับทีมบัญชี และการกระทบยอด 100% Match
+            </div>
+            <div class="card-metric">⚡ ขจัดงานคีย์เรทมือ 100% (ประหยัด 125 ชม./ปี | 15 บันทึกงาน)</div>
+          </div>
+
+          <div class="card-item">
+            <span class="card-badge badge-green">ERP Workflow</span>
+            <div class="card-title">6. ERP NetSuite DDS Requisition</div>
+            <div class="card-desc">
+              ระบบดิจิทัลใบเบิกของแถมลูกค้า DDS ลดขั้นตอนการอนุมัติข้ามแผนกจาก 4 เหลือ 2 ขั้นตอน พร้อมระบบแจ้งเตือนอัตโนมัติ
+            </div>
+            <div class="card-metric">✨ อนุมัติเร็วขึ้น 62.5% (จาก 4 เหลือ 1.5 วัน)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: Testing & In-Flight Deliverables -->
+    <div class="slide" id="slide-4">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">Final Stretch Before Launch</div>
+          <div class="slide-title">โครงการในเฟสทดสอบขั้นสุดท้าย (Testing 70% – 90%)</div>
+          <div class="slide-subtitle">ระบบสำคัญที่มี Impact สูง เตรียมเปิดให้ใช้งานเต็มรูปแบบในต้น Q4</div>
+        </div>
+        <span class="badge-live" style="background: rgba(139,92,246,0.15); color: var(--purple); border-color: rgba(139,92,246,0.3);">
+          Final Testing Phase
+        </span>
+      </div>
+
+      <div class="slide-body">
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;">
+          <!-- Card 1: Aftersale -->
+          <div class="card-item" style="border-top: 3px solid var(--purple);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span class="card-badge badge-purple">Testing: 90%</span>
+              <span style="font-size: 11px; color: var(--text-dim);">มิ.ย. – ต.ค.</span>
+            </div>
+            <div class="card-title">Aftersale แจ้งเตือนหมดอายุ ประกันบ้าน</div>
+            <div class="card-desc">
+              ระบบแจ้งเตือนอัตโนมัติไปยังลูกบ้านและทีมช่างล่วงหน้า 30-60 วัน ก่อนประกันหมดอายุ ป้องกันข้อพิพาทและเปิดโอกาสต่อสัญญาบริการ
+            </div>
+            <div class="card-metric" style="color: var(--emerald);">
+              ⚡ คาดการณ์ลดข้อพิพาทลง 70% | UAT Finalizing
+            </div>
+          </div>
+
+          <!-- Card 2: 304 CRM Ticket -->
+          <div class="card-item" style="border-top: 3px solid var(--sky);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span class="card-badge" style="background: rgba(56,189,248,0.15); color: var(--sky); border: 1px solid rgba(56,189,248,0.3);">Testing: 75%</span>
+              <span style="font-size: 11px; color: var(--text-dim);">มิ.ย. – ต.ค.</span>
+            </div>
+            <div class="card-title">304 CRM Ticket & Leaderboard</div>
+            <div class="card-desc">
+              ระบบรับแจ้งซ่อมพร้อม In-app Notification แจ้งเตือนช่างทันที และหน้า Leaderboard ติดตามประสิทธิภาพทีมบริการ
+            </div>
+            <div class="card-metric" style="color: var(--sky);">
+              ⚡ ลด Response Time จ่ายงานช่างลง 40% (< 10 นาที)
+            </div>
+          </div>
+
+          <!-- Card 3: ขอหนังสือรับรอง -->
+          <div class="card-item" style="border-top: 3px solid var(--amber);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span class="card-badge badge-amber">Testing: 70%</span>
+              <span style="font-size: 11px; color: var(--text-dim);">พ.ค. – ต.ค.</span>
+            </div>
+            <div class="card-title">ระบบขอหนังสือรับรองการทำงาน</div>
+            <div class="card-desc">
+              ระบบ Self-service ให้พนักงานยื่นขอและดาวน์โหลดหนังสือรับรองผ่านระบบออนไลน์ ลดภาระการเดินเอกสารของฝ่ายบุคคล
+            </div>
+            <div class="card-metric" style="color: var(--amber);">
+              ⚡ ลดระยะเวลาออกเอกสารจาก 3 วัน เหลือดาวน์โหลดทันที
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: Business Impact & ROI Breakdown -->
+    <div class="slide" id="slide-5">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">Value Realization & IE Methodology</div>
+          <div class="slide-title">การวัดผลมูลค่าและเวลาที่ประหยัดได้ (>795 Man-hours/ปี)</div>
+          <div class="slide-subtitle">คำนวณตามหลัก Industrial Engineering (ลดเวลาต่อเคส × ปริมาณงานต่อปี)</div>
+        </div>
+        <span class="badge-live">Total: 795.7 ชม./ปี</span>
+      </div>
+
+      <div class="slide-body">
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+            <thead>
+              <tr style="background: rgba(255,255,255,0.04); color: var(--text-muted); text-align: left;">
+                <th style="padding: 10px 16px;">โครงการ / ฟังก์ชันการทำงาน</th>
+                <th style="padding: 10px 16px;">หน่วยวัดที่ใช้คิด</th>
+                <th style="padding: 10px 16px;">ก่อนปรับปรุง (Baseline)</th>
+                <th style="padding: 10px 16px;">หลังปรับปรุง (After)</th>
+                <th style="padding: 10px 16px; text-align: right;">เวลาที่ประหยัดได้/ปี</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 10px 16px; font-weight: 700; color: #fff;">1. HR Form ↔ HRMS API</td>
+                <td style="padding: 10px 16px; color: var(--sky);">ต่อเคสใบสมัคร (500 เคส/ปี)</td>
+                <td style="padding: 10px 16px; color: var(--text-muted);">คีย์มือ 20 นาที/คน</td>
+                <td style="padding: 10px 16px; color: var(--emerald);">Auto API 0 นาที</td>
+                <td style="padding: 10px 16px; text-align: right; font-weight: 700; color: var(--emerald);">166.7 ชม.</td>
+              </tr>
+              <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 10px 16px; font-weight: 700; color: #fff;">2. Smart File Validation</td>
+                <td style="padding: 10px 16px; color: var(--purple);">ต่อเคส Error ที่ลดได้ (60 เคส/ปี)</td>
+                <td style="padding: 10px 16px; color: var(--text-muted);">โทรตาม/แก้เอกสาร 2 ชม./เคส</td>
+                <td style="padding: 10px 16px; color: var(--emerald);">ดักจับบนหน้าเว็บล่วงหน้า</td>
+                <td style="padding: 10px 16px; text-align: right; font-weight: 700; color: var(--emerald);">120.0 ชม.</td>
+              </tr>
+              <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 10px 16px; font-weight: 700; color: #fff;">3. DDS Requisition NetSuite</td>
+                <td style="padding: 10px 16px; color: var(--amber);">ต่อใบเบิกของแถม (240 ใบ/ปี)</td>
+                <td style="padding: 10px 16px; color: var(--text-muted);">เดินเอกสาร 4 ขั้นตอน (30 นาที)</td>
+                <td style="padding: 10px 16px; color: var(--emerald);">Digital 2 ขั้นตอน (10 นาที)</td>
+                <td style="padding: 10px 16px; text-align: right; font-weight: 700; color: var(--emerald);">80.0 ชม.</td>
+              </tr>
+              <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 10px 16px; font-weight: 700; color: #fff;">4. CRM Ticket Notification</td>
+                <td style="padding: 10px 16px; color: var(--sky);">ต่อวันทำการ (240 วัน/ปี)</td>
+                <td style="padding: 10px 16px; color: var(--text-muted);">คอย Refresh เช็กงาน 30 นาที/วัน</td>
+                <td style="padding: 10px 16px; color: var(--emerald);">In-app Alert ลดงานตาม 25 นาที</td>
+                <td style="padding: 10px 16px; text-align: right; font-weight: 700; color: var(--emerald);">100.0 ชม.</td>
+              </tr>
+              <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 10px 16px; font-weight: 700; color: #fff;">5. Jawis QC Script Fix</td>
+                <td style="padding: 10px 16px; color: var(--rose);">ต่อ Incident ที่ไม่ต้องเกิดซ้ำ (40 ครั้ง)</td>
+                <td style="padding: 10px 16px; color: var(--text-muted);">โปรแกรมเมอร์แก้ฉุกเฉิน 1.5 ชม.</td>
+                <td style="padding: 10px 16px; color: var(--emerald);">แก้ถาวรที่โครงสร้าง DB</td>
+                <td style="padding: 10px 16px; text-align: right; font-weight: 700; color: var(--emerald);">60.0 ชม.</td>
+              </tr>
+              <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 10px 16px; font-weight: 700; color: #fff;">6. IMP Worklog Timesheet</td>
+                <td style="padding: 10px 16px; color: var(--purple);">ต่องวดรายเดือน (12 เดือน/ปี)</td>
+                <td style="padding: 10px 16px; color: var(--text-muted);">รวม Excel คำนวณมือ 15 ชม./ด.</td>
+                <td style="padding: 10px 16px; color: var(--emerald);">Auto Score Dashboard (ประหยัด 12 ชม.)</td>
+                <td style="padding: 10px 16px; text-align: right; font-weight: 700; color: var(--emerald);">144.0 ชม.</td>
+              </tr>
+              <tr style="border-top: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 10px 16px; font-weight: 700; color: #fff;">7. FxCurrency 365-Day Sync & PIN</td>
+                <td style="padding: 10px 16px; color: var(--sky);">ต่อวันทำการ & วันหยุด (300 วัน/ปี)</td>
+                <td style="padding: 10px 16px; color: var(--text-muted);">เช็กเรท 4 แบงค์+BOT คีย์มือ 25 น./วัน</td>
+                <td style="padding: 10px 16px; color: var(--emerald);">Auto Scraping & Sync 365 วัน (0 นาที)</td>
+                <td style="padding: 10px 16px; text-align: right; font-weight: 700; color: var(--emerald);">125.0 ชม.</td>
+              </tr>
+              <tr style="background: rgba(16,185,129,0.08); border-top: 2px solid rgba(16,185,129,0.3); font-weight: 800;">
+                <td colspan="4" style="padding: 12px 16px; color: #fff;">รวมผลประหยัดเวลาสะสมต่อปี (Soft Cost Savings มูลค่า ~278,500 บาท)</td>
+                <td style="padding: 12px 16px; text-align: right; color: var(--emerald); font-size: 14px;">795.7 Man-hours</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: Operational Excellence & AI Leadership -->
+    <div class="slide" id="slide-6">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">Service Quality & Knowledge Capital</div>
+          <div class="slide-title">เสถียรภาพระบบ 96.3% และการขับเคลื่อน AI Transformation</div>
+          <div class="slide-subtitle">การกำกับดูแลเชิงรุกและการยกระดับขีดความสามารถของบุคลากรในองค์กร</div>
+        </div>
+        <span class="badge-live">Zero Critical Outage</span>
+      </div>
+
+      <div class="slide-body">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <!-- Left: Support & MA SLA -->
+          <div class="card-item" style="border-left: 4px solid var(--purple);">
+            <div style="font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 12px;">
+              🛡️ System Support & MA Quality (SLA 96.3%)
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+              <div style="background: rgba(255,255,255,0.03); padding: 8px 14px; border-radius: 8px; flex: 1;">
+                <div style="font-size: 11px; color: var(--text-dim);">Q1 Support SLA</div>
+                <div style="font-size: 18px; font-weight: 800; color: var(--sky);">96.0%</div>
+              </div>
+              <div style="background: rgba(255,255,255,0.03); padding: 8px 14px; border-radius: 8px; flex: 1;">
+                <div style="font-size: 11px; color: var(--text-dim);">Q2 Support SLA</div>
+                <div style="font-size: 18px; font-weight: 800; color: var(--purple);">95.2%</div>
+              </div>
+              <div style="background: rgba(255,255,255,0.03); padding: 8px 14px; border-radius: 8px; flex: 1;">
+                <div style="font-size: 11px; color: var(--text-dim);">Q3 Support SLA</div>
+                <div style="font-size: 18px; font-weight: 800; color: var(--emerald);">97.8%</div>
+              </div>
+            </div>
+            <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+              • ดูแลและบำรุงรักษาระบบรวม <strong>58 รายการ</strong> (ERP NetSuite, 304 CRM Ticket, Jawis Precast, WMS)<br>
+              • รักษา Uptime ธุรกิจต่อเนื่อง <strong>99.9%</strong> ไม่มีเหตุการณ์ระบบหลักหยุดทำงานเกินเกณฑ์
+            </div>
+          </div>
+
+          <!-- Right: Knowledge Sharing & AI -->
+          <div class="card-item" style="border-left: 4px solid var(--sky);">
+            <div style="font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 12px;">
+              🎓 AI Engineering & Team Capability (69 Sessions)
+            </div>
+            <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px;">
+              • <strong>BOI AI Engineering Day 3:</strong> นำความรู้ด้าน AI-assisted SDLC & PRD มาใช้จริงในการพัฒนา ส่งผลให้สปีดการส่งมอบระบบเร็วขึ้นกว่าเดิม 2 เท่า<br>
+              • <strong>Cross-functional KT:</strong> จัดอบรมการใช้งานระบบ Worklog ให้ฝ่าย HR, อบรม CRM Ticket ให้ฝ่ายบริการ และจัด Workshop แดชบอร์ดฝ่ายขาย<br>
+              • <strong>TeamOps Leadership:</strong> 1:1 Coaching 12 ครั้ง และมอบหมายงาน (DELEGATE) อย่างเป็นระบบ
+            </div>
+            <div class="card-metric" style="color: var(--sky);">
+              💡 เอกสาร Work Instruction (WI), PRD และ Source Code ครบถ้วน 100%
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: Q4 Action Plan & Strategic Roadmap -->
+    <div class="slide" id="slide-7">
+      <div class="slide-header">
+        <div>
+          <div class="slide-category">Forward-Looking Strategy</div>
+          <div class="slide-title">แผนปฏิบัติการ Q4 สู่ความสำเร็จ 100% เต็มตามเป้าหมายปี 2026</div>
+          <div class="slide-subtitle">การปิดจ๊อบโครงการที่กำลังทดสอบ และการขยายผลสู่นวัตกรรมเชิงธุรกิจ</div>
+        </div>
+        <span class="badge-live">Q4 Focus Roadmap</span>
+      </div>
+
+      <div class="slide-body">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;">
+          <!-- Col 1 -->
+          <div class="card-item" style="border-top: 3px solid var(--emerald);">
+            <div style="font-size: 12px; font-weight: 700; color: var(--emerald); margin-bottom: 4px;">ตุลาคม 2026</div>
+            <div style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px;">Final Launch 3 ระบบ</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              • ปิดจ๊อบ Go-Live 100% สำหรับ `Aftersale ประกันบ้าน`, `304 CRM Ticket` และ `ระบบขอหนังสือรับรอง`
+            </div>
+          </div>
+
+          <!-- Col 2 -->
+          <div class="card-item" style="border-top: 3px solid var(--sky);">
+            <div style="font-size: 12px; font-weight: 700; color: var(--sky); margin-bottom: 4px;">พฤศจิกายน 2026</div>
+            <div style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px;">304 Sale Report 100%</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              • ยกระดับความคืบหน้าจาก 50% เป็น 100% พร้อมเชื่อมต่อ Data Dashboard ให้ผู้บริหารฝ่ายขาย
+            </div>
+          </div>
+
+          <!-- Col 3 -->
+          <div class="card-item" style="border-top: 3px solid var(--purple);">
+            <div style="font-size: 12px; font-weight: 700; color: var(--purple); margin-bottom: 4px;">พ.ย. – ธ.ค. 2026</div>
+            <div style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px;">ระบบติดตามเคลมกับช่าง</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              • เริ่มพัฒนาจาก 0% สู่ UAT Release เพื่อปิดช่องว่างการส่งต่องานเคลมระหว่างลูกค้ากับช่าง
+            </div>
+          </div>
+
+          <!-- Col 4 -->
+          <div class="card-item" style="border-top: 3px solid var(--amber);">
+            <div style="font-size: 12px; font-weight: 700; color: var(--amber); margin-bottom: 4px;">ธันวาคม 2026</div>
+            <div style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px;">Annual Review & Audit</div>
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              • สรุปตัวเลข Cost Saving รับรองร่วมกับ BU และเตรียมความพร้อมสู่ Digital Improvement ปี 2027
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 20px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); border-radius: 12px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 13.5px; color: #fff;">
+            <strong>🎯 สรุปเป้าหมายความสำเร็จ:</strong> มั่นใจส่งมอบผลงานได้ครบถ้วน 100% เต็มทุกมิติ KPI (Grade A)
+          </div>
+          <span class="badge-live" style="background: rgba(56,189,248,0.2); color: var(--sky); border-color: rgba(56,189,248,0.4);">
+            Ready for Full-Year 100%
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide Footer -->
+    <div class="slide-footer">
+      <div>Worklog Newgen • 2026 Half-Year Executive Appraisal</div>
+      <div class="slide-nav">
+        <button class="nav-btn" onclick="prevSlide()">◀</button>
+        <span id="slideIndicator" style="font-weight: 700; color: #fff;">1 / 7</span>
+        <button class="nav-btn" onclick="nextSlide()">▶</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Speaker Notes Drawer -->
+  <div class="speaker-drawer" id="speakerDrawer">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+      <strong>🎙️ Speaker Note สำหรับผู้นำเสนอ (สไลด์หน้า <span id="noteSlideNum">1</span>):</strong>
+      <span style="font-size: 11px; color: var(--text-dim);">กด 'S' เพื่อซ่อน/แสดง</span>
+    </div>
+    <div id="speakerNoteText">
+      "ครึ่งปีที่ผ่านมา ทีม Improvement ไม่เพียงส่งมอบโครงการตามแผน แต่เราโฟกัสที่การสร้างระบบที่ช่วยให้หน่วยงานหน้างานทำงานได้เร็วขึ้น ลดงาน Manual และประหยัดเวลารวมกว่า 650 ชม./ปี"
+    </div>
+  </div>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 7;
+
+    const speakerNotes = {
+      1: "ครึ่งปีที่ผ่านมา ทีม Improvement ไม่เพียงส่งมอบโครงการตามแผน แต่เราโฟกัสที่การสร้างระบบที่ช่วยให้หน่วยงานหน้างานทำงานได้เร็วขึ้น ลดงาน Manual และประหยัดเวลารวมกว่า 795 ชม./ปี",
+      2: "เมื่อมองผ่าน Timeline การทำงานบน Gantt เราแบ่งการพัฒนาเป็นคลื่นอย่างเป็นระบบ เริ่มจากการวางรากฐานใน Q1 ขยายสู่ระบบหน้าบ้านใน Q2 และมุ่งเน้น Automation เชิงรุกใน Q3 ทำให้ทีมไม่มีงานค้างท่อเกินกำหนด",
+      3: "โครงการในกลุ่ม Completed ได้ถูกนำไปใช้งานจริงแล้วในหน้างาน เช่น ระบบรับสมัครงานที่ลดขั้นตอนการทำงานของฝ่ายบุคคล, ระบบ FxCurrency ที่อัปเดตอัตราแลกเปลี่ยน 365 วันให้อัตโนมัติ และ PDF Studio",
+      4: "งานที่อยู่ในช่วงทดสอบ 70–90% ล้วนเป็นงานที่สร้างผลกระทบต่อทั้งลูกค้าและพนักงานโดยตรง เช่น การแจ้งเตือนประกันบ้านล่วงหน้า และระบบ CRM ซึ่งจะปล่อยใช้งานเต็มรูปแบบภายในช่วงต้นของไตรมาส 4 นี้",
+      5: "ทุกระบบที่เราพัฒนา เราไม่วัดแค่ว่าโค้ดเสร็จหรือไม่ แต่วัดว่าลดเวลาคนหน้างานได้กี่นาทีต่อเคส ซึ่งสะสมแล้วช่วยคืนเวลาให้องค์กรได้มากกว่า 795 ชั่วโมงต่อปี คิดเป็นมูลค่าทางอ้อมกว่า 2.8 แสนบาท",
+      6: "ด้านการ Support เราตอบสนองตาม SLA ได้ถึง 96.3% และที่สำคัญคือเรานำ AI เข้ามาช่วยเพิ่มสปีดการทำงานของทีม และส่งต่อความรู้ให้คนในองค์กรอย่างต่อเนื่องถึง 69 เซสชัน",
+      7: "ในไตรมาสสุดท้าย เรามีแผนงานที่ชัดเจนในการปิดงานที่ค้างในเฟสทดสอบทั้งหมด และเริ่มระบบติดตามเคลม เพื่อส่งมอบผลงานได้ครบ 100% ตามเป้าหมายประจำปีอย่างภาคภูมิใจ"
+    };
+
+    function showSlide(num) {
+      if (num < 1) num = totalSlides;
+      if (num > totalSlides) num = 1;
+      currentSlide = num;
+
+      document.querySelectorAll('.slide').forEach((s, idx) => {
+        s.classList.toggle('active', idx + 1 === currentSlide);
+      });
+
+      document.getElementById('slideIndicator').innerText = `${currentSlide} / ${totalSlides}`;
+      document.getElementById('noteSlideNum').innerText = currentSlide;
+      document.getElementById('speakerNoteText').innerText = speakerNotes[currentSlide] || "";
+    }
+
+    function nextSlide() { showSlide(currentSlide + 1); }
+    function prevSlide() { showSlide(currentSlide - 1); }
+
+    function toggleSpeakerNotes() {
+      const drawer = document.getElementById('speakerDrawer');
+      drawer.classList.toggle('show');
+    }
+
+    function toggleFullScreen() {
+      const elem = document.getElementById('slideViewport');
+      if (!document.fullscreenElement) {
+        elem.requestFullscreen().catch(err => alert(`Error: ${err.message}`));
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    // Keyboard Navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        prevSlide();
+      } else if (e.key.toLowerCase() === 's') {
+        toggleSpeakerNotes();
+      } else if (e.key.toLowerCase() === 'f') {
+        toggleFullScreen();
+      }
+    });
+  </script>
+</body>
+</html>
