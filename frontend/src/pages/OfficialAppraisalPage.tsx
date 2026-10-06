@@ -115,6 +115,12 @@ interface AppraisalResult {
   supervisor_notes?: string;
   ai_provider?: string;
   ai_model?: string;
+  worklog_stats?: {
+    total_logs: number;
+    logged_days: number;
+    business_days: number;
+    coverage_pct: number;
+  };
   prompt_info?: {
     systemPrompt: string;
     userPrompt: string;
@@ -141,6 +147,7 @@ interface AnalysisHistoryItem {
   is_public?: boolean;
   share_token?: string;
   expires_at?: string;
+  logs_count?: number;
   engine_model?: string;
   evaluated_avatar_emp_id?: string;
   evaluated_full_name?: string;
@@ -342,6 +349,82 @@ function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): App
   const humanTouch = rawParadigm.human_in_the_loop || {};
   const expertGov = rawParadigm.expert_in_the_loop || {};
 
+  // Worklog stats extraction / snapshot restoration
+  let safeStats: { total_logs: number; logged_days: number; business_days: number; coverage_pct: number } | undefined = undefined;
+
+  const rawStats = (data.worklog_stats && typeof data.worklog_stats === 'object')
+    ? (data.worklog_stats as Record<string, unknown>)
+    : null;
+
+  if (rawStats && typeof rawStats.total_logs === 'number') {
+    safeStats = {
+      total_logs: Number(rawStats.total_logs) || 0,
+      logged_days: Number(rawStats.logged_days) || 0,
+      business_days: Number(rawStats.business_days) || 60,
+      coverage_pct: Number(rawStats.coverage_pct) || 0,
+    };
+  } else {
+    let bDays = 0;
+    let lDays = 0;
+    let covPct = 0;
+    let totLogs = typeof (item as any)?.logs_count === 'number' ? (item as any).logs_count : 0;
+
+    // 1. Check prompt_info
+    const pInfo = data.prompt_info as Record<string, unknown> | undefined;
+    const promptText = typeof pInfo?.fullPrompt === 'string'
+      ? pInfo.fullPrompt
+      : typeof pInfo?.userPrompt === 'string'
+      ? pInfo.userPrompt
+      : '';
+
+    if (promptText) {
+      const bMatch = promptText.match(/วันทำการทั้งหมด:\s*(\d+)/);
+      const lMatch = promptText.match(/วันที่มีการบันทึกงาน:\s*(\d+)\s*วัน\s*\((\d+)%\)/);
+      const logMatch = promptText.match(/จำนวนรายการบันทึกทั้งสิ้น:\s*(\d+)/);
+
+      if (bMatch) bDays = parseInt(bMatch[1], 10);
+      if (lMatch) {
+        lDays = parseInt(lMatch[1], 10);
+        covPct = parseInt(lMatch[2], 10);
+      }
+      if (logMatch && !totLogs) totLogs = parseInt(logMatch[1], 10);
+    }
+
+    // 2. Check quantity reason (e.g. "บันทึกงาน 100% ของวันทำการ (63/62 วัน) รวม 85 รายการ")
+    const qtyReason = typeof rawScores?.quantity?.reason === 'string' ? rawScores.quantity.reason : '';
+    if (qtyReason) {
+      const qMatch = qtyReason.match(/บันทึกงาน\s*(\d+)%\s*ของวันทำการ\s*\((\d+)\/(\d+)\s*วัน\)(?:\s*รวม\s*(\d+)\s*รายการ)?/);
+      if (qMatch) {
+        if (!covPct) covPct = parseInt(qMatch[1], 10);
+        if (!lDays) lDays = parseInt(qMatch[2], 10);
+        if (!bDays) bDays = parseInt(qMatch[3], 10);
+        if (qMatch[4] && !totLogs) totLogs = parseInt(qMatch[4], 10);
+      }
+    }
+
+    // 3. Check executive_summary (e.g. "บันทึกงานสม่ำเสมอถึง 100% (63 จาก 62 วันทำการ)")
+    const execSum = typeof data.executive_summary === 'string' ? data.executive_summary : (item?.raw_ai_report || '');
+    if (execSum) {
+      const sumMatch = execSum.match(/(?:สม่ำเสมอถึง|บันทึกงาน|อัตราการบันทึกงาน)\s*(\d+)%\s*\((\d+)\s*(?:จาก|\/)\s*(\d+)\s*วันทำการ\)/);
+      if (sumMatch) {
+        if (!covPct) covPct = parseInt(sumMatch[1], 10);
+        if (!lDays) lDays = parseInt(sumMatch[2], 10);
+        if (!bDays) bDays = parseInt(sumMatch[3], 10);
+      }
+    }
+
+    if (lDays > 0 || covPct > 0 || totLogs > 0) {
+      if (!covPct && bDays > 0) covPct = Math.min(100, Math.round((lDays / bDays) * 100));
+      if (!totLogs && lDays > 0) totLogs = lDays;
+      safeStats = {
+        total_logs: totLogs,
+        logged_days: lDays,
+        business_days: bDays || 62,
+        coverage_pct: covPct,
+      };
+    }
+  }
+
   return {
     overall_score: overallScore,
     level: getString(data.level, defaultLevel),
@@ -405,6 +488,7 @@ function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): App
         ? (data.prompt_info as any).model
         : 'Claude 3.5 Sonnet'
     ),
+    worklog_stats: safeStats,
     prompt_info: data.prompt_info && typeof data.prompt_info === 'object'
       ? (data.prompt_info as AppraisalResult['prompt_info'])
       : undefined,
@@ -997,6 +1081,21 @@ export default function OfficialAppraisalPage() {
   const loggingCoveragePct = useMemo(() => {
     return Math.min(100, Math.round((uniqueLoggedDays / businessDays) * 100));
   }, [uniqueLoggedDays, businessDays]);
+
+  // Resilient display stats:
+  // If an appraisal result is loaded (e.g. shared link, historical view), prioritize the snapshot stats.
+  // Otherwise, fallback to live candidateLogs computation.
+  const displayStats = useMemo(() => {
+    if (appraisalResult?.worklog_stats) {
+      return appraisalResult.worklog_stats;
+    }
+    return {
+      total_logs: candidateLogs.length,
+      logged_days: uniqueLoggedDays,
+      business_days: businessDays,
+      coverage_pct: loggingCoveragePct,
+    };
+  }, [appraisalResult, candidateLogs.length, uniqueLoggedDays, businessDays, loggingCoveragePct]);
 
   // 4. Run Appraisal Engine
   const handleStartAppraisal = async (overrideConfig?: {
@@ -1805,7 +1904,13 @@ export default function OfficialAppraisalPage() {
         },
         supervisor_notes: supervisorNotes,
         ai_provider: chosenProvider,
-        ai_model: chosenModel,
+        ai_model: formatModelDisplayName(chosenModel),
+        worklog_stats: {
+          total_logs: totalEntries,
+          logged_days: uniqueLoggedDays,
+          business_days: businessDays,
+          coverage_pct: loggingCoveragePct,
+        },
         prompt_info: buildExecutedPrompt({
           role: isManagerEvaluated ? 'manager' : 'officer',
           employeeName: evaluatedUser.full_name,
@@ -1896,6 +2001,7 @@ export default function OfficialAppraisalPage() {
         evaluated_department: evaluatedUser.department,
         evaluated_avatar_emp_id: evaluatedUser.emp_id || null,
         evaluated_nickname: evaluatedUser.nickname || null,
+        logs_count: result.worklog_stats?.total_logs ?? candidateLogs.length,
         engine_model: result.ai_model || null,
       };
 
@@ -2869,14 +2975,14 @@ ${r.calendar_logging_guide}
             </div>
 
             {/* Sparse Worklog Notice (Best Practice Advisory for intermittent logs) */}
-            {loggingCoveragePct < 60 && (
+            {displayStats.coverage_pct < 60 && (
               <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3 text-xs print:hidden">
                 <AlertCircle size={16} className="text-amber-500 mt-0.5 shrink-0" />
                 <div className="space-y-1">
                   <div className="font-bold text-amber-700 dark:text-amber-400 flex items-center gap-2">
                     <span>ข้อแนะนำสำหรับรอบที่มีการบันทึกงานไม่ต่อเนื่อง (Sparse Worklog Advisory)</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold">
-                      บันทึกงาน {loggingCoveragePct}% ({uniqueLoggedDays} จาก {businessDays} วันทำการ)
+                      บันทึกงาน {displayStats.coverage_pct}% ({displayStats.logged_days} จาก {displayStats.business_days} วันทำการ)
                     </span>
                   </div>
                   <div className="text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -3018,7 +3124,7 @@ ${r.calendar_logging_guide}
                             <div className="text-xs text-slate-600 dark:text-slate-400 font-medium">คะแนนประเมินรวม</div>
                             <div className="text-sm font-bold text-cyan-700 dark:text-cyan-400">ระดับ "{appraisalResult.level}"</div>
                             <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-medium">
-                              สม่ำเสมอ {loggingCoveragePct}% ({uniqueLoggedDays}/{businessDays} วัน)
+                              สม่ำเสมอ {displayStats.coverage_pct}% ({displayStats.logged_days}/{displayStats.business_days} วัน)
                             </div>
                           </div>
                           <div className="w-16 h-16 rounded-full border-2 border-cyan-500 flex flex-col items-center justify-center bg-cyan-100/60 dark:bg-cyan-500/10 shadow-xs dark:shadow-[0_0_20px_rgba(6,182,212,0.3)]">
@@ -3277,11 +3383,11 @@ ${r.calendar_logging_guide}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
                           <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
                             <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">อัตราการลงงาน</div>
-                            <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{loggingCoveragePct}%</div>
+                            <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{displayStats.coverage_pct}%</div>
                           </div>
                           <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
                             <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">จำนวนบันทึกงาน</div>
-                            <div className="text-lg font-bold text-cyan-600 dark:text-cyan-400">{candidateLogs.length} งาน</div>
+                            <div className="text-lg font-bold text-cyan-600 dark:text-cyan-400">{displayStats.total_logs} งาน</div>
                           </div>
                           <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
                             <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">ระดับผลงาน</div>
