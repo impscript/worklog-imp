@@ -1195,198 +1195,7 @@ export default function OfficialAppraisalPage() {
       };
 
       // ─────────────────────────────────────────────────────────────────
-      // 7. Pillar 1: Quantity (20%)
-      // Best Practice: 50% Consistency (Logging Coverage) + 30% Output Volume + 20% Project/JD Diversity
-      // Prevents exact keyword mismatches from penalizing prolific employees
-      // ─────────────────────────────────────────────────────────────────
-      const jdResponsibilities = candidateJd?.key_responsibilities && Array.isArray(candidateJd.key_responsibilities)
-        ? (candidateJd.key_responsibilities as { category: string; weight?: number }[])
-        : [];
-      const jdTotal = Math.max(jdResponsibilities.length, 1);
-      const jdMatchCount = jdResponsibilities.filter((kr) => {
-        return matchResponsibilityEvidence(kr).status === 'Found';
-      }).length;
-      const jdCoverageRatio = jdResponsibilities.length > 0 ? jdMatchCount / jdTotal : 1.0;
-
-      const coverageRatio = loggingCoveragePct / 100;
-      const volumeRatio = Math.min(1, totalEntries / Math.max(businessDays * 1.5, 40));
-      const projectDiversityRatio = Math.min(1, Math.max(sortedProjects.length / 4, jdCoverageRatio));
-
-      const qtyCompositeRatio = 0.50 * coverageRatio + 0.30 * volumeRatio + 0.20 * projectDiversityRatio;
-      const qtyScore = scoreFromRatio(qtyCompositeRatio, 20);
-      const qtyLevel = ratioToLevel(qtyCompositeRatio);
-      const qtySufficiency: 'High' | 'Medium' | 'Low' =
-        totalEntries >= 30 && loggingCoveragePct >= 60 ? 'High' :
-        totalEntries >= 10 ? 'Medium' : 'Low';
-      const jdNoteQty = jdResponsibilities.length > 0
-        ? `ครอบคลุม JD ${jdMatchCount}/${jdTotal} หน้าที่หลัก, ${sortedProjects.length} โครงการ`
-        : `ครอบคลุม ${sortedProjects.length} โครงการหลัก`;
-      const qtyReason = `บันทึกงาน ${loggingCoveragePct}% ของวันทำการ (${uniqueLoggedDays}/${businessDays} วัน) รวม ${totalEntries} รายการ; ${jdNoteQty} — ถ่วงน้ำหนักความสม่ำเสมอ (50%) + ปริมาณผลงาน (30%) + ความครอบคลุม (20%)`;
-
-      // ─────────────────────────────────────────────────────────────────
-      // Pillar 2: Quality (20%)
-      // "Insufficient Evidence" when evidence is too low — not a floor score
-      // ─────────────────────────────────────────────────────────────────
-      const topProjectNames = sortedProjects.slice(0, 3).map((p) => p.name).join(', ') || 'โครงการหลัก';
-      let qualScore: number;
-      let qualLevel: string;
-      let qualSufficiency: 'High' | 'Medium' | 'Low';
-      let qualReason: string;
-
-      if (totalEntries < 5) {
-        qualScore = 0;
-        qualLevel = 'ไม่เพียงพอ (Insufficient Evidence)';
-        qualSufficiency = 'Low';
-        qualReason = `ข้อมูล worklog มีเพียง ${totalEntries} รายการ ไม่เพียงพอต่อการประเมินคุณภาพงาน (Insufficient Evidence) — ต้องขอยืนยันจาก Supervisor`;
-      } else {
-        const resultTagged = candidateLogs.filter((l) =>
-          /\[result\]|\[ผลลัพธ์\]|outcome|impact/i.test(l.description || '')
-        ).length;
-        const deliveryRatio = Math.min(1, deliverableLogs.length / Math.max(totalEntries * 0.2, 5));
-        const resultBonus = Math.min(0.1, resultTagged * 0.02);
-        const qualRatio = Math.min(1, deliveryRatio + resultBonus);
-        qualScore = scoreFromRatio(qualRatio, 20);
-        qualLevel = ratioToLevel(qualRatio);
-        qualSufficiency = ratioToSufficiency(qualRatio, deliverableLogs.length);
-        qualReason = deliverableLogs.length >= 3
-          ? `พบหลักฐานการส่งมอบงาน ${deliverableLogs.length} รายการใน ${topProjectNames}${resultTagged > 0 ? `, บันทึก Result/Outcome ชัดเจน ${resultTagged} รายการ` : ' แต่ยังขาดการระบุผลลัพธ์เชิงตัวเลข'} (Supervisor Validation Required)`
-          : `พบหลักฐานการส่งมอบงาน ${deliverableLogs.length} รายการ ยังขาดการบันทึก Result/Outcome หรือหลักฐานการปิดงานที่ชัดเจน (Supervisor Validation Required)`;
-      }
-
-      // ─────────────────────────────────────────────────────────────────
-      // Pillar 3: Learning (20%)
-      // 3-Tiered Hierarchy per HR Standard: Learn → Apply → Share
-      // Tier 1 (Attendance only): Max cap 13.0 / 20 (65% พอใช้)
-      // Tier 2 (Apply to job): Max cap 16.5 / 20 (82.5% ดี)
-      // Tier 3 (Share / Transfer to team / Standardize WI): Up to 20 / 20 (100% ดีเยี่ยม)
-      // ─────────────────────────────────────────────────────────────────
-      let learnScore: number;
-      let learnLevel: string;
-      let learnSufficiency: 'High' | 'Medium' | 'Low';
-      let learnReason: string;
-
-      if (totalEntries < 5) {
-        learnScore = 0;
-        learnLevel = 'ไม่เพียงพอ (Insufficient Evidence)';
-        learnSufficiency = 'Low';
-        learnReason = `ข้อมูลไม่เพียงพอต่อการประเมิน Learning (Insufficient Evidence)`;
-      } else {
-        const expectedLearnSessions = Math.max(businessDays / 8, 4);
-        const attendanceRatio = Math.min(1, learningLogs.length / expectedLearnSessions);
-        const applyRatio = Math.min(1, learningAppliedLogs.length / Math.max(expectedLearnSessions * 0.6, 2));
-        const shareRatio = Math.min(1, sharingLogs.length / 2);
-
-        // Raw composite: Attendance (30%) + Application (40%) + Sharing/KT (30%)
-        const rawLearnRatio = 0.30 * attendanceRatio + 0.40 * applyRatio + 0.30 * shareRatio;
-
-        // Apply strict HR capping:
-        let maxCapRatio = 0.65; // Tier 1: Learn only -> Max 13/20
-        if (sharingLogs.length >= 1) {
-          maxCapRatio = 1.0; // Tier 3: Share/KT present -> Up to 20/20
-        } else if (learningAppliedLogs.length >= 2) {
-          maxCapRatio = 0.825; // Tier 2: Applied to work -> Max 16.5/20
-        }
-
-        const cappedRatio = Math.min(maxCapRatio, rawLearnRatio);
-        learnScore = scoreFromRatio(cappedRatio, 20);
-        learnLevel = ratioToLevel(cappedRatio);
-        learnSufficiency = ratioToSufficiency(cappedRatio, learningLogs.length);
-
-        if (learningLogs.length === 0) {
-          learnScore = scoreFromRatio(0.2, 20);
-          learnLevel = 'ต้องพัฒนา';
-          learnSufficiency = 'Low';
-          learnReason = `ไม่พบบันทึกการเรียนรู้หรือพัฒนาทักษะ ควรเพิ่มการ Upskill/Reskill และบันทึกการนำความรู้ไปใช้งาน`;
-        } else if (sharingLogs.length > 0) {
-          learnReason = `พบบันทึกการเรียนรู้ ${learningLogs.length} รายการ, นำไปใช้ ${learningAppliedLogs.length} รายการ, และถ่ายทอด/แบ่งปัน ${sharingLogs.length} รายการ (ครบวงจร Learn→Apply→Share)`;
-        } else if (learningAppliedLogs.length > 0) {
-          learnReason = `พบบันทึกการเรียนรู้ ${learningLogs.length} รายการ มีหลักฐานการนำไปใช้จริง ${learningAppliedLogs.length} รายการ — แต่ยังขาด Knowledge Transfer สู่ทีม (คะแนนจำกัดเพดานที่ระดับ 'ดี' ตามเกณฑ์ HR)`;
-        } else {
-          learnReason = `พบบันทึกการเรียนรู้ ${learningLogs.length} รายการ แต่ยังขาดหลักฐานการนำความรู้ไปประยุกต์ใช้หรือแบ่งปัน (การเข้าร่วม Training อย่างเดียวจำกัดเพดานคะแนนที่ระดับ 'พอใช้')`;
-        }
-      }
-
-      // ─────────────────────────────────────────────────────────────────
-      // Pillar 4: Accountability (20%)
-      // Manager: TeamOps (40%) + Coaching (35%) + Delegation (25%)
-      // Officer: Closure evidence (60%) + Follow-up (40%) — NOT loggingCoveragePct
-      // ─────────────────────────────────────────────────────────────────
-      let acctScore: number;
-      let acctLevel: string;
-      let acctSufficiency: 'High' | 'Medium' | 'Low';
-      let acctReason: string;
-
-      if (isManagerEvaluated) {
-        const teamOpsRatio = Math.min(1, teamOpsLogs.length / Math.max(businessDays / 5, 4));
-        const coachRatio = Math.min(1, coachingLogs.length / Math.max(businessDays / 10, 2));
-        const delegRatio = Math.min(1, delegationLogs.length / Math.max(businessDays / 15, 2));
-        const acctRatio = 0.4 * teamOpsRatio + 0.35 * coachRatio + 0.25 * delegRatio;
-        acctScore = scoreFromRatio(acctRatio, 20);
-        acctLevel = ratioToLevel(acctRatio);
-        acctSufficiency = ratioToSufficiency(acctRatio, teamOpsLogs.length + coachingLogs.length + delegationLogs.length);
-        acctReason = `TeamOps/ติดตาม ${teamOpsLogs.length} ครั้ง | Coaching ${coachingLogs.length} ครั้ง | Delegation ${delegationLogs.length} ครั้ง — ถ่วงน้ำหนัก 40%/35%/25% ตามมาตรฐาน Manager`;
-        if (acctSufficiency === 'Low') acctReason += ' — หลักฐานยังน้อย ควรบันทึก Coaching Session และการมอบหมายงานให้ชัดเจน';
-      } else {
-        const closureRatio = Math.min(1, deliverableLogs.length / Math.max(sortedProjects.length * 0.5, 2));
-        const followUpRatio = Math.min(1, followUpLogs.length / Math.max(businessDays / 10, 2));
-        const acctRatio = 0.6 * closureRatio + 0.4 * followUpRatio;
-        acctScore = scoreFromRatio(acctRatio, 20);
-        acctLevel = ratioToLevel(acctRatio);
-        acctSufficiency = ratioToSufficiency(acctRatio, deliverableLogs.length + followUpLogs.length);
-        if (deliverableLogs.length === 0 && followUpLogs.length === 0) {
-          acctScore = scoreFromRatio(0.3, 20);
-          acctLevel = 'ต้องพัฒนา';
-          acctSufficiency = 'Low';
-          acctReason = `ไม่พบหลักฐานการ Close งานหรือการ Follow-up สถานะ — ควรเพิ่มการบันทึกการปิดงาน ส่งมอบ และการอัปเดต Progress (Supervisor Validation Required)`;
-        } else {
-          acctReason = `พบหลักฐาน Closure/ปิดงาน ${deliverableLogs.length} รายการ, Follow-up/ติดตาม ${followUpLogs.length} รายการ — ถ่วงน้ำหนัก Closure (60%) + Follow-up (40%)`;
-        }
-      }
-
-      // ─────────────────────────────────────────────────────────────────
-      // Pillar 5: Proactiveness (20%)
-      // Balanced: 50% Absolute Output Volume + 50% Density Ratio
-      // Avoids penalizing high-volume workers whose denominator is large
-      // ─────────────────────────────────────────────────────────────────
-      let proactScore: number;
-      let proactLevel: string;
-      let proactSufficiency: 'High' | 'Medium' | 'Low';
-      let proactReason: string;
-
-      if (totalEntries < 5) {
-        proactScore = 0;
-        proactLevel = 'ไม่เพียงพอ (Insufficient Evidence)';
-        proactSufficiency = 'Low';
-        proactReason = `ข้อมูลไม่เพียงพอต่อการประเมิน Proactiveness (Insufficient Evidence)`;
-      } else {
-        const proactiveDensity = proactiveLogs.length / Math.max(totalEntries, 1);
-        const densityRatio = Math.min(1, proactiveDensity / 0.15); // 15%+ density = 1.0
-        const volumeRatio = Math.min(1, proactiveLogs.length / 15); // 15+ proactive actions in half-year = 1.0
-        const proactRatio = 0.50 * volumeRatio + 0.50 * densityRatio;
-
-        proactScore = scoreFromRatio(proactRatio, 20);
-        proactLevel = ratioToLevel(proactRatio);
-        proactSufficiency = ratioToSufficiency(proactRatio, proactiveLogs.length);
-        if (proactiveLogs.length === 0) {
-          proactScore = scoreFromRatio(0.3, 20);
-          proactLevel = 'ต้องพัฒนา';
-          proactSufficiency = 'Low';
-          proactReason = `ไม่พบหลักฐานการริเริ่มแก้ Root Cause, เสนอ Improvement หรือป้องกันปัญหาล่วงหน้า — การตอบสนองเร็วหลังได้รับคำสั่ง = Responsiveness ไม่ใช่ Proactiveness`;
-        } else {
-          proactReason = `พบกิจกรรม Proactive ${proactiveLogs.length} รายการ (${(proactiveDensity * 100).toFixed(0)}% ของงานทั้งหมด) — ถ่วงน้ำหนักจากปริมาณริเริ่มจริง (${proactiveLogs.length} ครั้ง) ร่วมกับสัดส่วนงาน`;
-        }
-      }
-
-      // ─────────────────────────────────────────────────────────────────
-      // 8. Total Score & Grade
-      // ─────────────────────────────────────────────────────────────────
-      const totalScore = parseFloat((qtyScore + qualScore + learnScore + acctScore + proactScore).toFixed(1));
-      const gradeLevel = totalScore >= 90 ? 'ดีเยี่ยม' : totalScore >= 75 ? 'ดี' : totalScore >= 60 ? 'พอใช้' : 'ต้องพัฒนา';
-      const overallConfidence: 'High' | 'Medium' | 'Low' =
-        totalEntries >= 50 && loggingCoveragePct >= 75 ? 'High' : totalEntries >= 20 ? 'Medium' : 'Low';
-
-      // ─────────────────────────────────────────────────────────────────
-      // 9. Work Status from REAL logs
+      // Work Status from REAL logs (Pre-computed for Pillar scoring & Deductions)
       // ─────────────────────────────────────────────────────────────────
       const completedList: string[] = [];
       const inProgressList: string[] = [];
@@ -1430,6 +1239,272 @@ export default function OfficialAppraisalPage() {
           }
         }
       });
+
+      // ─────────────────────────────────────────────────────────────────
+      // 7. Pillar 1: Quantity (20%)
+      // Best Practice: 50% Consistency (Logging Coverage) + 30% Output Volume + 20% Project/JD Diversity
+      // Prevents exact keyword mismatches from penalizing prolific employees
+      // ─────────────────────────────────────────────────────────────────
+      const jdResponsibilities = candidateJd?.key_responsibilities && Array.isArray(candidateJd.key_responsibilities)
+        ? (candidateJd.key_responsibilities as { category: string; weight?: number }[])
+        : [];
+      const jdTotal = Math.max(jdResponsibilities.length, 1);
+      const jdMatchCount = jdResponsibilities.filter((kr) => {
+        return matchResponsibilityEvidence(kr).status === 'Found';
+      }).length;
+      const jdCoverageRatio = jdResponsibilities.length > 0 ? jdMatchCount / jdTotal : 1.0;
+
+      const coverageRatio = loggingCoveragePct / 100;
+      const volumeRatio = Math.min(1, totalEntries / Math.max(businessDays * 1.5, 40));
+      const projectDiversityRatio = Math.min(1, Math.max(sortedProjects.length / 4, jdCoverageRatio));
+
+      const rawQtyRatio = 0.50 * coverageRatio + 0.30 * volumeRatio + 0.20 * projectDiversityRatio;
+      // Best Practice: Even with full logs, reserve calibration buffer if JD items missing or no signed JD
+      let qtyDeduction = 0;
+      if (jdResponsibilities.length > 0 && jdMatchCount < jdTotal) {
+        qtyDeduction = parseFloat(Math.min(2.5, (jdTotal - jdMatchCount) * 0.5).toFixed(1));
+      } else if (!candidateJd?.jd_text) {
+        qtyDeduction = 1.0;
+      }
+      const qtyScore = parseFloat(Math.max(0, Math.min(19.0, scoreFromRatio(rawQtyRatio, 20) - qtyDeduction)).toFixed(1));
+      const qtyCompositeRatio = qtyScore / 20;
+      const qtyLevel = ratioToLevel(qtyCompositeRatio);
+      const qtySufficiency: 'High' | 'Medium' | 'Low' =
+        totalEntries >= 30 && loggingCoveragePct >= 60 ? 'High' :
+        totalEntries >= 10 ? 'Medium' : 'Low';
+      const jdNoteQty = jdResponsibilities.length > 0
+        ? `ครอบคลุม JD ${jdMatchCount}/${jdTotal} หน้าที่หลัก, ${sortedProjects.length} โครงการ`
+        : `ครอบคลุม ${sortedProjects.length} โครงการหลัก`;
+      let qtyReason = `บันทึกงาน ${loggingCoveragePct}% ของวันทำการ (${uniqueLoggedDays}/${businessDays} วัน) รวม ${totalEntries} รายการ; ${jdNoteQty}`;
+      if (qtyDeduction > 0) {
+        qtyReason += ` (ปรับลด ${qtyDeduction} คะแนน: ${jdResponsibilities.length > 0 ? `พบหน้าที่ตาม JD ที่ยังไม่มีบันทึกชัดเจน ${jdTotal - jdMatchCount} ข้อ` : 'อ้างอิงตำแหน่งมาตรฐานยังไม่มีเอกสาร JD เฉพาะบุคคล'})`;
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // Pillar 2: Quality (20%)
+      // HR Standard: Result/Outcome evidence required (not just "Completed")
+      // Calibration: Missing quantitative business impact / ROI metrics (-2.5 pts)
+      // ─────────────────────────────────────────────────────────────────
+      const topProjectNames = sortedProjects.slice(0, 3).map((p) => p.name).join(', ') || 'โครงการหลัก';
+      let qualScore: number;
+      let qualLevel: string;
+      let qualSufficiency: 'High' | 'Medium' | 'Low';
+      let qualReason: string;
+
+      if (totalEntries < 5) {
+        qualScore = 0;
+        qualLevel = 'ไม่เพียงพอ (Insufficient Evidence)';
+        qualSufficiency = 'Low';
+        qualReason = `ข้อมูล worklog มีเพียง ${totalEntries} รายการ ไม่เพียงพอต่อการประเมินคุณภาพงาน (Insufficient Evidence) — ต้องขอยืนยันจาก Supervisor`;
+      } else {
+        const resultTagged = candidateLogs.filter((l) =>
+          /\[result\]|\[ผลลัพธ์\]|outcome|impact/i.test(l.description || '')
+        ).length;
+        const deliveryRatio = Math.min(1, deliverableLogs.length / Math.max(totalEntries * 0.2, 5));
+        const resultBonus = Math.min(0.08, resultTagged * 0.02);
+        const rawQualRatio = Math.min(1, deliveryRatio + resultBonus);
+        const baseQualScore = scoreFromRatio(rawQualRatio, 20);
+
+        // HR Best Practice Deductions:
+        // 1. Missing quantitative metrics (Man-hour/Cost saving/ROI): Deduct 2.5 pts
+        // 2. Deliverables delivered but pending verified outcomes
+        let qualDeduction = 0;
+        let qualDeductionNote = '';
+        if (impactLogs.length === 0) {
+          qualDeduction += 2.5;
+          qualDeductionNote = 'ยังขาดตัวเลข Business Impact / Man-hour / Cost Saving ที่วัดผลได้เชิงประจักษ์ (ปรับลด 2.5 คะแนน)';
+        } else if (impactLogs.length < 3) {
+          qualDeduction += 1.0;
+          qualDeductionNote = `พบตัวเลขวัดผลเพียง ${impactLogs.length} รายการ แนะนำสรุปตัวเลขสุทธิ (ปรับลด 1.0 คะแนน)`;
+        }
+
+        qualScore = parseFloat(Math.max(0, Math.min(18.5, baseQualScore - qualDeduction)).toFixed(1));
+        const qualRatio = qualScore / 20;
+        qualLevel = ratioToLevel(qualRatio);
+        qualSufficiency = ratioToSufficiency(qualRatio, deliverableLogs.length);
+        qualReason = deliverableLogs.length >= 3
+          ? `พบหลักฐานการส่งมอบงาน ${deliverableLogs.length} รายการใน ${topProjectNames}${resultTagged > 0 ? `, บันทึก Result/Outcome ชัดเจน ${resultTagged} รายการ` : ''} ${qualDeductionNote ? `— ${qualDeductionNote}` : ''} (Supervisor Validation Required)`
+          : `พบหลักฐานการส่งมอบงาน ${deliverableLogs.length} รายการ ยังขาดการบันทึก Result/Outcome หรือหลักฐานการปิดงานที่ชัดเจน ${qualDeductionNote ? `— ${qualDeductionNote}` : ''} (Supervisor Validation Required)`;
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // Pillar 3: Learning (20%)
+      // 3-Tiered Hierarchy per HR Standard: Learn → Apply → Share
+      // Tier 1 (Attendance only): Max cap 13.0 / 20 (65% พอใช้)
+      // Tier 2 (Apply to job): Max cap 16.5 / 20 (82.5% ดี)
+      // Tier 3 (Share / Transfer to team / Standardize WI): Max cap 18.0 - 18.5 / 20
+      // ─────────────────────────────────────────────────────────────────
+      let learnScore: number;
+      let learnLevel: string;
+      let learnSufficiency: 'High' | 'Medium' | 'Low';
+      let learnReason: string;
+
+      if (totalEntries < 5) {
+        learnScore = 0;
+        learnLevel = 'ไม่เพียงพอ (Insufficient Evidence)';
+        learnSufficiency = 'Low';
+        learnReason = `ข้อมูลไม่เพียงพอต่อการประเมิน Learning (Insufficient Evidence)`;
+      } else {
+        const expectedLearnSessions = Math.max(businessDays / 8, 4);
+        const attendanceRatio = Math.min(1, learningLogs.length / expectedLearnSessions);
+        const applyRatio = Math.min(1, learningAppliedLogs.length / Math.max(expectedLearnSessions * 0.6, 2));
+        const shareRatio = Math.min(1, sharingLogs.length / 2);
+
+        // Raw composite: Attendance (30%) + Application (40%) + Sharing/KT (30%)
+        const rawLearnRatio = 0.30 * attendanceRatio + 0.40 * applyRatio + 0.30 * shareRatio;
+
+        // Apply calibrated HR capping (Never 100% on self-reported training):
+        let maxCapRatio = 0.65; // Tier 1: Learn only -> Max 13/20
+        let tierNote = '';
+        if (sharingLogs.length >= 2) {
+          maxCapRatio = 0.925; // Tier 3b: Multiple Sharing/KT sessions -> Max 18.5/20
+          tierNote = 'ครบวงจร Learn→Apply→Share มีการถ่ายทอดสม่ำเสมอ';
+        } else if (sharingLogs.length === 1) {
+          maxCapRatio = 0.88; // Tier 3a: 1 Sharing session -> Max 17.6/20
+          tierNote = 'พบการแบ่งปันความรู้ 1 ครั้ง แนะนำจัดทำ WI/คู่มือมาตรฐานเพื่อคะแนนเต็ม';
+        } else if (learningAppliedLogs.length >= 2) {
+          maxCapRatio = 0.825; // Tier 2: Applied to work -> Max 16.5/20
+          tierNote = 'นำความรู้ไปใช้จริงแล้ว แต่ยังขาด Knowledge Transfer สู่ทีม (จำกัดเพดานที่ระดับ ดี)';
+        } else {
+          tierNote = 'เข้าร่วมการเรียนรู้แต่ยังขาดการนำไปใช้หรือแบ่งปัน (จำกัดเพดานที่ระดับ พอใช้)';
+        }
+
+        const cappedRatio = Math.min(maxCapRatio, rawLearnRatio);
+        learnScore = scoreFromRatio(cappedRatio, 20);
+        learnLevel = ratioToLevel(cappedRatio);
+        learnSufficiency = ratioToSufficiency(cappedRatio, learningLogs.length);
+
+        if (learningLogs.length === 0) {
+          learnScore = scoreFromRatio(0.2, 20);
+          learnLevel = 'ต้องพัฒนา';
+          learnSufficiency = 'Low';
+          learnReason = `ไม่พบบันทึกการเรียนรู้หรือพัฒนาทักษะ ควรเพิ่มการ Upskill/Reskill และบันทึกการนำความรู้ไปใช้งาน`;
+        } else {
+          learnReason = `พบบันทึกการเรียนรู้ ${learningLogs.length} รายการ, นำไปใช้ ${learningAppliedLogs.length} รายการ, ถ่ายทอด ${sharingLogs.length} รายการ — ${tierNote}`;
+        }
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // Pillar 4: Accountability (20%)
+      // Manager: TeamOps (40%) + Coaching (35%) + Delegation (25%)
+      // Officer: Closure evidence (60%) + Follow-up (40%)
+      // Deductions: Incomplete tasks / overdue / pending 360 review (-1.5 to -2.0)
+      // ─────────────────────────────────────────────────────────────────
+      let acctScore: number;
+      let acctLevel: string;
+      let acctSufficiency: 'High' | 'Medium' | 'Low';
+      let acctReason: string;
+
+      if (isManagerEvaluated) {
+        const teamOpsRatio = Math.min(1, teamOpsLogs.length / Math.max(businessDays / 5, 4));
+        const coachRatio = Math.min(1, coachingLogs.length / Math.max(businessDays / 10, 2));
+        const delegRatio = Math.min(1, delegationLogs.length / Math.max(businessDays / 15, 2));
+        const rawAcctRatio = 0.4 * teamOpsRatio + 0.35 * coachRatio + 0.25 * delegRatio;
+        const baseAcctScore = scoreFromRatio(rawAcctRatio, 20);
+
+        let acctDeduction = 0;
+        let acctDeductionNote = '';
+        if (overdueList.length > 0) {
+          acctDeduction += 2.0;
+          acctDeductionNote = `พบงานหยุดนิ่งเกิน 4 สัปดาห์ (${overdueList.length} รายการ) ปรับลด 2.0 คะแนน`;
+        } else if (inProgressList.length >= 2) {
+          acctDeduction += 1.5;
+          acctDeductionNote = `มีงานต่อเนื่องระหว่างดำเนินการหลายโครงการ รอการปิดส่งมอบ (ปรับลด 1.5 คะแนน)`;
+        } else {
+          acctDeduction += 1.0;
+          acctDeductionNote = 'สงวน 1.0 คะแนนสำหรับการประเมิน 360° ข้ามสายงาน';
+        }
+
+        acctScore = parseFloat(Math.max(0, Math.min(18.5, baseAcctScore - acctDeduction)).toFixed(1));
+        const acctRatio = acctScore / 20;
+        acctLevel = ratioToLevel(acctRatio);
+        acctSufficiency = ratioToSufficiency(acctRatio, teamOpsLogs.length + coachingLogs.length + delegationLogs.length);
+        acctReason = `TeamOps ${teamOpsLogs.length} ครั้ง | Coaching ${coachingLogs.length} ครั้ง | Delegation ${delegationLogs.length} ครั้ง — ${acctDeductionNote}`;
+        if (acctSufficiency === 'Low') acctReason += ' — หลักฐานยังน้อย ควรบันทึก Coaching Session ให้ชัดเจน';
+      } else {
+        const closureRatio = Math.min(1, deliverableLogs.length / Math.max(sortedProjects.length * 0.5, 2));
+        const followUpRatio = Math.min(1, followUpLogs.length / Math.max(businessDays / 10, 2));
+        const rawAcctRatio = 0.6 * closureRatio + 0.4 * followUpRatio;
+        const baseAcctScore = scoreFromRatio(rawAcctRatio, 20);
+
+        let acctDeduction = 0;
+        let acctDeductionNote = '';
+        if (overdueList.length > 0) {
+          acctDeduction += 2.0;
+          acctDeductionNote = `พบโครงการค้างส่งมอบ (${overdueList.length} รายการ) ปรับลด 2.0 คะแนน`;
+        } else if (deliverableLogs.length === 0) {
+          acctDeduction += 3.0;
+          acctDeductionNote = 'ยังขาดหลักฐานการปิดงาน (Closure) ที่สมบูรณ์';
+        } else {
+          acctDeduction += 1.0;
+          acctDeductionNote = 'สงวน 1.0 คะแนนสำหรับ Feedback จากผู้รับบริการ/Supervisor';
+        }
+
+        acctScore = parseFloat(Math.max(0, Math.min(18.5, baseAcctScore - acctDeduction)).toFixed(1));
+        const acctRatio = acctScore / 20;
+        acctLevel = ratioToLevel(acctRatio);
+        acctSufficiency = ratioToSufficiency(acctRatio, deliverableLogs.length + followUpLogs.length);
+        acctReason = `พบหลักฐาน Closure ${deliverableLogs.length} รายการ, Follow-up ${followUpLogs.length} รายการ — ${acctDeductionNote}`;
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // Pillar 5: Proactiveness (20%)
+      // HR Principle: Responsiveness (quick to react) != Proactiveness (prevent root cause)
+      // Deductions: Firefighting vs systemic prevention (-1.5 to -2.0 pts)
+      // ─────────────────────────────────────────────────────────────────
+      let proactScore: number;
+      let proactLevel: string;
+      let proactSufficiency: 'High' | 'Medium' | 'Low';
+      let proactReason: string;
+
+      if (totalEntries < 5) {
+        proactScore = 0;
+        proactLevel = 'ไม่เพียงพอ (Insufficient Evidence)';
+        proactSufficiency = 'Low';
+        proactReason = `ข้อมูลไม่เพียงพอต่อการประเมิน Proactiveness (Insufficient Evidence)`;
+      } else {
+        const proactiveDensity = proactiveLogs.length / Math.max(totalEntries, 1);
+        const densityRatio = Math.min(1, proactiveDensity / 0.15); // 15%+ density = 1.0
+        const volumeRatio = Math.min(1, proactiveLogs.length / 15); // 15+ proactive actions in half-year = 1.0
+        const rawProactRatio = 0.50 * volumeRatio + 0.50 * densityRatio;
+        const baseProactScore = scoreFromRatio(rawProactRatio, 20);
+
+        let proactDeduction = 0;
+        let proactDeductionNote = '';
+        if (proactiveLogs.length === 0) {
+          proactScore = scoreFromRatio(0.3, 20);
+          proactLevel = 'ต้องพัฒนา';
+          proactSufficiency = 'Low';
+          proactReason = `ไม่พบหลักฐานการริเริ่มแก้ Root Cause, เสนอ Improvement หรือป้องกันปัญหาล่วงหน้า — การตอบสนองเร็วหลังได้รับคำสั่ง = Responsiveness ไม่ใช่ Proactiveness`;
+        } else {
+          const hasSystemicPrevention = aiLeadLogs.length > 0 || candidateLogs.some((l) =>
+            /root cause|ป้องกัน|แก้ที่ต้นเหตุ|systemic|standardize|วางระบบ/i.test(l.description || '')
+          );
+          if (!hasSystemicPrevention) {
+            proactDeduction = 2.0;
+            proactDeductionNote = 'กิจกรรมเชิงรุกส่วนใหญ่เป็นการแก้ปัญหาเฉพาะหน้า ยังขาดหลักฐานการวางระบบป้องกันที่ต้นเหตุ (Root Cause Prevention) ปรับลด 2.0 คะแนน';
+          } else {
+            proactDeduction = 1.5;
+            proactDeductionNote = 'พบการวางระบบป้องกันเชิงรุก สงวน 1.5 คะแนนสำหรับนวัตกรรมระดับสายงาน';
+          }
+
+          proactScore = parseFloat(Math.max(0, Math.min(18.5, baseProactScore - proactDeduction)).toFixed(1));
+          const proactRatio = proactScore / 20;
+          proactLevel = ratioToLevel(proactRatio);
+          proactSufficiency = ratioToSufficiency(proactRatio, proactiveLogs.length);
+          proactReason = `พบกิจกรรม Proactive ${proactiveLogs.length} รายการ (${(proactiveDensity * 100).toFixed(0)}% ของงานทั้งหมด) — ${proactDeductionNote}`;
+        }
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // 8. Total Score & HR Calibration Ceiling
+      // Total sum capped at 92.5 (Top "ดีเยี่ยม" band) to reserve 7.5% for Executive Committee Discretion
+      // ─────────────────────────────────────────────────────────────────
+      const rawTotalScore = parseFloat((qtyScore + qualScore + learnScore + acctScore + proactScore).toFixed(1));
+      const totalScore = parseFloat(Math.min(92.5, rawTotalScore).toFixed(1));
+      const gradeLevel = totalScore >= 90 ? 'ดีเยี่ยม' : totalScore >= 75 ? 'ดี' : totalScore >= 60 ? 'พอใช้' : 'ต้องพัฒนา';
+      const overallConfidence: 'High' | 'Medium' | 'Low' =
+        totalEntries >= 50 && loggingCoveragePct >= 75 ? 'High' : totalEntries >= 20 ? 'Medium' : 'Low';
 
       // ─────────────────────────────────────────────────────────────────
       // 10. JD Coverage (real JD responsibilities vs logs)
@@ -1650,6 +1725,23 @@ export default function OfficialAppraisalPage() {
     handleStartAppraisal(config);
   };
 
+  // Load / Refresh History from Database
+  const fetchEvaluationHistory = async (targetUserId?: string) => {
+    const uid = targetUserId || evaluatedUser?.id;
+    if (!uid) return;
+    try {
+      const { data } = await supabase
+        .from('tb_ai_individual_analysis')
+        .select('*')
+        .eq('user_id', uid)
+        .order('analysis_date', { ascending: false, nullsFirst: false })
+        .limit(25);
+      setSavedHistory(data || []);
+    } catch (e) {
+      console.error('Failed to load evaluation history:', e);
+    }
+  };
+
   // Robust Database Persistence (Upsert with Query Check Fallback)
   const persistAppraisalResult = async (result: AppraisalResult) => {
     if (!evaluatedUser?.id) return;
@@ -1721,6 +1813,9 @@ export default function OfficialAppraisalPage() {
         setIsCurrentPublic(savedRow.is_public ?? false);
         setCurrentExpiresAt(savedRow.expires_at || null);
       }
+
+      // Immediately refresh history so latest record and timestamp appear in modal
+      await fetchEvaluationHistory(evaluatedUser.id);
 
       setSaveStatus('saved');
       setSaveMessage('บันทึกประวัติการประเมินสำเร็จเรียบร้อย');
@@ -1924,17 +2019,7 @@ ${r.calendar_logging_guide}
   const handleOpenHistory = async () => {
     if (!evaluatedUser?.id) return;
     setIsHistoryModalOpen(true);
-    try {
-      const { data } = await supabase
-        .from('tb_ai_individual_analysis')
-        .select('*')
-        .eq('user_id', evaluatedUser.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      setSavedHistory(data || []);
-    } catch (e) {
-      console.error(e);
-    }
+    await fetchEvaluationHistory(evaluatedUser.id);
   };
 
   return (
@@ -3805,10 +3890,22 @@ ${r.calendar_logging_guide}
                               <span>{item.is_public ? 'Public' : 'Private'}</span>
                             </span>
                           </div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                            ประเมินเมื่อ: {item.created_at || item.analysis_date
-                              ? new Date(item.created_at || item.analysis_date || '').toLocaleDateString('th-TH')
-                              : '-'}
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
+                            <span>
+                              ประเมินล่าสุด: {item.analysis_date || item.created_at
+                                ? `${new Date(item.analysis_date || item.created_at || '').toLocaleDateString('th-TH', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })} ${new Date(item.analysis_date || item.created_at || '').toLocaleTimeString('th-TH', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })} น.`
+                                : '-'}
+                            </span>
+                            <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40">
+                              HR Calibrated
+                            </span>
                           </div>
 
                           {/* Quick Share Toggle in History item */}
