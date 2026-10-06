@@ -38,6 +38,7 @@ import {
   buildExecutedPrompt,
   downloadMarkdownFile
 } from '../lib/appraisalPromptStandards';
+import { getUserAvatarUrl, getUiAvatarFallbackUrl } from '../lib/project-management';
 
 interface UserProfile {
   id: string;
@@ -119,6 +120,7 @@ interface AppraisalResult {
     userPrompt: string;
     fullPrompt: string;
     templateFile: string;
+    empId?: string;
   };
 }
 
@@ -139,6 +141,56 @@ interface AnalysisHistoryItem {
   is_public?: boolean;
   share_token?: string;
   expires_at?: string;
+  engine_model?: string;
+  evaluated_avatar_emp_id?: string;
+  evaluated_full_name?: string;
+  evaluated_nickname?: string;
+  evaluated_position?: string;
+  evaluated_department?: string;
+}
+
+/**
+ * Formats model identifiers (e.g. "anthropic/claude-3.5-sonnet") into user-friendly names
+ */
+function formatModelDisplayName(model?: string): string {
+  if (!model || !model.trim()) return 'AI Standard Model';
+  const clean = model.trim();
+  const modelMap: Record<string, string> = {
+    'anthropic/claude-3.7-sonnet': 'Claude 3.7 Sonnet',
+    'anthropic/claude-3.5-sonnet': 'Claude 3.5 Sonnet',
+    'anthropic/claude-sonnet-5': 'Claude Sonnet 5',
+    'claude-sonnet-5-preview': 'Claude Sonnet 5',
+    'openai/gpt-5': 'GPT-5',
+    'gpt-5': 'GPT-5',
+    'openai/gpt-4.5-preview': 'GPT-4.5 Preview',
+    'gpt-4.5-preview': 'GPT-4.5 Preview',
+    'openai/o3-mini': 'o3-mini',
+    'o3-mini': 'o3-mini',
+    'openai/gpt-4o': 'GPT-4o',
+    'gpt-4o': 'GPT-4o',
+    'openai/gpt-4o-mini': 'GPT-4o Mini',
+    'gpt-4o-mini': 'GPT-4o Mini',
+    'google/gemini-2.5-pro': 'Gemini 2.5 Pro',
+    'gemini-2.5-pro': 'Gemini 2.5 Pro',
+    'google/gemini-2.5-flash': 'Gemini 2.5 Flash',
+    'gemini-2.5-flash': 'Gemini 2.5 Flash',
+    'google/gemini-3.8-flash': 'Gemini 3.8 Flash',
+    'gemini-3.8-flash': 'Gemini 3.8 Flash',
+    'gemini-3.8-flash-free': 'Gemini 3.8 Flash',
+    'google/gemini-2.0-flash': 'Gemini 2.0 Flash',
+    'gemini-2.0-flash': 'Gemini 2.0 Flash',
+    'deepseek/deepseek-r1': 'DeepSeek R1',
+    'deepseek/deepseek-chat': 'DeepSeek V3',
+  };
+  if (modelMap[clean.toLowerCase()]) {
+    return modelMap[clean.toLowerCase()];
+  }
+  if (clean.includes('/')) {
+    const parts = clean.split('/');
+    const sub = parts[parts.length - 1];
+    return sub.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return clean;
 }
 
 /**
@@ -333,8 +385,26 @@ function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): App
     supervisor_notes: typeof data.supervisor_notes === 'string'
       ? data.supervisor_notes
       : (typeof item?.supervisor_notes === 'string' ? item.supervisor_notes : ''),
-    ai_provider: typeof data.ai_provider === 'string' ? data.ai_provider : undefined,
-    ai_model: typeof data.ai_model === 'string' ? data.ai_model : undefined,
+    ai_provider: typeof data.ai_provider === 'string' && data.ai_provider.trim()
+      ? data.ai_provider
+      : typeof (item as any)?.ai_provider === 'string' && (item as any)?.ai_provider.trim()
+      ? (item as any).ai_provider
+      : 'OpenRouter',
+    ai_model: formatModelDisplayName(
+      (typeof data.ai_model === 'string' && data.ai_model.trim())
+        ? data.ai_model
+        : (typeof (item as any)?.engine_model === 'string' && (item as any)?.engine_model.trim())
+        ? (item as any).engine_model
+        : (typeof (data as any)?.engine_model === 'string' && (data as any)?.engine_model.trim())
+        ? (data as any).engine_model
+        : (typeof (data as any)?.model === 'string' && (data as any)?.model.trim())
+        ? (data as any).model
+        : (typeof (item as any)?.model === 'string' && (item as any)?.model.trim())
+        ? (item as any).model
+        : (data.prompt_info && typeof (data.prompt_info as any)?.model === 'string')
+        ? (data.prompt_info as any).model
+        : 'Claude 3.5 Sonnet'
+    ),
     prompt_info: data.prompt_info && typeof data.prompt_info === 'object'
       ? (data.prompt_info as AppraisalResult['prompt_info'])
       : undefined,
@@ -509,13 +579,73 @@ export default function OfficialAppraisalPage() {
           return;
         }
 
-        // Set shared evaluated user snapshot
+        // Resolve employee ID snapshot with multi-level resilient fallback
+        let resolvedEmpId = (data.evaluated_avatar_emp_id || '').trim();
+
+        // 1. Check prompt_info.empId
+        if (!resolvedEmpId && (data.analysis_data as any)?.prompt_info?.empId) {
+          resolvedEmpId = String((data.analysis_data as any).prompt_info.empId).trim();
+        }
+
+        // 2. Check regex match in prompt text
+        if (!resolvedEmpId) {
+          const promptText = String(
+            (data.analysis_data as any)?.prompt_info?.userPrompt ||
+            (data.analysis_data as any)?.prompt_info?.fullPrompt ||
+            ''
+          );
+          if (promptText) {
+            const m = promptText.match(/ชื่อ-นามสกุล:[^(]+\(([^)]+)\)/);
+            if (m && m[1] && m[1].trim() !== '-' && !m[1].includes('-')) {
+              resolvedEmpId = m[1].trim();
+            }
+          }
+        }
+
+        // 3. Try querying users table by user_id
+        if (!resolvedEmpId && data.user_id) {
+          try {
+            const { data: uData } = await supabase
+              .from('users')
+              .select('emp_id, full_name, nickname, position, department')
+              .eq('id', data.user_id)
+              .maybeSingle();
+            if (uData?.emp_id) {
+              resolvedEmpId = uData.emp_id.trim();
+            }
+          } catch {
+            // Ignore RLS errors for anon viewers
+          }
+        }
+
+        // 4. Try querying users table by full_name
+        if (!resolvedEmpId && data.evaluated_full_name) {
+          try {
+            const { data: uByName } = await supabase
+              .from('users')
+              .select('emp_id')
+              .ilike('full_name', `%${data.evaluated_full_name.trim()}%`)
+              .maybeSingle();
+            if (uByName?.emp_id) {
+              resolvedEmpId = uByName.emp_id.trim();
+            }
+          } catch {
+            // Ignore RLS errors
+          }
+        }
+
+        const isUuid = (val?: string | null) => Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim()));
+        const cleanEmpId = (!isUuid(resolvedEmpId) && resolvedEmpId) ? resolvedEmpId : '';
+
+        // Set shared evaluated user snapshot with avatar URL
         const sharedUser: UserProfile = {
           id: data.user_id || 'shared-user',
-          emp_id: data.user_id || '',
+          emp_id: cleanEmpId,
           full_name: data.evaluated_full_name || 'พนักงาน',
+          nickname: data.evaluated_nickname || undefined,
           position: data.evaluated_position || 'ไม่ระบุ',
           department: data.evaluated_department || 'ไม่ระบุ',
+          avatar_url: getUserAvatarUrl(data.evaluated_full_name, cleanEmpId),
         };
         setEvaluatedUserOverride(sharedUser);
 
@@ -1764,6 +1894,8 @@ export default function OfficialAppraisalPage() {
         evaluated_full_name: evaluatedUser.full_name,
         evaluated_position: evaluatedUser.position,
         evaluated_department: evaluatedUser.department,
+        evaluated_avatar_emp_id: evaluatedUser.emp_id || null,
+        evaluated_nickname: evaluatedUser.nickname || null,
         engine_model: result.ai_model || null,
       };
 
@@ -1975,6 +2107,7 @@ export default function OfficialAppraisalPage() {
 **ชื่อ-นามสกุล:** ${evaluatedUser.full_name} (${evaluatedUser.emp_id})
 **ตำแหน่ง:** ${evaluatedUser.position || '-'} | **ฝ่าย:** ${evaluatedUser.department || '-'}
 **ระดับชุดคำสั่ง:** ${isManagerEvaluated ? 'หัวหน้างาน (half-year-manager.md)' : 'พนักงานทั่วไป (half-year-officer.md)'}
+**AI Model ที่ใช้ประเมิน:** ${r.ai_model || 'Standard Engine'} (${r.ai_provider || 'OpenRouter'})
 **ช่วงเวลา:** ${r.period}
 **คะแนนรวม:** ${r.overall_score} / 100 (${r.level}) | **ความเพียงพอของหลักฐาน:** ${r.confidence}
 
@@ -2111,17 +2244,28 @@ ${r.calendar_logging_guide}
         {/* Shared View Header Banner */}
         {isSharedView && !shareError && appraisalResult && (
           <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 dark:border-emerald-500/20 rounded-2xl p-5 text-slate-900 dark:text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs print:hidden">
-            <div className="flex items-start gap-3.5">
-              <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5">
-                <Globe size={22} />
-              </div>
+            <div className="flex items-center gap-3.5">
+              <img
+                src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
+                }}
+                alt={evaluatedUser?.full_name || 'Avatar'}
+                className="w-13 h-13 rounded-2xl object-cover border-2 border-emerald-500/40 shadow-xs shrink-0 bg-slate-100 dark:bg-slate-800"
+              />
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 uppercase tracking-wide">
                     Public Shared Appraisal
                   </span>
+                  {appraisalResult.ai_model && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                      <Cpu size={12} className="text-indigo-500" />
+                      <span>Model: {appraisalResult.ai_model}</span>
+                    </span>
+                  )}
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    {evaluatedUser?.full_name} ({evaluatedUser?.emp_id || 'Employee'})
+                    {evaluatedUser?.full_name} {evaluatedUser?.emp_id ? `(${evaluatedUser.emp_id})` : ''}
                   </span>
                   <span className="text-xs text-slate-500">•</span>
                   <span className="text-xs text-slate-600 dark:text-slate-400">
@@ -2244,16 +2388,14 @@ ${r.calendar_logging_guide}
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md overflow-hidden shrink-0 relative">
-                  {evaluatedUser?.emp_id && (
-                    <img
-                      src={`https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID=${evaluatedUser.emp_id}`}
-                      alt={evaluatedUser.full_name || 'Avatar'}
-                      className="w-full h-full object-cover absolute inset-0"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  )}
+                  <img
+                    src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
+                    alt={evaluatedUser?.full_name || 'Avatar'}
+                    className="w-full h-full object-cover absolute inset-0"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
+                    }}
+                  />
                   <span className="font-bold text-sm select-none">
                     {evaluatedUser?.full_name ? evaluatedUser.full_name.trim().slice(0, 2) : 'EM'}
                   </span>
@@ -2760,15 +2902,28 @@ ${r.calendar_logging_guide}
               {/* Dedicated Print Only Header */}
               <div className="hidden print:flex flex-col border-b-2 border-slate-900 pb-3 mb-6 print:w-full">
                 <div className="flex justify-between items-start">
-                  <div>
-                    <div className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider">
-                      WORKLOG SYSTEM • OFFICIAL PERFORMANCE APPRAISAL
-                    </div>
-                    <h1 className="text-xl font-black text-slate-900">
-                      รายงานผลการประเมินการปฏิบัติงานทางการ ({selectedCycle === 'half_year' ? 'HALF-YEAR: มิ.ย.-ส.ค.' : 'END-YEAR: ก.ย.-ธ.ค.'} {selectedYear})
-                    </h1>
-                    <div className="text-xs text-slate-600 mt-0.5">
-                      ตามเกณฑ์มาตรฐาน HR ({isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md'})
+                  <div className="flex items-start gap-4">
+                    <img
+                      src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
+                      }}
+                      alt={evaluatedUser?.full_name || 'Avatar'}
+                      className="w-16 h-16 rounded-xl object-cover border border-slate-300 shrink-0"
+                    />
+                    <div>
+                      <div className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider">
+                        WORKLOG SYSTEM • OFFICIAL PERFORMANCE APPRAISAL
+                      </div>
+                      <h1 className="text-xl font-black text-slate-900">
+                        รายงานผลการประเมินการปฏิบัติงานทางการ ({selectedCycle === 'half_year' ? 'HALF-YEAR: มิ.ย.-ส.ค.' : 'END-YEAR: ก.ย.-ธ.ค.'} {selectedYear})
+                      </h1>
+                      <div className="text-xs text-slate-600 mt-0.5">
+                        ตามเกณฑ์มาตรฐาน HR ({isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md'})
+                        {appraisalResult.ai_model && (
+                          <span className="font-semibold text-slate-800 ml-2">• AI Model: {appraisalResult.ai_model}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -2781,7 +2936,7 @@ ${r.calendar_logging_guide}
                   <div><strong>พนักงาน:</strong> {evaluatedUser?.full_name} ({evaluatedUser?.emp_id})</div>
                   <div><strong>ตำแหน่ง:</strong> {evaluatedUser?.position || '-'}</div>
                   <div><strong>ฝ่าย:</strong> {evaluatedUser?.department || '-'}</div>
-                  <div><strong>วันที่พิมพ์:</strong> {new Date().toLocaleDateString('th-TH')}</div>
+                  <div><strong>AI Model:</strong> {appraisalResult.ai_model || 'Standard Engine'}</div>
                 </div>
               </div>
 
@@ -2823,13 +2978,38 @@ ${r.calendar_logging_guide}
                     <div className="rounded-2xl bg-white dark:bg-[#07090e] border border-slate-200 dark:border-cyan-500/20 p-6 text-slate-900 dark:text-white space-y-6 shadow-sm dark:shadow-2xl print:border-none print:shadow-none print:p-0">
                       {/* Top KPI Banner */}
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-5 border-b border-slate-200 dark:border-slate-800/80">
-                        <div>
-                          <div className="text-xs text-cyan-600 dark:text-cyan-400 font-bold uppercase tracking-wider mb-1">
-                            EXECUTIVE PERFORMANCE APPRAISAL • {appraisalResult.cycle}
-                          </div>
-                          <h2 className="text-2xl font-black text-slate-900 dark:text-white">{evaluatedUser?.full_name}</h2>
-                          <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                            {evaluatedUser?.position} • ฝ่าย {evaluatedUser?.department} • รอบ {appraisalResult.period}
+                        <div className="flex items-center gap-4">
+                          <img
+                            src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
+                            }}
+                            alt={evaluatedUser?.full_name || 'Avatar'}
+                            className="w-16 h-16 rounded-2xl object-cover border-2 border-cyan-500/40 shadow-sm shrink-0 bg-slate-100 dark:bg-slate-800"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className="text-xs text-cyan-600 dark:text-cyan-400 font-bold uppercase tracking-wider">
+                                EXECUTIVE PERFORMANCE APPRAISAL • {appraisalResult.cycle}
+                              </span>
+                              {appraisalResult.ai_model && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50">
+                                  <Cpu size={12} className="text-indigo-500" />
+                                  <span>Model: {appraisalResult.ai_model}</span>
+                                </span>
+                              )}
+                            </div>
+                            <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                              {evaluatedUser?.full_name}
+                              {evaluatedUser?.emp_id && (
+                                <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 font-mono">
+                                  ({evaluatedUser.emp_id})
+                                </span>
+                              )}
+                            </h2>
+                            <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                              {evaluatedUser?.position} • ฝ่าย {evaluatedUser?.department} • รอบ {appraisalResult.period}
+                            </div>
                           </div>
                         </div>
 
@@ -3060,11 +3240,34 @@ ${r.calendar_logging_guide}
                       {/* Slide 1 */}
                       <div className="p-6 rounded-2xl bg-white dark:bg-[#0b0f19] border border-slate-200 dark:border-cyan-500/20 text-slate-900 dark:text-white space-y-4 shadow-sm dark:shadow-xl print:border-slate-300 print:mb-6">
                         <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3">
-                          <div>
-                            <span className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 tracking-widest uppercase">
-                              SLIDE 1 / 3 • EXECUTIVE SCORECARD
-                            </span>
-                            <h3 className="text-xl font-black text-slate-900 dark:text-white">ผลประเมินและสถิติความสม่ำเสมอในการทำงาน</h3>
+                          <div className="flex items-center gap-3.5">
+                            <img
+                              src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
+                              }}
+                              alt={evaluatedUser?.full_name || 'Avatar'}
+                              className="w-12 h-12 rounded-xl object-cover border border-cyan-500/30 shrink-0 bg-slate-100 dark:bg-slate-800"
+                            />
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 tracking-widest uppercase">
+                                  SLIDE 1 / 3 • EXECUTIVE SCORECARD
+                                </span>
+                                {appraisalResult.ai_model && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50">
+                                    <Cpu size={10} className="text-indigo-500" />
+                                    <span>Model: {appraisalResult.ai_model}</span>
+                                  </span>
+                                )}
+                              </div>
+                              <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                                {evaluatedUser?.full_name} {evaluatedUser?.emp_id ? `(${evaluatedUser.emp_id})` : ''}
+                              </h3>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                {evaluatedUser?.position || '-'} • ฝ่าย {evaluatedUser?.department || '-'}
+                              </div>
+                            </div>
                           </div>
                           <div className="text-2xl font-black text-cyan-600 dark:text-cyan-400">
                             {appraisalResult.overall_score} <span className="text-xs text-slate-500">/ 100</span>
@@ -3168,6 +3371,59 @@ ${r.calendar_logging_guide}
             {/* TAB 2: OFFICIAL HR REPORT */}
             {activeResultTab === 'report' && (
               <div className="space-y-6 text-slate-900 dark:text-slate-100">
+                {/* Employee Profile & AI Model Header Card */}
+                <div className="p-5 rounded-2xl bg-white dark:bg-[#07090e] border border-slate-200 dark:border-indigo-500/20 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
+                      }}
+                      alt={evaluatedUser?.full_name || 'Avatar'}
+                      className="w-16 h-16 rounded-2xl object-cover border-2 border-indigo-500/30 dark:border-indigo-500/40 shadow-sm shrink-0 bg-slate-100 dark:bg-slate-800"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 uppercase tracking-wide">
+                          {isManagerEvaluated ? 'หัวหน้างาน (Section Manager+)' : 'พนักงาน/เจ้าหน้าที่ (Officer)'}
+                        </span>
+                        {appraisalResult.ai_model && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
+                            <Cpu size={12} className="text-purple-500" />
+                            <span>AI Model: {appraisalResult.ai_model}</span>
+                          </span>
+                        )}
+                        {appraisalResult.ai_provider && (
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            ({appraisalResult.ai_provider})
+                          </span>
+                        )}
+                      </div>
+                      <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        {evaluatedUser?.full_name}
+                        {evaluatedUser?.emp_id && (
+                          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 font-mono">
+                            ({evaluatedUser.emp_id})
+                          </span>
+                        )}
+                      </h2>
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                        {evaluatedUser?.position || '-'} • ฝ่าย {evaluatedUser?.department || '-'} • รอบ {appraisalResult.period}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-4 py-2.5 rounded-xl shrink-0 self-stretch md:self-auto justify-between md:justify-end">
+                    <div className="text-right">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">คะแนนประเมิน</div>
+                      <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400">ระดับ "{appraisalResult.level}"</div>
+                    </div>
+                    <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 pl-2 border-l border-slate-200 dark:border-slate-700">
+                      {appraisalResult.overall_score}<span className="text-xs text-slate-400 font-normal">/100</span>
+                    </div>
+                  </div>
+                </div>
+
                 {/* AI Prompt Transparency & Governance Card */}
                 {(() => {
                   const templateFilename = isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md';
@@ -3296,9 +3552,9 @@ ${r.calendar_logging_guide}
                       Executive Summary (สรุปภาพรวม)
                     </h4>
                     {(appraisalResult.ai_provider || appraisalResult.ai_model) && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-700/80 text-slate-600 dark:text-slate-300 font-mono flex items-center gap-1">
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50 font-mono flex items-center gap-1">
                         <Cpu size={11} className="text-indigo-500" />
-                        <span>AI Engine: {appraisalResult.ai_provider || 'openrouter'} ({appraisalResult.ai_model || 'default'})</span>
+                        <span>AI Model: {appraisalResult.ai_model || 'Standard Engine'} ({appraisalResult.ai_provider || 'OpenRouter'})</span>
                       </span>
                     )}
                   </div>
@@ -3906,6 +4162,12 @@ ${r.calendar_logging_guide}
                             <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40">
                               HR Calibrated
                             </span>
+                            {(item.engine_model || (item.analysis_data as any)?.ai_model) && (
+                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 flex items-center gap-1">
+                                <Cpu size={9} className="text-indigo-500" />
+                                <span>{formatModelDisplayName(item.engine_model || (item.analysis_data as any)?.ai_model)}</span>
+                              </span>
+                            )}
                           </div>
 
                           {/* Quick Share Toggle in History item */}

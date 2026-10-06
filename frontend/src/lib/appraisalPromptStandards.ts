@@ -216,6 +216,7 @@ export function buildExecutedPrompt(ctx: ExecutedPromptContext): {
   userPrompt: string;
   fullPrompt: string;
   templateFile: string;
+  empId?: string;
 } {
   const isManager = ctx.role === 'manager';
   const systemPrompt = isManager ? MANAGER_PROMPT_MD : OFFICER_PROMPT_MD;
@@ -255,6 +256,7 @@ ${(ctx.sampleWorklogs || []).slice(0, 15).map((l, i) => `${i + 1}. [${l.date}] $
     userPrompt,
     fullPrompt,
     templateFile,
+    empId: ctx.empId,
   };
 }
 
