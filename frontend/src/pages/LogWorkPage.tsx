@@ -1042,16 +1042,27 @@ export default function LogWorkPage() {
     );
   }, [mapProjectStructure, mapUserRole]);
 
+  // The background text belongs to a structure row, and a project can have one row per
+  // department/BU/module under the same name + holding + role. Narrow the rows by whatever
+  // the user has picked so far and show the text only when the remaining rows agree on it;
+  // grabbing "the first row of the project" showed one department's text for all of them.
   const selectedProjectDescription = useMemo(() => {
     if (!selectedProjectKey) return null;
     const [pName, pHolding, pRole] = selectedProjectKey.split('|');
-    const matched = allowedProjects.find(p =>
+    let rows = allowedProjects.filter(p =>
       p.project_name === pName &&
       p.holding === pHolding &&
-      p.department_operator === pRole
+      p.department_operator === pRole &&
+      (!projectType || p.project_type === projectType)
     );
-    return matched?.project_description || null;
-  }, [selectedProjectKey, allowedProjects]);
+    if (module) rows = rows.filter(p => p.module === module);
+    if (bu) rows = rows.filter(p => p.bu === bu);
+    if (department) rows = rows.filter(p => p.department === department);
+
+    const descriptions = new Set(rows.map(p => (p.project_description || '').trim()));
+    if (descriptions.size !== 1) return null;
+    return Array.from(descriptions)[0] || null;
+  }, [selectedProjectKey, projectType, module, bu, department, allowedProjects]);
 
   const availableHoldings = useMemo(() => {
     return Array.from(new Set(allowedProjects.map(p => p.holding).filter(Boolean))).sort() as string[];
