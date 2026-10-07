@@ -1731,11 +1731,11 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             </div>
 
             <textarea
-              rows={3}
+              rows={8}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="กรอกรายละเอียดงานที่ปฏิบัติ..."
-              className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 border border-theme-border dark:border-theme-border rounded-2xl py-3 px-4 text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all leading-relaxed"
+              className="w-full min-h-[10rem] resize-y bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 border border-theme-border dark:border-theme-border rounded-2xl py-3 px-4 text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all leading-relaxed"
             />
           </div>
 
