@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Upload, Download, Power, PowerOff, Copy, Filter } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useLocation } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureValidSupabaseSession } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { getProjectTypeMeta } from '../lib/project-management';
 import { MultiSelectFilter } from '../components/common/MultiSelectFilter';
@@ -701,7 +701,8 @@ export default function AdminPage() {
           if (existing) {
             updateRows.push({
               ...row,
-              id: existing.id // Keep the matched ID to trigger Supabase upsert/update
+              id: existing.id, // Keep the matched ID to trigger Supabase upsert/update
+              workspace_id: existing.workspace_id ?? (hasWorkspace ? activeWorkspaceId : null)
             });
           } else {
             newRows.push({
@@ -746,6 +747,7 @@ export default function AdminPage() {
 
     setIsLoading(true);
     try {
+      await ensureValidSupabaseSession();
       const payload = [...newRows, ...updateRows];
       const { error } = await supabase
         .from('tb_map_project_structure')
@@ -770,10 +772,12 @@ export default function AdminPage() {
     const userSession = sessionStr ? JSON.parse(sessionStr) : null;
     // isSuperAdmin = true only for system-level accounts that have NO workspace assignment.
     // Workspace admins (role=admin but WITH a workspaceId) should still be scoped to their workspace.
-    const workspaceId = userSession?.activeWorkspaceId;
-    const isSuperAdmin = userSession?.role === 'admin' && (!workspaceId || workspaceId === 'N/A');
+    const rawWsId = userSession?.activeWorkspaceId;
+    const workspaceId = (rawWsId && rawWsId !== 'N/A') ? rawWsId : null;
+    const isSuperAdmin = userSession?.role === 'admin' && !workspaceId;
 
     try {
+      await ensureValidSupabaseSession();
       let useGlobal = true;
       if (workspaceId) {
         const { data: wsData } = await supabase.from('workspaces').select('use_global_master').eq('id', workspaceId).maybeSingle();
@@ -1124,7 +1128,9 @@ export default function AdminPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const workspaceId = session?.activeWorkspaceId;
+    await ensureValidSupabaseSession();
+    const rawWsId = session?.activeWorkspaceId;
+    const workspaceId = (rawWsId && rawWsId !== 'N/A') ? rawWsId : null;
 
     try {
       if (activeTab === 'holding') {
@@ -1156,7 +1162,8 @@ export default function AdminPage() {
         }
       } else if (activeTab === 'action') {
         const payload: any = { action_category: formActionCategory, action_name: formActionName };
-        if (workspaceId) payload.workspace_id = workspaceId;
+        const targetWs = editRow ? editRow.workspace_id : workspaceId;
+        if (targetWs) payload.workspace_id = targetWs;
         if (editRow) {
           const { error } = await supabase.from('tb_master_action').update(payload).eq('id', editRow.id);
           if (error) throw error;
@@ -1175,7 +1182,8 @@ export default function AdminPage() {
           source_url: formSalarySourceUrl || null,
           source_year: formSalarySourceYear || null
         };
-        if (workspaceId) payload.workspace_id = workspaceId;
+        const targetWs = editRow ? editRow.workspace_id : workspaceId;
+        if (targetWs) payload.workspace_id = targetWs;
         if (editRow) {
           const { error } = await supabase.from('tb_master_it_salary_rate').update(payload).eq('id', editRow.id);
           if (error) throw error;
@@ -1195,7 +1203,8 @@ export default function AdminPage() {
           holding: formMapHolding,
           department_operator: formMapRole
         };
-        if (workspaceId) payload.workspace_id = workspaceId;
+        const targetWs = editRow ? editRow.workspace_id : workspaceId;
+        if (targetWs) payload.workspace_id = targetWs;
         if (editRow) {
           const { error } = await supabase.from('tb_map_user_role').update(payload).eq('id', editRow.id);
           if (error) throw error;
@@ -1231,7 +1240,8 @@ export default function AdminPage() {
         };
         if (editRow?.project_id) payload.project_id = editRow.project_id;
         if (editRow?.module_id) payload.module_id = editRow.module_id;
-        if (workspaceId) payload.workspace_id = workspaceId;
+        const targetWs = editRow ? editRow.workspace_id : workspaceId;
+        if (targetWs) payload.workspace_id = targetWs;
         if (editRow) {
           const { error } = await supabase.from('tb_map_project_structure').update(payload).eq('id', editRow.id);
           if (error) throw error;
@@ -1275,9 +1285,8 @@ export default function AdminPage() {
           template_content: formTemplateContent,
           icon: formTemplateIcon
         };
-        if (session?.activeWorkspaceId) {
-          payload.workspace_id = session.activeWorkspaceId;
-        }
+        const targetWs = editRow ? editRow.workspace_id : workspaceId;
+        if (targetWs) payload.workspace_id = targetWs;
 
         if (editRow) {
           const { error } = await supabase.from('tb_master_worklog_templates').update(payload).eq('id', editRow.id);
@@ -1303,11 +1312,12 @@ export default function AdminPage() {
     }
   };
 
-      // Delete Handler
+  // Delete Handler
   const handleDelete = async (row: any) => {
     // Workspace admins are scoped — only system-level admin (no workspace) bypasses global-record guard
-    const delWorkspaceId = session?.activeWorkspaceId;
-    const isSuperAdmin = session?.role === 'admin' && (!delWorkspaceId || delWorkspaceId === 'N/A');
+    const rawDelWsId = session?.activeWorkspaceId;
+    const delWorkspaceId = (rawDelWsId && rawDelWsId !== 'N/A') ? rawDelWsId : null;
+    const isSuperAdmin = session?.role === 'admin' && !delWorkspaceId;
     const isRecordGlobal = !row.workspace_id;
     if (!isSuperAdmin && (isRecordGlobal || activeTab === 'holiday') && activeTab !== 'users') {
       showToast('Cannot delete global/system entries / ไม่สามารถลบข้อมูลที่เป็นของส่วนกลางได้', 'error');
@@ -1363,6 +1373,7 @@ export default function AdminPage() {
     setIsLoading(true);
 
     try {
+      await ensureValidSupabaseSession();
       let query = supabase.from(
         activeTab === 'holding' ? 'tb_master_holding' :
         activeTab === 'role' ? 'tb_master_role' :
@@ -1375,16 +1386,28 @@ export default function AdminPage() {
         activeTab === 'salary_rate' ? 'tb_master_it_salary_rate' : 'users'
       );
 
-      const wsFilter = delWorkspaceId || row.workspace_id;
+      const rawWsFilter = delWorkspaceId || row.workspace_id;
+      const wsFilter = (rawWsFilter && rawWsFilter !== 'N/A') ? rawWsFilter : null;
       let op: any;
       if (isSoftDeleteTab) {
-        if (activeTab === 'holding') op = query.update({ is_active: false }).eq('holding_name', row.holding_name).eq('workspace_id', wsFilter);
-        else if (activeTab === 'role') op = query.update({ is_active: false }).eq('role_name', row.role_name).eq('workspace_id', wsFilter);
-        else if (activeTab === 'project_type') op = query.update({ is_active: false }).eq('type_name', row.type_name).eq('workspace_id', wsFilter);
-        else op = query.update({ is_active: false }).eq('id', row.id).eq('workspace_id', wsFilter);
+        if (activeTab === 'holding') {
+          op = wsFilter
+            ? query.update({ is_active: false }).eq('holding_name', row.holding_name).eq('workspace_id', wsFilter)
+            : query.update({ is_active: false }).eq('holding_name', row.holding_name).is('workspace_id', null);
+        } else if (activeTab === 'role') {
+          op = wsFilter
+            ? query.update({ is_active: false }).eq('role_name', row.role_name).eq('workspace_id', wsFilter)
+            : query.update({ is_active: false }).eq('role_name', row.role_name).is('workspace_id', null);
+        } else if (activeTab === 'project_type') {
+          op = wsFilter
+            ? query.update({ is_active: false }).eq('type_name', row.type_name).eq('workspace_id', wsFilter)
+            : query.update({ is_active: false }).eq('type_name', row.type_name).is('workspace_id', null);
+        } else {
+          op = query.update({ is_active: false }).eq('id', row.id);
+        }
       } else {
         if (activeTab === 'holiday') op = query.delete().eq('date', row.date).is('workspace_id', null);
-        else op = query.delete().eq('id', row.id).eq('workspace_id', wsFilter);
+        else op = query.delete().eq('id', row.id);
       }
 
       const { error } = await op;
@@ -1403,6 +1426,7 @@ export default function AdminPage() {
   const toggleActiveStatus = async (row: any, tab: TableTab) => {
     try {
       setIsLoading(true);
+      await ensureValidSupabaseSession();
       const tableName = (
         tab === 'holding' ? 'tb_master_holding' :
         tab === 'role' ? 'tb_master_role' :
@@ -1415,15 +1439,27 @@ export default function AdminPage() {
       );
       if (!tableName) return;
 
-      const wsFilter = session?.activeWorkspaceId || row.workspace_id;
+      const rawWs = session?.activeWorkspaceId || row.workspace_id;
+      const wsFilter = (rawWs && rawWs !== 'N/A') ? rawWs : null;
       const nextStatus = row.is_active === false ? true : false;
 
       let updateOp: any = supabase.from(tableName).update({ is_active: nextStatus });
 
-      if (tab === 'holding') updateOp = updateOp.eq('holding_name', row.holding_name).eq('workspace_id', wsFilter);
-      else if (tab === 'role') updateOp = updateOp.eq('role_name', row.role_name).eq('workspace_id', wsFilter);
-      else if (tab === 'project_type') updateOp = updateOp.eq('type_name', row.type_name).eq('workspace_id', wsFilter);
-      else updateOp = updateOp.eq('id', row.id).eq('workspace_id', wsFilter);
+      if (tab === 'holding') {
+        updateOp = wsFilter
+          ? updateOp.eq('holding_name', row.holding_name).eq('workspace_id', wsFilter)
+          : updateOp.eq('holding_name', row.holding_name).is('workspace_id', null);
+      } else if (tab === 'role') {
+        updateOp = wsFilter
+          ? updateOp.eq('role_name', row.role_name).eq('workspace_id', wsFilter)
+          : updateOp.eq('role_name', row.role_name).is('workspace_id', null);
+      } else if (tab === 'project_type') {
+        updateOp = wsFilter
+          ? updateOp.eq('type_name', row.type_name).eq('workspace_id', wsFilter)
+          : updateOp.eq('type_name', row.type_name).is('workspace_id', null);
+      } else {
+        updateOp = updateOp.eq('id', row.id);
+      }
 
       const { error } = await updateOp;
       if (error) throw error;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, ClipboardList, Clock, Eye, RefreshCw, CalendarCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ClipboardList, Clock, Eye, RefreshCw, CalendarCheck, SlidersHorizontal } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -102,7 +102,10 @@ export default function CalendarPage() {
   const [showSidePanel, setShowSidePanel] = useState(true);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const hasDraggedRef = useRef(false);
-  const hourHeight = 50;
+  const [hourHeight, setHourHeight] = useState<number>(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('worklog_calendar_hour_height') : null;
+    return saved ? Math.max(50, Math.min(140, Number(saved))) : 80;
+  });
 
   useEffect(() => {
     if (viewMode !== 'week' && viewMode !== 'two-weeks') return;
@@ -291,13 +294,15 @@ export default function CalendarPage() {
 
       const displayStartMin = Math.max(startLimitMin, Math.min(endLimitMin, startMin));
       const displayEndMin = Math.max(startLimitMin, Math.min(endLimitMin, endMin));
+      const rawDurationMin = displayEndMin - displayStartMin;
+      const rawHeight = (rawDurationMin / 60) * hh;
 
       return {
         entry,
         startMin,
         endMin,
         top: ((displayStartMin - startLimitMin) / 60) * hh,
-        height: Math.max(((displayEndMin - displayStartMin) / 60) * hh, displayEndMin > displayStartMin ? 22 : 0),
+        height: rawDurationMin > 0 ? Math.max(22, rawHeight - 2) : 0,
         user_id: entry.user_id
       };
     }).filter(item => item.height > 0);
@@ -309,7 +314,9 @@ export default function CalendarPage() {
       let placed = false;
       for (const cluster of clusters) {
         const overlaps = cluster.some(cItem => {
-          return item.startMin < cItem.endMin && cItem.startMin < item.endMin;
+          const timeOverlap = item.startMin < cItem.endMin && cItem.startMin < item.endMin;
+          const visualOverlap = item.top < (cItem.top + cItem.height) && cItem.top < (item.top + item.height);
+          return timeOverlap || visualOverlap;
         });
         if (overlaps) {
           cluster.push(item);
@@ -325,20 +332,20 @@ export default function CalendarPage() {
     const layouts: TimedEntryLayout[] = [];
 
     clusters.forEach(cluster => {
-      const lanes: { endMin: number }[] = [];
+      const lanes: { endMin: number; endTop: number }[] = [];
       const itemLanes: number[] = [];
 
       cluster.forEach((item, index) => {
         let laneIndex = -1;
         for (let l = 0; l < lanes.length; l++) {
-          if (item.startMin >= lanes[l].endMin) {
+          if (item.startMin >= lanes[l].endMin && item.top >= lanes[l].endTop) {
             laneIndex = l;
-            lanes[l] = { endMin: item.endMin };
+            lanes[l] = { endMin: item.endMin, endTop: item.top + item.height };
             break;
           }
         }
         if (laneIndex === -1) {
-          lanes.push({ endMin: item.endMin });
+          lanes.push({ endMin: item.endMin, endTop: item.top + item.height });
           laneIndex = lanes.length - 1;
         }
         itemLanes[index] = laneIndex;
@@ -871,7 +878,7 @@ export default function CalendarPage() {
         </div>
 
         {/* Scrollable Hourly Grid */}
-        <div className="timeline-container flex-1 h-[450px] overflow-y-auto custom-scrollbar relative border border-theme-border/30 rounded-xl bg-theme-surface-secondary/10 dark:bg-theme-surface-secondary/5">
+        <div className="timeline-container flex-1 min-h-[500px] h-[600px] lg:h-[660px] overflow-y-auto custom-scrollbar relative border border-theme-border/30 rounded-xl bg-theme-surface-secondary/10 dark:bg-theme-surface-secondary/5">
           <div className="relative" style={{ height: `${(endHourOffset - startHourOffset) * hourHeight}px` }}>
             {/* Hour Lines & Labels */}
             {Array.from({ length: endHourOffset - startHourOffset }).map((_, idx) => {
@@ -942,8 +949,8 @@ export default function CalendarPage() {
                           style={{
                             top: `${top}px`,
                             height: `${height}px`,
-                            left: `${left}%`,
-                            width: `${width}%`
+                            left: width < 100 ? `calc(${left}% + 1px)` : `${left}%`,
+                            width: width < 100 ? `calc(${width}% - 2px)` : `${width}%`
                           }}
                           className={cn(
                             "absolute rounded-lg p-1.5 border text-left overflow-hidden group flex flex-col justify-between select-none !transition-all hover:scale-[0.98] hover:shadow-lg hover:z-20 active:scale-95 cursor-grab",
@@ -984,8 +991,8 @@ export default function CalendarPage() {
                               </p>
                             )}
                           </div>
-                          {height >= 34 && (
-                            <div className="text-[8px] font-mono opacity-80 mt-auto pt-1 flex justify-between items-center w-full border-t border-theme-border/5">
+                          {height >= 28 && (
+                            <div className="text-[8px] font-mono opacity-80 mt-auto pt-0.5 flex justify-between items-center w-full border-t border-theme-border/5">
                               <span className="truncate">{entry.start_time?.slice(0, 5)}-{entry.end_time?.slice(0, 5)}</span>
                               <span className="font-bold shrink-0">{entry.total_hours}h</span>
                             </div>
@@ -1784,6 +1791,37 @@ export default function CalendarPage() {
                 <Clock size={13} />
                 <span>{showFullDay ? "Show 8:00-18:00" : "Show 24 Hours"}</span>
               </button>
+            )}
+
+            {/* Hour Slot Height Control */}
+            {(viewMode === 'week' || viewMode === 'two-weeks') && (
+              <div className="flex items-center gap-1 bg-theme-surface border border-theme-border/50 rounded-xl p-1 shrink-0 text-xs">
+                <span className="text-[10px] font-bold text-theme-text-muted px-1.5 flex items-center gap-1 select-none">
+                  <SlidersHorizontal size={12} className="text-indigo-400" />
+                  <span>ความสูงช่องเวลา:</span>
+                </span>
+                {[
+                  { label: 'ปกติ 60px', value: 60 },
+                  { label: 'โปร่ง 80px', value: 80 },
+                  { label: 'ขยาย 100px', value: 100 },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => {
+                      setHourHeight(opt.value);
+                      localStorage.setItem('worklog_calendar_hour_height', String(opt.value));
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer",
+                      hourHeight === opt.value
+                        ? "bg-indigo-500 text-white shadow-sm shadow-indigo-500/20"
+                        : "text-theme-text-secondary hover:text-theme-text hover:bg-theme-surface-secondary/60"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             )}
 
             {/* Google Calendar Actions */}
