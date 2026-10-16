@@ -1228,21 +1228,41 @@ export async function syncWorklogToGCal(logId: string, action: 'insert' | 'updat
       console.log('[GCal Sync] Checking existing calendar events for date:', log.work_date);
       const existingEvents = await googleCalendar.listEventsForDay(log.user_id, calendarId, log.work_date);
       
-      const match = existingEvents.find((evt: any) => {
-        const cleanDesc = googleCalendar.convertHtmlToPlainText(evt.description || '');
-        // High confidence match: event contains the worklog ID in the description
-        const idMatch = cleanDesc.includes(`🆔 ID: ${log.id}`);
-        
-        // Fallback match for legacy events that don't have the ID in description yet
-        const hasAnyId = cleanDesc.includes('🆔 ID:');
-        const titleMatch = evt.summary === payload.summary;
-        const descMatch = cleanDesc.includes(`🎯 Project: ${log.project_name}`) && 
-          cleanDesc.includes(`⚡ Action: ${log.action_name}`);
-        
-        const fallbackMatch = !hasAnyId && (titleMatch || descMatch);
-        
-        return idMatch || fallbackMatch;
-      });
+      // Read the ID stamp from the RAW description: convertHtmlToPlainText() truncates at the first
+      // meeting-boilerplate line (e.g. a pasted Meet/Teams link or a "-----" divider in the worklog's own
+      // description), which would drop the trailing "🆔 ID:" line and make a stamped event look unstamped.
+      const startMs = new Date(`${payload.start.dateTime}+07:00`).getTime();
+      const endMs = new Date(`${payload.end.dateTime}+07:00`).getTime();
+      const sameSlot = (evt: { start?: { dateTime?: string }; end?: { dateTime?: string } }) =>
+        new Date(evt.start?.dateTime ?? '').getTime() === startMs &&
+        new Date(evt.end?.dateTime ?? '').getTime() === endMs;
+
+      let match = existingEvents.find((evt) => (evt.description || '').includes(log.id));
+
+      if (!match) {
+        // Fallback for legacy events that carry no ID stamp: same title/project+action AND the same
+        // time slot, and not already linked to a different worklog.
+        for (const evt of existingEvents) {
+          const rawDesc: string = evt.description || '';
+          if (/🆔\s*ID:/.test(rawDesc) || !sameSlot(evt)) continue;
+          const cleanDesc = googleCalendar.convertHtmlToPlainText(rawDesc);
+          const titleMatch = evt.summary === payload.summary;
+          const descMatch = cleanDesc.includes(`🎯 Project: ${log.project_name}`) &&
+            cleanDesc.includes(`⚡ Action: ${log.action_name}`);
+          if (!titleMatch && !descMatch) continue;
+
+          const { data: linked } = await supabase
+            .from('col_worklog')
+            .select('id')
+            .eq('gcal_event_id', evt.id)
+            .neq('id', log.id)
+            .limit(1);
+          if (linked && linked.length > 0) continue;
+
+          match = evt;
+          break;
+        }
+      }
 
       if (match) {
         console.log('[GCal Sync] Found matching event on Google Calendar, linking event ID:', match.id);
