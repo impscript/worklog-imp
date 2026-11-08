@@ -1873,7 +1873,7 @@
 
             @media print {
       @page {
-        size: A4 portrait;
+        size: A4 landscape;
         margin: 6mm 8mm;
       }
 
@@ -2054,7 +2054,7 @@
         break-before: page !important;
         page-break-after: always !important;  /* EXACT END OF SHEET 2 */
         break-after: page !important;
-        max-height: 265mm !important;
+        max-height: 194mm !important;
         overflow: hidden !important;
       }
       .about-grid {
@@ -2224,7 +2224,7 @@
         break-before: page !important;
         page-break-after: always !important;  /* EXACT END OF SHEET 3 */
         break-after: page !important;
-        max-height: 265mm !important;
+        max-height: 194mm !important;
         overflow: hidden !important;
       }
       .skills-grid {
@@ -2284,7 +2284,7 @@
         break-before: page !important;
         page-break-after: always !important;  /* EXACT END OF SHEET 4 */
         break-after: page !important;
-        max-height: 265mm !important;
+        max-height: 194mm !important;
         overflow: hidden !important;
       }
       .pillars-overview-bar {
@@ -2307,7 +2307,7 @@
       }
       .projects-grid {
         display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
+        grid-template-columns: repeat(3, 1fr) !important;
         gap: 2mm !important;
       }
       .project-card-light {
@@ -2318,7 +2318,7 @@
         border-radius: 8px !important;
       }
       .project-card-light .device-screen-img {
-        max-height: 52px !important;
+        max-height: 36px !important;
         object-fit: cover !important;
       }
       .project-card-light h4 {
@@ -2341,12 +2341,12 @@
         break-before: page !important;
         page-break-after: always !important;  /* EXACT END OF SHEET 5 */
         break-after: page !important;
-        max-height: 265mm !important;
+        max-height: 194mm !important;
         overflow: hidden !important;
       }
       .strategy-grid {
         display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
+        grid-template-columns: repeat(3, 1fr) !important;
         gap: 2mm !important;
         margin-top: 1.5mm !important;
       }
@@ -2358,7 +2358,7 @@
         box-shadow: none !important;
       }
       .strategy-img-frame {
-        height: 11mm !important;
+        height: 8mm !important;
         margin-bottom: 1mm !important;
         display: block !important;
       }
@@ -2390,7 +2390,7 @@
         break-before: page !important;
         page-break-after: always !important;  /* EXACT END OF SHEET 6 */
         break-after: page !important;
-        max-height: 265mm !important;
+        max-height: 194mm !important;
         overflow: hidden !important;
       }
       .endorsement-grid {
@@ -2441,20 +2441,20 @@
          SHEET 7: AI Calendar & Official HR Appraisal (92.5%)
          ============================================================ */
       .appraisal-section {
-        padding: 4mm 0 0 0 !important;
+        padding: 2mm 0 0 0 !important;
         background: none !important;
         page-break-before: always !important; /* EXACT START OF SHEET 7 */
         break-before: page !important;
         page-break-after: always !important;  /* EXACT END OF SHEET 7 */
         break-after: page !important;
-        max-height: 265mm !important;
+        max-height: 194mm !important;
         overflow: hidden !important;
       }
       .appraisal-hero-card {
         display: grid !important;
         grid-template-columns: 140px 1fr !important;
-        gap: 2.5mm !important;
-        padding: 2mm !important;
+        gap: 2mm !important;
+        padding: 1.5mm !important;
         border: 1px solid #cbd5e1 !important;
         border-radius: 8px !important;
         margin-top: 1mm !important;
@@ -2464,7 +2464,7 @@
         display: none !important;
       }
       .appraisal-score-number {
-        font-size: 26pt !important;
+        font-size: 17pt !important;
         margin: 0 !important;
       }
       .appraisal-stat-val {
@@ -2475,15 +2475,15 @@
         border-radius: 6px !important;
       }
       .appraisal-pillars-container {
-        margin-top: 2mm !important;
+        margin-top: 1.2mm !important;
       }
       .pillars-grid-cards {
         display: grid !important;
         grid-template-columns: repeat(5, 1fr) !important;
-        gap: 1.5mm !important;
+        gap: 1mm !important;
       }
       .pillar-card {
-        padding: 1.2mm 1.5mm !important;
+        padding: 0.8mm 1.2mm !important;
         border-radius: 6px !important;
         border: 1px solid #cbd5e1 !important;
         box-shadow: none !important;
@@ -2493,22 +2493,22 @@
         line-height: 1.15 !important;
       }
       .pillar-score-badge {
-        font-size: 9pt !important;
+        font-size: 8pt !important;
         padding: 1px 3px !important;
       }
       .pillar-evidence {
-        font-size: 5.2pt !important;
-        line-height: 1.15 !important;
-        margin: 0.8mm 0 !important;
+        font-size: 5pt !important;
+        line-height: 1.1 !important;
+        margin: 0.4mm 0 !important;
       }
       .appraisal-paradigm-grid {
         display: grid !important;
         grid-template-columns: 1fr 1fr !important;
-        gap: 2mm !important;
-        margin-top: 1.5mm !important;
+        gap: 1.5mm !important;
+        margin-top: 1mm !important;
       }
       .paradigm-box {
-        padding: 1.8mm !important;
+        padding: 1.2mm !important;
         border-radius: 6px !important;
         border: 1px solid #cbd5e1 !important;
       }
@@ -2528,12 +2528,12 @@
         line-height: 1.15 !important;
       }
       .takeaway-ul li {
-        font-size: 5.5pt !important;
-        line-height: 1.15 !important;
+        font-size: 5.2pt !important;
+        line-height: 1.1 !important;
       }
       .calendar-formula-strip {
-        padding: 1mm 1.5mm !important;
-        margin-top: 1mm !important;
+        padding: 0.8mm 1.2mm !important;
+        margin-top: 0.8mm !important;
       }
       .formula-code {
         font-size: 5.5pt !important;
@@ -2549,7 +2549,7 @@
         break-before: page !important;
         page-break-after: auto !important;
         break-after: auto !important;
-        max-height: 265mm !important;
+        max-height: 194mm !important;
         overflow: hidden !important;
       }
       .hr-readiness-banner {
