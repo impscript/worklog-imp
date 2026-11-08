@@ -1933,10 +1933,10 @@
       }
 
       /* ============================================================
-         SHEET 1: Executive Overview & Cover (Hero + Trust)
+         SHEET 1: Executive Overview & Cover (Hero + Trust + KPIs)
          ============================================================ */
       .hero-section {
-        padding: 6mm 0 3mm 0 !important;
+        padding: 5mm 0 2mm 0 !important;
         background: none !important;
         page-break-before: auto !important;
         break-before: auto !important;
@@ -1948,24 +1948,26 @@
         align-items: center !important;
       }
       .hero-title {
-        font-size: 19pt !important;
+        font-size: 18pt !important;
         line-height: 1.15 !important;
         margin-bottom: 2.5mm !important;
         color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
       }
       .hero-title span.gradient-text {
         color: #312e81 !important;
         -webkit-text-fill-color: #312e81 !important;
       }
       .hero-desc {
-        font-size: 8pt !important;
-        line-height: 1.4 !important;
+        font-size: 7.8pt !important;
+        line-height: 1.35 !important;
         color: #334155 !important;
-        margin-bottom: 3mm !important;
+        -webkit-text-fill-color: #334155 !important;
+        margin-bottom: 2.5mm !important;
       }
       .avatar-circle-frame {
-        width: 130px !important;
-        height: 130px !important;
+        width: 125px !important;
+        height: 125px !important;
         border: 3px solid #cbd5e1 !important;
         margin: 0 auto !important;
       }
@@ -1975,34 +1977,72 @@
         margin-top: 2mm !important;
         animation: none !important;
         border: 1px solid #cbd5e1 !important;
-        padding: 3px 8px !important;
+        padding: 2.5px 8px !important;
         border-radius: 8px !important;
         background: #f8fafc !important;
+        color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
+      }
+      .float-badge div, .float-badge span {
+        color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
       }
 
       .trust-section {
-        padding: 4mm 0 !important;
-        margin-top: 6mm !important;
+        padding: 3mm 0 0 0 !important;
+        margin-top: 4mm !important;
         border-top: 1px solid #e2e8f0 !important;
-        border-bottom: 1px solid #e2e8f0 !important;
+        border-bottom: none !important;
         page-break-after: always !important; /* EXACT END OF SHEET 1 */
         break-after: page !important;
       }
-      .trust-label {
+      .trust-title {
         font-size: 7.2pt !important;
-        margin-bottom: 2mm !important;
-        color: #64748b !important;
+        margin-bottom: 1.8mm !important;
+        color: #475569 !important;
+        -webkit-text-fill-color: #475569 !important;
+        font-weight: 700 !important;
       }
-      .trust-row {
-        gap: 2.5mm !important;
+      .trust-grid {
+        display: flex !important;
+        gap: 2mm !important;
         flex-wrap: wrap !important;
+        margin-bottom: 3.5mm !important;
       }
       .trust-chip {
-        font-size: 7.5pt !important;
-        padding: 2.5px 8px !important;
+        font-size: 7.2pt !important;
+        padding: 2px 7px !important;
         background: #f1f5f9 !important;
         border: 1px solid #cbd5e1 !important;
         color: #1e293b !important;
+        -webkit-text-fill-color: #1e293b !important;
+      }
+      .executive-kpi-strip {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 2.5mm !important;
+        margin-top: 3.5mm !important;
+        background: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+        padding: 2.5mm 3.5mm !important;
+      }
+      .kpi-strip-item {
+        text-align: center !important;
+      }
+      .kpi-strip-num {
+        font-size: 14pt !important;
+        color: #1e1b4b !important;
+        -webkit-text-fill-color: #1e1b4b !important;
+        font-weight: 900 !important;
+        line-height: 1.1 !important;
+      }
+      .kpi-strip-lbl {
+        font-size: 6.2pt !important;
+        color: #334155 !important;
+        -webkit-text-fill-color: #334155 !important;
+        font-weight: 700 !important;
+        margin-top: 1mm !important;
       }
 
       /* ============================================================
@@ -2022,51 +2062,156 @@
         grid-template-columns: 1fr 1.15fr !important;
         gap: 4.5mm !important;
         align-items: start !important;
+        margin-bottom: 2mm !important;
       }
       .about-card-hero {
         background: #f8fafc !important;
         color: #0f172a !important;
         border: 1px solid #cbd5e1 !important;
         padding: 3mm !important;
-        border-radius: 12px !important;
+        border-radius: 10px !important;
+      }
+      .about-card-hero div,
+      .about-card-hero p,
+      .about-card-hero span {
+        color: #334155 !important;
+        -webkit-text-fill-color: #334155 !important;
+      }
+      .about-card-hero h3,
+      .about-profile-header h3 {
+        color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
+        font-size: 13.5pt !important;
+        font-weight: 800 !important;
       }
       .about-axiom-quote {
         background: #f1f5f9 !important;
         border-left: 3px solid #4f46e5 !important;
-        font-size: 7.2pt !important;
-        line-height: 1.3 !important;
+        font-size: 6.8pt !important;
+        line-height: 1.35 !important;
         padding: 2mm !important;
         margin: 2mm 0 !important;
+        color: #1e293b !important;
+        -webkit-text-fill-color: #1e293b !important;
       }
       .career-timeline-mini {
         margin-top: 2mm !important;
+        display: flex !important;
+        flex-direction: column !important;
         gap: 1.5mm !important;
       }
       .career-track-item {
         background: #ffffff !important;
         border: 1px solid #cbd5e1 !important;
         padding: 1.5mm 2mm !important;
+        display: flex !important;
+        align-items: center !important;
         gap: 2mm !important;
         border-radius: 6px !important;
       }
-      .career-track-badge {
+      .career-track-badge.it {
+        background: #eff6ff !important;
+        color: #1d4ed8 !important;
+        -webkit-text-fill-color: #1d4ed8 !important;
+        border: 1px solid #3b82f6 !important;
         font-size: 6pt !important;
+        font-weight: 800 !important;
+        padding: 1px 4px !important;
+      }
+      .career-track-badge.audit {
+        background: #fef3c7 !important;
+        color: #b45309 !important;
+        -webkit-text-fill-color: #b45309 !important;
+        border: 1px solid #f59e0b !important;
+        font-size: 6pt !important;
+        font-weight: 800 !important;
+        padding: 1px 4px !important;
+      }
+      .career-track-badge.imp {
+        background: #ecfdf5 !important;
+        color: #047857 !important;
+        -webkit-text-fill-color: #047857 !important;
+        border: 1px solid #10b981 !important;
+        font-size: 6pt !important;
+        font-weight: 800 !important;
         padding: 1px 4px !important;
       }
       .career-track-detail {
         font-size: 6.5pt !important;
         color: #1e293b !important;
+        -webkit-text-fill-color: #1e293b !important;
       }
       .about-text-col h3 {
-        font-size: 10.5pt !important;
+        font-size: 10pt !important;
         margin-bottom: 2mm !important;
         color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
       }
       .about-text-col p {
-        font-size: 7pt !important;
+        font-size: 6.8pt !important;
         line-height: 1.3 !important;
         color: #334155 !important;
+        -webkit-text-fill-color: #334155 !important;
         margin-bottom: 2mm !important;
+      }
+
+      /* Pillars Overview Bar at bottom of Sheet 2 */
+      .pillars-overview-bar {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 3mm !important;
+        margin-top: 2.5mm !important;
+      }
+      .pillar-overview-card {
+        background: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+        padding: 2.5mm 3mm !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+      }
+      .pillar-overview-card div {
+        color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
+      }
+      .pillar-card-p1 div:first-child div:first-child {
+        color: #047857 !important;
+        -webkit-text-fill-color: #047857 !important;
+        font-size: 7.2pt !important;
+        font-weight: 800 !important;
+      }
+      .pillar-card-p2 div:first-child div:first-child {
+        color: #0284c7 !important;
+        -webkit-text-fill-color: #0284c7 !important;
+        font-size: 7.2pt !important;
+        font-weight: 800 !important;
+      }
+      .pillar-card-p3 div:first-child div:first-child {
+        color: #6d28d9 !important;
+        -webkit-text-fill-color: #6d28d9 !important;
+        font-size: 7.2pt !important;
+        font-weight: 800 !important;
+      }
+      .pillar-overview-card div:first-child div:nth-child(2) {
+        font-size: 8pt !important;
+        font-weight: 800 !important;
+        color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
+        margin: 1mm 0 !important;
+      }
+      .pillar-overview-card div:first-child div:nth-child(3) {
+        font-size: 6.2pt !important;
+        color: #475569 !important;
+        -webkit-text-fill-color: #475569 !important;
+        line-height: 1.25 !important;
+      }
+      .pillar-overview-card div:last-child {
+        font-size: 6pt !important;
+        font-weight: 800 !important;
+        margin-top: 2mm !important;
+        padding: 1px 6px !important;
+        border-radius: 4px !important;
       }
 
       /* ============================================================
@@ -2577,6 +2722,26 @@
         <div class="trust-chip"><span class="dot"></span> Mango Anywhere ERP</div>
         <div class="trust-chip"><span class="dot"></span> IBM Maximo (MIF API)</div>
         <div class="trust-chip"><span class="dot"></span> Smart HRMS</div>
+      
+
+      <!-- Executive Impact Rollup Strip (4 High-Impact Business Metrics) -->
+      <div class="executive-kpi-strip reveal">
+        <div class="kpi-strip-item">
+          <div class="kpi-strip-num">8</div>
+          <div class="kpi-strip-lbl">ระบบงานจริงที่ส่งมอบสำเร็จ (2026)</div>
+        </div>
+        <div class="kpi-strip-item">
+          <div class="kpi-strip-num">3</div>
+          <div class="kpi-strip-lbl">เครือธุรกิจหลัก (Double A • NPS • Real Estate)</div>
+        </div>
+        <div class="kpi-strip-item">
+          <div class="kpi-strip-num">1,000+</div>
+          <div class="kpi-strip-lbl">ชั่วโมง/ปี ลดงานข้อมูลและรายงาน (6 ระบบ)</div>
+        </div>
+        <div class="kpi-strip-item">
+          <div class="kpi-strip-num">100%</div>
+          <div class="kpi-strip-lbl">กระทบยอดตรง NetSuite & มาตรฐานบัญชี</div>
+        </div>
       </div>
     </div>
   </section>
@@ -2656,6 +2821,42 @@
         </div>
       </div>
 
+    </div>
+  
+    <div class="container" style="margin-top: 24px;">
+      <!-- 3 Strategic Pillars Architecture Header -->
+      <div class="pillars-overview-bar reveal">
+        <div class="pillar-overview-card pillar-card-p1">
+          <div>
+            <div style="font-size: 11px; font-weight: 800; color: #059669; text-transform: uppercase; letter-spacing: 0.5px;">🏛️ เสาที่ 1: Operational Excellence</div>
+            <div style="font-size: 13px; font-weight: 700; color: var(--text-hero); margin-top: 3px;">การผลิต โรงงาน และโลจิสติกส์</div>
+            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">ITC Precast Digital Twin • Print Fleet 420 • Maximo Mobile SR</div>
+          </div>
+          <div style="margin-top: 10px; font-size: 10.5px; font-weight: 700; color: #059669; background: rgba(16, 185, 129, 0.1); padding: 2px 8px; border-radius: 6px; align-self: flex-start;">
+            รากฐาน: 4 ปี Process Improvement
+          </div>
+        </div>
+        <div class="pillar-overview-card pillar-card-p2">
+          <div>
+            <div style="font-size: 11px; font-weight: 800; color: #0284c7; text-transform: uppercase; letter-spacing: 0.5px;">🏛️ เสาที่ 2: Governance, Assets & ERP</div>
+            <div style="font-size: 13px; font-weight: 700; color: var(--text-hero); margin-top: 3px;">การควบคุม บัญชี และความโปร่งใส</div>
+            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">FxCurrency 365 Sync • Smart Fixed Asset 1991 • Worklog AI</div>
+          </div>
+          <div style="margin-top: 10px; font-size: 10.5px; font-weight: 700; color: #0284c7; background: rgba(2, 132, 199, 0.1); padding: 2px 8px; border-radius: 6px; align-self: flex-start;">
+            รากฐาน: 5 ปี Internal Audit Manager
+          </div>
+        </div>
+        <div class="pillar-overview-card pillar-card-p3">
+          <div>
+            <div style="font-size: 11px; font-weight: 800; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.5px;">🏛️ เสาที่ 3: Commercial & People</div>
+            <div style="font-size: 13px; font-weight: 700; color: var(--text-hero); margin-top: 3px;">การเติบโตธุรกิจ และระบบบุคลากร</div>
+            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">Sales 304 Deal Pipeline • Double A Alliance HR Application</div>
+          </div>
+          <div style="margin-top: 10px; font-size: 10.5px; font-weight: 700; color: #7c3aed; background: rgba(124, 58, 237, 0.1); padding: 2px 8px; border-radius: 6px; align-self: flex-start;">
+            รากฐาน: 10 ปี IT B2B & Business Analyst
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -2769,60 +2970,6 @@
         <p class="section-desc">แก้ปัญหาคอขวดให้สายงานหลักด้วยสถาปัตยกรรมดิจิทัลผสาน AI ปลดล็อกข้อจำกัดด้านทรัพยากร ขับเคลื่อนผ่าน 3 เสาหลักยุทธศาสตร์</p>
       </div>
 
-      <!-- Executive Impact Rollup Strip (4 High-Impact Business Metrics) -->
-      <div class="executive-kpi-strip reveal">
-        <div class="kpi-strip-item">
-          <div class="kpi-strip-num">8</div>
-          <div class="kpi-strip-lbl">ระบบงานจริงที่ส่งมอบสำเร็จ (2026)</div>
-        </div>
-        <div class="kpi-strip-item">
-          <div class="kpi-strip-num">3</div>
-          <div class="kpi-strip-lbl">เครือธุรกิจหลัก (Double A • NPS • Real Estate)</div>
-        </div>
-        <div class="kpi-strip-item">
-          <div class="kpi-strip-num">1,000+</div>
-          <div class="kpi-strip-lbl">ชั่วโมง/ปี ลดงานข้อมูลและรายงาน (6 ระบบ)</div>
-        </div>
-        <div class="kpi-strip-item">
-          <div class="kpi-strip-num">100%</div>
-          <div class="kpi-strip-lbl">กระทบยอดตรง NetSuite & มาตรฐานบัญชี</div>
-        </div>
-      </div>
-
-      <!-- 3 Strategic Pillars Architecture Header -->
-      <div class="pillars-overview-bar reveal">
-        <div class="pillar-overview-card pillar-card-p1">
-          <div>
-            <div style="font-size: 11px; font-weight: 800; color: #059669; text-transform: uppercase; letter-spacing: 0.5px;">🏛️ เสาที่ 1: Operational Excellence</div>
-            <div style="font-size: 13px; font-weight: 700; color: var(--text-hero); margin-top: 3px;">การผลิต โรงงาน และโลจิสติกส์</div>
-            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">ITC Precast Digital Twin • Print Fleet 420 • Maximo Mobile SR</div>
-          </div>
-          <div style="margin-top: 10px; font-size: 10.5px; font-weight: 700; color: #059669; background: rgba(16, 185, 129, 0.1); padding: 2px 8px; border-radius: 6px; align-self: flex-start;">
-            รากฐาน: 4 ปี Process Improvement
-          </div>
-        </div>
-        <div class="pillar-overview-card pillar-card-p2">
-          <div>
-            <div style="font-size: 11px; font-weight: 800; color: #0284c7; text-transform: uppercase; letter-spacing: 0.5px;">🏛️ เสาที่ 2: Governance, Assets & ERP</div>
-            <div style="font-size: 13px; font-weight: 700; color: var(--text-hero); margin-top: 3px;">การควบคุม บัญชี และความโปร่งใส</div>
-            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">FxCurrency 365 Sync • Smart Fixed Asset 1991 • Worklog AI</div>
-          </div>
-          <div style="margin-top: 10px; font-size: 10.5px; font-weight: 700; color: #0284c7; background: rgba(2, 132, 199, 0.1); padding: 2px 8px; border-radius: 6px; align-self: flex-start;">
-            รากฐาน: 5 ปี Internal Audit Manager
-          </div>
-        </div>
-        <div class="pillar-overview-card pillar-card-p3">
-          <div>
-            <div style="font-size: 11px; font-weight: 800; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.5px;">🏛️ เสาที่ 3: Commercial & People</div>
-            <div style="font-size: 13px; font-weight: 700; color: var(--text-hero); margin-top: 3px;">การเติบโตธุรกิจ และระบบบุคลากร</div>
-            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">Sales 304 Deal Pipeline • Double A Alliance HR Application</div>
-          </div>
-          <div style="margin-top: 10px; font-size: 10.5px; font-weight: 700; color: #7c3aed; background: rgba(124, 58, 237, 0.1); padding: 2px 8px; border-radius: 6px; align-self: flex-start;">
-            รากฐาน: 10 ปี IT B2B & Business Analyst
-          </div>
-        </div>
-      </div>
-
       <!-- Twin Flagship 1: FxCurrency 365-Day Sync & NetSuite Integration -->
       <div class="project-card-fx reveal">
         <div class="device-mockup">
@@ -2854,8 +3001,8 @@
               <span class="stat-lbl">ตัดงานคีย์มือของฝ่ายบัญชี</span>
             </div>
             <div class="project-stat-item">
-              <span class="stat-val">125 ชม.</span>
-              <span class="stat-lbl">ประหยัดเวลาต่อปี</span>
+              <span class="stat-val">182.5 ชม./ปี</span>
+              <span class="stat-lbl">ประหยัดเวลา/ปี (วันละ 30 น. × 365 วัน)</span>
             </div>
             <div class="project-stat-item">
               <span class="stat-val">0 ข้อผิดพลาด</span>
