@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { LogOut, Shield, Award, Calendar, BookOpen, CalendarRange, CheckCircle2, XCircle, RefreshCw, Edit, Key, Lock, ShieldCheck, ShieldAlert, List, Clock } from 'lucide-react';
+import { LogOut, Shield, Award, Calendar, BookOpen, CalendarRange, CheckCircle2, XCircle, RefreshCw, Edit, Key, Lock, ShieldCheck, ShieldAlert, List, Clock, ExternalLink, Download } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -49,6 +49,9 @@ export default function ProfilePage() {
 
   // Secret Access Audit Logs Modal
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
+
+  // Executive Promotion Dossier Privacy State
+  const [isDossierPublic, setIsDossierPublic] = useState(true);
 
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
@@ -226,6 +229,24 @@ export default function ProfilePage() {
             await googleCalendar.getAccessTokenAsync(sessionData.id);
           }
         }
+
+        // 4. Fetch Dossier Public/Private Visibility
+        try {
+          const { data: configData } = await supabase
+            .from('tb_system_config')
+            .select('config_value')
+            .eq('config_key', 'chatchawan_dossier_visibility')
+            .maybeSingle();
+          if (configData?.config_value) {
+            setIsDossierPublic(configData.config_value === 'public');
+          } else {
+            const localVis = localStorage.getItem('chatchawan_dossier_visibility');
+            setIsDossierPublic(localVis !== 'private');
+          }
+        } catch {
+          const localVis = localStorage.getItem('chatchawan_dossier_visibility');
+          setIsDossierPublic(localVis !== 'private');
+        }
       } catch (err) {
         console.error('Error loading profile data:', err);
       } finally {
@@ -235,6 +256,30 @@ export default function ProfilePage() {
 
     loadProfileData();
   }, [navigate]);
+
+  const handleToggleDossierVisibility = async () => {
+    const nextState = !isDossierPublic;
+    setIsDossierPublic(nextState);
+    const val = nextState ? 'public' : 'private';
+    localStorage.setItem('chatchawan_dossier_visibility', val);
+    
+    try {
+      await supabase
+        .from('tb_system_config')
+        .upsert({
+          config_key: 'chatchawan_dossier_visibility',
+          config_value: val,
+          workspace_id: 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001'
+        }, { onConflict: 'config_key,workspace_id' });
+      
+      setToastMessage(nextState ? 'เปิดการเข้าถึงสาธารณะแล้ว 🟢 ผู้บริหารสามารถเปิดดูได้' : 'ตั้งค่าเป็นส่วนตัวแล้ว 🔒 บุคคลภายนอกจะไม่สามารถเปิดดูได้');
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err: any) {
+      console.warn('Error saving to tb_system_config, local state preserved:', err);
+      setToastMessage(nextState ? 'เปิดโหมด Public แล้ว (Local) 🟢' : 'ตั้งเป็น Private แล้ว (Local) 🔒');
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+  };
 
   const handleSavePin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -598,6 +643,18 @@ export default function ProfilePage() {
             {/* Action */}
             <div className="flex flex-col gap-3 self-center md:self-start shrink-0">
               <button 
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('executive-dossier-card');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white text-sm font-bold px-6 py-3 rounded-2xl shadow-lg shadow-amber-500/20 transition-all active:scale-95 whitespace-nowrap"
+              >
+                <Award size={16} />
+                <span>Executive Dossier</span>
+              </button>
+
+              <button 
                 onClick={handleOpenEditModal}
                 className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold px-6 py-3 rounded-2xl transition-all active:scale-95 whitespace-nowrap"
               >
@@ -612,6 +669,141 @@ export default function ProfilePage() {
                 <LogOut size={16} />
                 <span>Sign Out</span>
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Executive Promotion Dossier & Strategic Portfolio Card */}
+        <div id="executive-dossier-card" className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-indigo-500/30 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          
+          <div className="relative z-10 space-y-6">
+            {/* Header with Title and Public/Private Toggle */}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-theme-border/80 pb-5">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-500 dark:text-amber-400 text-[10px] font-extrabold uppercase tracking-wider">
+                  <span>🎯</span>
+                  <span>2026–2027 Promotion Track • Target: Department Manager</span>
+                </div>
+                <h3 className="text-xl md:text-2xl font-black text-theme-text mt-2.5 tracking-tight flex items-center gap-2">
+                  <span>Executive Promotion Dossier & Portfolio</span>
+                </h3>
+                <p className="text-xs md:text-sm text-theme-text-secondary mt-1">
+                  แฟ้มผลงานและสไลด์นำเสนอเชิงกลยุทธ์ เพื่อประเมินเลื่อนตำแหน่งสู่ Department Manager / Head of Improvement
+                </p>
+              </div>
+
+              {/* Public / Private Toggle Switch */}
+              <div className="flex items-center gap-3 bg-theme-surface-secondary/80 border border-theme-border rounded-2xl p-2 shrink-0 shadow-sm">
+                <span className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
+                  isDossierPublic 
+                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
+                    : 'bg-slate-500/10 text-theme-text-muted border border-transparent'
+                }`}>
+                  {isDossierPublic ? '🟢 Public' : '🔒 Private'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleToggleDossierVisibility}
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors cursor-pointer focus:outline-none ${
+                    isDossierPublic ? 'bg-emerald-600' : 'bg-slate-600'
+                  }`}
+                  title={isDossierPublic ? 'คลิกเพื่อตั้งเป็น Private' : 'คลิกเพื่อตั้งเป็น Public'}
+                >
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
+                    isDossierPublic ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Privacy Explanation & Share Link Strip */}
+            <div className="p-4 rounded-2xl bg-theme-surface-secondary/60 border border-theme-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-theme-text-secondary">
+                    Direct Executive Share Link
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                    isDossierPublic ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                  }`}>
+                    {isDossierPublic ? 'พร้อมเปิดดู (ไม่ต้องล็อกอิน)' : 'ล็อกส่วนตัว (เฉพาะคุณ)'}
+                  </span>
+                </div>
+                <span className="text-sm font-mono text-indigo-600 dark:text-indigo-400 truncate block font-bold">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/dossier` : '/dossier'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = `${window.location.origin}/dossier`;
+                  navigator.clipboard.writeText(url);
+                  setToastMessage('คัดลอกลิงก์แชร์ผู้บริหารสำเร็จ! 📋');
+                  setTimeout(() => setToastMessage(null), 3000);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all active:scale-95 shrink-0 shadow-sm shadow-indigo-600/20"
+              >
+                Copy Share Link
+              </button>
+            </div>
+
+            {/* Action Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <a
+                href="/dossier/portfolio.html"
+                target="_blank"
+                rel="noreferrer"
+                className="group flex flex-col p-4 rounded-2xl bg-theme-surface-secondary/50 hover:bg-indigo-600/10 border border-theme-border hover:border-indigo-500/40 transition-all duration-200"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-lg">🌐</span>
+                  <ExternalLink size={14} className="text-theme-text-muted group-hover:text-indigo-500 transition-colors" />
+                </div>
+                <span className="text-sm font-bold text-theme-text group-hover:text-indigo-500 transition-colors">
+                  Web Portfolio
+                </span>
+                <span className="text-[11px] text-theme-text-secondary mt-1">
+                  เปิดดูแฟ้มผลงานฉบับเต็ม แบบโต้ตอบได้
+                </span>
+              </a>
+
+              <a
+                href="/dossier/presentation.html"
+                target="_blank"
+                rel="noreferrer"
+                className="group flex flex-col p-4 rounded-2xl bg-theme-surface-secondary/50 hover:bg-indigo-600/10 border border-theme-border hover:border-indigo-500/40 transition-all duration-200"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-lg">📊</span>
+                  <ExternalLink size={14} className="text-theme-text-muted group-hover:text-indigo-500 transition-colors" />
+                </div>
+                <span className="text-sm font-bold text-theme-text group-hover:text-indigo-500 transition-colors">
+                  Slide Deck (14 หน้า)
+                </span>
+                <span className="text-[11px] text-theme-text-secondary mt-1">
+                  สไลด์นำเสนอเชิงกลยุทธ์ 16:9 สำหรับกรรมการ
+                </span>
+              </a>
+
+              <a
+                href="/dossier/executive_portfolio.pdf"
+                target="_blank"
+                rel="noreferrer"
+                download
+                className="group flex flex-col p-4 rounded-2xl bg-theme-surface-secondary/50 hover:bg-emerald-600/10 border border-theme-border hover:border-emerald-500/40 transition-all duration-200"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-lg">🖨️</span>
+                  <Download size={14} className="text-theme-text-muted group-hover:text-emerald-500 transition-colors" />
+                </div>
+                <span className="text-sm font-bold text-theme-text group-hover:text-emerald-500 transition-colors">
+                  ดาวน์โหลด PDF สรุป
+                </span>
+                <span className="text-[11px] text-theme-text-secondary mt-1">
+                  Portfolio PDF (5.9MB) & สไลด์ทางการ
+                </span>
+              </a>
             </div>
           </div>
         </div>

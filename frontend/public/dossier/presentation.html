@@ -1,0 +1,2662 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Executive Promotion Presentation 2026 | Chatchawan Tulaphol (Section Manager)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #060911;
+      --bg-slide: #0a0f1d;
+      --bg-surface: rgba(15, 23, 42, 0.7);
+      --bg-surface-elevated: rgba(26, 38, 66, 0.85);
+      --bg-surface-active: rgba(30, 48, 85, 0.95);
+
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(56, 189, 248, 0.35);
+      --border-gold: rgba(245, 158, 11, 0.4);
+      --border-emerald: rgba(16, 185, 129, 0.35);
+
+      --gold: #f59e0b;
+      --gold-light: #fbbf24;
+      --gold-dark: #b45309;
+      --sky: #38bdf8;
+      --cyan: #06b6d4;
+      --blue: #2563eb;
+      --emerald: #10b981;
+      --emerald-dark: #047857;
+      --rose: #f43f5e;
+      --slate-muted: #94a3b8;
+      --slate-dim: #64748b;
+
+      --text-hero: #ffffff;
+      --text-body: #cbd5e1;
+      --text-muted: #94a3b8;
+      --text-accent: #38bdf8;
+
+      --shadow-elevation: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    ::selection {
+      background: rgba(56, 189, 248, 0.3);
+      color: #fff;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Prompt', -apple-system, sans-serif;
+      background: var(--bg-canvas);
+      color: var(--text-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(14, 165, 233, 0.15), transparent 70%),
+        radial-gradient(ellipse 60% 40% at 95% 95%, rgba(99, 102, 241, 0.1), transparent 60%);
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Floating Navigation Hub */
+    .nav-hub {
+      position: fixed;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(10, 15, 29, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 6px 16px;
+      border-radius: 999px;
+      z-index: 1000;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.15);
+      transition: all 0.3s ease;
+    }
+
+    .brand-mark {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-right: 10px;
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .brand-logo-pill {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #000;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .brand-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.2px;
+    }
+
+    .nav-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-hero);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: inherit;
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: var(--sky);
+      transform: translateY(-1px);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .slide-indicator {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--sky);
+      padding: 0 4px;
+      min-width: 54px;
+      text-align: center;
+    }
+
+    .pdf-export-btn {
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .pdf-export-btn:hover {
+      box-shadow: 0 6px 18px rgba(16, 185, 129, 0.5);
+      transform: translateY(-1px);
+    }
+
+    /* Master Deck Viewport */
+    .deck-frame {
+      width: min(96vw, calc((100vh - 82px) * 16 / 9));
+      height: min(calc(100vh - 82px), calc(96vw * 9 / 16));
+      aspect-ratio: 16 / 9;
+      position: relative;
+      margin: 62px auto 12px auto;
+      border-radius: 18px;
+      box-shadow: 0 30px 90px -15px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 40px rgba(56, 189, 248, 0.08);
+      overflow: hidden;
+      background: var(--bg-slide);
+    }
+
+    /* Fullscreen Mode */
+    :fullscreen .deck-frame,
+    :-webkit-full-screen .deck-frame {
+      width: 100vw !important;
+      height: 100vh !important;
+      max-width: none !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    :fullscreen .nav-hub,
+    :-webkit-full-screen .nav-hub {
+      top: 10px;
+      opacity: 0.2;
+      transition: opacity 0.3s ease;
+    }
+
+    :fullscreen .nav-hub:hover,
+    :-webkit-full-screen .nav-hub:hover {
+      opacity: 1;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      padding: 40px 52px;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      opacity: 0;
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      transform: scale(0.985) translateY(6px);
+      background: radial-gradient(circle at 100% 0%, rgba(30, 48, 85, 0.4) 0%, transparent 60%),
+        radial-gradient(circle at 0% 100%, rgba(15, 23, 42, 0.8) 0%, transparent 50%),
+        linear-gradient(180deg, #0b1122 0%, #060911 100%);
+    }
+
+    .slide.active {
+      display: flex;
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+
+    /* Slide Header System */
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 14px;
+      position: relative;
+    }
+
+    .slide-header::after {
+      content: "";
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      width: 80px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--sky), transparent);
+    }
+
+    .category-kicker {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--sky);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .category-kicker::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: var(--sky);
+      border-radius: 50%;
+    }
+
+    .slide-title {
+      font-size: 25px;
+      font-weight: 700;
+      color: var(--text-hero);
+      line-height: 1.2;
+      letter-spacing: -0.4px;
+    }
+
+    .slide-subtitle {
+      font-size: 12.5px;
+      color: var(--slate-muted);
+      margin-top: 4px;
+      font-weight: 400;
+    }
+
+    .header-aside {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .stamp-pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
+    .stamp-pill.gold {
+      border-color: var(--border-gold);
+      color: var(--gold-light);
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .stamp-pill.emerald {
+      border-color: var(--border-emerald);
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.08);
+    }
+
+    /* Slide Body System */
+    .slide-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* Grids */
+    .grid-1-2 {
+      display: grid;
+      grid-template-columns: 1fr 1.8fr;
+      gap: 20px;
+      align-items: stretch;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .bento-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 14px;
+    }
+
+    /* Bespoke Card System */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px 18px;
+      position: relative;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .card:hover {
+      background: var(--bg-surface-elevated);
+      border-color: rgba(255, 255, 255, 0.16);
+      transform: translateY(-2px);
+    }
+
+    .card.accent-sky {
+      border-top: 3px solid var(--sky);
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.06) 0%, rgba(15, 23, 42, 0.7) 100%);
+    }
+
+    .card.accent-gold {
+      border-top: 3px solid var(--gold);
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.06) 0%, rgba(15, 23, 42, 0.7) 100%);
+    }
+
+    .card.accent-emerald {
+      border-top: 3px solid var(--emerald);
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.06) 0%, rgba(15, 23, 42, 0.7) 100%);
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Typography & Numbers (Mebius Style) */
+    .metric-hero {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      line-height: 1.05;
+      color: #fff;
+    }
+
+    .metric-hero.gold {
+      background: linear-gradient(135deg, #fff 0%, #fbbf24 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .metric-hero.sky {
+      background: linear-gradient(135deg, #fff 0%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .metric-hero.emerald {
+      background: linear-gradient(135deg, #fff 0%, #34d399 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--slate-dim);
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .pill-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      line-height: 1;
+    }
+
+    .pill-badge.sky {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--sky);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    .pill-badge.emerald {
+      background: rgba(16, 185, 129, 0.12);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    .pill-badge.gold {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--gold-light);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    /* Structured Points (No bullet slop) */
+    .point-grid {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin-top: 8px;
+    }
+
+    .point-item {
+      font-size: 11.8px;
+      color: var(--text-body);
+      line-height: 1.45;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .point-icon {
+      width: 14px;
+      height: 14px;
+      min-width: 14px;
+      margin-top: 2px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      font-size: 9px;
+      color: var(--sky);
+    }
+
+    .point-item.check .point-icon {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald);
+    }
+
+    /* Executive Tables */
+    .table-container {
+      width: 100%;
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(10, 15, 29, 0.6);
+    }
+
+    .clean-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.8px;
+    }
+
+    .clean-table th {
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--slate-dim);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      font-size: 10.5px;
+      padding: 9px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .clean-table td {
+      padding: 9px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-body);
+    }
+
+    .clean-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .clean-table tr:hover td {
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    /* Visual Framework Flow Arrows */
+    .flow-step-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      position: relative;
+    }
+
+    .flow-node {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .flow-node.active-stage {
+      border-color: var(--border-glow);
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.08) 0%, rgba(15, 23, 42, 0.7) 100%);
+    }
+
+    .flow-node::after {
+      content: "➔";
+      position: absolute;
+      right: -10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      color: var(--slate-dim);
+      z-index: 10;
+    }
+
+    .flow-node:last-child::after {
+      display: none;
+    }
+
+    /* Slide Footer */
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 11px;
+      color: var(--slate-dim);
+    }
+
+    .footer-tags {
+      display: flex;
+      gap: 14px;
+    }
+
+    /* Print Vector Layout (Immaculate PDF export) */
+    @media print {
+      body {
+        background: #fff !important;
+        color: #000 !important;
+        overflow: visible !important;
+        display: block !important;
+      }
+
+      .nav-hub {
+        display: none !important;
+      }
+
+      .deck-frame {
+        width: 100% !important;
+        max-width: none !important;
+        aspect-ratio: auto !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        background: none !important;
+      }
+
+      .slide {
+        display: flex !important;
+        position: relative !important;
+        page-break-after: always !important;
+        page-break-inside: avoid !important;
+        height: 100vh !important;
+        width: 100vw !important;
+        opacity: 1 !important;
+        transform: none !important;
+        background: #090e1a !important;
+        color: #e2e8f0 !important;
+        box-sizing: border-box !important;
+        padding: 36px 44px !important;
+      }
+
+      .card {
+        background: rgba(15, 23, 42, 0.85) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        box-shadow: none !important;
+      }
+    }
+
+    /* Ambient Canvas */
+    #ambientCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.6;
+    }
+
+    /* Asset Frame & Gallery */
+    .asset-frame {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(4, 7, 14, 0.6);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .asset-frame:hover {
+      transform: translateY(-3px) scale(1.015);
+      border-color: var(--sky);
+      box-shadow: 0 20px 45px rgba(56, 189, 248, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .asset-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .asset-frame:hover img {
+      transform: scale(1.03);
+    }
+
+    .asset-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 40%, rgba(4, 7, 14, 0.88) 100%);
+      pointer-events: none;
+    }
+
+    .asset-badge-bar {
+      position: absolute;
+      bottom: 8px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 2;
+    }
+
+    .asset-zoom-pill {
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Lightbox Modal */
+    #lightboxModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 999999;
+      background: rgba(3, 6, 12, 0.94);
+      backdrop-filter: blur(20px);
+      padding: 30px;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      animation: fadeIn 0.25s ease-out;
+    }
+
+    #lightboxModal.active {
+      display: flex;
+    }
+
+    #lightboxModal img {
+      max-width: 92vw;
+      max-height: 82vh;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.9);
+      object-fit: contain;
+    }
+
+    .lightbox-caption {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 92vw;
+      max-width: 1200px;
+      color: #fff;
+      font-size: 13px;
+    }
+
+    .lightbox-close-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .lightbox-close-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.05);
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.98);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    /* macOS Window Chrome for Screenshots */
+    .mac-window {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(10, 15, 29, 0.85);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .mac-header {
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .mac-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mac-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+    }
+
+    .mac-dot.red {
+      background: #ef4444;
+    }
+
+    .mac-dot.yellow {
+      background: #f59e0b;
+    }
+
+    .mac-dot.green {
+      background: #10b981;
+    }
+
+    .mac-title {
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--slate-muted);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="ambientCanvas"></canvas>
+
+  <!-- Floating Presentation Controller -->
+  <div class="nav-hub">
+    <div class="brand-mark">
+      <span class="brand-logo-pill">EXECUTIVE</span>
+      <span class="brand-title">Promotion Dossier 2026</span>
+    </div>
+    <button class="nav-btn" id="prevBtn" onclick="stepSlide(-1)">◀ Prev</button>
+    <div class="slide-indicator" id="slideIndex">01 / 14</div>
+    <button class="nav-btn" id="nextBtn" onclick="stepSlide(1)">Next ▶</button>
+    <button class="nav-btn" id="fsBtn" onclick="toggleFullScreen()" title="สลับโหมดเต็มจอ">⛶ เต็มจอ</button>
+    <button class="pdf-export-btn" onclick="window.print()">🖨️ พิมพ์เป็น PDF (ส่ง HR)</button>
+  </div>
+
+  <!-- Deck Frame (16:9 Landscape) -->
+  <div class="deck-frame">
+
+    <!-- ==================== SLIDE 1: Title Dossier ==================== -->
+    <div class="slide active" id="slide-1">
+      <div class="slide-header">
+        <div>
+          <div class="category-kicker">EXECUTIVE PROMOTION DOSSIER • 2026-2027</div>
+          <h1 class="slide-title">รายงานผลการปฏิบัติงานเชิงกลยุทธ์และการเตรียมความพร้อมสู่บทบาทผู้นำสายงาน</h1>
+          <p class="slide-subtitle">การขับเคลื่อนกระบวนการด้วยนวัตกรรมดิจิทัล, ปัญญาประดิษฐ์ (AI)
+            และการพัฒนาบุคลากรอย่างยั่งยืน</p>
+        </div>
+        <div class="header-aside">
+          <div class="stamp-pill gold">PROMOTION EVALUATION 2026</div>
+          <span style="font-size: 11px; color: var(--gold-light); font-weight: 600;">Deadline: 9 พ.ย. 2569 • ส่ง
+            HR</span>
+        </div>
+      </div>
+
+      <div class="slide-body" style="gap: 16px;">
+        <!-- Main Bento Grid (Profile + Axiom + Proof) -->
+        <div class="grid-1-2" style="align-items: stretch; gap: 16px;">
+          <!-- Left: Candidate Profile Card with Crest -->
+          <div class="card accent-gold"
+            style="padding: 20px 24px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                <span class="pill-badge gold">Promotion Dossier 2026-2027</span>
+                <span style="font-size: 11px; color: var(--slate-dim); font-family: 'Space Grotesk', sans-serif;">EMP
+                  ID: 10005208</span>
+              </div>
+
+              <!-- Profile Header with Monogram Crest -->
+              <div style="display: flex; align-items: center; gap: 16px;">
+                <img src="assets/chatchawan_headshot.jpg" alt="ชัชวาลย์ ตุลาผล"
+                  style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; border: 2px solid var(--gold); box-shadow: 0 0 20px rgba(245, 158, 11, 0.35);">
+                <div>
+                  <h2 style="font-size: 24px; color: #fff; line-height: 1.15; font-weight: 700;">ชัชวาลย์ ตุลาผล</h2>
+                  <div style="font-size: 13px; color: var(--sky); font-weight: 600; margin-top: 3px;">
+                    Strategic Process & Digital Leader • Candidate for Department Manager
+                  </div>
+                  <div style="font-size: 11px; color: var(--slate-muted); margin-top: 2px;">
+                    เริ่มงาน: 16 ก.ค. 2007 • อายุงาน 19 ปี (IT 10 ปี • Audit 5 ปี • IMP 4 ปี)
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pedigree & Position Details -->
+            <div
+              style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
+                <span style="color: var(--slate-dim);">สังกัดหน่วยงาน:</span>
+                <strong style="color: #fff;">Department of Improvement (IMP)</strong>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px;">
+                <span style="color: var(--slate-dim);">ผู้บังคับบัญชา:</span>
+                <strong style="color: #fff;">คุณจินตนา ภูดิทธนภาคย์ (Manager)</strong>
+              </div>
+              <div
+                style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; background: rgba(16, 185, 129, 0.08); padding: 7px 12px; border-radius: 6px; border-left: 3px solid var(--emerald);">
+                <span style="color: var(--emerald); font-weight: 600;">ตำแหน่งเป้าหมาย:</span>
+                <strong style="color: #fff;">Department Manager / Head of Improvement</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Leadership Axiom & Wall of Proof -->
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Axiom Quote Card -->
+            <div class="card accent-sky" style="padding: 16px 20px; position: relative;">
+              <div
+                style="font-size: 10px; color: var(--sky); font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                CORE LEADERSHIP AXIOM • แก่นความคิดผู้นำเชิงกลยุทธ์
+              </div>
+              <p style="font-size: 13.5px; color: #fff; line-height: 1.6; margin-top: 6px; font-weight: 500;">
+                "เราไม่ได้เป็นเพียงหัวหน้างานที่เก่งงานเทคนิคหรือคอยดับไฟเฉพาะหน้า (Firefighter) แต่เราคือ <strong
+                  style="color: var(--sky);">Strategic Process & People Leader</strong> ที่เข้าใจธุรกิจลึกซึ้ง นำ AI
+                มาเร่งความเร็วในการออกแบบ ส่งมอบงานแบบแบ่ง Phase เพื่อให้เกิดคุณค่าทันที
+                และโค้ชชิ่งทีมงานจนเติบโตอย่างมั่นคง"
+              </p>
+            </div>
+
+            <!-- 3 Hero Metrics Wall -->
+            <div class="grid-3" style="gap: 12px;">
+              <div class="card" style="text-align: center; padding: 14px 10px;">
+                <div class="metric-hero gold count-up" data-target="19" style="font-size: 36px; line-height: 1;">19
+                </div>
+                <div class="metric-label" style="font-size: 11px; margin-top: 4px;">Projects Delivered</div>
+                <span class="pill-badge emerald" style="margin-top: 6px; font-size: 9px;">150%+ vs Target</span>
+              </div>
+              <div class="card" style="text-align: center; padding: 14px 10px;">
+                <div class="metric-hero emerald count-up" data-target="1065" style="font-size: 36px; line-height: 1;">
+                  >1,000h</div>
+                <div class="metric-label" style="font-size: 11px; margin-top: 4px;">Data & Process Saved / Y</div>
+                <span class="pill-badge emerald" style="margin-top: 6px; font-size: 9px;">Top-Down Intelligence</span>
+              </div>
+              <div class="card" style="text-align: center; padding: 14px 10px;">
+                <div class="metric-hero sky count-up" data-target="69" style="font-size: 36px; line-height: 1;">69</div>
+                <div class="metric-label" style="font-size: 11px; margin-top: 4px;">Coaching Sessions</div>
+                <span class="pill-badge sky" style="margin-top: 6px; font-size: 9px;">Ronnachai ➔ Lead</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Agenda Ribbon: 3 HR Checklist Gateways -->
+        <div class="card"
+          style="padding: 12px 20px; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="pill-badge gold" style="font-size: 10px;">HR CHECKLIST READINESS</span>
+            <span style="font-size: 12px; color: var(--slate-muted);">เอกสารนำเสนอชุดนี้ครอบคลุมเกณฑ์พิจารณาของ HR
+              ครบทั้ง 3 หมวด:</span>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <span class="pill-badge emerald" style="font-size: 10.5px;">✓ 1. GG Calendar AI 88.0% (Grade A)</span>
+            <span class="pill-badge sky" style="font-size: 10.5px;">✓ 2. Review WI Policy 1/11/69</span>
+            <span class="pill-badge gold" style="font-size: 10.5px;">✓ 3. Case Studies: Precast & Fleet</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div class="footer-tags">
+          <span>Candidate: Chatchawan Tulaphol (ID: 10005208)</span>
+          <span>Supervisor: K.Jintana Phuditthnaphak</span>
+          <span>Department: Improvement (IMP)</span>
+        </div>
+        <div>Slide 01 / 14</div>
+      </div>
+    </div>
+
+    <!-- ==================== SLIDE 2: 2026 Scorecard ==================== -->
+    <div class="slide" id="slide-2">
+      <div class="slide-header">
+        <div>
+          <div class="category-kicker">Strategic Performance Appraisal</div>
+          <h1 class="slide-title">Executive Scorecard: สรุปผลงาน 4 มิติเชิงกลยุทธ์ ประจำปี 2026</h1>
+          <p class="slide-subtitle">ผลการดำเนินงานส่งมอบจริงเกินเป้าหมายทุกไตรมาส (100% เต็ม | Grade A)
+            พร้อมหลักฐานเชิงประจักษ์</p>
+        </div>
+        <div class="header-aside">
+          <div class="stamp-pill emerald">ACHIEVEMENT > 150%</div>
+          <span style="font-size: 11px; color: var(--emerald);">Overall Grade: A (Excellent)</span>
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-4">
+          <div class="card accent-sky">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge sky">KPI 1 • Weight 40%</span>
+                <span style="font-size: 11px; color: var(--emerald); font-weight: 700;">100% เต็ม</span>
+              </div>
+              <div class="metric-hero sky">19</div>
+              <div class="metric-label">Digital Solutions</div>
+              <div class="card-desc" style="margin-top: 8px;">
+                ส่งมอบโครงการใหม่ ≥ 4 เรื่อง/ไตรมาส (เฉลี่ย 6–7 โครงการ) ทั้ง NetSuite, CRM Ticket, Smart HR, Precast
+                และ Print Service
+              </div>
+            </div>
+            <div
+              style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-subtle); font-size: 11px; color: var(--emerald);">
+              ✓ Delivery Rate > 150% vs Goal
+            </div>
+          </div>
+
+          <div class="card accent-emerald">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge emerald">KPI 2 • Weight 25%</span>
+                <span style="font-size: 11px; color: var(--emerald); font-weight: 700;">100% เต็ม</span>
+              </div>
+              <div class="metric-hero emerald count-up" data-target="1065">>1,000h</div>
+              <div class="metric-label">Data Prep & Reporting Saved / Y</div>
+              <div class="card-desc" style="margin-top: 8px;">
+                ลดเวลาจัดเตรียมข้อมูลและทำรายงานด้วยมือ (Manual Reporting & Data Prep) สะสมกว่า 1,000+ ชม./ปี อาทิ Print Services (380h), Precast Yield Dashboard (200h), HR Validation & API (180h), และ FxCurrency 365 (125h)
+              </div>
+            </div>
+            <div
+              style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-subtle); font-size: 11px; color: var(--emerald);">
+              ✓ 6 Major Data & Automation Systems
+            </div>
+          </div>
+
+          <div class="card accent-gold">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge gold">KPI 3 • Weight 20%</span>
+                <span style="font-size: 11px; color: var(--emerald); font-weight: 700;">100% เต็ม</span>
+              </div>
+              <div class="metric-hero gold">96.3%</div>
+              <div class="metric-label">Support SLA Quality</div>
+              <div class="card-desc" style="margin-top: 8px;">
+                ดูแลงาน Support 58 รายการ Uptime 99.9% ขจัดปัญหาคอขวดสายผลิต (แก้สคริปต์ QC บน Jawis) ได้แบบ Same-Day
+                ไม่มีระบบหยุดชะงัก
+              </div>
+            </div>
+            <div
+              style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-subtle); font-size: 11px; color: var(--emerald);">
+              ✓ Zero Critical Business Outage
+            </div>
+          </div>
+
+          <div class="card">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge sky">KPI 4 • Weight 15%</span>
+                <span style="font-size: 11px; color: var(--emerald); font-weight: 700;">100% เต็ม</span>
+              </div>
+              <div class="metric-hero">69</div>
+              <div class="metric-label">Knowledge Sharing</div>
+              <div class="card-desc" style="margin-top: 8px;">
+                ศูนย์กลางถ่ายทอดความรู้ AI Engineering, PRD Design, และโค้ชชิ่งคุณรณชัย วิจิตโต (ใหม่) สู่บทบาท Project
+                Lead Process Improvement
+              </div>
+            </div>
+            <div
+              style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-subtle); font-size: 11px; color: var(--sky);">
+              ✓ 100% WI / PRD in Git Repository
+            </div>
+          </div>
+        </div>
+
+        <div class="card"
+          style="margin-top: 14px; padding: 12px 18px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2);">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 12.5px; color: #fff;">
+              <strong>บทสรุปผู้บริหาร:</strong> ผลการประเมินประจำปี 2026 อยู่ในระดับสูงสุด (Grade A)
+              พิสูจน์ความสามารถในการส่งมอบผลงานจริงที่สร้างผลตอบแทนทางธุรกิจ
+            </div>
+            <span class="pill-badge emerald" style="font-size: 11px;">Total Annual Score: 100% (Exceeded)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div class="footer-tags"><span>Source: Supabase col_worklog & Annual KPI Appraisal Report</span></div>
+        <div>Slide 02 / 14</div>
+      </div>
+    </div>
+
+    <!-- ==================== SLIDE 3: Operating Framework ==================== -->
+    <div class="slide" id="slide-3">
+      <div class="slide-header">
+        <div>
+          <div class="category-kicker">Leadership Architecture</div>
+          <h1 class="slide-title">Executive Framework: โมเดล "เข้าใจธุรกิจ ➔ AI ➔ แบ่ง Phase ➔ สร้างคน"</h1>
+          <p class="slide-subtitle">
+            สถาปัตยกรรมการบริหารงานที่เปลี่ยนปัญหาซับซ้อนให้กลายเป็นโซลูชันที่ส่งมอบได้จริงและยั่งยืน</p>
+        </div>
+        <div class="header-aside">
+          <div class="stamp-pill sky">REPEATABLE SUCCESS</div>
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="flow-step-bar">
+          <div class="flow-node active-stage">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge sky">Stage 01</span>
+                <span style="font-size: 18px;">🔍</span>
+              </div>
+              <div class="card-title">เข้าใจธุรกิจ & Connect the Dots</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                จุดแข็ง 19 ปีในองค์กรคือ Domain Logic ที่ลึกซึ้ง มองเห็นภาพเชื่อมโยงปัญหาหน้างานข้ามสายงาน
+                และรู้วิธีการแก้ปัญหาที่ตรงจุด
+              </div>
+            </div>
+            <ul class="point-grid" style="margin-top: 10px;">
+              <li class="point-item"><span class="point-icon">✓</span><span>เข้าใจกระบวนการข้ามสายงาน</span></li>
+              <li class="point-item"><span class="point-icon">✓</span><span>วาง Logic ตรรกะระบบชัดเจน</span></li>
+              <li class="point-item"><span class="point-icon">✓</span><span>ประเมิน Business Value ทันที</span></li>
+            </ul>
+          </div>
+
+          <div class="flow-node active-stage">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge gold">Stage 02</span>
+                <span style="font-size: 18px;">⚡</span>
+              </div>
+              <div class="card-title">AI ปิดช่องว่างการพัฒนา</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                ก้าวข้ามข้อจำกัดที่ไม่มีทีม Dev ใหญ่ โดยนำ AI มาช่วยวิจัยสเปก API, โครงสร้างระบบเดิม
+                (NetSuite/Maximo/Mango), และร่วมเขียนโค้ดตามโจทย์
+              </div>
+            </div>
+            <ul class="point-grid" style="margin-top: 10px;">
+              <li class="point-item"><span class="point-icon">✓</span><span>AI เป็น Technical R&D ส่วนตัว</span></li>
+              <li class="point-item"><span class="point-icon">✓</span><span>แปลง Logic เป็นระบบจริงทันที</span></li>
+              <li class="point-item"><span class="point-icon">✓</span><span>ไม่ต้องรองบจ้าง Dev ภายนอก</span></li>
+            </ul>
+          </div>
+
+          <div class="flow-node active-stage">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge emerald">Stage 03</span>
+                <span style="font-size: 18px;">🚀</span>
+              </div>
+              <div class="card-title">แบ่ง Phase เกิดงานจริง</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                ซอยส่งมอบเป็น Phase ย่อย (Agile Releases) เพื่อให้หน้างานเกิดการใช้งานจริงทันที ไม่ต้องรอนาน
+                แล้วค่อยขยาย Phase 2
+              </div>
+            </div>
+            <ul class="point-grid" style="margin-top: 10px;">
+              <li class="point-item"><span class="point-icon">✓</span><span>Phase 1: Go-Live แก้คอขวด</span></li>
+              <li class="point-item"><span class="point-icon">✓</span><span>Phase 2: Multi-Device / Mobile
+                  Operations</span></li>
+              <li class="point-item"><span class="point-icon">✓</span><span>วัดผลลัพธ์เชิงตัวเลขจริง</span></li>
+            </ul>
+          </div>
+
+          <div class="flow-node active-stage">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge sky">Stage 04</span>
+                <span style="font-size: 18px;">👥</span>
+              </div>
+              <div class="card-title">พัฒนาทีมสู่ความยั่งยืน</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                โค้ชชิ่งลูกทีม (คุณรณชัย วิจิตโต / ใหม่) ถ่ายทอดการใช้ AI และมอบหมายให้เป็น Project Lead Process
+                Improvement คุมโครงการสำคัญขององค์กร
+              </div>
+            </div>
+            <ul class="point-grid" style="margin-top: 10px;">
+              <li class="point-item"><span class="point-icon">✓</span><span>1-on-1 Coaching สม่ำเสมอ</span></li>
+              <li class="point-item"><span class="point-icon">✓</span><span>มอบหมายกรรมสิทธิ์ (Owner)</span></li>
+              <li class="point-item"><span class="point-icon">✓</span><span>สร้าง Successor ที่แข็งแกร่ง</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div class="footer-tags"><span>Aligned with Process Improvement Methodology Policy (Nov 2026)</span></div>
+        <div>Slide 03 / 14</div>
+      </div>
+    </div>
+
+    <!-- ==================== SLIDE 4: HR Req 1 - Calendar AI Assessment ==================== -->
+    <div class="slide" id="slide-4">
+      <div class="slide-header">
+        <div>
+          <div class="category-kicker">HR Checklist Requirement #1</div>
+          <h1 class="slide-title">ผลการวิเคราะห์การปฏิบัติงานรอบ Half Year โดย AI</h1>
+          <p class="slide-subtitle">ประเมินผลอย่างเป็นกลางอิงหลักฐานจริงใน Google Calendar และ col_worklog 129 รายการ
+            (63/66 วัน 95.5%)</p>
+        </div>
+        <div class="header-aside">
+          <div class="stamp-pill emerald">OVERALL: 88.0% (GRADE A)</div>
+          <span style="font-size: 11px; color: var(--emerald);">Evidence Sufficiency: HIGH</span>
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-1-2">
+          <!-- Summary Badge Card with Live 5-Axis Radar Canvas -->
+          <div class="card accent-emerald"
+            style="padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <div class="pill-badge emerald">AI Evaluation Summary</div>
+                <span class="pill-badge sky" style="font-size: 9.5px; font-weight: 700;">5-AXIS RADAR</span>
+              </div>
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <div class="metric-hero emerald count-up" data-target="88.0" style="font-size: 38px; line-height: 1;">
+                  88.0%</div>
+                <div style="font-size: 12.5px; font-weight: 700; color: #fff;">เกรด A • "ดี" ค่อนไปทางดีเยี่ยม</div>
+              </div>
+
+              <!-- Radar Chart Canvas -->
+              <div style="position: relative; width: 100%; display: flex; justify-content: center; margin: 4px 0;">
+                <canvas id="radarCanvas" width="250" height="195"
+                  style="max-width: 100%; filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.25));"></canvas>
+              </div>
+
+              <div class="card-desc" style="font-size: 11px; line-height: 1.45; color: var(--slate-muted);">
+                "จุดเด่นด้าน <strong>Proactiveness</strong> (90%) และ <strong>Learning</strong> (92.5%) ริเริ่ม
+                AI-Assisted Engineering และมีโครงสร้าง Coach, Review, Delegate ชัดเจน"
+              </div>
+            </div>
+            <div
+              style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between;">
+              <span style="font-size: 10.5px; color: var(--slate-dim);">บันทึกจริง: 63 / 66 วัน</span>
+              <span style="font-size: 10.5px; font-weight: 700; color: var(--emerald);">สม่ำเสมอ 95.5% (129
+                กิจกรรม)</span>
+            </div>
+          </div>
+
+          <!-- 5 Dimensions Table -->
+          <div class="table-container">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>มิติการประเมิน (5 Dimensions)</th>
+                  <th>เต็ม</th>
+                  <th>ได้</th>
+                  <th>ระดับ</th>
+                  <th>เหตุผลเชิงประจักษ์จาก AI</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Quantity (ความครบถ้วน)</strong></td>
+                  <td>20</td>
+                  <td><strong style="color: #fff;">18.5</strong></td>
+                  <td><span class="pill-badge emerald">92.5%</span></td>
+                  <td>บันทึกสม่ำเสมอ 95.5% รวม 129 รายการ ครอบคลุม JD ทั้ง 5 ด้าน และ 15 โครงการ</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Quality (คุณภาพและผลลัพธ์)</strong></td>
+                  <td>20</td>
+                  <td><strong style="color: #fff;">16.5</strong></td>
+                  <td><span class="pill-badge sky">82.5%</span></td>
+                  <td>ส่งมอบฟังก์ชันสำคัญครบถ้วน เช่น Smart HR, CRM Ticket, Jawis QC Script</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Learning (การเรียนรู้)</strong></td>
+                  <td>20</td>
+                  <td><strong style="color: #fff;">18.5</strong></td>
+                  <td><span class="pill-badge emerald">92.5%</span></td>
+                  <td>Learn ➔ Apply ➔ Improve ➔ Share ผ่าน AI Workshop & ถ่ายทอดความรู้ 22 ครั้ง</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Accountability (ความรับผิดชอบ)</strong></td>
+                  <td>20</td>
+                  <td><strong style="color: #fff;">16.5</strong></td>
+                  <td><span class="pill-badge sky">82.5%</span></td>
+                  <td>บทบาทหัวหน้างานชัดเจน: TeamOps, Delegate 7 ครั้ง, Coach 4 ครั้ง, Review 8 ครั้ง</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Proactiveness (การคิดเชิงรุก)</strong></td>
+                  <td>20</td>
+                  <td><strong style="color: #fff;">18.0</strong></td>
+                  <td><span class="pill-badge emerald">90.0%</span></td>
+                  <td>ริเริ่มระบบแบบประเมิน HR ลดต้นทุน, ดักจับรูปเบลอ, ออกแบบใบเบิก DDS ล่วงหน้า</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div class="footer-tags"><span>Evaluated strictly according to @half-year-manager.md criteria</span></div>
+        <div>Slide 04 / 14</div>
+      </div>
+    </div>
+
+    <!-- ==================== SLIDE 5: 5 Dimensions Breakdown ==================== -->
+    <div class="slide" id="slide-5">
+      <div class="slide-header">
+        <div>
+          <div class="category-kicker">Managerial Competency Breakdown</div>
+          <h1 class="slide-title">เจาะลึกมิติหัวหน้างาน: การกำกับดูแล, โค้ชชิ่งทีม และคิดเชิงรุก</h1>
+          <p class="slide-subtitle">หลักฐานเชิงประจักษ์ด้าน Accountability และ Proactiveness ในการบริหารจัดการส่วนงาน
+          </p>
+        </div>
+        <div class="header-aside">
+          <div class="stamp-pill sky">CORE ATTRIBUTES</div>
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card accent-sky">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge sky">Accountability</span>
+                <span style="font-size: 13px; font-weight: 700; color: #fff;">16.5 / 20</span>
+              </div>
+              <div class="card-title">Own ➔ Deliver ➔ Close</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                แสดงบทบาทหัวหน้างานในการกำกับ ติดตาม และมอบหมายงานอย่างเป็นระบบ:
+              </div>
+            </div>
+            <ul class="point-grid" style="margin-top: 10px;">
+              <li class="point-item check"><span class="point-icon">✓</span><span><strong>Delegation (7 ครั้ง):</strong>
+                  มอบหมายเคลียร์ Jawis Backlog และโครงสร้างสไลด์อย่างชัดเจน</span></li>
+              <li class="point-item check"><span class="point-icon">✓</span><span><strong>Coaching (4 ครั้ง):</strong>
+                  จัดเซสชัน 1:1 Coaching ยกระดับศักยภาพลูกทีม (คุณรณชัย / ใหม่)</span></li>
+              <li class="point-item check"><span class="point-icon">✓</span><span><strong>Review (8 ครั้ง):</strong>
+                  จัดประชุม Weekly Review ทบทวนความคืบหน้าทุกสัปดาห์</span></li>
+            </ul>
+          </div>
+
+          <div class="card accent-emerald">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge emerald">Learning Agility</span>
+                <span style="font-size: 13px; font-weight: 700; color: #fff;">18.5 / 20</span>
+              </div>
+              <div class="card-title">Learn ➔ Apply ➔ Share</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                ยกระดับองค์ความรู้และต่อยอดสู่การใช้งานจริงในองค์กร:
+              </div>
+            </div>
+            <ul class="point-grid" style="margin-top: 10px;">
+              <li class="point-item check"><span class="point-icon">✓</span><span><strong>Learn:</strong> อบรม BOI AI
+                  Engineering Workshop Day 3 นำมาปรับใช้ใน SDLC ทันที</span></li>
+              <li class="point-item check"><span class="point-icon">✓</span><span><strong>Apply:</strong> นำ AI ช่วยทำ
+                  Data Modeling และ Mockup หน้า Lead Management</span></li>
+              <li class="point-item check"><span class="point-icon">✓</span><span><strong>Share:</strong> จัด Training &
+                  Consult รวม <strong>22 ครั้ง</strong> ให้ทีมงานและฝ่ายอื่น</span></li>
+            </ul>
+          </div>
+
+          <div class="card accent-gold">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge gold">Proactiveness</span>
+                <span style="font-size: 13px; font-weight: 700; color: #fff;">18.0 / 20</span>
+              </div>
+              <div class="card-title">Anticipate ➔ Prevent</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                มองเห็นความเสี่ยงล่วงหน้าและริเริ่มสร้างโซลูชันก่อนเกิดปัญหา:
+              </div>
+            </div>
+            <ul class="point-grid" style="margin-top: 10px;">
+              <li class="point-item check"><span class="point-icon">✓</span><span><strong>ระบบประเมิน HR:</strong>
+                  ริเริ่มสร้างระบบเอง ช่วยองค์กรลดต้นทุนจัดซื้อซอฟต์แวร์นอก</span></li>
+              <li class="point-item check"><span class="point-icon">✓</span><span><strong>Smart File
+                    Validation:</strong> ดักปัญหาผู้สมัครแนบรูปเบลอ ลดงานตีกลับเอกสาร</span></li>
+              <li class="point-item check"><span class="point-icon">✓</span><span><strong>Root Cause Jawis:</strong>
+                  แก้ที่ Script Data โดยตรง ตัดปัญหาข้อมูล QC ค้างถาวร</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div class="footer-tags"><span>Extracted from evaluation_10005208_half_year_2026.md</span></div>
+        <div>Slide 05 / 14</div>
+      </div>
+    </div>
+
+    <!-- ==================== SLIDE 6: Feedback Loop ==================== -->
+    <div class="slide" id="slide-6">
+      <div class="slide-header">
+        <div>
+          <div class="category-kicker">Continuous Leadership Improvement</div>
+          <h1 class="slide-title">Feedback Loop: ปิดช่องว่างจากข้อเสนอแนะ AI สู่ผลลัพธ์จริงในครึ่งปีหลัง</h1>
+          <p class="slide-subtitle">การนำคำแนะนำของ AI ในครึ่งปีแรก มาเป็นโจทย์ในการพัฒนาจนเกิดตัวเลข Business Impact
+            และ Closure จริง</p>
+        </div>
+        <div class="header-aside">
+          <div class="stamp-pill emerald">ACTIONED & VERIFIED</div>
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-2" style="align-items: stretch;">
+          <!-- Left Column: Both Gap Actions -->
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Item 1: Business Impact -->
+            <div class="card" style="padding: 12px 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span class="pill-badge gold">Gap #1 • ตัวเลขเชิงประจักษ์ & โมเดลการเงิน</span>
+                <span style="font-size: 10px; color: var(--emerald); font-weight: 700;">✓ ปิดช่องว่างชัดเจน</span>
+              </div>
+              <div style="font-size: 13px; font-weight: 700; color: #fff;">ผลลัพธ์เวลา & โมเดลการเงิน (Delivered 2026 ➔ Operations 2027)
+              </div>
+              <p style="font-size: 11px; color: var(--slate-muted); margin-top: 2px;">
+                แก้ข้อสังเกต AI: พิสูจน์เวลาทำรายงานที่ลดได้จริงในปี 2026 พร้อมวางโมเดลผลประหยัดเงินสดเตรียม Rollout ปี 2027
+              </p>
+              <div
+                style="margin-top: 6px; padding: 6px 10px; background: rgba(16, 185, 129, 0.08); border-left: 3px solid var(--emerald); border-radius: 4px;">
+                <ul class="point-grid" style="gap: 3px;">
+                  <li class="point-item check" style="font-size: 11px;"><span
+                      class="point-icon">✓</span><span><strong>2026 Delivered (Data Automation):</strong> ลดเวลาทำข้อมูล & รายงาน <strong>>1,000+ ชม./ปี</strong></span></li>
+                  <li class="point-item check" style="font-size: 11px;"><span
+                      class="point-icon">✓</span><span><strong>Print Services (2027 Horizon):</strong> โมเดลเส้นทาง Estimate ลดค่าน้ำมัน <strong>32,000 บ./ด.</strong></span></li>
+                  <li class="point-item check" style="font-size: 11px;"><span
+                      class="point-icon">✓</span><span><strong>ITC Precast (2027 Horizon):</strong> โมเดลลดเวลารถคอย 45 น./เที่ยว Estimate <strong>180,000 บ./ด.</strong></span></li>
+                  <li class="point-item check" style="font-size: 11px;"><span
+                      class="point-icon">✓</span><span><strong>FxCurrency & ERP (Delivered):</strong> ตัด Manual 100% ประหยัด <strong>125 ชม./ปี</strong> ไร้ Error</span></li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Item 2: Formal Closure -->
+            <div class="card" style="padding: 12px 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span class="pill-badge gold">Gap #2 • การปิดจบงาน</span>
+                <span style="font-size: 10px; color: var(--sky); font-weight: 700;">✓ มี Sign-off ทุกจุด</span>
+              </div>
+              <div style="font-size: 13px; font-weight: 700; color: #fff;">บันทึกสถานะปิดจบ (Formal Closure & Handover)
+              </div>
+              <p style="font-size: 11px; color: var(--slate-muted); margin-top: 2px;">
+                แก้ข้อสังเกต AI: เปลี่ยนสถานะจาก Plan สู่การเซ็นรับมอบจริงร่วมกับ Process Owner
+              </p>
+              <div
+                style="margin-top: 6px; padding: 6px 10px; background: rgba(56, 189, 248, 0.08); border-left: 3px solid var(--sky); border-radius: 4px;">
+                <ul class="point-grid" style="gap: 3px;">
+                  <li class="point-item check" style="font-size: 11px;"><span
+                      class="point-icon">✓</span><span><strong>Process Owner Sign-off:</strong> ส่งมอบโรงหล่อ ITC
+                      ครบสมบูรณ์</span></li>
+                  <li class="point-item check" style="font-size: 11px;"><span
+                      class="point-icon">✓</span><span><strong>Handover Package:</strong> เอกสาร UAT และเชื่อมต่อ Maximo
+                      API</span></li>
+                  <li class="point-item check" style="font-size: 11px;"><span
+                      class="point-icon">✓</span><span><strong>Policy Compliance:</strong> ผ่านเกณฑ์ Completion Criteria
+                      นโยบายใหม่</span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Real Worklog NewGen System Screenshot -->
+          <div class="mac-window" style="height: 100%; display: flex; flex-direction: column;">
+            <div class="mac-header">
+              <div class="mac-dots">
+                <div class="mac-dot red"></div>
+                <div class="mac-dot yellow"></div>
+                <div class="mac-dot green"></div>
+              </div>
+              <div class="mac-title">WORKLOG NEWGEN • EXECUTIVE DIAGNOSTICS DASHBOARD</div>
+              <span class="pill-badge emerald" style="font-size: 9px; padding: 2px 6px;">WORKLOG-IMP.PAGES.DEV</span>
+            </div>
+            <div class="asset-frame" style="flex: 1; border: none; border-radius: 0; min-height: 280px;"
+              onclick="openLightbox('assets/worklog_newgen_dashboard.png', 'Worklog NewGen • แดชบอร์ดวิเคราะห์ผลงานและติดตามตัวชี้วัด 5 มิติ (worklog-imp.pages.dev)')">
+              <img src="assets/worklog_newgen_dashboard.png" alt="Worklog NewGen Executive Dashboard">
+              <div class="asset-overlay"></div>
+              <div class="asset-badge-bar">
+                <span class="pill-badge sky" style="font-size: 9.5px;">worklog-imp.pages.dev ↔ 1,687.3h Verified</span>
+                <span class="asset-zoom-pill">🔍 คลิกซูมดูภาพระบบจริง</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div class="footer-tags"><span>Demonstrating rapid adaptation from assessment feedback to verified executive
+            results</span></div>
+        <div>Slide 06 / 14</div>
+      </div>
+    </div>
+
+    <!-- ==================== SLIDE 7: HR Req 2 - New Policy ==================== -->
+    <div class="slide" id="slide-7">
+      <div class="slide-header">
+        <div>
+          <div class="category-kicker">HR Checklist Requirement #2</div>
+          <h1 class="slide-title">ทบทวนและยกระดับมาตรฐาน WI ตามนโยบายใหม่ (1 พ.ย. 2569)</h1>
+          <p class="slide-subtitle">สอดรับกับ Process Improvement Methodology Policy (อนุมัติโดย คุณจินตนา ภูดิทธนภาคย์)
+          </p>
+        </div>
+        <div class="header-aside">
+          <div class="stamp-pill gold">APPROVED POLICY</div>
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-1-2">
+          <!-- Policy Statement -->
+          <div class="card accent-gold">
+            <div class="pill-badge gold" style="margin-bottom: 8px;">Documentation Standard (ข้อ 6)</div>
+            <div style="font-size: 17px; font-weight: 700; color: #fff; line-height: 1.35;">
+              "ไม่กำหนดให้ทุกงานต้องมี WI ให้เลือกใช้เอกสารตามลักษณะงาน โดยคำนึงถึง Business Value, Risk และความจำเป็น
+              มากกว่าการจัดทำเพื่อให้ครบจำนวน"
+            </div>
+            <div class="card-desc" style="margin-top: 10px;">
+              เราก้าวข้ามจากการบังคับเขียนคู่มือกระดาษหนาๆ ที่ไม่มีคนเปิดอ่าน
+              สู่การเลือกใช้เครื่องมือควบคุมที่ตรงกับบริบทงานจริง (Fit-for-Purpose Documentation)
+            </div>
+
+            <div style="margin-top: 14px; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 6px;">
+              <div style="font-size: 10.5px; color: var(--gold-light); font-weight: 700; text-transform: uppercase;">
+                Guiding Principles:</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                • Data before Opinion | Root Cause before Solution<br>
+                • Business Value over Activity | Sustainability over Quick Fix
+              </div>
+            </div>
+          </div>
+
+          <!-- Documentation Matrix -->
+          <div class="table-container">
+            <table class="clean-table">
+              <thead>
+                <tr>
+                  <th>ประเภทเอกสารตาม Policy</th>
+                  <th>ลักษณะงานที่เหมาะสม</th>
+                  <th>การนำไปใช้จริงในโครงการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1. Process / SOP</strong></td>
+                  <td>มาตรฐานกระบวนการระดับ End-to-End</td>
+                  <td>SOP ขั้นตอนการรับสมัครงานและเชื่อมต่อฐานข้อมูล HRMS</td>
+                </tr>
+                <tr>
+                  <td><strong>2. Work Instruction (WI)</strong></td>
+                  <td>งาน Routine ที่มีขั้นตอนทำซ้ำชัดเจน</td>
+                  <td>WI 5.1 ขั้นตอนตรวจสอบความพร้อมก่อนเทคอนกรีตบนโต๊ะหล่อ</td>
+                </tr>
+                <tr>
+                  <td><strong>3. Digital Checklist</strong></td>
+                  <td>จุดตรวจหน้างานที่ต้องคุมให้ครบถ้วน</td>
+                  <td><strong>Checklist QC1/QC3 บนแท็บเล็ต</strong> บังคับถ่ายภาพ 4 จุด</td>
+                </tr>
+                <tr>
+                  <td><strong>4. Incident & RCA Record</strong></td>
+                  <td>บันทึก Root Cause และการป้องกันซ้ำ</td>
+                  <td>บันทึก RCA รอยแตกลายงาแผ่นคอนกรีตจากสภาพอากาศหนาว</td>
+                </tr>
+                <tr>
+                  <td><strong>5. Decision Log</strong></td>
+                  <td>บันทึกเหตุผลและทางเลือกในการตัดสินใจ</td>
+                  <td>Decision Log การเลือกแท็กบาร์โค้ดเหล็กเสริมทนความร้อน 120°C</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div class="footer-tags"><span>Process Improvement Methodology Policy v1.0 | Effective 1/11/2026</span></div>
+        <div>Slide 07 / 14</div>
+      </div>
+    </div>
+
+    <!-- ==================== SLIDE 8: AI Strategic Opinion on Policy ==================== -->
+    <div class="slide" id="slide-8">
+      <div class="slide-header">
+        <div>
+          <div class="category-kicker">AI Strategic Opinion & Synthesis</div>
+          <h1 class="slide-title">ความเห็นเชิงวิเคราะห์จาก AI: ทำไม Fit-for-Purpose Documentation จึงสร้างคุณค่าสูงสุด
+          </h1>
+          <p class="slide-subtitle">การสังเคราะห์มุมมอง AI ต่อนโยบายการจัดการองค์ความรู้เพื่อการเติบโตที่ยั่งยืน</p>
+        </div>
+        <div class="header-aside">
+          <div class="stamp-pill sky">EXECUTIVE MEMO</div>
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="card accent-emerald">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge emerald">Insight 01</span>
+                <span style="font-size: 16px;">🌱</span>
+              </div>
+              <div class="card-title">ขจัดความสูญเสียด้านเอกสาร</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                การบังคับเขียน WI ทุกงานมักนำไปสู่ "Dead Documentation" ที่สร้างภาระแต่งานหน้างานไม่เปิดใช้
+                การเปลี่ยนเป็น <strong>Digital Checklist บังคับ Validation บนแอป</strong> ช่วยเพิ่ม Compliance Rate
+                หน้างานจริงสู่ <strong>99.2%</strong>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--emerald); margin-top: 10px;">✓ Active Digital Enforcement</div>
+          </div>
+
+          <div class="card accent-sky">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge sky">Insight 02</span>
+                <span style="font-size: 16px;">💎</span>
+              </div>
+              <div class="card-title">RCA เป็นสินทรัพย์องค์กร</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                Incident & RCA Record เป็นทรัพย์สินทางปัญญาที่แท้จริง เพราะสะท้อนว่าทีมงานเข้าใจสาเหตุที่แท้จริง
+                ไม่แก้ปัญหาที่ปลายเหตุ ช่วยตัดทอนต้นทุนความผิดพลาดซ้ำ (Prevent Recurrence) ได้อย่างถาวร
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--sky); margin-top: 10px;">✓ Zero Rework Target</div>
+          </div>
+
+          <div class="card accent-gold">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge gold">Insight 03</span>
+                <span style="font-size: 16px;">🏛️</span>
+              </div>
+              <div class="card-title">สอดรับ 9-Stage Framework</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                สอดคล้องกับระเบียบนโยบาย Stage 8 (Standardize & Sustain) และ Stage 9 (Replicate)
+                ที่มุ่งเน้นการส่งมอบงานที่มี Owner ชัดเจน มีระบบควบคุมติดตาม
+                และสามารถขยายผลไปยังโรงงานอื่นได้โดยไม่สะดุด
+              </div>
+            </div>
+            <div style="font-size: 11px; color: var(--gold-light); margin-top: 10px;">✓ Enterprise Scalability</div>
+          </div>
+        </div>
+
+        <div class="card"
+          style="margin-top: 14px; padding: 14px 18px; border-left: 4px solid var(--sky); background: rgba(56, 189, 248, 0.04);">
+          <div style="font-size: 13px; color: #fff; line-height: 1.5;">
+            <strong>ข้อสรุปของ AI ต่อนักบริหาร:</strong> "การนำเสนอผลงานของผู้นำยุคใหม่
+            ไม่ได้วัดที่จำนวนหน้าเอกสารที่เขียนขึ้น
+            แต่วัดจากความสามารถในการเลือกเครื่องมือควบคุมที่ทำให้กระบวนการทำงานมีข้อผิดพลาดเป็นศูนย์ (Zero Rework)
+            และสร้างมูลค่าธุรกิจได้อย่างต่อเนื่อง"
+          </div>
+        </div>
+      </div>
+
+      <div class="slide-footer">
+        <div class="footer-tags"><span>Synthesized via AI Strategic Evaluation Engine</span></div>
+        <div>Slide 08 / 14</div>
+      </div>
+    </div>
+
+    <!-- ==================== SLIDE 9: Delivered Case Studies Q1-Q3 ==================== -->
+    <div class="slide" id="slide-9">
+      <div class="slide-header">
+        <div>
+          <div class="category-kicker">HR Checklist Requirement #3 • Top-Down Process Automation</div>
+          <h1 class="slide-title">Case Study 1: ปฏิรูประบบข้อมูลและออโตเมชันเชิงกระบวนการ (Data & Process Automation 2026)</h1>
+          <p class="slide-subtitle">รวมศูนย์ข้อมูลกระจัดกระจายสู่ Executive Intelligence ช่วยทีมงานประหยัดเวลาทำข้อมูลสะสมกว่า 1,000+ ชม./ปี</p>
+        </div>
+        <div class="header-aside">
+          <div class="stamp-pill emerald">>1,000h SAVED IN 2026</div>
+        </div>
+      </div>
+
+      <div class="slide-body">
+        <div class="grid-3" style="gap: 12px;">
+          <!-- FxCurrency -->
+          <div class="card">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge sky">ERP NetSuite</span>
+                <span style="font-size: 11px; color: var(--emerald); font-weight: 700;">125 ชม./ปี</span>
+              </div>
+              <div class="card-title">FxCurrency 365-Day Sync</div>
+              <div class="card-desc" style="margin-top: 4px;">
+                ดึงเรท 4 ธนาคารและธปท. 365 วันอัตโนมัติ ส่งตรง NetSuite & Mango พร้อมระบบ PIN Override สำหรับผู้จัดการ
+              </div>
+            </div>
+            <div style="margin-top: 8px; font-size: 11px; color: var(--emerald);">✓ ตัดงาน Manual คีย์เรทมือ 100% กระทบยอดตรงเป๊ะ</div>
+          </div>
+
+          <!-- Smart HR -->
+          <div class="card">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge sky">HR Recruitment</span>
+                <span style="font-size: 11px; color: var(--emerald); font-weight: 700;">180 ชม./ปี</span>
+              </div>
+              <div class="card-title">Application Form & Validation API</div>
+              <div class="card-desc" style="margin-top: 4px;">
+                รับสมัครงานออนไลน์ พร้อม Smart File Validation ดักตรวจรูปถ่าย/เอกสารผู้สมัคร (Poka-Yoke) ยิง API เข้า HRMS ทันที
+              </div>
+            </div>
+            <div style="margin-top: 8px; font-size: 11px; color: var(--emerald);">✓ ลดเอกสารตีกลับลง 80% ประหยัด 180 ชม./ปี</div>
+          </div>
+
+          <!-- Print Services Intelligence Dashboard -->
+          <div class="card">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge emerald">Fleet Intelligence</span>
+                <span style="font-size: 11px; color: var(--emerald); font-weight: 700;">380 ชม./ปี</span>
+              </div>
+              <div class="card-title">Print Services Meter Dashboard</div>
+              <div class="card-desc" style="margin-top: 4px;">
+                รวมศูนย์สถิติการจ่ายกระดาษ 10 รูปแบบ และเลขมิเตอร์เครื่องพิมพ์เช่า 420 เครื่อง ลดเวลาโทรตามและรวมไฟล์ Excel
+              </div>
+            </div>
+            <div style="margin-top: 8px; font-size: 11px; color: var(--emerald);">✓ ลดเวลาทำรายงานประจำเดือนลง 93%</div>
+          </div>
+
+          <!-- Precast Production Dashboard -->
+          <div class="card">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge emerald">Plant Intelligence</span>
+                <span style="font-size: 11px; color: var(--sky); font-weight: 700;">200 ชม./ปี</span>
+              </div>
+              <div class="card-title">ITC Precast Yield Dashboard</div>
+              <div class="card-desc" style="margin-top: 4px;">
+                รวบรวมข้อมูลการผลิต 11,450 แผ่น วิเคราะห์ Pareto Defect และผังลานสต็อก ให้ผู้บริหารเห็นภาพรวมทันที
+              </div>
+            </div>
+            <div style="margin-top: 8px; font-size: 11px; color: var(--sky);">✓ ตัดงานจดกระดาษสรุปรายสัปดาห์ 200 ชม./ปี</div>
+          </div>
+
+          <!-- Maximo SR Automation -->
+          <div class="card">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge gold">Core Maintenance</span>
+                <span style="font-size: 11px; color: var(--emerald); font-weight: 700;">100 ชม./ปี</span>
+              </div>
+              <div class="card-title">Maximo SR Automation (XML)</div>
+              <div class="card-desc" style="margin-top: 4px;">
+                เปลี่ยนแบบฟอร์มแจ้งซ่อม Google Form บนมือถือ สู่ SOAP XML ยิงตรงเข้า IBM Maximo ทันที
+              </div>
+            </div>
+            <div style="margin-top: 8px; font-size: 11px; color: var(--emerald);">✓ ตัดงานธุรการคีย์ซ้ำ 100% เปิดงานฉับไว</div>
+          </div>
+
+          <!-- Worklog NewGen & AI -->
+          <div class="card">
+            <div>
+              <div class="card-head">
+                <span class="pill-badge gold">Governance & Audit</span>
+                <span style="font-size: 11px; color: var(--emerald); font-weight: 700;">80 ชม./ปี</span>
+              </div>
+              <div class="card-title">IMP Worklog NewGen & AI Engine</div>
+              <div class="card-desc" style="margin-top: 4px;">
+                แปลง Google Calendar สู่บันทึกงานรายวันอัตโนมัติ ติดตามตัวชี้วัด 5 มิติ พร้อมระบบ RLS Security
+              </div>
+            </div>
+            <div style="margin-top: 8px; font-size: 11px; color: var(--emerald);">✓ ลดเวลาสรุปผลงาน & ปิด Gap ประเมินรอบด้าน</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <div class="footer-tags"><span>Verified deliveries in Real Estate, Double A, and Corporate entities</span>
+          </div>
+          <div>Slide 09 / 14</div>
+        </div>
+      </div>
+
+      <!-- ==================== SLIDE 10: ITC Precast Megaproject ==================== -->
+      <div class="slide" id="slide-10">
+        <div class="slide-header">
+          <div>
+            <div class="category-kicker">Strategic Megaproject Case Study</div>
+            <h1 class="slide-title">Case Study 2: ITC Precast Manufacturing Digital Twin & Operations</h1>
+            <p class="slide-subtitle">การปฏิรูปสายการผลิตแผ่นคอนกรีตสำเร็จรูปด้วยแนวทาง Phased Execution
+              และสถาปัตยกรรมดิจิทัล</p>
+          </div>
+          <div class="header-aside">
+            <div class="stamp-pill emerald">GO-LIVE & PRODUCTION</div>
+          </div>
+        </div>
+
+        <div class="slide-body">
+          <div class="grid-1-2">
+            <!-- Impact Summary Card -->
+            <div class="card accent-emerald"
+              style="padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div class="pill-badge emerald" style="margin-bottom: 6px;">Manufacturing Intelligence Scale</div>
+                <div class="metric-hero emerald count-up" data-target="200">200+ ชม.</div>
+                <div class="metric-label">Data Prep & Production Reporting Saved / Y</div>
+                <div class="card-desc" style="margin-top: 6px; font-size: 11.5px;">
+                  รวมศูนย์สถิติยอดผลิต 11,450 แผ่น ผังลานดิจิทัล และวิเคราะห์ Pareto Defect ตัดงานจดมือรายสัปดาห์
+                </div>
+
+                <div
+                  style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 5px; font-size: 11px;">
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--slate-dim);">ยอดผลิตสะสม 2026:</span>
+                    <strong style="color: #fff;" class="count-up" data-target="11450">11,450 แผ่น</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--slate-dim);">โมเดลลดเวลารถคอย (Estimate 2027):</span>
+                    <strong style="color: var(--emerald);">฿180,000 / ด. (ลด 45 น./เที่ยว)</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--slate-dim);">ลดงานซ่อมผิวซ้ำ (Rework):</span>
+                    <strong style="color: var(--emerald);">-35% ด้วย Pareto 80/20</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--slate-dim);">ประหยัดกระดาษ QC:</span>
+                    <strong style="color: #fff;">12,000 แผ่น/เดือน</strong>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Mini Plate Drawer Photo in Left Card -->
+              <div class="mac-window" style="margin-top: 10px;">
+                <div class="mac-header">
+                  <div class="mac-dots">
+                    <div class="mac-dot red"></div>
+                    <div class="mac-dot yellow"></div>
+                    <div class="mac-dot green"></div>
+                  </div>
+                  <div class="mac-title" style="font-size: 9.5px;">PLATE INSPECTION & BARCODE</div>
+                </div>
+                <div class="asset-frame" style="border: none; border-radius: 0; height: 95px;"
+                  onclick="openLightbox('assets/desktop_platedrawer_photos.png', 'ITC Precast • ตรวจสอบภาพถ่ายแผ่นคอนกรีตและการระบุบาร์โค้ดประจำแผ่น')">
+                  <img src="assets/desktop_platedrawer_photos.png" alt="Plate Drawer Photo">
+                  <div class="asset-overlay"></div>
+                  <div class="asset-badge-bar">
+                    <span class="pill-badge gold" style="font-size: 8.5px;">QC Photo Evidence</span>
+                    <span class="asset-zoom-pill" style="font-size: 8.5px;">🔍 ดูภาพ</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Phased Architecture Comparison + Real Digital Twin Screenshot -->
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <!-- Phase 1 Card with Real Digital Twin Screenshot -->
+              <div class="card accent-sky" style="padding: 12px 16px;">
+                <div class="card-head">
+                  <span class="card-title">Phase 1 • Go-Live สายการผลิตจริงแล้ว (2026)</span>
+                  <span class="pill-badge emerald">OPERATIONAL</span>
+                </div>
+
+                <div
+                  style="display: grid; grid-template-columns: 1fr 220px; gap: 12px; margin-top: 6px; align-items: center;">
+                  <ul class="point-grid" style="gap: 4px;">
+                    <li class="point-item check" style="font-size: 11px;"><span
+                        class="point-icon">✓</span><span><strong>สแกน QC1/QC3 12 โต๊ะ:</strong> ตรวจภาพถ่ายและมิติ ±2
+                        มม. บนแท็บเล็ต</span></li>
+                    <li class="point-item check" style="font-size: 11px;"><span
+                        class="point-icon">✓</span><span><strong>ผังลานสต็อกดิจิทัล:</strong> จัดการพิกัด คิวเครน และ
+                        Andon Board สด</span></li>
+                    <li class="point-item check" style="font-size: 11px;"><span
+                        class="point-icon">✓</span><span><strong>Offline-First PWA:</strong> ตรวจรับแผ่น 13
+                        โครงการแม้ไร้เน็ต</span></li>
+                  </ul>
+
+                  <!-- Embedded Digital Twin Screenshot -->
+                  <div class="mac-window">
+                    <div class="mac-header">
+                      <div class="mac-dots">
+                        <div class="mac-dot red"></div>
+                        <div class="mac-dot yellow"></div>
+                        <div class="mac-dot green"></div>
+                      </div>
+                      <div class="mac-title" style="font-size: 9px;">DIGITAL TWIN</div>
+                    </div>
+                    <div class="asset-frame" style="border: none; border-radius: 0; height: 100px;"
+                      onclick="openLightbox('assets/desktop_twin_clean.png', 'ITC Precast Digital Twin • ระบบควบคุมโต๊ะหล่อ 12 โต๊ะ และผังลานสต็อกแผ่น')">
+                      <img src="assets/desktop_twin_clean.png" alt="Precast Digital Twin">
+                      <div class="asset-overlay"></div>
+                      <div class="asset-badge-bar">
+                        <span class="pill-badge emerald" style="font-size: 8.5px;">12 Casting Tables</span>
+                        <span class="asset-zoom-pill" style="font-size: 8.5px;">🔍 ซูม</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Phase 2 Card -->
+              <div class="card" style="padding: 12px 16px;">
+                <div class="card-head">
+                  <span class="card-title">Phase 2 • แผนงานยุทธศาสตร์ขยายผล (2027)</span>
+                  <span class="pill-badge gold">INNOVATION ROADMAP</span>
+                </div>
+                <div class="card-desc" style="font-size: 11px;">ยกระดับสู่ระบบปฏิบัติการ Multi-Device ที่คล่องตัวสูง:
+                </div>
+                <ul class="point-grid" style="margin-top: 4px; gap: 4px;">
+                  <li class="point-item" style="font-size: 11px;"><span class="point-icon">➔</span><span><strong>Mobile
+                        Field Operations:</strong> ให้ทีม Operation บันทึกผ่านมือถือ เป็นตัว Trigger
+                      ข้อมูลหน้างานทันทีแบบ Zero Hardware Overhead</span></li>
+                  <li class="point-item" style="font-size: 11px;"><span class="point-icon">➔</span><span><strong>Rebar
+                        Barcode Scanning:</strong> สแกนติดตามมัดเหล็กเสริมและชิ้นส่วนฝังผ่านกล้องมือถือ/PDA</span></li>
+                  <li class="point-item" style="font-size: 11px;"><span
+                      class="point-icon">➔</span><span><strong>ขยายสู่โรงงานที่ 2 (โรจนะ):</strong> ด้วย Fast-Track
+                      Blueprint ติดตั้งเสร็จใน 45 วัน</span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <div class="footer-tags"><span>Executed at ITC Factory with full process integration to Mango ERP</span></div>
+          <div>Slide 10 / 14</div>
+        </div>
+      </div>
+
+      <!-- ==================== SLIDE 11: Print Services Megaproject ==================== -->
+      <div class="slide" id="slide-11">
+        <div class="slide-header">
+          <div>
+            <div class="category-kicker">Top-Down Executive Intelligence</div>
+            <h1 class="slide-title">Case Study 3: Double A Print Services — ศูนย์บัญชาการข้อมูลมิเตอร์และการจัดส่ง 420 เครื่อง</h1>
+            <p class="slide-subtitle">ยกระดับจากการทำข้อมูล Excel ด้วยมือ สู่ Top-Down Executive Dashboard พร้อมวางโมเดลสู่ Phase Operations ปี 2027</p>
+          </div>
+          <div class="header-aside">
+            <div class="stamp-pill sky">380h DATA PREP SAVED</div>
+          </div>
+        </div>
+
+        <div class="slide-body">
+          <div class="grid-1-2">
+            <!-- Scale & Impact -->
+            <div class="card accent-sky"
+              style="padding: 16px; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div class="pill-badge sky" style="margin-bottom: 6px;">Executive Intelligence Scale</div>
+                <div class="metric-hero sky count-up" data-target="380">380+ ชม.</div>
+                <div class="metric-label">Data Prep & Reporting Time Saved / Y</div>
+                <div class="card-desc" style="margin-top: 6px; font-size: 11.5px;">
+                  รวมศูนย์สถิติการจ่ายกระดาษ 10 รูปแบบ และเลขมิเตอร์เครื่องพิมพ์เช่า 420 เครื่องทั่วประเทศ สรุปยอดอัตโนมัติ
+                </div>
+
+                <div
+                  style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 5px; font-size: 11px;">
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--slate-dim);">ลดเวลาทำข้อมูลรายงานประจำเดือน:</span>
+                    <strong style="color: var(--emerald);">-93% (จาก 35h เหลือ 2h/ด.)</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--slate-dim);">โมเดลประหยัดค่าน้ำมัน (Estimate 2027):</span>
+                    <strong style="color: var(--emerald);">฿32,000 / เดือน (฿384k/ปี)</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--slate-dim);">Support SLA Fulfillment:</span>
+                    <strong style="color: #fff;">96.3% (เข้าซ่อมตรงเวลา)</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style="margin-top: 8px; font-size: 10px; color: var(--slate-muted); background: rgba(56, 189, 248, 0.08); padding: 6px 10px; border-radius: 4px;">
+                ⚡ Top-Down Dashboard วิเคราะห์เสร็จสมบูรณ์ เตรียมขับเคลื่อนสู่หน้างานจริงปี 2027
+              </div>
+            </div>
+
+            <!-- Phased Service System + Real Installation Screenshot -->
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div class="card accent-emerald" style="padding: 12px 16px;">
+                <div class="card-head">
+                  <span class="card-title">Phase 1 • Top-Down Executive Intelligence (2026 Delivered)</span>
+                  <span class="pill-badge emerald">ACTIVE</span>
+                </div>
+
+                <div
+                  style="display: grid; grid-template-columns: 1fr 220px; gap: 12px; margin-top: 6px; align-items: center;">
+                  <ul class="point-grid" style="gap: 4px;">
+                    <li class="point-item check" style="font-size: 11px;"><span
+                        class="point-icon">✓</span><span><strong>Paper Logistics 2026:</strong> รวมศูนย์ยอดส่งกระดาษ 10 รูปแบบรายสาขาแบบเรียลไทม์</span></li>
+                    <li class="point-item check" style="font-size: 11px;"><span
+                        class="point-icon">✓</span><span><strong>Auto Meter Consolidation:</strong>
+                        ดึงเลขมิเตอร์ 420 เครื่องสิ้นเดือนอัตโนมัติ ไม่ต้องโทรตาม</span></li>
+                    <li class="point-item check" style="font-size: 11px;"><span
+                        class="point-icon">✓</span><span><strong>Multi-Year Trend Analysis:</strong>
+                        วิเคราะห์ Pacing, Fleet Yield และ Run-Rate ทันที</span></li>
+                  </ul>
+
+                  <!-- Embedded Installation Screenshot -->
+                  <div class="mac-window">
+                    <div class="mac-header">
+                      <div class="mac-dots">
+                        <div class="mac-dot red"></div>
+                        <div class="mac-dot yellow"></div>
+                        <div class="mac-dot green"></div>
+                      </div>
+                      <div class="mac-title" style="font-size: 9px;">FLEET DASHBOARD</div>
+                    </div>
+                    <div class="asset-frame" style="border: none; border-radius: 0; height: 100px;"
+                      onclick="openLightbox('assets/installation_tab_screenshot.png', 'Double A Print Services • ศูนย์บัญชาการข้อมูลมิเตอร์และการจัดส่ง 420 เครื่อง')">
+                      <img src="assets/installation_tab_screenshot.png" alt="Fleet Installation Management">
+                      <div class="asset-overlay"></div>
+                      <div class="asset-badge-bar">
+                        <span class="pill-badge sky" style="font-size: 8.5px;">420 Managed Units</span>
+                        <span class="asset-zoom-pill" style="font-size: 8.5px;">🔍 ซูม</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card" style="padding: 12px 16px;">
+                <div class="card-head">
+                  <span class="card-title">Phase 2 • Field Operations & Smart Fleet (2027 Horizon)</span>
+                  <span class="pill-badge gold">OPTIMIZATION</span>
+                </div>
+                <div class="card-desc" style="font-size: 11px;">ขยายผลการควบคุมลงสู่หน้างานจริงในบทบาท Department Manager:</div>
+                <ul class="point-grid" style="margin-top: 4px; gap: 4px;">
+                  <li class="point-item" style="font-size: 11px;"><span class="point-icon">➔</span><span><strong>Fleet Transit Telemetry:</strong>
+                        ติดตั้งระบบติดตามรถจัดส่งจริง คุมน้ำมันตามโมเดล ฿32,000/ด.</span></li>
+                  <li class="point-item" style="font-size: 11px;"><span
+                      class="point-icon">➔</span><span><strong>Smart Proximity Dispatching:</strong> กระจายงานซ่อมตามพิกัด GPS ช่าง ยกระดับ SLA 98%+</span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <div class="footer-tags"><span>Full nationwide fleet & automated billing governance for Double A</span></div>
+          <div>Slide 11 / 14</div>
+        </div>
+      </div>
+
+      <!-- ==================== SLIDE 12: People & AI Leadership ==================== -->
+      <div class="slide" id="slide-12">
+        <div class="slide-header">
+          <div>
+            <div class="category-kicker">People Leadership & AI Enablement</div>
+            <h1 class="slide-title">การบริหารทีมและพัฒนาบุคลากร: โค้ชชิ่งลูกทีมสู่นักนวัตกรรมที่ใช้ AI</h1>
+            <p class="slide-subtitle">การขับเคลื่อนศักยภาพของ คุณรณชัย วิจิตโต (ใหม่) สู่บทบาท Project Lead Process
+              Improvement</p>
+          </div>
+          <div class="header-aside">
+            <div class="stamp-pill gold">SUCCESS IS REPEATABLE</div>
+          </div>
+        </div>
+
+        <div class="slide-body">
+          <div class="grid-3" style="gap: 12px;">
+            <div class="card accent-sky" style="padding: 14px;">
+              <div>
+                <div class="card-head">
+                  <span class="pill-badge sky">Methodical Mentoring</span>
+                  <span style="font-size: 14px;">🌱</span>
+                </div>
+                <div class="card-title" style="font-size: 13.5px;">1-on-1 Coaching ต่อเนื่อง</div>
+                <div class="card-desc" style="margin-top: 4px; font-size: 11px;">
+                  จัดเซสชันโค้ชชิ่งรายบุคคลอย่างเป็นระบบตลอดปีเพื่อสร้างความแข็งแกร่งทางความคิด:
+                </div>
+              </div>
+              <ul class="point-grid" style="margin-top: 8px; gap: 4px;">
+                <li class="point-item check" style="font-size: 11px;"><span
+                    class="point-icon">✓</span><span><strong>Logic & Problem Solving:</strong> ฝึก 5 Whys & Fishbone
+                    เจาะ Root Cause</span></li>
+                <li class="point-item check" style="font-size: 11px;"><span
+                    class="point-icon">✓</span><span><strong>Stakeholder Management:</strong>
+                    สื่อสารเชิงบวกกับผู้จัดการโรงงาน</span></li>
+                <li class="point-item check" style="font-size: 11px;"><span
+                    class="point-icon">✓</span><span><strong>Critical Thinking:</strong>
+                    ไม่ด่วนสรุปปัญหาจากแค่อาการภายนอก</span></li>
+              </ul>
+            </div>
+
+            <div class="card accent-emerald" style="padding: 14px;">
+              <div>
+                <div class="card-head">
+                  <span class="pill-badge emerald">AI Enablement</span>
+                  <span style="font-size: 14px;">⚡</span>
+                </div>
+                <div class="card-title" style="font-size: 13.5px;">เสริมพลังทีมด้วย AI</div>
+                <div class="card-desc" style="margin-top: 4px; font-size: 11px;">
+                  ถ่ายทอดทักษะการใช้ AI ให้กลายเป็นเครื่องมือช่วยทำงานประจำวันของลูกทีม:
+                </div>
+              </div>
+              <ul class="point-grid" style="margin-top: 8px; gap: 4px;">
+                <li class="point-item check" style="font-size: 11px;"><span
+                    class="point-icon">✓</span><span><strong>Data Analytics:</strong> สอนการใช้ AI ช่วยเขียน SQL &
+                    Anomaly Check</span></li>
+                <li class="point-item check" style="font-size: 11px;"><span
+                    class="point-icon">✓</span><span><strong>UI/UX Wireframing:</strong> แนะนำการใช้ AI
+                    ร่างหน้าจอแอปมือถือช่าง</span></li>
+                <li class="point-item check" style="font-size: 11px;"><span
+                    class="point-icon">✓</span><span><strong>Zero Data Retention:</strong>
+                    ปลูกฝังวินัยความปลอดภัยของข้อมูลองค์กร</span></li>
+              </ul>
+            </div>
+
+            <div class="card accent-gold" style="padding: 14px;">
+              <div>
+                <div class="card-head">
+                  <span class="pill-badge gold">Empowerment</span>
+                  <span style="font-size: 14px;">🏆</span>
+                </div>
+                <div class="card-title" style="font-size: 13.5px;">มอบหมายสู่ Project Lead</div>
+                <div class="card-desc" style="margin-top: 4px; font-size: 11px;">
+                  ผลสัมฤทธิ์ที่เป็นรูปธรรมจากการพัฒนาคนใน Section Management:
+                </div>
+              </div>
+              <ul class="point-grid" style="margin-top: 8px; gap: 4px;">
+                <li class="point-item check" style="font-size: 11px;"><span
+                    class="point-icon">✓</span><span><strong>304IP CRM Sales:</strong> คุมระบบบริหาร Pipeline
+                    และงานขาย</span></li>
+                <li class="point-item check" style="font-size: 11px;"><span
+                    class="point-icon">✓</span><span><strong>Juristic & Com/Res:</strong> ค่าส่วนกลาง งานซ่อม &
+                    Inventory</span></li>
+                <li class="point-item check" style="font-size: 11px;"><span
+                    class="point-icon">✓</span><span><strong>Project Ownership:</strong>
+                    บริหารจัดการงานที่ได้รับมอบหมายได้เอง</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Split Takeaway + Real Field Tablet App Screenshot -->
+          <div
+            style="margin-top: 10px; display: grid; grid-template-columns: 1fr 280px; gap: 12px; align-items: stretch;">
+            <div class="card"
+              style="padding: 10px 16px; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); display: flex; flex-direction: column; justify-content: center;">
+              <div style="font-size: 10.5px; font-weight: 700; color: var(--gold-light); text-transform: uppercase;">
+                Leadership Takeaway:</div>
+              <p style="font-size: 11.5px; color: #fff; margin-top: 3px; line-height: 1.5;">
+                "การเลื่อนตำแหน่งไม่ใช่แค่การทำงานของตัวเองให้สำเร็จ
+                แต่คือการสร้างคนให้สามารถเป็นผู้นำโครงการและตัดสินใจแทนเราได้ วันนี้น้องใหม่ก้าวขึ้นมาเป็น
+                <strong>Project Lead Process Improvement</strong> คุมโครงการสำคัญอย่าง 304IP CRM Sales, Juristic
+                บริหารค่าส่วนกลาง, Commercial & Residential บริหารงานซ่อมและ Inventory ได้อย่างเต็มภาคภูมิ
+                ทำให้ผมสามารถขยับไปโฟกัสงานระดับยุทธศาสตร์ของสายงานได้อย่างมั่นใจครับ"
+              </p>
+            </div>
+
+            <div class="mac-window">
+              <div class="mac-header">
+                <div class="mac-dots">
+                  <div class="mac-dot red"></div>
+                  <div class="mac-dot yellow"></div>
+                  <div class="mac-dot green"></div>
+                </div>
+                <div class="mac-title" style="font-size: 9px;">PROJECT LEAD • 304IP CRM SALES & OPERATIONS</div>
+                <img src="assets/ronnachai_headshot.jpg" alt="คุณรณชัย (ใหม่)"
+                  style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover; margin-right: 4px;"><span
+                  class="pill-badge gold" style="font-size: 8.5px; padding: 1px 5px;">RONNACHAI (MAI) LEAD</span>
+              </div>
+              <div class="asset-frame" style="border: none; border-radius: 0; height: 85px;"
+                onclick="openLightbox('assets/sales_304ip_workspace.png', '304IP CRM Sales Workspace • โครงการที่น้องใหม่ (รณชัย) รับผิดชอบในบทบาท Project Lead')">
+                <img src="assets/sales_304ip_workspace.png" alt="304IP CRM Sales Workspace">
+                <div class="asset-overlay"></div>
+                <div class="asset-badge-bar">
+                  <span class="pill-badge gold" style="font-size: 8.5px;">304IP CRM Sales Lead</span>
+                  <span class="asset-zoom-pill" style="font-size: 8.5px;">🔍 ดูภาพ</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <div class="footer-tags"><span>Documented in TeamOps Mentoring & Development Journal 2026</span></div>
+          <div>Slide 12 / 14</div>
+        </div>
+      </div>
+
+      <!-- ==================== SLIDE 13: Strategic Vision 2027 ==================== -->
+      <div class="slide" id="slide-13">
+        <div class="slide-header">
+          <div>
+            <div class="category-kicker">Future Roadmap & Readiness</div>
+            <h1 class="slide-title">Strategic Vision 2027: ทิศทางการขับเคลื่อนนวัตกรรมในบทบาทใหม่</h1>
+            <p class="slide-subtitle">การขยายขนาดผลงานสู่ระดับสายงาน (Department-Wide Scaling)
+              เพื่อสร้างความได้เปรียบแก่องค์กร</p>
+          </div>
+          <div class="header-aside">
+            <div class="stamp-pill sky">ROADMAP 2027</div>
+          </div>
+        </div>
+
+        <div class="slide-body">
+          <div class="grid-4">
+            <div class="card accent-sky">
+              <div>
+                <div class="pill-badge sky" style="margin-bottom: 6px;">Pillar 01</div>
+                <div class="card-title">Enterprise Scaling</div>
+                <div class="card-desc" style="margin-top: 6px;">
+                  ขยายผลระบบพรีคาสท์สู่โรงงานแห่งที่ 2 (โรจนะ) และเชื่อมสายผลิตเสา-คาน ด้วย Fast-Track Deployment 45 วัน
+                </div>
+              </div>
+              <div style="font-size: 11px; color: var(--sky); margin-top: 8px;">✓ Multi-Factory Integration</div>
+            </div>
+
+            <div class="card accent-gold">
+              <div>
+                <div class="pill-badge gold" style="margin-bottom: 6px;">Pillar 02</div>
+                <div class="card-title">AI & Hyper-Automation</div>
+                <div class="card-desc" style="margin-top: 6px;">
+                  ยกระดับสู่ Predictive Quality & Logistics พยากรณ์ความเสี่ยงแผ่นแตกร้าว และคำนวณเส้นทางเดินรถอัตโนมัติ
+                </div>
+              </div>
+              <div style="font-size: 11px; color: var(--gold-light); margin-top: 8px;">✓ Predictive Machine Learning
+              </div>
+            </div>
+
+            <div class="card accent-emerald">
+              <div>
+                <div class="pill-badge emerald" style="margin-bottom: 6px;">Pillar 03</div>
+                <div class="card-title">Methodology Culture</div>
+                <div class="card-desc" style="margin-top: 6px;">
+                  ขับเคลื่อนนโยบาย 9 Stages Improvement ให้เป็นดีเอ็นเอทุกสายงาน ควบคุม Fit-for-Purpose Documentation
+                </div>
+              </div>
+              <div style="font-size: 11px; color: var(--emerald); margin-top: 8px;">✓ Corporate Standardization</div>
+            </div>
+
+            <div class="card">
+              <div>
+                <div class="pill-badge sky" style="margin-bottom: 6px;">Pillar 04</div>
+                <div class="card-title">Talent Incubation</div>
+                <div class="card-desc" style="margin-top: 6px;">
+                  สร้างทีมนักปรับปรุงกระบวนการรุ่นใหม่ (Next-Gen Innovators) ที่เชี่ยวชาญทั้งการวิเคราะห์ธุรกิจและ AI
+                </div>
+              </div>
+              <div style="font-size: 11px; color: var(--text-hero); margin-top: 8px;">✓ Succession Planning Ready</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <div class="footer-tags"><span>Aligned with Corporate Transformation Strategy & Long-Term EBITDA
+              Targets</span></div>
+          <div>Slide 13 / 14</div>
+        </div>
+      </div>
+
+      <!-- ==================== SLIDE 14: Conclusion & Q&A ==================== -->
+      <div class="slide" id="slide-14">
+        <div class="slide-header">
+          <div>
+            <div class="category-kicker">Leadership Readiness Commitment</div>
+            <h1 class="slide-title">บทสรุปและความพร้อมในการรับผิดชอบหน้าที่ในระดับที่สูงขึ้น</h1>
+            <p class="slide-subtitle">พร้อมขับเคลื่อนเป้าหมายองค์กรด้วยประสบการณ์ ความมุ่งมั่น และภาวะผู้นำที่พิสูจน์ได้
+            </p>
+          </div>
+          <div class="header-aside">
+            <div class="stamp-pill gold">READY TO LEAD</div>
+          </div>
+        </div>
+
+        <div class="slide-body">
+          <div class="grid-3" style="margin-bottom: 16px;">
+            <div class="card accent-sky" style="text-align: center; padding: 22px 16px;">
+              <div style="font-size: 32px; margin-bottom: 8px;">🎯</div>
+              <div style="font-size: 15px; font-weight: 700; color: #fff;">Strategic Mindset</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                เข้าใจ Pain Point ธุรกิจที่แท้จริง เชื่อมโยงเทคโนโลยีเข้ากับผลตอบแทนระดับ EBITDA และการประหยัดต้นทุน
+              </div>
+            </div>
+
+            <div class="card accent-emerald" style="text-align: center; padding: 22px 16px;">
+              <div style="font-size: 32px; margin-bottom: 8px;">⚡</div>
+              <div style="font-size: 15px; font-weight: 700; color: #fff;">Execution Excellence</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                ส่งมอบงานจริงเกินเป้าหมาย (Delivery > 150%) บริหารความเสี่ยง และมีระบบควบคุมมาตรฐานที่ยั่งยืน
+              </div>
+            </div>
+
+            <div class="card accent-gold" style="text-align: center; padding: 22px 16px;">
+              <div style="font-size: 32px; margin-bottom: 8px;">👥</div>
+              <div style="font-size: 15px; font-weight: 700; color: #fff;">People Empowerment</div>
+              <div class="card-desc" style="margin-top: 6px;">
+                โค้ชชิ่งลูกทีม นำ AI มาเสริมพลังบุคลากร และสร้างผู้สืบทอดตำแหน่ง เพื่อให้องค์กรเติบโตอย่างมั่นคง
+              </div>
+            </div>
+          </div>
+
+          <div class="card"
+            style="text-align: center; padding: 18px 24px; background: linear-gradient(180deg, rgba(26, 38, 66, 0.7) 0%, rgba(10, 15, 29, 0.9) 100%);">
+            <p style="font-size: 14.5px; color: #fff; line-height: 1.6; font-weight: 500;">
+              "ขอขอบพระคุณคณะกรรมการพิจารณาปรับตำแหน่ง และคุณจินตนาสำหรับคำแนะนำและการสนับสนุนตลอดมา<br>
+              ผมมีความพร้อมเต็มที่ทั้งด้านวุฒิภาวะ ประสบการณ์
+              และพลังขับเคลื่อนที่จะนำพาหน่วยงานสร้างคุณค่าที่ยิ่งใหญ่ขึ้นให้แก่องค์กรครับ"
+            </p>
+            <div
+              style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; color: var(--gold-light); margin-top: 10px;">
+              Q & A • พร้อมตอบทุกข้อซักถามครับ
+            </div>
+          </div>
+        </div>
+
+        <div class="slide-footer">
+          <div class="footer-tags"><span>Chatchawan Tulaphol | Operation Process Improvement Section Manager</span>
+          </div>
+          <div>Slide 14 / 14</div>
+        </div>
+      </div>
+
+    </div>
+
+    <script>
+      let activeSlide = 1;
+      const maxSlides = 14;
+
+      function renderSlide() {
+        document.querySelectorAll('.slide').forEach((elem, index) => {
+          elem.classList.toggle('active', index + 1 === activeSlide);
+        });
+        document.getElementById('slideIndex').innerText = `${String(activeSlide).padStart(2, '0')} / ${String(maxSlides).padStart(2, '0')}`;
+        document.getElementById('prevBtn').disabled = (activeSlide === 1);
+        document.getElementById('nextBtn').disabled = (activeSlide === maxSlides);
+
+        // Trigger Radar Chart animation if on Slide 4
+        if (activeSlide === 4) {
+          animateRadarChart();
+        }
+
+        // Trigger Count-up animations on active slide
+        animateCounters();
+      }
+
+      function stepSlide(delta) {
+        activeSlide = Math.min(Math.max(activeSlide + delta, 1), maxSlides);
+        renderSlide();
+      }
+
+      document.addEventListener('keydown', (evt) => {
+        // If lightbox is active, ESC closes it
+        const lb = document.getElementById('lightboxModal');
+        if (lb && lb.classList.contains('active')) {
+          if (evt.key === 'Escape') {
+            closeLightbox();
+            return;
+          }
+        }
+
+        if (evt.key === 'ArrowRight' || evt.key === 'PageDown' || evt.key === ' ') {
+          evt.preventDefault();
+          stepSlide(1);
+        } else if (evt.key === 'ArrowLeft' || evt.key === 'PageUp') {
+          evt.preventDefault();
+          stepSlide(-1);
+        } else if (evt.key === 'Home') {
+          activeSlide = 1;
+          renderSlide();
+        } else if (evt.key === 'End') {
+          activeSlide = maxSlides;
+          renderSlide();
+        }
+      });
+
+      // ==================== LIGHTBOX MODAL ====================
+      function openLightbox(src, title) {
+        const modal = document.getElementById('lightboxModal');
+        const img = document.getElementById('lightboxImg');
+        const t = document.getElementById('lightboxTitle');
+        if (modal && img) {
+          img.src = src;
+          if (t) t.innerText = title || 'System Evidence Verification';
+          modal.classList.add('active');
+        }
+      }
+
+      function closeLightbox() {
+        const modal = document.getElementById('lightboxModal');
+        if (modal) modal.classList.remove('active');
+      }
+
+      // ==================== 5-AXIS RADAR CHART CANVAS ====================
+      let radarAnimId = null;
+      function animateRadarChart() {
+        const canvas = document.getElementById('radarCanvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        if (radarAnimId) cancelAnimationFrame(radarAnimId);
+
+        const dimensions = [
+          { label: 'Quantity', val: 18.5, max: 20 },
+          { label: 'Quality', val: 16.5, max: 20 },
+          { label: 'Learning', val: 18.5, max: 20 },
+          { label: 'Accountability', val: 16.5, max: 20 },
+          { label: 'Proactiveness', val: 18.0, max: 20 }
+        ];
+
+        const numAxes = dimensions.length;
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const radius = Math.min(cx, cy) - 28;
+
+        let startTime = performance.now();
+        const duration = 650; // ms
+
+        function drawFrame(now) {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const easeOut = 1 - Math.pow(1 - progress, 3);
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // Draw concentric polygon rings (20%, 40%, 60%, 80%, 100%)
+          const rings = [0.25, 0.5, 0.75, 1.0];
+          rings.forEach(r => {
+            ctx.beginPath();
+            for (let i = 0; i < numAxes; i++) {
+              const angle = (Math.PI * 2 / numAxes) * i - Math.PI / 2;
+              const x = cx + Math.cos(angle) * (radius * r);
+              const y = cy + Math.sin(angle) * (radius * r);
+              if (i === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = r === 1.0 ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          });
+
+          // Draw radial spokes
+          for (let i = 0; i < numAxes; i++) {
+            const angle = (Math.PI * 2 / numAxes) * i - Math.PI / 2;
+            const x = cx + Math.cos(angle) * radius;
+            const y = cy + Math.sin(angle) * radius;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(x, y);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.stroke();
+
+            // Axis Labels
+            const lx = cx + Math.cos(angle) * (radius + 15);
+            const ly = cy + Math.sin(angle) * (radius + 15);
+            ctx.font = '10px "Space Grotesk", sans-serif';
+            ctx.fillStyle = '#94a3b8';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(dimensions[i].label, lx, ly);
+          }
+
+          // Draw Filled Radar Area
+          ctx.beginPath();
+          const polyPoints = [];
+          for (let i = 0; i < numAxes; i++) {
+            const ratio = (dimensions[i].val / dimensions[i].max) * easeOut;
+            const angle = (Math.PI * 2 / numAxes) * i - Math.PI / 2;
+            const px = cx + Math.cos(angle) * (radius * ratio);
+            const py = cy + Math.sin(angle) * (radius * ratio);
+            polyPoints.push({ x: px, y: py, val: dimensions[i].val });
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+
+          // Polygon Gradient Fill
+          const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, radius);
+          grad.addColorStop(0, 'rgba(16, 185, 129, 0.45)');
+          grad.addColorStop(1, 'rgba(56, 189, 248, 0.15)');
+          ctx.fillStyle = grad;
+          ctx.fill();
+
+          ctx.strokeStyle = '#10b981';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Draw Glowing Nodes & Score Badges
+          polyPoints.forEach((p, idx) => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Value Pill
+            ctx.font = 'bold 9px "Space Grotesk", sans-serif';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(dimensions[idx].val.toFixed(1), p.x, p.y - 8);
+          });
+
+          if (progress < 1) {
+            radarAnimId = requestAnimationFrame(drawFrame);
+          }
+        }
+
+        radarAnimId = requestAnimationFrame(drawFrame);
+      }
+
+      // ==================== TACTILE 3D CARD TILT ====================
+      function initTactileTilt() {
+        const cards = document.querySelectorAll('.card, .mac-window');
+        cards.forEach(card => {
+          card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const rotateX = ((y - centerY) / centerY) * -3.5;
+            const rotateY = ((x - centerX) / centerX) * 3.5;
+            card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-2px)`;
+          });
+          card.addEventListener('mouseleave', () => {
+            card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0)';
+          });
+        });
+      }
+
+      // ==================== AMBIENT CONSTELLATION CANVAS ====================
+      function initAmbientCanvas() {
+        const canvas = document.getElementById('ambientCanvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        let w = canvas.width = window.innerWidth;
+        let h = canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+          w = canvas.width = window.innerWidth;
+          h = canvas.height = window.innerHeight;
+        });
+
+        const numParticles = 38;
+        const particles = [];
+        for (let i = 0; i < numParticles; i++) {
+          particles.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            vx: (Math.random() - 0.5) * 0.35,
+            vy: (Math.random() - 0.5) * 0.35,
+            radius: Math.random() * 1.5 + 1,
+            color: Math.random() > 0.4 ? 'rgba(56, 189, 248, ' : 'rgba(245, 158, 11, '
+          });
+        }
+
+        function loop() {
+          ctx.clearRect(0, 0, w, h);
+          for (let i = 0; i < numParticles; i++) {
+            const p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            if (p.x < 0 || p.x > w) p.vx *= -1;
+            if (p.y < 0 || p.y > h) p.vy *= -1;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fillStyle = p.color + '0.45)';
+            ctx.fill();
+
+            // Connect nearby particles
+            for (let j = i + 1; j < numParticles; j++) {
+              const p2 = particles[j];
+              const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+              if (dist < 110) {
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.strokeStyle = `rgba(56, 189, 248, ${0.12 * (1 - dist / 110)})`;
+                ctx.lineWidth = 0.8;
+                ctx.stroke();
+              }
+            }
+          }
+          requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+      }
+
+      // ==================== NUMBER TICKER ====================
+      function animateCounters() {
+        const activeSlideEl = document.querySelector('.slide.active');
+        if (!activeSlideEl) return;
+        const counters = activeSlideEl.querySelectorAll('.count-up');
+        counters.forEach(counter => {
+          const target = parseFloat(counter.getAttribute('data-target'));
+          if (isNaN(target)) return;
+          const isMoney = counter.innerText.includes('฿');
+          const isPercent = counter.innerText.includes('%');
+          let current = 0;
+          const duration = 600;
+          const start = performance.now();
+
+          function update(now) {
+            const progress = Math.min((now - start) / duration, 1);
+            const val = Math.round(target * progress);
+            if (isMoney) {
+              counter.innerText = '฿' + val.toLocaleString();
+            } else if (isPercent) {
+              counter.innerText = (target * progress).toFixed(1) + '%';
+            } else {
+              counter.innerText = val.toLocaleString() + (target > 1000 ? ' แผ่น' : '');
+            }
+            if (progress < 1) requestAnimationFrame(update);
+          }
+          requestAnimationFrame(update);
+        });
+      }
+
+      // Initialize all
+      function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(err => {
+            console.log(`Error attempting to enable full-screen mode: ${err.message}`);
+          });
+        } else {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          }
+        }
+      }
+
+      renderSlide();
+      initAmbientCanvas();
+      initTactileTilt();
+    </script>
+
+    <!-- Lightbox Modal -->
+    <div id="lightboxModal" onclick="closeLightbox()">
+      <div style="position: relative; max-width: 95vw; max-height: 90vh;" onclick="event.stopPropagation()">
+        <img id="lightboxImg" src="" alt="Enlarged Evidence">
+        <div class="lightbox-caption">
+          <span id="lightboxTitle" style="font-weight: 700; color: #fff;">System Evidence</span>
+          <button class="lightbox-close-btn" onclick="closeLightbox()">✕ ปิดหน้าต่าง (ESC)</button>
+        </div>
+      </div>
+    </div>
+
+</body>
+
+</html>

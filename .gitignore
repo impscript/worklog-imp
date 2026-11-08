@@ -49,3 +49,5 @@ supabase/.temp/
 scratch/
 frontend/scratch/
 .playwright-mcp/
+/*.png
+ai-sample/

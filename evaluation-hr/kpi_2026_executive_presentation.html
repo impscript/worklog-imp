@@ -188,9 +188,167 @@
     }
 
     .hero-title-group p {
-      font-size: 16px;
+      font-size: 15px;
       color: var(--text-muted);
       max-width: 700px;
+      margin-bottom: 20px;
+    }
+
+    /* Organizational Reporting Line */
+    .org-reporting-hierarchy {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      max-width: 520px;
+      margin-top: 14px;
+    }
+
+    .hierarchy-card {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 9px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .hierarchy-card.presenter {
+      background: rgba(56, 189, 248, 0.06);
+      border-color: rgba(56, 189, 248, 0.35);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    }
+
+    .hierarchy-avatar-wrap {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      flex-shrink: 0;
+    }
+
+    .hierarchy-avatar-circle {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #1e293b;
+      border: 1.5px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .hierarchy-card.presenter .hierarchy-avatar-circle {
+      border-color: var(--sky);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+    }
+
+    .hierarchy-avatar-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .verified-badge {
+      position: absolute;
+      bottom: -1px;
+      right: -1px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #16a34a;
+      border: 2px solid #111827;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    .hierarchy-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .hierarchy-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+
+    .hierarchy-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hierarchy-badge {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
+    .hierarchy-badge.supervisor {
+      background: rgba(148, 163, 184, 0.12);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .hierarchy-badge.presenter {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--sky);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+
+    .hierarchy-title {
+      font-size: 11.5px;
+      color: #cbd5e1;
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hierarchy-dept {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+
+    .hierarchy-connector {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 3px 0 3px 22px;
+    }
+
+    .hierarchy-connector-line {
+      width: 2px;
+      height: 14px;
+      background: linear-gradient(to bottom, rgba(148, 163, 184, 0.5), rgba(56, 189, 248, 0.7));
+      border-radius: 1px;
+    }
+
+    .hierarchy-connector-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--sky);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
     .hero-score-badge {
@@ -661,6 +819,56 @@
           <p>
             รายงานสรุปผลการปฏิบัติงานเทียบเคียง 4 ตัวชี้วัดผลงานหลัก (KPI 2026) สะท้อนการประยุกต์ใช้ Modern Architecture, Automation และ AI-Assisted Engineering ในการยกระดับผลิตภาพและสนับสนุนพันธกิจองค์กร
           </p>
+          <div class="org-reporting-hierarchy">
+            <!-- Supervisor (Head of Dept) -->
+            <div class="hierarchy-card">
+              <div class="hierarchy-avatar-wrap">
+                <div class="hierarchy-avatar-circle">
+                  <img src="https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID=638089" onerror="this.src='assets/api_jintana.jpg'" alt="Jintana P." class="hierarchy-avatar-img" style="object-position: center 20%;">
+                </div>
+                <div class="verified-badge" title="Corporate Verified">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                </div>
+              </div>
+              <div class="hierarchy-info">
+                <div class="hierarchy-header-row">
+                  <span class="hierarchy-name">Jintana P. (Improv.) 5-6246</span>
+                  <span class="hierarchy-badge supervisor">Direct Supervisor</span>
+                </div>
+                <div class="hierarchy-title">Head of Operation Process Improvement</div>
+                <div class="hierarchy-dept">Improvement</div>
+              </div>
+            </div>
+
+            <!-- Reporting Connector -->
+            <div class="hierarchy-connector">
+              <div class="hierarchy-connector-line"></div>
+              <span class="hierarchy-connector-label">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                Reports to • สายการบังคับบัญชา
+              </span>
+            </div>
+
+            <!-- Presenter / Section Manager (Self) -->
+            <div class="hierarchy-card presenter">
+              <div class="hierarchy-avatar-wrap">
+                <div class="hierarchy-avatar-circle">
+                  <img src="https://wms.advanceagro.net/WSVIS/api/Face/GetImage?CardID=10005208" onerror="this.src='assets/api_chatchawan.jpg'" alt="Chatchawan T." class="hierarchy-avatar-img" style="object-position: center 15%;">
+                </div>
+                <div class="verified-badge" title="Corporate Verified">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                </div>
+              </div>
+              <div class="hierarchy-info">
+                <div class="hierarchy-header-row">
+                  <span class="hierarchy-name">คุณชัชวาลย์ ตุลาผล • Chatchawan T. (5-3379)</span>
+                  <span class="hierarchy-badge presenter">Section Manager</span>
+                </div>
+                <div class="hierarchy-title">Operation Process Improvement Section Manager (10005208)</div>
+                <div class="hierarchy-dept">Process Improvement • ผู้รับการประเมิน</div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="hero-score-badge">
           <div class="score-val">100%</div>

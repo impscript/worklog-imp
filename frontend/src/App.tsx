@@ -11,6 +11,7 @@ import ReportsPage from './pages/ReportsPage';
 import HrbpPage from './pages/HrbpPage';
 import OfficialAppraisalPage from './pages/OfficialAppraisalPage';
 import AiChatPage from './pages/AiChatPage';
+import AiEnterprisePage from './pages/AiEnterprisePage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage';
 import MigratePage from './pages/MigratePage';
@@ -20,6 +21,7 @@ import PublicWorklogPage from './pages/PublicWorklogPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import TeamPage from './pages/TeamPage';
 import WorkspacesPage from './pages/WorkspacesPage';
+import DossierViewerPage from './pages/DossierViewerPage';
 import { NotificationProvider } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -98,6 +100,9 @@ function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/worklog/share/:id" element={<PublicWorklogPage />} />
+            <Route path="/dossier" element={<DossierViewerPage />} />
+            <Route path="/dossier/portfolio" element={<DossierViewerPage defaultTab="portfolio" />} />
+            <Route path="/dossier/presentation" element={<DossierViewerPage defaultTab="presentation" />} />
             <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/log" element={<ProtectedRoute><LogWorkPage /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
@@ -107,6 +112,7 @@ function App() {
             <Route path="/hrbp" element={<ProtectedRoute><HrbpPage /></ProtectedRoute>} />
             <Route path="/appraisal" element={<ProtectedRoute><OfficialAppraisalPage /></ProtectedRoute>} />
             <Route path="/ai-chat" element={<ProtectedRoute><AiChatPage /></ProtectedRoute>} />
+            <Route path="/ai-enterprise" element={<ProtectedRoute><AiEnterprisePage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
             <Route path="/projects" element={<ProtectedRoute><ProjectRegistryPage /></ProtectedRoute>} />
             <Route path="/projects/gantt" element={<ProtectedRoute><ProjectGanttPage /></ProtectedRoute>} />

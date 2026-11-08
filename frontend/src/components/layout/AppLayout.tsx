@@ -644,6 +644,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </h3>
               )}
             </div>
+            <NavItem to="/ai-enterprise" icon={<Sparkles size={16} className="text-amber-500 dark:text-amber-400" />} label={t('nav.aiEnterprise', { defaultValue: 'AI Enterprise Hub' })} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/hrbp" icon={<Cpu size={16} />} label="AI Enhance" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/appraisal" icon={<CalendarCheck size={16} />} label="AI Half - End Year" isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
             <NavItem to="/ai-chat" icon={<MessageSquare size={16} />} label={t('nav.aiChat')} isCollapsed={isCollapsed} onClick={() => setIsSidebarOpen(false)} />
