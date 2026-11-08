@@ -1,13 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, ArrowLeft, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function DossierViewerPage() {
   const navigate = useNavigate();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isPublic, setIsPublic] = useState<boolean | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Keyboard shortcut listener to forward Cmd+P / Ctrl+P directly to the portfolio iframe
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        try {
+          iframeRef.current?.contentWindow?.focus();
+          iframeRef.current?.contentWindow?.print();
+        } catch {
+          window.print();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     async function checkAccess() {
@@ -144,6 +162,7 @@ export default function DossierViewerPage() {
 
       {/* Full-bleed Portfolio Iframe (Portfolio has its own responsive navbar, buttons, and PDF download) */}
       <iframe
+        ref={iframeRef}
         src="/dossier/portfolio.html"
         className="w-full h-full border-0 block m-0 p-0"
         title="Chatchawan Tulaphol - Executive Promotion Dossier & Strategic Portfolio"
