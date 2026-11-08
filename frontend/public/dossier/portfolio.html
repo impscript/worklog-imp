@@ -1871,27 +1871,34 @@
       }
     }
 
-    @media print {
+            @media print {
       @page {
         size: A4 portrait;
-        margin: 8mm 10mm;
+        margin: 6mm 8mm;
+      }
+
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
 
       html, body {
         background: #ffffff !important;
         color: #0f172a !important;
-        font-size: 9.5pt !important;
-        line-height: 1.4 !important;
+        font-size: 8pt !important;
+        line-height: 1.3 !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
 
-      /* Hide interactive web elements */
+      /* Hide web interactive chrome */
       .navbar, .btn-pdf, .hero-ctas, .btn-primary, .btn-secondary, 
-      .float-3d-cube, .float-3d-sphere, .avatar-outer-glow, .tools-section, footer,
-      .lightbox-modal, .zoom-hint-btn, .executive-kpi-strip, .pillars-overview-bar {
+      .float-3d-cube, .float-3d-sphere, .avatar-outer-glow, footer,
+      .lightbox-modal, .zoom-hint-btn, .executive-kpi-strip {
         display: none !important;
       }
 
-      /* Force all animated elements visible */
+      /* Force all animated elements visible and active */
       .reveal {
         opacity: 1 !important;
         transform: none !important;
@@ -1904,56 +1911,63 @@
         margin: 0 !important;
       }
 
+      /* Standard Section Headers in Print */
       .section-header-center {
-        margin-bottom: 3mm !important;
+        margin-bottom: 2mm !important;
       }
       .section-kicker {
-        font-size: 8.5pt !important;
-        margin-bottom: 1mm !important;
+        font-size: 6.8pt !important;
+        margin-bottom: 0.8mm !important;
+        letter-spacing: 0.5px !important;
       }
       .section-title {
-        font-size: 16pt !important;
-        margin-bottom: 1.5mm !important;
+        font-size: 12pt !important;
+        margin-bottom: 0.8mm !important;
         color: #0f172a !important;
+        line-height: 1.15 !important;
       }
       .section-desc {
-        font-size: 8.5pt !important;
+        font-size: 6.8pt !important;
         color: #475569 !important;
+        line-height: 1.25 !important;
       }
 
-      /* ==========================================
-         SHEET 1: Executive Overview & Leadership
-         ========================================== */
+      /* ============================================================
+         SHEET 1: Executive Overview & Cover (Hero + Trust)
+         ============================================================ */
       .hero-section {
-        padding: 0 0 3mm 0 !important;
+        padding: 6mm 0 3mm 0 !important;
         background: none !important;
+        page-break-before: auto !important;
+        break-before: auto !important;
       }
       .hero-grid {
         display: grid !important;
-        grid-template-columns: 1.4fr 1fr !important;
-        gap: 6mm !important;
+        grid-template-columns: 1.35fr 1fr !important;
+        gap: 5mm !important;
         align-items: center !important;
       }
       .hero-title {
-        font-size: 21pt !important;
+        font-size: 19pt !important;
         line-height: 1.15 !important;
-        margin-bottom: 2mm !important;
+        margin-bottom: 2.5mm !important;
+        color: #0f172a !important;
       }
       .hero-title span.gradient-text {
-        background: none !important;
-        -webkit-background-clip: initial !important;
-        -webkit-text-fill-color: initial !important;
-        color: #1e1b4b !important;
+        color: #312e81 !important;
+        -webkit-text-fill-color: #312e81 !important;
       }
       .hero-desc {
-        font-size: 9pt !important;
-        line-height: 1.45 !important;
+        font-size: 8pt !important;
+        line-height: 1.4 !important;
         color: #334155 !important;
+        margin-bottom: 3mm !important;
       }
       .avatar-circle-frame {
-        width: 140px !important;
-        height: 140px !important;
+        width: 130px !important;
+        height: 130px !important;
         border: 3px solid #cbd5e1 !important;
+        margin: 0 auto !important;
       }
       .float-badge {
         position: static !important;
@@ -1961,233 +1975,229 @@
         margin-top: 2mm !important;
         animation: none !important;
         border: 1px solid #cbd5e1 !important;
-        padding: 4px 10px !important;
+        padding: 3px 8px !important;
+        border-radius: 8px !important;
+        background: #f8fafc !important;
       }
 
       .trust-section {
-        padding: 2.5mm 0 !important;
-        margin-bottom: 2.5mm !important;
+        padding: 4mm 0 !important;
+        margin-top: 6mm !important;
         border-top: 1px solid #e2e8f0 !important;
         border-bottom: 1px solid #e2e8f0 !important;
+        page-break-after: always !important; /* EXACT END OF SHEET 1 */
+        break-after: page !important;
       }
       .trust-label {
-        font-size: 8pt !important;
-        margin-bottom: 1.5mm !important;
+        font-size: 7.2pt !important;
+        margin-bottom: 2mm !important;
+        color: #64748b !important;
       }
       .trust-row {
-        gap: 2mm !important;
+        gap: 2.5mm !important;
+        flex-wrap: wrap !important;
       }
       .trust-chip {
-        font-size: 8pt !important;
-        padding: 2px 7px !important;
+        font-size: 7.5pt !important;
+        padding: 2.5px 8px !important;
+        background: #f1f5f9 !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #1e293b !important;
       }
 
+      /* ============================================================
+         SHEET 2: About Leadership & 19Y Career Track
+         ============================================================ */
       .about-section {
-        padding: 3mm 0 0 0 !important;
-        page-break-after: always !important; /* EXACT END OF SHEET 1 */
+        padding: 4mm 0 0 0 !important;
+        page-break-before: always !important; /* EXACT START OF SHEET 2 */
+        break-before: page !important;
+        page-break-after: always !important;  /* EXACT END OF SHEET 2 */
+        break-after: page !important;
+        max-height: 265mm !important;
+        overflow: hidden !important;
       }
       .about-grid {
         display: grid !important;
-        grid-template-columns: 1fr 1.1fr !important;
-        gap: 5mm !important;
+        grid-template-columns: 1fr 1.15fr !important;
+        gap: 4.5mm !important;
+        align-items: start !important;
       }
       .about-card-hero {
         background: #f8fafc !important;
         color: #0f172a !important;
         border: 1px solid #cbd5e1 !important;
-        padding: 3.5mm !important;
-      }
-      .about-card-hero div, .about-card-hero h3, .about-axiom-quote {
-        color: #0f172a !important;
+        padding: 3mm !important;
+        border-radius: 12px !important;
       }
       .about-axiom-quote {
         background: #f1f5f9 !important;
         border-left: 3px solid #4f46e5 !important;
-        font-size: 8.5pt !important;
-        padding: 2.5mm !important;
-        margin: 2.5mm 0 !important;
+        font-size: 7.2pt !important;
+        line-height: 1.3 !important;
+        padding: 2mm !important;
+        margin: 2mm 0 !important;
       }
       .career-timeline-mini {
         margin-top: 2mm !important;
         gap: 1.5mm !important;
       }
       .career-track-item {
-        background: #f1f5f9 !important;
+        background: #ffffff !important;
         border: 1px solid #cbd5e1 !important;
-        padding: 1.5mm 2.5mm !important;
+        padding: 1.5mm 2mm !important;
         gap: 2mm !important;
+        border-radius: 6px !important;
       }
       .career-track-badge {
-        font-size: 6.8pt !important;
-        padding: 1px 5px !important;
+        font-size: 6pt !important;
+        padding: 1px 4px !important;
       }
       .career-track-detail {
-        font-size: 7.2pt !important;
+        font-size: 6.5pt !important;
         color: #1e293b !important;
       }
-      .career-track-detail strong {
+      .about-text-col h3 {
+        font-size: 10.5pt !important;
+        margin-bottom: 2mm !important;
         color: #0f172a !important;
       }
+      .about-text-col p {
+        font-size: 7pt !important;
+        line-height: 1.3 !important;
+        color: #334155 !important;
+        margin-bottom: 2mm !important;
+      }
 
-      /* ===================================================
-         SHEET 2: Capabilities Matrix & Flagship 1 (FxRate)
-         =================================================== */
+      /* ============================================================
+         SHEET 3: Capabilities & Technical Architecture Mastery
+         ============================================================ */
       .skills-section {
-        padding: 2mm 0 0 0 !important;
+        padding: 4mm 0 0 0 !important;
         background: none !important;
+        page-break-before: always !important; /* EXACT START OF SHEET 3 */
+        break-before: page !important;
+        page-break-after: always !important;  /* EXACT END OF SHEET 3 */
+        break-after: page !important;
+        max-height: 265mm !important;
+        overflow: hidden !important;
       }
       .skills-grid {
         display: grid !important;
         grid-template-columns: repeat(3, 1fr) !important;
-        gap: 3mm !important;
+        gap: 2.5mm !important;
+        margin-bottom: 2mm !important;
       }
       .skill-card {
-        padding: 3mm !important;
+        padding: 2mm 2.5mm !important;
         border: 1px solid #cbd5e1 !important;
         background: #ffffff !important;
+        border-radius: 8px !important;
         box-shadow: none !important;
       }
       .skill-title {
-        font-size: 10.5pt !important;
+        font-size: 8.5pt !important;
+        margin-bottom: 1.5mm !important;
       }
       .skill-meter-list {
-        margin-top: 2mm !important;
-        gap: 2mm !important;
+        gap: 1.5mm !important;
       }
       .skill-meta {
-        font-size: 7.5pt !important;
+        font-size: 6.5pt !important;
         margin-bottom: 1px !important;
       }
       .progress-track {
-        height: 4px !important;
+        height: 3px !important;
         background: #e2e8f0 !important;
       }
       .progress-fill {
         background: #4f46e5 !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
       }
-
       .project-card-fx {
-        background: #f8fafc !important;
-        color: #0f172a !important;
-        border: 1px solid #cbd5e1 !important;
-        padding: 3mm !important;
-        margin-top: 2.5mm !important;
-        display: grid !important;
-        grid-template-columns: 1fr 1.1fr !important;
-        gap: 3.5mm !important;
-        align-items: center !important;
+        display: none !important; /* Managed cleanly in Sheet 4 Flagships */
       }
-      .project-card-fx .device-mockup {
-        border-radius: 6px !important;
-        border: 1px solid #cbd5e1 !important;
-      }
-      .project-card-fx .device-screen-img {
-        max-height: 125px !important;
-        object-fit: contain !important;
-        background: #0f172a !important;
-      }
-      .project-card-fx .project-title {
-        font-size: 11pt !important;
-        color: #0f172a !important;
-      }
-      .project-card-fx .project-desc {
-        font-size: 7.5pt !important;
-        line-height: 1.35 !important;
-        color: #334155 !important;
+      .project-card-featured {
+        display: none !important;
       }
 
-      .project-card-featured {
+      /* Capabilities Bottom Architecture Spotlight */
+      .skills-architecture-banner {
+        display: block !important;
+        margin-top: 3mm !important;
+        padding: 3mm 4mm !important;
         background: #f8fafc !important;
-        color: #0f172a !important;
         border: 1px solid #cbd5e1 !important;
-        padding: 3mm !important;
-        margin-top: 2.5mm !important;
-        margin-bottom: 0 !important;
-        display: grid !important;
-        grid-template-columns: 1fr 1.1fr !important;
-        gap: 3.5mm !important;
-        align-items: center !important;
-        page-break-after: always !important; /* EXACT END OF SHEET 2 */
-      }
-      .project-card-featured .device-screen-img {
-        max-height: 125px !important;
-        object-fit: contain !important;
-      }
-      .project-card-featured .project-title {
-        font-size: 11pt !important;
-        color: #0f172a !important;
-      }
-      .project-card-featured .project-desc {
-        font-size: 7.5pt !important;
-        line-height: 1.35 !important;
-        color: #334155 !important;
+        border-radius: 10px !important;
       }
 
       /* ============================================================
-         SHEET 3: 2026 Operational Deployments Grid
+         SHEET 4: 2026 Flagship Case Studies & Operational Impact
          ============================================================ */
       .projects-section {
-        padding: 2mm 0 0 0 !important;
+        padding: 4mm 0 0 0 !important;
+        page-break-before: always !important; /* EXACT START OF SHEET 4 */
+        break-before: page !important;
+        page-break-after: always !important;  /* EXACT END OF SHEET 4 */
+        break-after: page !important;
+        max-height: 265mm !important;
+        overflow: hidden !important;
+      }
+      .pillars-overview-bar {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 2mm !important;
+        margin: 1mm 0 2.5mm 0 !important;
+      }
+      .pillar-overview-card {
+        padding: 1.5mm 2mm !important;
+        border-radius: 6px !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+      .pillar-overview-card strong {
+        font-size: 7.2pt !important;
+      }
+      .pillar-overview-card p {
+        font-size: 5.8pt !important;
+        line-height: 1.2 !important;
       }
       .projects-grid {
         display: grid !important;
         grid-template-columns: 1fr 1fr !important;
-        gap: 3mm !important;
-        page-break-after: always !important; /* EXACT END OF SHEET 3 */
+        gap: 2mm !important;
       }
       .project-card-light {
         background: #ffffff !important;
         color: #0f172a !important;
         border: 1px solid #cbd5e1 !important;
-        padding: 2.5mm !important;
+        padding: 1.8mm 2.2mm !important;
+        border-radius: 8px !important;
       }
       .project-card-light .device-screen-img {
-        max-height: 85px !important;
+        max-height: 52px !important;
         object-fit: cover !important;
       }
       .project-card-light h4 {
-        font-size: 9.5pt !important;
-        color: #0f172a !important;
-        margin-top: 2px !important;
+        font-size: 7.5pt !important;
+        margin-top: 1px !important;
       }
       .project-card-light p {
-        font-size: 7pt !important;
-        line-height: 1.3 !important;
-        color: #334155 !important;
-        margin-top: 2px !important;
-      }
-      .stat-val {
-        font-size: 10pt !important;
-        color: #0f172a !important;
-      }
-      .stat-lbl {
-        font-size: 6.5pt !important;
-        color: #64748b !important;
+        font-size: 6pt !important;
+        line-height: 1.2 !important;
+        margin-top: 1px !important;
       }
 
       /* ============================================================
-         SHEET 4: 2027 Strategic Roadmap & Enterprise Horizon
+         SHEET 5: 2027 Strategic Roadmap & Multi-Plant Scaling
          ============================================================ */
       .strategy-section {
-        padding: 2mm 0 0 0 !important;
+        padding: 4mm 0 0 0 !important;
         background: none !important;
-        page-break-after: always !important; /* EXACT END OF SHEET 4 */
-      }
-      .strategy-section .section-header-center {
-        margin-bottom: 2mm !important;
-      }
-      .strategy-section .section-kicker {
-        font-size: 7pt !important;
-      }
-      .strategy-section .section-title {
-        font-size: 11pt !important;
-        margin-top: 1.5px !important;
-      }
-      .strategy-section .section-desc {
-        font-size: 7pt !important;
-        line-height: 1.25 !important;
+        page-break-before: always !important; /* EXACT START OF SHEET 5 */
+        break-before: page !important;
+        page-break-after: always !important;  /* EXACT END OF SHEET 5 */
+        break-after: page !important;
+        max-height: 265mm !important;
+        overflow: hidden !important;
       }
       .strategy-grid {
         display: grid !important;
@@ -2197,155 +2207,255 @@
       }
       .strategy-card {
         background: #ffffff !important;
-        padding: 2mm 2.5mm !important;
+        padding: 1.8mm 2.2mm !important;
         border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
         box-shadow: none !important;
-        break-inside: avoid !important;
-      }
-      .device-pills-wrap {
-        display: none !important;
       }
       .strategy-img-frame {
-        height: 15mm !important;
-        margin-bottom: 1.5mm !important;
-        border: 1px solid #cbd5e1 !important;
+        height: 11mm !important;
+        margin-bottom: 1mm !important;
         display: block !important;
       }
-      .strategy-img-badge {
-        font-size: 5.8pt !important;
-        padding: 0.5px 3.5px !important;
-      }
       .strategy-card-title {
-        font-size: 8.5pt !important;
-        color: #0f172a !important;
-        margin-top: 1px !important;
-        line-height: 1.25 !important;
+        font-size: 7.2pt !important;
       }
       .strategy-card-desc {
-        font-size: 6.5pt !important;
-        line-height: 1.25 !important;
-        margin-bottom: 1.5mm !important;
-      }
-      .strategy-deliverables {
-        margin: 1mm 0 !important;
-        gap: 1mm !important;
+        font-size: 5.8pt !important;
+        line-height: 1.2 !important;
       }
       .strategy-deliverables li {
-        font-size: 6pt !important;
-        line-height: 1.2 !important;
-        gap: 1mm !important;
+        font-size: 5.5pt !important;
+        line-height: 1.15 !important;
       }
       .strategy-impact-box {
-        padding: 1.5mm 2mm !important;
-        margin-top: 1.5mm !important;
+        padding: 1mm 1.5mm !important;
+        margin-top: 1mm !important;
       }
       .strategy-impact-box strong {
-        font-size: 7.8pt !important;
+        font-size: 6.8pt !important;
       }
 
       /* ============================================================
-         SHEET 5: People Development, Mentorship & HR Readiness Checklist
+         SHEET 6: People Development & Executive Endorsement
          ============================================================ */
       .endorsement-section {
-        padding: 2mm 0 0 0 !important;
-      }
-      .endorsement-section .section-header-center {
-        margin-bottom: 3.5mm !important;
-      }
-      .endorsement-section .section-kicker {
-        font-size: 7.5pt !important;
-      }
-      .endorsement-section .section-title {
-        font-size: 12pt !important;
-        margin-top: 2px !important;
-      }
-      .endorsement-section .section-desc {
-        font-size: 7.5pt !important;
-        line-height: 1.35 !important;
+        padding: 4mm 0 0 0 !important;
+        page-break-before: always !important; /* EXACT START OF SHEET 6 */
+        break-before: page !important;
+        page-break-after: always !important;  /* EXACT END OF SHEET 6 */
+        break-after: page !important;
+        max-height: 265mm !important;
+        overflow: hidden !important;
       }
       .endorsement-grid {
         display: grid !important;
         grid-template-columns: 1fr 1fr !important;
-        gap: 3.5mm !important;
-        margin-bottom: 4mm !important;
+        gap: 2.5mm !important;
+        margin-bottom: 2mm !important;
       }
       .endorsement-card {
         background: #ffffff !important;
         border: 1px solid #cbd5e1 !important;
-        padding: 3.5mm !important;
+        padding: 2.5mm !important;
+        border-radius: 8px !important;
       }
       .endorsement-quote {
-        color: #1e293b !important;
-        font-size: 7.8pt !important;
-        line-height: 1.4 !important;
+        font-size: 6.8pt !important;
+        line-height: 1.3 !important;
       }
       .endorsement-author {
-        margin-top: 2mm !important;
-        padding-top: 2mm !important;
-        gap: 2.5mm !important;
+        margin-top: 1.5mm !important;
+        padding-top: 1.5mm !important;
+        gap: 2mm !important;
       }
       .author-avatar-img {
-        width: 36px !important;
-        height: 36px !important;
+        width: 28px !important;
+        height: 28px !important;
       }
-      .endorsement-author strong {
-        font-size: 9pt !important;
+      .tools-section {
+        display: block !important;
+        padding: 1.5mm 0 !important;
+        margin-top: 1.5mm !important;
+        border-top: 1px solid #e2e8f0 !important;
       }
-      .endorsement-author div {
-        font-size: 7.5pt !important;
+      .tools-grid {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 1.2mm !important;
+      }
+      .tool-badge {
+        font-size: 6.2pt !important;
+        padding: 0.8mm 2mm !important;
+        background: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 4px !important;
       }
 
-      .hr-readiness-banner {
-        background: #f8fafc !important;
-        color: #0f172a !important;
-        border: 1.5px solid #4f46e5 !important;
-        padding: 3.5mm 4.5mm !important;
-        margin: 3mm 0 0 0 !important;
+      /* ============================================================
+         SHEET 7: AI Calendar & Official HR Appraisal (92.5%)
+         ============================================================ */
+      .appraisal-section {
+        padding: 4mm 0 0 0 !important;
+        background: none !important;
+        page-break-before: always !important; /* EXACT START OF SHEET 7 */
+        break-before: page !important;
+        page-break-after: always !important;  /* EXACT END OF SHEET 7 */
+        break-after: page !important;
+        max-height: 265mm !important;
+        overflow: hidden !important;
       }
-      .hr-kicker {
-        font-size: 7.5pt !important;
-        color: #4f46e5 !important;
+      .appraisal-hero-card {
+        display: grid !important;
+        grid-template-columns: 140px 1fr !important;
+        gap: 2.5mm !important;
+        padding: 2mm !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+        margin-top: 1mm !important;
+        box-shadow: none !important;
+      }
+      .appraisal-action-block {
+        display: none !important;
+      }
+      .appraisal-score-number {
+        font-size: 26pt !important;
+        margin: 0 !important;
+      }
+      .appraisal-stat-val {
+        font-size: 11pt !important;
+      }
+      .appraisal-stat-box {
+        padding: 1.2mm !important;
+        border-radius: 6px !important;
+      }
+      .appraisal-pillars-container {
+        margin-top: 2mm !important;
+      }
+      .pillars-grid-cards {
+        display: grid !important;
+        grid-template-columns: repeat(5, 1fr) !important;
+        gap: 1.5mm !important;
+      }
+      .pillar-card {
+        padding: 1.2mm 1.5mm !important;
+        border-radius: 6px !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+      }
+      .pillar-name {
+        font-size: 6.2pt !important;
+        line-height: 1.15 !important;
+      }
+      .pillar-score-badge {
+        font-size: 9pt !important;
+        padding: 1px 3px !important;
+      }
+      .pillar-evidence {
+        font-size: 5.2pt !important;
+        line-height: 1.15 !important;
+        margin: 0.8mm 0 !important;
+      }
+      .appraisal-paradigm-grid {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 2mm !important;
+        margin-top: 1.5mm !important;
+      }
+      .paradigm-box {
+        padding: 1.8mm !important;
+        border-radius: 6px !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+      .paradigm-title {
+        font-size: 7.2pt !important;
+        margin-bottom: 1mm !important;
+      }
+      .paradigm-item {
+        padding: 0.8mm 1.2mm !important;
+        gap: 1.2mm !important;
+      }
+      .p-item-label {
+        font-size: 6.2pt !important;
+      }
+      .p-item-desc {
+        font-size: 5.5pt !important;
+        line-height: 1.15 !important;
+      }
+      .takeaway-ul li {
+        font-size: 5.5pt !important;
+        line-height: 1.15 !important;
+      }
+      .calendar-formula-strip {
+        padding: 1mm 1.5mm !important;
+        margin-top: 1mm !important;
+      }
+      .formula-code {
+        font-size: 5.5pt !important;
+        padding: 0.5mm 1mm !important;
+      }
+
+      /* ============================================================
+         SHEET 8: HR Readiness Checklist & Executive Sign-off
+         ============================================================ */
+      .hr-readiness-section {
+        padding: 4mm 0 0 0 !important;
+        page-break-before: always !important; /* EXACT START OF SHEET 8 */
+        break-before: page !important;
+        page-break-after: auto !important;
+        break-after: auto !important;
+        max-height: 265mm !important;
+        overflow: hidden !important;
+      }
+      .hr-readiness-banner {
+        padding: 2mm 0 0 0 !important;
+        background: none !important;
+        border: none !important;
+        margin: 0 !important;
+      }
+      .hr-header-row {
+        margin-bottom: 3mm !important;
       }
       .hr-title {
         font-size: 11pt !important;
-        color: #0f172a !important;
-        margin-bottom: 2mm !important;
+        margin-top: 1mm !important;
       }
       .hr-items-grid {
         display: grid !important;
         grid-template-columns: repeat(3, 1fr) !important;
         gap: 2.5mm !important;
         margin-top: 2mm !important;
+        margin-bottom: 3.5mm !important;
       }
       .hr-item-box {
-        background: #ffffff !important;
-        border: 1px solid #cbd5e1 !important;
+        background: #f8fafc !important;
+        border: 1.5px solid #cbd5e1 !important;
         padding: 2.5mm !important;
+        border-radius: 8px !important;
       }
       .hr-item-num {
-        font-size: 7pt !important;
-        color: #2563eb !important;
+        font-size: 7.5pt !important;
+        color: #4f46e5 !important;
+        font-weight: 800 !important;
       }
       .hr-item-title {
-        font-size: 8pt !important;
-        color: #0f172a !important;
+        font-size: 8.5pt !important;
         margin: 1mm 0 !important;
+        color: #0f172a !important;
+        font-weight: 700 !important;
       }
       .hr-item-desc {
         font-size: 6.8pt !important;
         line-height: 1.3 !important;
         color: #334155 !important;
       }
-      }
-        color: #334155 !important;
-      }
 
-      /* Print Dossier Sign-off Footer */
+      /* Formal Print Dossier Footer */
       .print-dossier-footer {
         display: block !important;
-        margin-top: 4mm !important;
+        margin-top: 5mm !important;
         padding-top: 2.5mm !important;
-        border-top: 1px solid #cbd5e1 !important;
+        border-top: 1.5px solid #cbd5e1 !important;
         font-size: 7.5pt !important;
         color: #64748b !important;
         display: flex !important;
@@ -3249,23 +3359,7 @@
     </div>
   </section>
 
-  <!-- Tools Wall -->
-  <section class="tools-section reveal">
-    <div class="container">
-      <div class="trust-label" style="margin-bottom: 22px;">เครื่องมือและสถาปัตยกรรมดิจิทัลที่ใช้งานจริง</div>
-      <div class="tools-pill-grid">
-        <div class="tool-chip">📦 NetSuite SuiteScript</div>
-        <div class="tool-chip">🏗️ Mango Anywhere ERP</div>
-        <div class="tool-chip">⚡ Supabase Realtime & PostgreSQL</div>
-        <div class="tool-chip">📱 Offline-First PWA on Tablet</div>
-        <div class="tool-chip">🤖 Claude / Gemini AI-Assisted Prompts</div>
-        <div class="tool-chip">⚙️ IBM Maximo Asset Mgmt</div>
-        <div class="tool-chip">🌐 Next.js & Tailwind CSS</div>
-        <div class="tool-chip">🏷️ Industrial Barcode Scanner</div>
-        <div class="tool-chip">📋 Google Apps Script Automation</div>
-      </div>
-    </div>
-  </section>
+  
 
   <!-- People Enablement & Endorsement Spotlight -->
   <section class="endorsement-section" id="leadership">
@@ -3322,7 +3416,26 @@
         </div>
       </div>
 
-      
+      <!-- Tools Wall -->
+  <section class="tools-section reveal">
+    <div class="container">
+      <div class="trust-label" style="margin-bottom: 22px;">เครื่องมือและสถาปัตยกรรมดิจิทัลที่ใช้งานจริง</div>
+      <div class="tools-pill-grid">
+        <div class="tool-chip">📦 NetSuite SuiteScript</div>
+        <div class="tool-chip">🏗️ Mango Anywhere ERP</div>
+        <div class="tool-chip">⚡ Supabase Realtime & PostgreSQL</div>
+        <div class="tool-chip">📱 Offline-First PWA on Tablet</div>
+        <div class="tool-chip">🤖 Claude / Gemini AI-Assisted Prompts</div>
+        <div class="tool-chip">⚙️ IBM Maximo Asset Mgmt</div>
+        <div class="tool-chip">🌐 Next.js & Tailwind CSS</div>
+        <div class="tool-chip">🏷️ Industrial Barcode Scanner</div>
+        <div class="tool-chip">📋 Google Apps Script Automation</div>
+      </div>
+    </div>
+  </section>
+    </div>
+  </section>
+
   <!-- ========================================================
        SECTION: AI Calendar & HR Official Performance Appraisal
        ======================================================== -->
@@ -3589,8 +3702,12 @@
     </div>
   </section>
 
-      <!-- HR Readiness Checklist Banner (Fixed High-Contrast) -->
-      <div class="hr-readiness-banner reveal" id="hr-readiness">
+  <!-- ========================================================
+       SECTION: HR Readiness Checklist Verification & Sign-off
+       ======================================================== -->
+  <section class="hr-readiness-section reveal" id="hr-readiness">
+    <div class="container">
+      <div class="hr-readiness-banner">
         <div class="hr-header-row">
           <div>
             <div class="hr-kicker">
@@ -3638,7 +3755,7 @@
           <strong>Chatchawan Tulaphol</strong> • Operation Process Improvement Section Manager (EMP ID: 10005208)
         </div>
         <div>
-          Official Dossier for Promotion Evaluation • Deadline: 9 พ.ย. 2569 • Page 5 of 5
+          Official Dossier for Promotion Evaluation • Deadline: 9 พ.ย. 2569 • Official Dossier • Page 8 of 8
         </div>
       </div>
     </div>
