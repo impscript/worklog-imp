@@ -101,8 +101,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/worklog/share/:id" element={<PublicWorklogPage />} />
             <Route path="/dossier" element={<DossierViewerPage />} />
-            <Route path="/dossier/portfolio" element={<DossierViewerPage defaultTab="portfolio" />} />
-            <Route path="/dossier/presentation" element={<DossierViewerPage defaultTab="presentation" />} />
+            <Route path="/dossier/portfolio" element={<DossierViewerPage />} />
             <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/log" element={<ProtectedRoute><LogWorkPage /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />

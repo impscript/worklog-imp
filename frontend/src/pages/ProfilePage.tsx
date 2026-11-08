@@ -230,7 +230,7 @@ export default function ProfilePage() {
           }
         }
 
-        // 4. Fetch Dossier Public/Private Visibility
+        // 4. Fetch Dossier Public/Private Visibility from Supabase
         try {
           const { data: configData } = await supabase
             .from('tb_system_config')
@@ -238,14 +238,16 @@ export default function ProfilePage() {
             .eq('config_key', 'chatchawan_dossier_visibility')
             .maybeSingle();
           if (configData?.config_value) {
-            setIsDossierPublic(configData.config_value === 'public');
+            const isPub = configData.config_value === 'public';
+            setIsDossierPublic(isPub);
+            localStorage.setItem('chatchawan_dossier_visibility', configData.config_value);
           } else {
             const localVis = localStorage.getItem('chatchawan_dossier_visibility');
-            setIsDossierPublic(localVis !== 'private');
+            setIsDossierPublic(localVis === 'public');
           }
         } catch {
           const localVis = localStorage.getItem('chatchawan_dossier_visibility');
-          setIsDossierPublic(localVis !== 'private');
+          setIsDossierPublic(localVis === 'public');
         }
       } catch (err) {
         console.error('Error loading profile data:', err);
@@ -264,19 +266,25 @@ export default function ProfilePage() {
     localStorage.setItem('chatchawan_dossier_visibility', val);
     
     try {
-      await supabase
-        .from('tb_system_config')
-        .upsert({
-          config_key: 'chatchawan_dossier_visibility',
-          config_value: val,
-          workspace_id: 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001'
-        }, { onConflict: 'config_key,workspace_id' });
+      // 1. Primary: Save via RPC with security definer
+      const { error: rpcError } = await supabase.rpc('set_dossier_visibility', { p_status: val });
+      if (rpcError) {
+        console.warn('RPC set_dossier_visibility error, trying upsert:', rpcError);
+        // Fallback: direct upsert
+        await supabase
+          .from('tb_system_config')
+          .upsert({
+            config_key: 'chatchawan_dossier_visibility',
+            config_value: val,
+            workspace_id: 'a59b2075-8ce6-4b95-a4df-1e8ea36a0001'
+          }, { onConflict: 'config_key,workspace_id' });
+      }
       
       setToastMessage(nextState ? 'เปิดการเข้าถึงสาธารณะแล้ว 🟢 ผู้บริหารสามารถเปิดดูได้' : 'ตั้งค่าเป็นส่วนตัวแล้ว 🔒 บุคคลภายนอกจะไม่สามารถเปิดดูได้');
       setTimeout(() => setToastMessage(null), 4000);
     } catch (err: any) {
       console.warn('Error saving to tb_system_config, local state preserved:', err);
-      setToastMessage(nextState ? 'เปิดโหมด Public แล้ว (Local) 🟢' : 'ตั้งเป็น Private แล้ว (Local) 🔒');
+      setToastMessage(nextState ? 'เปิดโหมด Public แล้ว 🟢' : 'ตั้งเป็น Private แล้ว 🔒');
       setTimeout(() => setToastMessage(null), 3000);
     }
   };
@@ -749,40 +757,24 @@ export default function ProfilePage() {
             </div>
 
             {/* Action Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               <a
-                href="/dossier/portfolio.html"
+                href="/dossier"
                 target="_blank"
                 rel="noreferrer"
-                className="group flex flex-col p-4 rounded-2xl bg-theme-surface-secondary/50 hover:bg-indigo-600/10 border border-theme-border hover:border-indigo-500/40 transition-all duration-200"
+                className="group flex flex-col p-5 rounded-2xl bg-theme-surface-secondary/60 hover:bg-indigo-600/10 border border-theme-border hover:border-indigo-500/50 shadow-sm transition-all duration-200"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg">🌐</span>
-                  <ExternalLink size={14} className="text-theme-text-muted group-hover:text-indigo-500 transition-colors" />
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-xl text-indigo-500 group-hover:scale-110 transition-transform">
+                    🌐
+                  </div>
+                  <ExternalLink size={16} className="text-theme-text-muted group-hover:text-indigo-500 transition-colors" />
                 </div>
-                <span className="text-sm font-bold text-theme-text group-hover:text-indigo-500 transition-colors">
-                  Web Portfolio
+                <span className="text-base font-bold text-theme-text group-hover:text-indigo-500 transition-colors">
+                  เปิดดู Web Portfolio เต็มจอ
                 </span>
-                <span className="text-[11px] text-theme-text-secondary mt-1">
-                  เปิดดูแฟ้มผลงานฉบับเต็ม แบบโต้ตอบได้
-                </span>
-              </a>
-
-              <a
-                href="/dossier/presentation.html"
-                target="_blank"
-                rel="noreferrer"
-                className="group flex flex-col p-4 rounded-2xl bg-theme-surface-secondary/50 hover:bg-indigo-600/10 border border-theme-border hover:border-indigo-500/40 transition-all duration-200"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg">📊</span>
-                  <ExternalLink size={14} className="text-theme-text-muted group-hover:text-indigo-500 transition-colors" />
-                </div>
-                <span className="text-sm font-bold text-theme-text group-hover:text-indigo-500 transition-colors">
-                  Slide Deck (14 หน้า)
-                </span>
-                <span className="text-[11px] text-theme-text-secondary mt-1">
-                  สไลด์นำเสนอเชิงกลยุทธ์ 16:9 สำหรับกรรมการ
+                <span className="text-xs text-theme-text-secondary mt-1.5 leading-relaxed">
+                  แฟ้มผลงานฉบับสมบูรณ์ โครงสร้างกลยุทธ์ 2026–2027 และผลลัพธ์ 19 โครงการแบบโต้ตอบได้
                 </span>
               </a>
 
@@ -791,17 +783,19 @@ export default function ProfilePage() {
                 target="_blank"
                 rel="noreferrer"
                 download
-                className="group flex flex-col p-4 rounded-2xl bg-theme-surface-secondary/50 hover:bg-emerald-600/10 border border-theme-border hover:border-emerald-500/40 transition-all duration-200"
+                className="group flex flex-col p-5 rounded-2xl bg-theme-surface-secondary/60 hover:bg-emerald-600/10 border border-theme-border hover:border-emerald-500/50 shadow-sm transition-all duration-200"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg">🖨️</span>
-                  <Download size={14} className="text-theme-text-muted group-hover:text-emerald-500 transition-colors" />
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-500 group-hover:scale-110 transition-transform">
+                    🖨️
+                  </div>
+                  <Download size={16} className="text-theme-text-muted group-hover:text-emerald-500 transition-colors" />
                 </div>
-                <span className="text-sm font-bold text-theme-text group-hover:text-emerald-500 transition-colors">
-                  ดาวน์โหลด PDF สรุป
+                <span className="text-base font-bold text-theme-text group-hover:text-emerald-500 transition-colors">
+                  ดาวน์โหลด PDF สรุป (ส่ง HR)
                 </span>
-                <span className="text-[11px] text-theme-text-secondary mt-1">
-                  Portfolio PDF (5.9MB) & สไลด์ทางการ
+                <span className="text-xs text-theme-text-secondary mt-1.5 leading-relaxed">
+                  เอกสารประเมินเลื่อนตำแหน่งฉบับทางการ (PDF 5.9MB) พร้อมจัดพิมพ์และส่งคณะกรรมการ
                 </span>
               </a>
             </div>
