@@ -1367,6 +1367,510 @@
     }
 
     /* ==================== IMMACULATE A4 PRINT STYLESHEET ==================== */
+    
+    /* ========================================================
+       AI CALENDAR & HR PERFORMANCE APPRAISAL SECTION
+       ======================================================== */
+    .appraisal-section {
+      padding: 80px 0;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 50%, #ffffff 100%);
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      position: relative;
+    }
+
+    .appraisal-hero-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(226, 232, 240, 0.8);
+      display: grid;
+      grid-template-columns: 240px 1fr 280px;
+      gap: 28px;
+      align-items: center;
+      margin-top: 36px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .appraisal-hero-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #10b981, #6366f1, #8b5cf6);
+    }
+
+    .appraisal-score-block {
+      text-align: center;
+      padding-right: 20px;
+      border-right: 1px solid var(--border-subtle);
+    }
+
+    .appraisal-grade-pill {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 999px;
+      background: #ecfdf5;
+      color: #059669;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .appraisal-score-number {
+      font-size: 52px;
+      font-weight: 800;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #0f172a;
+      line-height: 1.05;
+      margin: 12px 0 4px 0;
+    }
+
+    .appraisal-score-number span {
+      font-size: 20px;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .appraisal-score-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .appraisal-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .appraisal-stat-box {
+      background: #f8fafc;
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 14px 16px;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .appraisal-stat-box:hover {
+      background: #ffffff;
+      border-color: #cbd5e1;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    }
+
+    .appraisal-stat-val {
+      font-size: 22px;
+      font-weight: 800;
+      font-family: 'Space Grotesk', sans-serif;
+      color: var(--primary);
+    }
+
+    .appraisal-stat-lbl {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-hero);
+      margin-top: 4px;
+    }
+
+    .appraisal-stat-sub {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      line-height: 1.3;
+    }
+
+    .appraisal-action-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding-left: 10px;
+    }
+
+    .btn-appraisal-live {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+      color: #ffffff;
+      padding: 13px 18px;
+      border-radius: 14px;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 8px 20px -4px rgba(79, 70, 229, 0.35);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .btn-appraisal-live:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px -4px rgba(79, 70, 229, 0.5);
+      color: #ffffff;
+    }
+
+    .appraisal-audit-note {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+
+    /* Pillars Breakdown System */
+    .appraisal-pillars-container {
+      margin-top: 40px;
+    }
+
+    .pillars-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .pillars-main-title {
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--text-hero);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pillars-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 12px;
+      background: rgba(79, 70, 229, 0.08);
+      color: var(--primary);
+      border-radius: 999px;
+    }
+
+    .pillars-grid-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 18px;
+    }
+
+    .pillar-card {
+      background: #ffffff;
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .pillar-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-card-hover);
+      border-color: var(--border-focus);
+    }
+
+    .pillar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .pillar-tag {
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .pillar-name {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--text-hero);
+      line-height: 1.3;
+    }
+
+    .pillar-score-badge {
+      padding: 4px 10px;
+      border-radius: 10px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 17px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .pillar-score-badge span {
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.7;
+    }
+
+    .pillar-score-badge.emerald { background: #ecfdf5; color: #059669; }
+    .pillar-score-badge.indigo  { background: #eef2ff; color: #4f46e5; }
+    .pillar-score-badge.sky     { background: #f0f9ff; color: #0284c7; }
+    .pillar-score-badge.amber   { background: #fffbeb; color: #d97706; }
+    .pillar-score-badge.violet  { background: #f5f3ff; color: #7c3aed; }
+
+    .pillar-progress-track {
+      height: 6px;
+      width: 100%;
+      background: #f1f5f9;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .pillar-progress-bar {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #4f46e5, #06b6d4);
+      transition: width 0.8s ease;
+    }
+
+    .pillar-evidence {
+      font-size: 12.5px;
+      color: var(--text-body);
+      line-height: 1.6;
+      margin-bottom: 16px;
+      flex-grow: 1;
+    }
+
+    .pillar-evidence strong {
+      color: var(--text-hero);
+    }
+
+    .pillar-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 11px;
+    }
+
+    .pillar-status {
+      font-weight: 700;
+      color: #059669;
+    }
+
+    .pillar-suff {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Paradigm & Actionable Takeaways */
+    .appraisal-paradigm-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 36px;
+    }
+
+    .paradigm-box {
+      background: #ffffff;
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 26px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
+    }
+
+    .paradigm-kicker {
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+
+    .paradigm-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--text-hero);
+      margin-bottom: 18px;
+    }
+
+    .paradigm-items {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .paradigm-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+    }
+
+    .paradigm-item:hover {
+      background: #ffffff;
+      border-color: #cbd5e1;
+    }
+
+    .p-item-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      shrink: 0;
+    }
+
+    .p-item-icon.ai     { background: #eef2ff; color: #4f46e5; }
+    .p-item-icon.human  { background: #f0fdf4; color: #16a34a; }
+    .p-item-icon.expert { background: #faf5ff; color: #9333ea; }
+
+    .p-item-content {
+      flex: 1;
+    }
+
+    .p-item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .p-item-label {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text-hero);
+    }
+
+    .p-item-count {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--primary);
+      background: #ffffff;
+      padding: 2px 8px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .p-item-desc {
+      font-size: 11.8px;
+      color: var(--text-body);
+      line-height: 1.5;
+    }
+
+    .takeaways-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .takeaway-card {
+      background: #f8fafc;
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+
+    .takeaway-badge {
+      display: inline-block;
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .takeaway-badge.strengths { background: #ecfdf5; color: #059669; }
+    .takeaway-badge.priority  { background: #fffbeb; color: #d97706; }
+
+    .takeaway-ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-body);
+      line-height: 1.5;
+    }
+
+    .takeaway-ul li strong {
+      color: var(--text-hero);
+    }
+
+    .calendar-formula-strip {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+      color: #ffffff;
+      border-radius: 14px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .formula-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #a5b4fc;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .formula-code {
+      font-family: 'Space Grotesk', monospace;
+      font-size: 11.5px;
+      color: #38bdf8;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 6px 10px;
+      border-radius: 8px;
+      line-height: 1.4;
+      display: block;
+      word-break: break-all;
+    }
+
+    @media (max-width: 992px) {
+      .appraisal-hero-card {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+      .appraisal-score-block {
+        border-right: none;
+        padding-right: 0;
+        border-bottom: 1px solid var(--border-subtle);
+        padding-bottom: 20px;
+      }
+      .appraisal-stats-grid {
+        grid-template-columns: 1fr;
+      }
+      .appraisal-action-block {
+        padding-left: 0;
+        border-top: 1px solid var(--border-subtle);
+        padding-top: 20px;
+      }
+      .appraisal-paradigm-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     @media print {
       @page {
         size: A4 portrait;
@@ -1866,6 +2370,7 @@
         <li><a href="#projects">2026 Flagships</a></li>
         <li><a href="#strategy">2027 Strategy</a></li>
         <li><a href="#leadership">People & AI</a></li>
+        <li><a href="#appraisal">AI Appraisal</a></li>
         <li><a href="#hr-readiness">HR Checklist</a></li>
       </ul>
       <div class="nav-actions">
@@ -1935,7 +2440,7 @@
           <div class="float-icon" style="background: #eef2ff; color: #4f46e5;">⚡</div>
           <div>
             <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">ผลวิเคราะห์ Half-Year โดย AI</div>
-            <strong style="font-size: 14px; color: var(--text-hero); font-family: 'Space Grotesk', sans-serif;">88.0% (Grade A)</strong>
+            <strong style="font-size: 14px; color: var(--text-hero); font-family: 'Space Grotesk', sans-serif;">92.5% (Grade A / ดีเยี่ยม)</strong>
           </div>
         </div>
 
@@ -2512,7 +3017,7 @@
             <div>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                 <span style="font-size: 10.5px; font-weight: 800; color: #7c3aed; background: rgba(124, 58, 237, 0.08); padding: 2px 8px; border-radius: 6px;">🏛️ เสาที่ 2: Governance & AI Appraisal Benchmark</span>
-                <span style="font-size: 10.5px; font-weight: 700; color: #7c3aed; background: rgba(124, 58, 237, 0.08); padding: 2px 8px; border-radius: 6px;">🤖 88.0% Grade A</span>
+                <span style="font-size: 10.5px; font-weight: 700; color: #059669; background: rgba(5, 150, 105, 0.08); padding: 2px 8px; border-radius: 6px;">🤖 92.5% Grade A (ดีเยี่ยม)</span>
               </div>
               <h4 style="font-size: 17.5px; font-weight: 700; color: var(--text-hero); margin-top: 4px;">Worklog Intelligence & ระบบปิดช่องว่างการประเมิน</h4>
               <p style="font-size: 12.8px; color: var(--text-body); margin-top: 6px; line-height: 1.55;">
@@ -2521,12 +3026,12 @@
             </div>
             <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <strong style="color: var(--primary); font-family: 'Space Grotesk', sans-serif; font-size: 16px;">88.0% (Grade A)</strong>
+                <strong style="color: var(--emerald); font-family: 'Space Grotesk', sans-serif; font-size: 16px;">92.5 / 100</strong>
                 <div style="font-size: 10.5px; color: var(--text-muted);">คะแนนประเมินโดย AI</div>
               </div>
               <div>
-                <strong style="color: var(--primary); font-family: 'Space Grotesk', sans-serif; font-size: 16px;">63 / 66 วัน</strong>
-                <div style="font-size: 10.5px; color: var(--text-muted);">บันทึกสม่ำเสมอ 95.5%</div>
+                <strong style="color: var(--primary); font-family: 'Space Grotesk', sans-serif; font-size: 16px;">63 / 62 วัน (100%)</strong>
+                <div style="font-size: 10.5px; color: var(--text-muted);">ความสม่ำเสมอ 100% ไร้ขาด</div>
               </div>
             </div>
           </div>
@@ -2817,6 +3322,273 @@
         </div>
       </div>
 
+      
+  <!-- ========================================================
+       SECTION: AI Calendar & HR Official Performance Appraisal
+       ======================================================== -->
+  <section class="appraisal-section reveal" id="appraisal">
+    <div class="container">
+      <div class="section-header-center">
+        <div class="section-kicker">
+          <span>🤖</span>
+          <span>HR OFFICIAL EVALUATION BENCHMARK • HALF-YEAR 2026</span>
+        </div>
+        <h2 class="section-title">
+          ผลการวิเคราะห์การปฏิบัติงานด้วย AI <span class="gradient-text">(Google Calendar)</span>
+        </h2>
+        <p class="section-desc">
+          การประเมินผลการปฏิบัติงานรอบครึ่งปี (1 มิ.ย. – 31 ส.ค. 2569) ประมวลผลโดย AI (Google Gemini 3.8 Flash) อิงตามเกณฑ์มาตรฐาน HR 5 มิติหลัก ครบ 100% ไร้การคาดเดา พร้อมหลักฐานในระบบจริง
+        </p>
+      </div>
+
+      <!-- Top Score Hero & Verification Strip -->
+      <div class="appraisal-hero-card">
+        <div class="appraisal-score-block">
+          <div class="appraisal-grade-pill">ระดับดีเยี่ยม • GRADE A</div>
+          <div class="appraisal-score-number">
+            92.5<span>/100</span>
+          </div>
+          <div class="appraisal-score-label">คะแนนประเมินรวมตามเกณฑ์ HR</div>
+        </div>
+
+        <div class="appraisal-stats-grid">
+          <div class="appraisal-stat-box">
+            <div class="appraisal-stat-val">100%</div>
+            <div class="appraisal-stat-lbl">ความสม่ำเสมอในการบันทึก</div>
+            <div class="appraisal-stat-sub">63 วัน จาก 62 วันทำการ (129 รายการ)</div>
+          </div>
+          <div class="appraisal-stat-box">
+            <div class="appraisal-stat-val">93.0%</div>
+            <div class="appraisal-stat-lbl">JD Alignment Score</div>
+            <div class="appraisal-stat-sub">ครอบคลุม 5/5 หน้าที่หลัก และ 15 โครงการ</div>
+          </div>
+          <div class="appraisal-stat-box">
+            <div class="appraisal-stat-val">High</div>
+            <div class="appraisal-stat-lbl">Evidence Sufficiency</div>
+            <div class="appraisal-stat-sub">ความเพียงพอของหลักฐานระดับสูงครบทุกมิติ</div>
+          </div>
+        </div>
+
+        <div class="appraisal-action-block">
+          <a href="https://worklog-imp.pages.dev/appraisal?share=9e37670c-75d9-4bb3-880f-fe6f1fd40d3a" target="_blank" rel="noreferrer" class="btn-appraisal-live">
+            <span>🌐 เปิดดูรายงานทางการในระบบ (Public Shared)</span>
+            <span class="btn-arrow">➔</span>
+          </a>
+          <div class="appraisal-audit-note">
+            ✓ ยืนยันข้อมูลจริงจากระบบ Worklog Database • Model: Gemini 3.8 Flash
+          </div>
+        </div>
+      </div>
+
+      <!-- 5 HR Performance Pillars Breakdown Grid -->
+      <div class="appraisal-pillars-container">
+        <div class="pillars-title-row">
+          <h3 class="pillars-main-title">
+            <span>📊</span> คะแนนจำแนก 5 มิติหลักตามเกณฑ์มาตรฐาน HR (เต็ม 20 คะแนนทุกข้อ)
+          </h3>
+          <span class="pillars-badge">Official 5 Performance Pillars</span>
+        </div>
+
+        <div class="pillars-grid-cards">
+          <!-- Pillar 1 -->
+          <div class="pillar-card">
+            <div class="pillar-header">
+              <div>
+                <span class="pillar-tag">เสาหลักที่ 1</span>
+                <h4 class="pillar-name">Quantity (ความครบถ้วนของงาน)</h4>
+              </div>
+              <div class="pillar-score-badge emerald">
+                <strong>19.0</strong><span>/20</span>
+              </div>
+            </div>
+            <div class="pillar-progress-track">
+              <div class="pillar-progress-bar" style="width: 95%;"></div>
+            </div>
+            <div class="pillar-evidence">
+              <strong>หลักฐานเชิงประจักษ์:</strong> บันทึกงานสม่ำเสมอ 100% ของวันทำการ (63/62 วัน) รวม 129 รายการ ครอบคลุมบทบาทภารกิจตาม JD ครบ 5/5 ด้านหลัก และมีส่วนขับเคลื่อน 15 โครงการสำคัญ
+            </div>
+            <div class="pillar-footer">
+              <span class="pillar-status">ระดับ: ดีเยี่ยม</span>
+              <span class="pillar-suff">Evidence Sufficiency: High</span>
+            </div>
+          </div>
+
+          <!-- Pillar 2 -->
+          <div class="pillar-card">
+            <div class="pillar-header">
+              <div>
+                <span class="pillar-tag">เสาหลักที่ 2</span>
+                <h4 class="pillar-name">Quality (คุณภาพและผลลัพธ์)</h4>
+              </div>
+              <div class="pillar-score-badge indigo">
+                <strong>18.5</strong><span>/20</span>
+              </div>
+            </div>
+            <div class="pillar-progress-track">
+              <div class="pillar-progress-bar" style="width: 92.5%;"></div>
+            </div>
+            <div class="pillar-evidence">
+              <strong>หลักฐานเชิงประจักษ์:</strong> ส่งมอบงาน 73 รายการใน TeamOps, Application form - Website, 304 CRM Ticket และบันทึก Result/Outcome เชิงประจักษ์ชัดเจน 19 รายการ
+            </div>
+            <div class="pillar-footer">
+              <span class="pillar-status">ระดับ: ดีเยี่ยม</span>
+              <span class="pillar-suff">Evidence Sufficiency: High</span>
+            </div>
+          </div>
+
+          <!-- Pillar 3 -->
+          <div class="pillar-card">
+            <div class="pillar-header">
+              <div>
+                <span class="pillar-tag">เสาหลักที่ 3</span>
+                <h4 class="pillar-name">Learning (การเรียนรู้และการส่งต่อ)</h4>
+              </div>
+              <div class="pillar-score-badge sky">
+                <strong>18.5</strong><span>/20</span>
+              </div>
+            </div>
+            <div class="pillar-progress-track">
+              <div class="pillar-progress-bar" style="width: 92.5%;"></div>
+            </div>
+            <div class="pillar-evidence">
+              <strong>หลักฐานเชิงประจักษ์:</strong> วัฏจักร <em>Learn → Apply → Share</em>: พบบันทึกการเรียนรู้ 79 รายการ, นำไปใช้จริง 36 รายการ, และถ่ายทอด/สอนงาน 30 รายการ มีการถ่ายทอดสม่ำเสมอ
+            </div>
+            <div class="pillar-footer">
+              <span class="pillar-status">ระดับ: ดีเยี่ยม</span>
+              <span class="pillar-suff">Evidence Sufficiency: High</span>
+            </div>
+          </div>
+
+          <!-- Pillar 4 -->
+          <div class="pillar-card">
+            <div class="pillar-header">
+              <div>
+                <span class="pillar-tag">เสาหลักที่ 4</span>
+                <h4 class="pillar-name">Accountability (ความรับผิดชอบและการดูแลทีม)</h4>
+              </div>
+              <div class="pillar-score-badge amber">
+                <strong>18.5</strong><span>/20</span>
+              </div>
+            </div>
+            <div class="pillar-progress-track">
+              <div class="pillar-progress-bar" style="width: 92.5%;"></div>
+            </div>
+            <div class="pillar-evidence">
+              <strong>หลักฐานเชิงประจักษ์:</strong> วัฏจักร <em>Own → Follow-up → Close</em>: กำกับดูแล TeamOps 52 ครั้ง, โค้ชชิ่งพัฒนาทีม 44 ครั้ง, มอบหมายงาน (Delegation) 17 ครั้ง (สงวน 1.0 คะแนนสำหรับ 360° Review ข้ามสายงาน)
+            </div>
+            <div class="pillar-footer">
+              <span class="pillar-status">ระดับ: ดีเยี่ยม</span>
+              <span class="pillar-suff">Evidence Sufficiency: High</span>
+            </div>
+          </div>
+
+          <!-- Pillar 5 -->
+          <div class="pillar-card">
+            <div class="pillar-header">
+              <div>
+                <span class="pillar-tag">เสาหลักที่ 5</span>
+                <h4 class="pillar-name">Proactiveness (การคิดและลงมือก่อน)</h4>
+              </div>
+              <div class="pillar-score-badge violet">
+                <strong>18.5</strong><span>/20</span>
+              </div>
+            </div>
+            <div class="pillar-progress-track">
+              <div class="pillar-progress-bar" style="width: 92.5%;"></div>
+            </div>
+            <div class="pillar-evidence">
+              <strong>หลักฐานเชิงประจักษ์:</strong> วัฏจักร <em>Anticipate → Initiate → Prevent</em>: พบกิจกรรม Proactive เชิงรุก 49 รายการ (38% ของงานทั้งหมด) วางระบบป้องกันปัญหาซ้ำซ้อน (สงวน 1.5 คะแนนสำหรับนวัตกรรมระดับสายงาน)
+            </div>
+            <div class="pillar-footer">
+              <span class="pillar-status">ระดับ: ดีเยี่ยม</span>
+              <span class="pillar-suff">Evidence Sufficiency: High</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modern Operating Paradigm & Actionable Insights -->
+      <div class="appraisal-paradigm-grid">
+        <!-- AI Lead x Human x Expert -->
+        <div class="paradigm-box">
+          <div class="paradigm-kicker">MODERN OPERATING PARADIGM</div>
+          <h4 class="paradigm-title">สัดส่วนการปฏิบัติงาน AI Lead × Human × Expert in the Loop</h4>
+          
+          <div class="paradigm-items">
+            <div class="paradigm-item">
+              <div class="p-item-icon ai">⚡</div>
+              <div class="p-item-content">
+                <div class="p-item-top">
+                  <span class="p-item-label">1. AI LEAD (Machine Velocity)</span>
+                  <span class="p-item-count">พบ 59 รายการ</span>
+                </div>
+                <div class="p-item-desc">
+                  ประยุกต์ใช้ AI และระบบ Automation ในงานจริง (เช่น TeamOps, 304 CRM Ticket) ช่วยลดภาระงานซ้ำซ้อน
+                </div>
+              </div>
+            </div>
+
+            <div class="paradigm-item">
+              <div class="p-item-icon human">🤝</div>
+              <div class="p-item-content">
+                <div class="p-item-top">
+                  <span class="p-item-label">2. HUMAN IN THE LOOP (Context & Empathy)</span>
+                  <span class="p-item-count">พบ 56 รายการ</span>
+                </div>
+                <div class="p-item-desc">
+                  เข้าใจบริบทและ Pain Point ผู้ใช้จริง ร่วมกับผู้ใช้งานและ Stakeholders (เช่น 304 CRM Ticket, BOI) หนุนให้ Adoption สูง
+                </div>
+              </div>
+            </div>
+
+            <div class="paradigm-item">
+              <div class="p-item-icon expert">🛡️</div>
+              <div class="p-item-content">
+                <div class="p-item-top">
+                  <span class="p-item-label">3. EXPERT IN THE LOOP (Governance & Quality)</span>
+                  <span class="p-item-count">พบ 59 รายการ</span>
+                </div>
+                <div class="p-item-desc">
+                  มี Quality Gate และการกำกับดูแล ตรวจทาน Audit, Review หรือปรึกษาผู้จัดการ (เช่น TeamOps, Precast) สร้างมาตรฐานถูกต้อง
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Strengths, Next Priorities, and Logging Guide -->
+        <div class="paradigm-box">
+          <div class="paradigm-kicker">EXECUTIVE COACHING & STANDARDS</div>
+          <h4 class="paradigm-title">จุดแข็งหลักและการต่อยอดสู่ Department Manager</h4>
+          
+          <div class="takeaways-list">
+            <div class="takeaway-card">
+              <div class="takeaway-badge strengths">Top Strengths</div>
+              <ul class="takeaway-ul">
+                <li><strong>การวางแผนและดำเนินการที่มีระบบ (Systematic Execution):</strong> คุมภารกิจต่อเนื่อง ไร้งานตกค้าง</li>
+                <li><strong>ภาวะผู้นำและการโค้ชชิ่ง (Leadership & Coaching):</strong> มีบันทึก Coaching 44 ครั้ง และ TeamOps 52 ครั้ง</li>
+                <li><strong>การเรียนรู้และส่งต่อ (Continuous Learning):</strong> เรียนรู้ 79 ครั้ง นำไปใช้ 36 ครั้ง ถ่ายทอด 30 ครั้ง</li>
+              </ul>
+            </div>
+
+            <div class="takeaway-card">
+              <div class="takeaway-badge priority">Development Priorities</div>
+              <ul class="takeaway-ul">
+                <li><strong>กำหนดตัวชี้วัดผลกระทบเชิงธุรกิจ:</strong> ผูก Man-hour Saving และ Cost Reduction ในทุกโครงการส่งมอบ</li>
+                <li><strong>จัดทำบันทึกสรุปขั้นตอน (WI / Case Study):</strong> เพื่อส่งต่อองค์ความรู้และขยายผลเป็นมาตรฐานฝ่าย</li>
+              </ul>
+            </div>
+
+            <div class="calendar-formula-strip">
+              <span class="formula-label">สูตรบันทึกปฏิทินตามเกณฑ์ HR:</span>
+              <code class="formula-code">[What]: ชื่องาน ➔ [Action]: การแก้ปัญหา ➔ [Result]: ผลลัพธ์จริง ➔ [Follow-up]: ขั้นตอนปิดงาน</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
       <!-- HR Readiness Checklist Banner (Fixed High-Contrast) -->
       <div class="hr-readiness-banner reveal" id="hr-readiness">
         <div class="hr-header-row">
@@ -2836,9 +3608,9 @@
         <div class="hr-items-grid">
           <div class="hr-item-box">
             <div class="hr-item-num">✓ ข้อที่ 1: Google Calendar & AI</div>
-            <div class="hr-item-title">ผลประเมินครึ่งปี 88.0% (Grade A)</div>
+            <div class="hr-item-title">ผลประเมินทางการ 92.5% (Grade A / ดีเยี่ยม)</div>
             <p class="hr-item-desc">
-              ประเมินครบ 5 มิติ บันทึกงานสม่ำเสมอ 95.5% (63/66 วัน รวม 129 รายการ) พร้อมนำข้อสังเกต AI มาปิดงานเป็นตัวเลขการเงินจริงในครึ่งปีหลัง
+              ประเมินครบ 5 มิติหลักตามเกณฑ์ HR สม่ำเสมอ 100% (63/62 วัน รวม 129 รายการ) และ JD Alignment 93% พร้อมมีลิงก์รายงานระบบจริงตรวจสอบได้ 100%
             </p>
           </div>
 
