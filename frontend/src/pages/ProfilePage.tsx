@@ -705,11 +705,12 @@ export default function ProfilePage() {
             ? 'chatchawan' 
             : (session?.nickname 
                 ? encodeURIComponent(session.nickname.toLowerCase().trim()) 
-                : (session?.empId || session?.id || 'me'));
+                : (session?.email ? session.email.split('@')[0].toLowerCase() : (session?.empId || session?.id || 'me')));
 
+          const dossierPath = `/dossier/${userSlug}`;
           const dossierUrl = typeof window !== 'undefined' 
-            ? (isChatchawan ? `${window.location.origin}/dossier` : `${window.location.origin}/dossier/${userSlug}`)
-            : `/dossier/${userSlug}`;
+            ? `${window.location.origin}${dossierPath}`
+            : dossierPath;
 
           return (
             <div id="executive-dossier-card" className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-indigo-500/30 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
@@ -818,7 +819,7 @@ export default function ProfilePage() {
                 {/* Action Cards Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <a
-                    href={isChatchawan ? '/dossier' : `/dossier/${userSlug}`}
+                    href={dossierPath}
                     target="_blank"
                     rel="noreferrer"
                     className="group flex flex-col p-5 rounded-2xl bg-theme-surface-secondary/60 hover:bg-indigo-600/10 border border-theme-border hover:border-indigo-500/50 shadow-sm transition-all duration-200"

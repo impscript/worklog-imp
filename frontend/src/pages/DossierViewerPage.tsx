@@ -52,8 +52,19 @@ export default function DossierViewerPage() {
   const { slug } = useParams<{ slug?: string }>();
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const currentSlug = (slug || '').toLowerCase().trim();
-  const isChatchawan = !currentSlug || currentSlug === 'chatchawan' || currentSlug === '10005208' || currentSlug === 'portfolio';
+  const rawSlug = (slug || '').trim();
+  let decodedSlug = rawSlug;
+  try {
+    decodedSlug = decodeURIComponent(rawSlug);
+  } catch {
+    // fallback to raw
+  }
+  const currentSlug = decodedSlug.toLowerCase().trim();
+  const isChatchawan = !currentSlug || 
+    currentSlug === 'chatchawan' || 
+    currentSlug === '10005208' || 
+    currentSlug === 'portfolio' || 
+    currentSlug.includes('chatchawan');
 
   const [isPublic, setIsPublic] = useState<boolean | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -152,19 +163,48 @@ export default function DossierViewerPage() {
         const { data: byNickname } = await supabase
           .from('users')
           .select('*')
-          .ilike('nickname', currentSlug)
+          .or(`nickname.ilike.${currentSlug},nickname.ilike.${decodedSlug}`)
           .maybeSingle();
 
         if (byNickname) {
           foundUser = byNickname;
         } else {
-          // Try lookup by email prefix or ID
-          const { data: byEmailOrId } = await supabase
-            .from('users')
-            .select('*')
-            .or(`id.eq.${currentSlug},email.ilike.${currentSlug}%`)
-            .maybeSingle();
-          foundUser = byEmailOrId;
+          // Try lookup by email prefix, emp_id, or full_name
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentSlug);
+          let query = supabase.from('users').select('*');
+          if (isUuid) {
+            query = query.or(`id.eq.${currentSlug},emp_id.eq.${currentSlug}`);
+          } else {
+            query = query.or(`emp_id.eq.${currentSlug},email.ilike.${currentSlug}%,full_name.ilike.%${currentSlug}%`);
+          }
+          const { data: byOther } = await query.maybeSingle();
+          foundUser = byOther;
+        }
+
+        // If not found in DB (e.g. strict public RLS or offline cache), fallback to session if user matches
+        if (!foundUser && sessionData) {
+          const matchSession = 
+            sessionData.empId === currentSlug ||
+            sessionData.email?.toLowerCase().startsWith(currentSlug) ||
+            sessionData.nickname?.toLowerCase() === currentSlug ||
+            sessionData.nickname === decodedSlug ||
+            sessionData.name?.toLowerCase().includes(currentSlug);
+
+          if (matchSession) {
+            foundUser = {
+              id: sessionData.id,
+              full_name: sessionData.name || sessionData.full_name,
+              nickname: sessionData.nickname,
+              position: sessionData.position,
+              employee_level: sessionData.employee_level,
+              company_name: sessionData.company_name,
+              department: sessionData.department,
+              role_start_date: sessionData.role_start_date,
+              manager_name: sessionData.manager_name,
+              email: sessionData.email,
+              emp_id: sessionData.empId
+            };
+          }
         }
 
         if (!foundUser) {
