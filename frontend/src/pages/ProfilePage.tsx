@@ -858,7 +858,7 @@ export default function ProfilePage() {
                         ดาวน์โหลด PDF สรุป (ส่ง HR)
                       </span>
                       <span className="text-xs text-theme-text-secondary mt-1.5 leading-relaxed">
-                        เอกสารประเมินเลื่อนตำแหน่งฉบับทางการ (Canva 11 หน้าคมชัดสูง) พร้อมจัดพิมพ์และส่งคณะกรรมการ
+                        เอกสารประเมินเลื่อนตำแหน่งฉบับทางการ (Canva 15 หน้าคมชัดสูง) พร้อมจัดพิมพ์และส่งคณะกรรมการ
                       </span>
                     </a>
                   ) : (
