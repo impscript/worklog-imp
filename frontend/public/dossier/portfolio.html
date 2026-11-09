@@ -1928,10 +1928,233 @@
       box-shadow: 0 8px 16px -4px rgba(0,0,0,0.08);
       border-color: #cbd5e1;
     }
-    .deepdive-grid {
+    /* Case Tabs & Showcase Styling (Spacious Section per Case) */
+    .case-tabs-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+    .case-tabs-pill {
+      display: inline-flex;
+      gap: 6px;
+      background: #f1f5f9;
+      padding: 6px;
+      border-radius: 999px;
+      border: 1px solid #e2e8f0;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .case-tab-btn {
+      padding: 9px 20px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #64748b;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: inherit;
+    }
+    .case-tab-btn:hover {
+      color: #0f172a;
+      background: rgba(255, 255, 255, 0.7);
+    }
+    .case-tab-btn.active {
+      background: #ffffff;
+      color: #0f172a;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      border: 1px solid rgba(0, 0, 0, 0.04);
+    }
+    .case-tabs-hint {
+      font-size: 12px;
+      color: #64748b;
+      text-align: center;
+    }
+
+    /* Showcase Section per Case */
+    .case-showcase-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 28px;
+      padding: 34px 38px;
+      margin-bottom: 32px;
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .case-showcase-card:hover {
+      box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.07);
+      border-color: #cbd5e1;
+    }
+    .case-showcase-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .case-showcase-title-area {
+      flex: 1;
+      min-width: 280px;
+    }
+    .case-showcase-body {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-      gap: 24px;
+      grid-template-columns: 380px 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+    @media (max-width: 1040px) {
+      .case-showcase-body {
+        grid-template-columns: 1fr;
+      }
+      .case-showcase-card {
+        padding: 24px;
+      }
+    }
+    .case-left-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .case-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 12px 10px;
+    }
+    .case-stat-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .case-stat-val {
+      font-size: 17px;
+      font-weight: 800;
+      font-family: 'Space Grotesk', sans-serif;
+      line-height: 1.2;
+    }
+    .case-stat-lbl {
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 3px;
+      line-height: 1.3;
+      font-weight: 600;
+    }
+    .case-lifecycle-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: relative;
+    }
+    .case-lifecycle-timeline::before {
+      content: '';
+      position: absolute;
+      left: 17px;
+      top: 20px;
+      bottom: 20px;
+      width: 2px;
+      background: #e2e8f0;
+      z-index: 1;
+    }
+    .lifecycle-stage-row {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      position: relative;
+      z-index: 2;
+    }
+    .lifecycle-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      flex-shrink: 0;
+      font-family: 'Space Grotesk', sans-serif;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    }
+    .lifecycle-content {
+      flex: 1;
+      background: #f8fafc;
+      border: 1px solid #f1f5f9;
+      border-radius: 14px;
+      padding: 14px 18px;
+      transition: all 0.2s ease;
+    }
+    .lifecycle-content:hover {
+      background: #ffffff;
+      border-color: #cbd5e1;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    }
+    .lifecycle-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 5px;
+    }
+    .lifecycle-stage-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .principle-micro-tag {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      letter-spacing: 0.2px;
+    }
+    .lifecycle-desc {
+      font-size: 12.8px;
+      color: #475569;
+      line-height: 1.55;
+    }
+    .case-footer-bar {
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid #f1f5f9;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .capture-badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* Legacy compatibility for grid if referenced */
+    .deepdive-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
       margin-bottom: 32px;
     }
     .deepdive-card {
@@ -1940,64 +2163,12 @@
       border: 1px solid #e2e8f0;
       padding: 32px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    .deepdive-header {
-      border-bottom: 1px solid #f1f5f9;
-      padding-bottom: 18px;
-      margin-bottom: 20px;
-    }
-    .stage-timeline-list {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .stage-item {
-      display: flex;
-      gap: 14px;
-      align-items: flex-start;
-    }
-    .stage-badge {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11.5px;
-      font-weight: 800;
-      flex-shrink: 0;
-      font-family: 'Space Grotesk', sans-serif;
-    }
-    .stage-content {
-      flex: 1;
-    }
-    .stage-title {
-      font-size: 13.5px;
-      font-weight: 700;
-      color: #0f172a;
-    }
-    .stage-desc {
-      font-size: 12.5px;
-      color: #475569;
-      line-height: 1.55;
-      margin-top: 3px;
     }
     .completion-criteria-card {
       background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
       border: 1px solid #bbf7d0;
       border-radius: 20px;
       padding: 24px 28px;
-    }
-    @media (max-width: 768px) {
-      .deepdive-grid {
-        grid-template-columns: 1fr;
-      }
-      .deepdive-card {
-        padding: 22px;
-      }
     }
 
             @media print {
@@ -3490,243 +3661,517 @@
         </div>
       </div>
 
-      <!-- 3 Deep-Dive Case Studies Grid -->
-      <div class="deepdive-grid">
+      <!-- Interactive Case Tabs (Section per Case Selection) -->
+      <div class="case-tabs-wrapper reveal">
+        <div class="case-tabs-pill">
+          <button class="case-tab-btn active" onclick="switchCaseStudy('all', this)">
+            📑 แสดงทั้งหมด (Full Deck)
+          </button>
+          <button class="case-tab-btn" onclick="switchCaseStudy('case-asset', this)">
+            🏭 เคสที่ 1: Smart Fixed Asset (DA Pack)
+          </button>
+          <button class="case-tab-btn" onclick="switchCaseStudy('case-fx', this)">
+            🏛️ เคสที่ 2: FxCurrency 365 Sync
+          </button>
+          <button class="case-tab-btn" onclick="switchCaseStudy('case-hr', this)">
+            👥 เคสที่ 3: HR Alliance Digital Form
+          </button>
+        </div>
+        <div class="case-tabs-hint">
+          💡 <em>คลิกเลือกเคสเพื่อดูทีละระบบแบบเต็มจอ (สัดส่วน Widescreen ไม่เบียด ไม่แน่น แคปภาพง่าย) หรือเลือก "แสดงทั้งหมด" เพื่อเลื่อนดูต่อเนื่อง</em>
+        </div>
+      </div>
 
-        <!-- Case 1: Smart Fixed Asset Auditing System (DA Pack) -->
-        <div class="deepdive-card reveal">
-          <div>
-            <div class="deepdive-header">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="font-size: 11px; font-weight: 800; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 3px 10px; border-radius: 6px;">
-                  🏭 กรณีศึกษาที่ 1: Asset Auditing Architecture & Feasibility (DA Pack)
-                </span>
-                <span style="font-size: 11px; font-weight: 700; color: #059669;">Est. 740+ ชม. • On-Site 2027</span>
-              </div>
-              <h3 style="font-size: 19px; font-weight: 800; color: #0f172a; line-height: 1.3;">
-                Smart Fixed Asset & NetSuite Reconciliation (DA Pack)
-              </h3>
-              <p style="font-size: 12.8px; color: #64748b; margin-top: 6px; line-height: 1.5;">
-                ถอดรหัสกระบวนการปฏิรูปการตรวจนับทรัพย์สิน 20,230 รายการ ผ่านการศึกษาเอกสารเชิงลึกและสัมภาษณ์ทีมงานบัญชี สู่การออกแบบระบบดิจิทัลเชื่อมต่อ NetSuite ERP (เตรียมลงพื้นที่จริงปี 2027)
-              </p>
+      <!-- Case 1: Smart Fixed Asset Auditing System (DA Pack) -->
+      <div class="case-showcase-card reveal" id="case-asset">
+        <div class="case-showcase-header">
+          <div class="case-showcase-title-area">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 11px; font-weight: 800; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 3px 10px; border-radius: 6px;">
+                🏭 กรณีศึกษาที่ 1: Asset Auditing Architecture & Feasibility (DA Pack)
+              </span>
+              <span class="capture-badge-pill">
+                📷 Widescreen View • Capture-Ready
+              </span>
             </div>
-
-            <!-- Stages Breakdown -->
-            <div class="stage-timeline-list">
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(5, 150, 105, 0.15); color: #059669;">1-3</div>
-                <div class="stage-content">
-                  <div class="stage-title">Identify, As-Is & Root Cause Analysis (Document & Interview)</div>
-                  <div class="stage-desc">
-                    ศึกษา As-Is จากเอกสารทะเบียนทรัพย์สิน 20,230 รายการ และสัมภาษณ์เชิงลึกทีมงานฝ่ายบัญชีทรัพย์สิน พบคอขวดการตรวจนับประจำปีใน 10+ โรงงาน (PM1, PM2, APM3, PULP1, ลานไม้ ฯลฯ) ที่ใช้กระดาษและ Excel นานกว่า 4 สัปดาห์ (960+ ชม./รอบ) เกิดผลต่างกระทบยอดใน NetSuite สูง Root Cause คือ <strong>"กระบวนการ Manual ไร้ระบบสแกนบาร์โค้ดแบบ Real-time และขาดการตรวจสอบพิกัดรูปถ่ายหลักฐานหน้างาน"</strong> (Data before Opinion & Root Cause before Solution)
-                  </div>
-                </div>
-              </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(14, 165, 233, 0.15); color: #0284c7;">4-5</div>
-                <div class="stage-content">
-                  <div class="stage-title">Design Improvement & Risk Assessment (Digital Architecture)</div>
-                  <div class="stage-desc">
-                    ออกแบบสถาปัตยกรรม To-Be เป็น Web App / PWA บนมือถือ รองรับการสแกน QR/Barcode แบบ Offline-First พร้อมประเมินความเสี่ยงและวางระบบ Local Cache ถ่ายรูปหลักฐาน และวางกลไก <strong>NetSuite Reconciliation Engine</strong> เทียบยอดกระทบกับ ERP อัตโนมัติ (End-to-End over Silo)
-                  </div>
-                </div>
-              </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(99, 102, 241, 0.15); color: #4f46e5;">6</div>
-                <div class="stage-content">
-                  <div class="stage-title">Develop, Prototype & Schema UAT with Asset Accounting</div>
-                  <div class="stage-desc">
-                    พัฒนา Prototype ระบบสแกนและจัดทำ UAT Data Schema ร่วมกับผู้จัดการฝ่ายบัญชีทรัพย์สิน ตรวจสอบความถูกต้องของการเชื่อมโยง Master Data และโครงสร้างรายงานกระทบยอด Variance ก่อนเข้าสู่เฟสปฏิบัติการหน้างาน
-                  </div>
-                </div>
-              </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(217, 119, 6, 0.15); color: #d97706;">7</div>
-                <div class="stage-content">
-                  <div class="stage-title">Benefit Realization Model & Impact Forecast</div>
-                  <div class="stage-desc">
-                    โมเดลผลลัพธ์ทางธุรกิจชี้ชัด: เมื่อนำระบบไปปฏิบัติการจริงจะลดเวลาตรวจนับจาก 4 สัปดาห์ เหลือ 1 สัปดาห์ <strong>ประหยัดเวลา 740+ ชม./รอบการตรวจนับ (ลดลง -75%)</strong>, ขจัดปัญหาเอกสารสูญหาย 100%, กระทบยอดความถูกต้องกับ Oracle NetSuite 100% (Business Value over Activity)
-                  </div>
-                </div>
-              </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed;">8-9</div>
-                <div class="stage-content">
-                  <div class="stage-title">Standardize, Handover & On-Site Field Rollout Plan 2027</div>
-                  <div class="stage-desc">
-                    จัดทำคู่มือและ SOP การตรวจนับดิจิทัล ส่งมอบให้ผู้จัดการฝ่ายบัญชีทรัพย์สินเป็น <strong>Process Owner</strong> ร่วม โดยวางแผนยุทธศาสตร์ <strong>ลงพื้นที่ตรวจนับจริงหน้างานใน 10+ โรงงาน (On-Site Field Operations) เต็มรูปแบบในปี 2027</strong> (Sustainability over Quick Fix)
-                  </div>
-                </div>
-              </div>
-            </div>
+            <h3 style="font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.3;">
+              Smart Fixed Asset & NetSuite Reconciliation (DA Pack)
+            </h3>
+            <p style="font-size: 13.5px; color: #64748b; margin-top: 6px; line-height: 1.55;">
+              ถอดรหัสกระบวนการปฏิรูปการตรวจนับทรัพย์สิน 20,230 รายการ ผ่านการศึกษาเอกสารเชิงลึกและสัมภาษณ์ทีมงานบัญชี สู่การออกแบบระบบดิจิทัลเชื่อมต่อ NetSuite ERP (เตรียมลงพื้นที่จริงปี 2027)
+            </p>
           </div>
-
-          <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 11.5px; color: #64748b;">Process Owner: ผู้จัดการฝ่ายบัญชีทรัพย์สิน</span>
-            <span style="font-size: 11.5px; font-weight: 700; color: #059669;">📐 Feasibility & System Designed (ลงพื้นที่จริงปี 2027)</span>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+            <span style="font-size: 12.5px; font-weight: 800; color: #059669; background: rgba(5, 150, 105, 0.12); padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(5, 150, 105, 0.25);">
+              ⚡ Est. 740+ ชม. (-75%) • On-Site 2027
+            </span>
+            <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">10+ โรงงานในเครือ DA Pack</span>
           </div>
         </div>
 
-        <!-- Case 2: FxCurrency 365-Day Sync (Governance & Risk) -->
-        <div class="deepdive-card reveal">
-          <div>
-            <div class="deepdive-header">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="font-size: 11px; font-weight: 800; color: #0284c7; background: rgba(2, 132, 199, 0.1); padding: 3px 10px; border-radius: 6px;">
-                  🏛️ กรณีศึกษาที่ 2: Governance, Risk & ERP Automation
-                </span>
-                <span style="font-size: 11px; font-weight: 700; color: #0284c7;">100% Accuracy</span>
+        <div class="case-showcase-body">
+          <!-- Left Column: Visual, Stats & Governance -->
+          <div class="case-left-sidebar">
+            <!-- 3 Stat KPI Boxes -->
+            <div class="case-stat-grid">
+              <div class="case-stat-box">
+                <span class="case-stat-val" style="color: #059669;">20,230</span>
+                <span class="case-stat-lbl">ทรัพย์สินในทะเบียน</span>
               </div>
-              <h3 style="font-size: 19px; font-weight: 800; color: #0f172a; line-height: 1.3;">
-                FxCurrency 365-Day Sync & NetSuite ERP
-              </h3>
-              <p style="font-size: 12.8px; color: #64748b; margin-top: 6px; line-height: 1.5;">
-                ถอดรหัสกระบวนการควบคุมความเสี่ยงอัตราแลกเปลี่ยนเงินตราต่างประเทศ เชื่อมต่อ ERP บัญชีตลอด 365 วัน ตามกรอบนโยบาย Process Improvement Policy
-              </p>
+              <div class="case-stat-box" style="border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+                <span class="case-stat-val" style="color: #0284c7;">740+ ชม.</span>
+                <span class="case-stat-lbl">ลดเวลาตรวจนับ (-75%)</span>
+              </div>
+              <div class="case-stat-box">
+                <span class="case-stat-val" style="color: #4f46e5;">100%</span>
+                <span class="case-stat-lbl">NetSuite Variance</span>
+              </div>
             </div>
 
-            <!-- Stages Breakdown -->
-            <div class="stage-timeline-list">
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(2, 132, 199, 0.15); color: #0284c7;">1-3</div>
-                <div class="stage-content">
-                  <div class="stage-title">Identify, As-Is & Root Cause Analysis</div>
-                  <div class="stage-desc">
-                    เดิมฝ่ายบัญชีต้องเข้าเว็บ 4 ธนาคาร (BOT, SCB, KBANK, KTB) ทุกเช้าเพื่อจดเรทและคีย์มือเข้า NetSuite และ Mango เสี่ยงต่อ Human Error ในธุรกรรมซื้อขายต่างประเทศมูลค่าหลายสิบล้านบาท (Data before Opinion)
-                  </div>
+            <!-- Interactive Visual Frame -->
+            <div class="device-mockup" style="margin: 0; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
+              <div class="device-bar">
+                <div class="device-dot dot-r"></div>
+                <div class="device-dot dot-y"></div>
+                <div class="device-dot dot-g"></div>
+                <span style="font-size: 9.5px; color: #94a3b8; margin-left: 4px; font-family: 'Space Grotesk', sans-serif;">dapack-asset.pages.dev</span>
+                <div class="device-pills-wrap">
+                  <button class="device-pill active" onclick="switchVisual(this, 'img-case-asset', 'assets/fixed_asset_dashboard.png', true)">🖥️ แดชบอร์ดตรวจสอบ</button>
+                  <button class="device-pill" onclick="switchVisual(this, 'img-case-asset', 'assets/fixed_asset_live_ui.png', true)">📱 ระบบสแกน PWA</button>
                 </div>
               </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(14, 165, 233, 0.15); color: #0284c7;">4-5</div>
-                <div class="stage-content">
-                  <div class="stage-title">Design Improvement & Risk Assessment</div>
-                  <div class="stage-desc">
-                    ออกแบบ To-Be เป็นระบบ Automated API ดึงเรทตรงทุก 09:00 น. ตลอด 365 วัน พร้อมประเมินความเสี่ยงและวาง <strong>Dual PIN Override สำหรับ Manager</strong> และกลไก Fallback Rate กรณีวันหยุดธนาคาร ป้องกันระบบ ERP หยุดชะงัก
-                  </div>
-                </div>
+              <div style="cursor: zoom-in; position: relative;" onclick="openLightbox('assets/fixed_asset_dashboard.png', 'Smart Fixed Asset Auditing System • แดชบอร์ดตรวจสอบและกระทบยอด NetSuite ERP')">
+                <img id="img-case-asset" src="assets/fixed_asset_dashboard.png" alt="Fixed Asset Dashboard" class="device-screen-img" style="height: 190px; object-fit: cover; object-position: top;">
+                <div class="zoom-hint-btn" style="position: absolute; right: 10px; bottom: 10px; font-size: 10px; padding: 3px 8px; background: rgba(0,0,0,0.65); color: #fff; border-radius: 6px; backdrop-filter: blur(4px);">🔍 แตะเพื่อซูม</div>
               </div>
+            </div>
 
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(99, 102, 241, 0.15); color: #4f46e5;">6</div>
-                <div class="stage-content">
-                  <div class="stage-title">Develop, Test & UAT with Finance Team</div>
-                  <div class="stage-desc">
-                    จัดทำ UAT ร่วมกับ Senior Accounting Manager ทดสอบ Stress Test วันหยุดยาวและวันปิดงวดบัญชี ตรวจสอบ Audit Trail ทุกการบันทึก จนมั่นใจว่าไร้ข้อผิดพลาดตาม Completion Criteria ของนโยบาย
-                  </div>
-                </div>
+            <!-- Governance Card -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Process Owner:</span>
+                <strong style="font-size: 12px; color: #0f172a;">ผู้จัดการฝ่ายบัญชีทรัพย์สิน</strong>
               </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(217, 119, 6, 0.15); color: #d97706;">7</div>
-                <div class="stage-content">
-                  <div class="stage-title">Benefit Realization & Measured Results</div>
-                  <div class="stage-desc">
-                    ตัดงานคีย์เรทด้วยมือ <strong>182.5 ชม./ปี (100% Automated)</strong>, ปราศจาก Human Error <strong>0 เคส</strong> ตลอด 365 วัน, และกระทบยอดปิดบัญชีสิ้นเดือนใน NetSuite ERP ได้อย่างแม่นยำ 100% (Business Value over Activity)
-                  </div>
-                </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">สถานะระบบ:</span>
+                <span style="font-size: 11px; font-weight: 700; color: #059669; background: rgba(5,150,105,0.1); padding: 2px 8px; border-radius: 6px;">📐 System Designed (On-Site 2027)</span>
               </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed;">8-9</div>
-                <div class="stage-content">
-                  <div class="stage-title">Standardize, Handover & Scale Up</div>
-                  <div class="stage-desc">
-                    จัดทำ Decision Log และ Checklist ตามข้อ 6 ของ Policy ส่งมอบให้ Senior Accounting Manager เป็น <strong>Process Owner</strong> และเตรียมต่อยอดเป็นพิมพ์เขียวสำหรับระบบนำเข้าอัตราภาษีและอัตราดอกเบี้ยในเครือข่าย ERP
-                  </div>
-                </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">WI Compliance:</span>
+                <span style="font-size: 11px; font-weight: 700; color: #4f46e5;">✓ ผ่านเกณฑ์ 9 ขั้นตอนสมบูรณ์</span>
               </div>
             </div>
           </div>
 
-          <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 11.5px; color: #64748b;">Process Owner: Senior Accounting Manager</span>
-            <span style="font-size: 11.5px; font-weight: 700; color: #0284c7;">✓ Handover & In Production</span>
+          <!-- Right Column: The 9 Stages Lifecycle Timeline -->
+          <div class="case-lifecycle-timeline">
+            <!-- Stage 1-3 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(5, 150, 105, 0.15); color: #059669;">1-3</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Identify, As-Is & Root Cause Analysis (Document & Interview)</span>
+                  <span class="principle-micro-tag" style="background: rgba(99, 102, 241, 0.12); color: #4f46e5;">Data before Opinion</span>
+                </div>
+                <p class="lifecycle-desc">
+                  ศึกษา As-Is จากเอกสารทะเบียนทรัพย์สิน 20,230 รายการ และสัมภาษณ์เชิงลึกทีมงานฝ่ายบัญชีทรัพย์สิน พบคอขวดการตรวจนับประจำปีใน 10+ โรงงาน (PM1, PM2, APM3, PULP1, ลานไม้ ฯลฯ) ที่ใช้กระดาษและ Excel นานกว่า 4 สัปดาห์ (960+ ชม./รอบ) เกิดผลต่างกระทบยอดใน NetSuite สูง Root Cause คือ <strong>"กระบวนการ Manual ไร้ระบบสแกนบาร์โค้ดแบบ Real-time และขาดการตรวจสอบพิกัดรูปถ่ายหลักฐานหน้างาน"</strong>
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 4-5 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(14, 165, 233, 0.15); color: #0284c7;">4-5</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Design Improvement & Risk Assessment (Digital Architecture)</span>
+                  <span class="principle-micro-tag" style="background: rgba(5, 150, 105, 0.12); color: #059669;">End-to-End over Silo</span>
+                </div>
+                <p class="lifecycle-desc">
+                  ออกแบบสถาปัตยกรรม To-Be เป็น Web App / PWA บนมือถือ รองรับการสแกน QR/Barcode แบบ Offline-First พร้อมประเมินความเสี่ยงและวางระบบ Local Cache ถ่ายรูปหลักฐาน และวางกลไก <strong>NetSuite Reconciliation Engine</strong> เทียบยอดกระทบกับ ERP อัตโนมัติ ป้องกันความเสี่ยงทรัพย์สินสูญหายหรือบันทึกซ้ำซ้อน
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 6 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(99, 102, 241, 0.15); color: #4f46e5;">6</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Develop, Prototype & Schema UAT with Asset Accounting</span>
+                  <span class="principle-micro-tag" style="background: rgba(245, 158, 11, 0.15); color: #b45309;">Completion Criteria §5</span>
+                </div>
+                <p class="lifecycle-desc">
+                  พัฒนา Prototype ระบบสแกนและจัดทำ UAT Data Schema ร่วมกับผู้จัดการฝ่ายบัญชีทรัพย์สิน ตรวจสอบความถูกต้องของการเชื่อมโยง Master Data และโครงสร้างรายงานกระทบยอด Variance ให้เป็นศูนย์ก่อนเข้าสู่เฟสปฏิบัติการหน้างาน
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 7 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(217, 119, 6, 0.15); color: #d97706;">7</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Benefit Realization Model & Impact Forecast</span>
+                  <span class="principle-micro-tag" style="background: rgba(217, 119, 6, 0.12); color: #b45309;">Business Value over Activity</span>
+                </div>
+                <p class="lifecycle-desc">
+                  โมเดลผลลัพธ์ทางธุรกิจชี้ชัด: เมื่อนำระบบไปปฏิบัติการจริงจะลดเวลาตรวจนับจาก 4 สัปดาห์ เหลือ 1 สัปดาห์ <strong>ประหยัดเวลา 740+ ชม./รอบการตรวจนับ (ลดลง -75%)</strong>, ขจัดปัญหาเอกสารสูญหาย 100%, และกระทบยอดความถูกต้องกับ Oracle NetSuite 100%
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 8-9 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed;">8-9</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Standardize, Handover & On-Site Field Rollout Plan 2027</span>
+                  <span class="principle-micro-tag" style="background: rgba(124, 58, 237, 0.12); color: #6d28d9;">Sustainability over Quick Fix</span>
+                </div>
+                <p class="lifecycle-desc">
+                  จัดทำคู่มือและ SOP การตรวจนับดิจิทัล ส่งมอบให้ผู้จัดการฝ่ายบัญชีทรัพย์สินเป็น <strong>Process Owner</strong> ร่วม โดยวางแผนยุทธศาสตร์ <strong>ลงพื้นที่ตรวจนับจริงหน้างานใน 10+ โรงงาน (On-Site Field Operations) เต็มรูปแบบในปี 2027</strong>
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Case 3: Double A Alliance HR Application Form (People Ops & Automation) -->
-        <div class="deepdive-card reveal">
-          <div>
-            <div class="deepdive-header">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="font-size: 11px; font-weight: 800; color: #7c3aed; background: rgba(124, 58, 237, 0.1); padding: 3px 10px; border-radius: 6px;">
-                  👥 กรณีศึกษาที่ 3: People Operations & Digital Transformation
-                </span>
-                <span style="font-size: 11px; font-weight: 700; color: #7c3aed;">400+ ชม./ปี Saved</span>
-              </div>
-              <h3 style="font-size: 19px; font-weight: 800; color: #0f172a; line-height: 1.3;">
-                Double A Alliance : Digital Application Form & Smart Verification
-              </h3>
-              <p style="font-size: 12.8px; color: #64748b; margin-top: 6px; line-height: 1.5;">
-                ถอดรหัสการเปลี่ยนผ่านกระบวนการรับสมัครงานและคัดกรองประวัติบุคลากร 2,000 คน/ปี สู่ระบบดิจิทัลอัตโนมัติ ตามกรอบนโยบาย Process Improvement Policy
-              </p>
-            </div>
-
-            <!-- Stages Breakdown -->
-            <div class="stage-timeline-list">
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed;">1-3</div>
-                <div class="stage-content">
-                  <div class="stage-title">Identify, As-Is & Root Cause Analysis</div>
-                  <div class="stage-desc">
-                    ศึกษา As-Is การรับสมัครงานของ 3 นิติบุคคล พบผู้สมัครกว่า 2,000 คน/ปี ส่งเอกสารไม่ครบ กรอกข้อมูลตกหล่น ต้องเสียเวลาโทรตามและตรวจทานเฉลี่ย 12 นาที/ใบสมัคร เกิดคอขวดสะสมกว่า 400 ชม./ปี Root Cause เกิดจาก <strong>"แบบฟอร์มเดิมไม่มีระบบตรวจสอบความถูกต้องอัตโนมัติ (Poka-Yoke) ณ จุดกรอก และขาดระบบแจ้งเตือนแบบทันที"</strong> (Root Cause before Solution)
-                  </div>
-                </div>
-              </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(14, 165, 233, 0.15); color: #0284c7;">4-5</div>
-                <div class="stage-content">
-                  <div class="stage-title">Design Improvement & Risk Assessment</div>
-                  <div class="stage-desc">
-                    ออกแบบ To-Be เป็น Responsive Digital Form พร้อมระบบ <strong>Smart Verification (Client-side Validation & File Checklist)</strong> ดักจับข้อมูลผิดพลาดตั้งแต่ต้นทาง และวางระบบ <strong>1-Click Reply ส่งตรงเข้า Outlook</strong> ของทีม HRBP พร้อมประเมินความเสี่ยงด้าน PDPA และความปลอดภัยของข้อมูลส่วนบุคคล (End-to-End over Silo)
-                  </div>
-                </div>
-              </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(99, 102, 241, 0.15); color: #4f46e5;">6</div>
-                <div class="stage-content">
-                  <div class="stage-title">Develop, Test & UAT with HRBP Team</div>
-                  <div class="stage-desc">
-                    ทดสอบ UAT ร่วมกับผู้จัดการฝ่ายทรัพยากรบุคคล (HRBP Manager) และทีมสรรหา (Recruiter) จำลองการกรอกข้อมูลจากสมาร์ตโฟนหลากหลายยี่ห้อ ตรวจสอบความสมบูรณ์ของไฟล์แนบและการแจ้งเตือนแบบเรียลไทม์จนผ่านเกณฑ์ Completion Criteria 100%
-                  </div>
-                </div>
-              </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(217, 119, 6, 0.15); color: #d97706;">7</div>
-                <div class="stage-content">
-                  <div class="stage-title">Benefit Realization & Measured Results</div>
-                  <div class="stage-desc">
-                    รองรับผู้สมัครกว่า <strong>2,000 คน/ปี</strong>, ลดเวลาการตรวจเอกสารและคัดกรองประวัติได้ <strong>400+ ชม./ปี</strong>, ลดอัตราเอกสารตีกลับ (Document Bounce Rate) ลงกว่า <strong>-80%</strong>, ผู้สมัครทราบผลและนัดสัมภาษณ์ได้รวดเร็วขึ้นภายใน 24 ชม. (Business Value over Activity)
-                  </div>
-                </div>
-              </div>
-
-              <div class="stage-item">
-                <div class="stage-badge" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed;">8-9</div>
-                <div class="stage-content">
-                  <div class="stage-title">Standardize, Handover & Scale Up</div>
-                  <div class="stage-desc">
-                    จัดทำคู่มือการใช้งานระบบคัดกรองและการจัดการฐานข้อมูลผู้สมัคร ส่งมอบให้ HRBP Manager เป็น <strong>Process Owner</strong> ประจำวัน พร้อมวางแผนเชื่อมต่อกับระบบ HRIS Core ในระยะถัดไป (Sustainability over Quick Fix)
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div class="case-footer-bar">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 12px; color: #64748b;">การนำไปปฏิบัติ:</span>
+            <strong style="font-size: 12px; color: #0f172a;">ศึกษาเอกสาร & ออกแบบระบบเสร็จสมบูรณ์ • เตรียมลงพื้นที่จริงปี 2027</strong>
           </div>
+          <span style="font-size: 12px; font-weight: 700; color: #059669;">✓ ผ่านการรับรอง Completion Criteria ตามระเบียบ WI ข้อ 5</span>
+        </div>
+      </div>
 
-          <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 11.5px; color: #64748b;">Process Owner: HRBP Manager (Double A Alliance)</span>
-            <span style="font-size: 11.5px; font-weight: 700; color: #7c3aed;">✓ Handover & In Production</span>
+      <!-- Case 2: FxCurrency 365-Day Sync (Governance & Risk) -->
+      <div class="case-showcase-card reveal" id="case-fx">
+        <div class="case-showcase-header">
+          <div class="case-showcase-title-area">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 11px; font-weight: 800; color: #0284c7; background: rgba(2, 132, 199, 0.1); padding: 3px 10px; border-radius: 6px;">
+                🏛️ กรณีศึกษาที่ 2: Governance, Risk & ERP Automation
+              </span>
+              <span class="capture-badge-pill">
+                📷 Widescreen View • Capture-Ready
+              </span>
+            </div>
+            <h3 style="font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.3;">
+              FxCurrency 365-Day Sync & NetSuite ERP
+            </h3>
+            <p style="font-size: 13.5px; color: #64748b; margin-top: 6px; line-height: 1.55;">
+              ถอดรหัสกระบวนการควบคุมความเสี่ยงอัตราแลกเปลี่ยนเงินตราต่างประเทศ เชื่อมต่อ ERP บัญชีตลอด 365 วัน ตามกรอบระเบียบนโยบาย WI Process Improvement Methodology Policy
+            </p>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+            <span style="font-size: 12.5px; font-weight: 800; color: #0284c7; background: rgba(2, 132, 199, 0.12); padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(2, 132, 199, 0.25);">
+              ⚡ 182.5 ชม./ปี Saved • 100% Accuracy
+            </span>
+            <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">NetSuite ERP & Mango Live Sync</span>
           </div>
         </div>
 
+        <div class="case-showcase-body">
+          <!-- Left Column: Visual, Stats & Governance -->
+          <div class="case-left-sidebar">
+            <!-- 3 Stat KPI Boxes -->
+            <div class="case-stat-grid">
+              <div class="case-stat-box">
+                <span class="case-stat-val" style="color: #0284c7;">365 วัน</span>
+                <span class="case-stat-lbl">ดึงเรท 09:00 น. อัตโนมัติ</span>
+              </div>
+              <div class="case-stat-box" style="border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+                <span class="case-stat-val" style="color: #059669;">182.5 ชม.</span>
+                <span class="case-stat-lbl">ตัดงานคีย์มือ 100%</span>
+              </div>
+              <div class="case-stat-box">
+                <span class="case-stat-val" style="color: #4f46e5;">0 เคส</span>
+                <span class="case-stat-lbl">Human Error สิ้นเชิง</span>
+              </div>
+            </div>
+
+            <!-- Interactive Visual Frame -->
+            <div class="device-mockup" style="margin: 0; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
+              <div class="device-bar">
+                <div class="device-dot dot-r"></div>
+                <div class="device-dot dot-y"></div>
+                <div class="device-dot dot-g"></div>
+                <span style="font-size: 9.5px; color: #94a3b8; margin-left: 4px; font-family: 'Space Grotesk', sans-serif;">fxrate-aa.vercel.app</span>
+                <div class="device-pills-wrap">
+                  <button class="device-pill active" onclick="switchVisual(this, 'img-case-fx', 'assets/fxrate_dashboard.png', true)">🖥️ แดชบอร์ด 4 ธนาคาร</button>
+                  <button class="device-pill" onclick="switchVisual(this, 'img-case-fx', 'assets/fxrate_calendar.png', true)">📅 ปฏิทิน Mango FX</button>
+                </div>
+              </div>
+              <div style="cursor: zoom-in; position: relative;" onclick="openLightbox('assets/fxrate_dashboard.png', 'FxCurrency 365-Day Sync • แดชบอร์ดดึงเรทอัตโนมัติ 4 ธนาคาร และธปท.')">
+                <img id="img-case-fx" src="assets/fxrate_dashboard.png" alt="FxCurrency Dashboard" class="device-screen-img" style="height: 190px; object-fit: cover; object-position: top;">
+                <div class="zoom-hint-btn" style="position: absolute; right: 10px; bottom: 10px; font-size: 10px; padding: 3px 8px; background: rgba(0,0,0,0.65); color: #fff; border-radius: 6px; backdrop-filter: blur(4px);">🔍 แตะเพื่อซูม</div>
+              </div>
+            </div>
+
+            <!-- Governance Card -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Process Owner:</span>
+                <strong style="font-size: 12px; color: #0f172a;">Senior Accounting Manager</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">สถานะระบบ:</span>
+                <span style="font-size: 11px; font-weight: 700; color: #0284c7; background: rgba(2,132,199,0.1); padding: 2px 8px; border-radius: 6px;">✓ In Production (Go-Live 100%)</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">WI Compliance:</span>
+                <span style="font-size: 11px; font-weight: 700; color: #4f46e5;">✓ ผ่านเกณฑ์ 9 ขั้นตอนสมบูรณ์</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: The 9 Stages Lifecycle Timeline -->
+          <div class="case-lifecycle-timeline">
+            <!-- Stage 1-3 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(2, 132, 199, 0.15); color: #0284c7;">1-3</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Identify, As-Is & Root Cause Analysis</span>
+                  <span class="principle-micro-tag" style="background: rgba(99, 102, 241, 0.12); color: #4f46e5;">Data before Opinion</span>
+                </div>
+                <p class="lifecycle-desc">
+                  เดิมฝ่ายบัญชีต้องเข้าเว็บ 4 ธนาคาร (BOT, SCB, KBANK, KTB) ทุกเช้าเพื่อจดเรทและคีย์มือเข้า NetSuite และ Mango เสี่ยงต่อ Human Error ในธุรกรรมซื้อขายต่างประเทศมูลค่าหลายสิบล้านบาท Root Cause คือ <strong>"กระบวนการพึ่งพาแรงงานคนจดบันทึกรายวัน ขาดการเชื่อมต่อ API ตรงสู่ ERP"</strong>
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 4-5 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(14, 165, 233, 0.15); color: #0284c7;">4-5</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Design Improvement & Risk Assessment</span>
+                  <span class="principle-micro-tag" style="background: rgba(5, 150, 105, 0.12); color: #059669;">End-to-End over Silo</span>
+                </div>
+                <p class="lifecycle-desc">
+                  ออกแบบ To-Be เป็นระบบ Automated API ดึงเรทตรงทุก 09:00 น. ตลอด 365 วัน พร้อมประเมินความเสี่ยงและวาง <strong>Dual PIN Override สำหรับ Manager</strong> และกลไก Fallback Rate กรณีวันหยุดธนาคาร ป้องกันระบบ ERP หยุดชะงัก
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 6 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(99, 102, 241, 0.15); color: #4f46e5;">6</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Develop, Test & UAT with Finance Team</span>
+                  <span class="principle-micro-tag" style="background: rgba(245, 158, 11, 0.15); color: #b45309;">Completion Criteria §5</span>
+                </div>
+                <p class="lifecycle-desc">
+                  จัดทำ UAT ร่วมกับ Senior Accounting Manager ทดสอบ Stress Test วันหยุดยาวและวันปิดงวดบัญชี ตรวจสอบ Audit Trail ทุกการบันทึก จนมั่นใจว่าไร้ข้อผิดพลาดตาม Completion Criteria ของนโยบาย
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 7 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(217, 119, 6, 0.15); color: #d97706;">7</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Benefit Realization & Measured Results</span>
+                  <span class="principle-micro-tag" style="background: rgba(217, 119, 6, 0.12); color: #b45309;">Business Value over Activity</span>
+                </div>
+                <p class="lifecycle-desc">
+                  ตัดงานคีย์เรทด้วยมือ <strong>182.5 ชม./ปี (100% Automated)</strong>, ปราศจาก Human Error <strong>0 เคส</strong> ตลอด 365 วัน, และกระทบยอดปิดบัญชีสิ้นเดือนใน NetSuite ERP ได้อย่างแม่นยำ 100%
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 8-9 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed;">8-9</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Standardize, Handover & Scale Up</span>
+                  <span class="principle-micro-tag" style="background: rgba(124, 58, 237, 0.12); color: #6d28d9;">Sustainability over Quick Fix</span>
+                </div>
+                <p class="lifecycle-desc">
+                  จัดทำ Decision Log และ Checklist ตามข้อ 6 ของ Policy ส่งมอบให้ Senior Accounting Manager เป็น <strong>Process Owner</strong> และเตรียมต่อยอดเป็นพิมพ์เขียวสำหรับระบบนำเข้าอัตราภาษีและอัตราดอกเบี้ยในเครือข่าย ERP
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="case-footer-bar">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 12px; color: #64748b;">การนำไปปฏิบัติ:</span>
+            <strong style="font-size: 12px; color: #0f172a;">ใช้งานจริง 100% เชื่อมต่อ NetSuite ERP & Mango ทุกวัน</strong>
+          </div>
+          <span style="font-size: 12px; font-weight: 700; color: #0284c7;">✓ ผ่านการรับรอง Completion Criteria ตามระเบียบ WI ข้อ 5</span>
+        </div>
+      </div>
+
+      <!-- Case 3: Double A Alliance HR Application Form (People Ops & Automation) -->
+      <div class="case-showcase-card reveal" id="case-hr">
+        <div class="case-showcase-header">
+          <div class="case-showcase-title-area">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 11px; font-weight: 800; color: #7c3aed; background: rgba(124, 58, 237, 0.1); padding: 3px 10px; border-radius: 6px;">
+                👥 กรณีศึกษาที่ 3: People Operations & Digital Transformation
+              </span>
+              <span class="capture-badge-pill">
+                📷 Widescreen View • Capture-Ready
+              </span>
+            </div>
+            <h3 style="font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.3;">
+              Double A Alliance : Digital Application Form & Smart Verification
+            </h3>
+            <p style="font-size: 13.5px; color: #64748b; margin-top: 6px; line-height: 1.55;">
+              ถอดรหัสการเปลี่ยนผ่านกระบวนการรับสมัครงานและคัดกรองประวัติบุคลากร 2,000 คน/ปี สู่ระบบดิจิทัลอัตโนมัติ ตามกรอบระเบียบนโยบาย WI Process Improvement Methodology Policy
+            </p>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+            <span style="font-size: 12.5px; font-weight: 800; color: #7c3aed; background: rgba(124, 58, 237, 0.12); padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(124, 58, 237, 0.25);">
+              ⚡ 400+ ชม./ปี Saved • ลดตีกลับ -80%
+            </span>
+            <span style="font-size: 11px; color: #94a3b8; font-weight: 600;">ผู้สมัคร 2,000 คน/ปี (3 นิติบุคคล)</span>
+          </div>
+        </div>
+
+        <div class="case-showcase-body">
+          <!-- Left Column: Visual, Stats & Governance -->
+          <div class="case-left-sidebar">
+            <!-- 3 Stat KPI Boxes -->
+            <div class="case-stat-grid">
+              <div class="case-stat-box">
+                <span class="case-stat-val" style="color: #7c3aed;">2,000 คน</span>
+                <span class="case-stat-lbl">ผู้สมัครงานต่อปี</span>
+              </div>
+              <div class="case-stat-box" style="border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+                <span class="case-stat-val" style="color: #059669;">400+ ชม.</span>
+                <span class="case-stat-lbl">ประหยัดคัดกรองเอกสาร</span>
+              </div>
+              <div class="case-stat-box">
+                <span class="case-stat-val" style="color: #0284c7;">-80%</span>
+                <span class="case-stat-lbl">ลดอัตราเอกสารตีกลับ</span>
+              </div>
+            </div>
+
+            <!-- Interactive Visual Frame -->
+            <div class="device-mockup" style="margin: 0; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
+              <div class="device-bar">
+                <div class="device-dot dot-r"></div>
+                <div class="device-dot dot-y"></div>
+                <div class="device-dot dot-g"></div>
+                <span style="font-size: 9.5px; color: #94a3b8; margin-left: 4px; font-family: 'Space Grotesk', sans-serif;">jobs-alliance.pages.dev</span>
+                <div class="device-pills-wrap">
+                  <button class="device-pill active" onclick="switchVisual(this, 'img-case-hr', 'assets/hrbp_application_form.png', true)">📱 ระบบรับสมัครงาน</button>
+                  <button class="device-pill" onclick="switchVisual(this, 'img-case-hr', 'assets/hrbp_jobs_preview.png', true)">🖥️ คัดกรอง HRBP</button>
+                </div>
+              </div>
+              <div style="cursor: zoom-in; position: relative;" onclick="openLightbox('assets/hrbp_application_form.png', 'Double A Alliance • ระบบรับสมัครงานออนไลน์และ Smart Verification')">
+                <img id="img-case-hr" src="assets/hrbp_application_form.png" alt="HR Application Form" class="device-screen-img" style="height: 190px; object-fit: cover; object-position: top;">
+                <div class="zoom-hint-btn" style="position: absolute; right: 10px; bottom: 10px; font-size: 10px; padding: 3px 8px; background: rgba(0,0,0,0.65); color: #fff; border-radius: 6px; backdrop-filter: blur(4px);">🔍 แตะเพื่อซูม</div>
+              </div>
+            </div>
+
+            <!-- Governance Card -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">Process Owner:</span>
+                <strong style="font-size: 12px; color: #0f172a;">HRBP Manager (Double A Alliance)</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">สถานะระบบ:</span>
+                <span style="font-size: 11px; font-weight: 700; color: #7c3aed; background: rgba(124,58,237,0.1); padding: 2px 8px; border-radius: 6px;">✓ In Production (Go-Live 100%)</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;">WI Compliance:</span>
+                <span style="font-size: 11px; font-weight: 700; color: #4f46e5;">✓ ผ่านเกณฑ์ 9 ขั้นตอนสมบูรณ์</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: The 9 Stages Lifecycle Timeline -->
+          <div class="case-lifecycle-timeline">
+            <!-- Stage 1-3 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed;">1-3</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Identify, As-Is & Root Cause Analysis</span>
+                  <span class="principle-micro-tag" style="background: rgba(2, 132, 199, 0.12); color: #0284c7;">Root Cause before Solution</span>
+                </div>
+                <p class="lifecycle-desc">
+                  ศึกษา As-Is การรับสมัครงานของ 3 นิติบุคคล พบผู้สมัครกว่า 2,000 คน/ปี ส่งเอกสารไม่ครบ กรอกข้อมูลตกหล่น ต้องเสียเวลาโทรตามและตรวจทานเฉลี่ย 12 นาที/ใบสมัคร เกิดคอขวดสะสมกว่า 400 ชม./ปี Root Cause เกิดจาก <strong>"แบบฟอร์มเดิมไม่มีระบบตรวจสอบความถูกต้องอัตโนมัติ (Poka-Yoke) ณ จุดกรอก และขาดระบบแจ้งเตือนแบบทันที"</strong>
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 4-5 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(14, 165, 233, 0.15); color: #0284c7;">4-5</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Design Improvement & Risk Assessment</span>
+                  <span class="principle-micro-tag" style="background: rgba(5, 150, 105, 0.12); color: #059669;">End-to-End over Silo</span>
+                </div>
+                <p class="lifecycle-desc">
+                  ออกแบบ To-Be เป็น Responsive Digital Form พร้อมระบบ <strong>Smart Verification (Client-side Validation & File Checklist)</strong> ดักจับข้อมูลผิดพลาดตั้งแต่ต้นทาง และวางระบบ <strong>1-Click Reply ส่งตรงเข้า Outlook</strong> ของทีม HRBP พร้อมประเมินความเสี่ยงด้าน PDPA และความปลอดภัยของข้อมูลส่วนบุคคล
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 6 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(99, 102, 241, 0.15); color: #4f46e5;">6</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Develop, Test & UAT with HRBP Team</span>
+                  <span class="principle-micro-tag" style="background: rgba(245, 158, 11, 0.15); color: #b45309;">Completion Criteria §5</span>
+                </div>
+                <p class="lifecycle-desc">
+                  ทดสอบ UAT ร่วมกับผู้จัดการฝ่ายทรัพยากรบุคคล (HRBP Manager) และทีมสรรหา (Recruiter) จำลองการกรอกข้อมูลจากสมาร์ตโฟนหลากหลายยี่ห้อ ตรวจสอบความสมบูรณ์ของไฟล์แนบและการแจ้งเตือนแบบเรียลไทม์จนผ่านเกณฑ์ Completion Criteria 100%
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 7 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(217, 119, 6, 0.15); color: #d97706;">7</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Benefit Realization & Measured Results</span>
+                  <span class="principle-micro-tag" style="background: rgba(217, 119, 6, 0.12); color: #b45309;">Business Value over Activity</span>
+                </div>
+                <p class="lifecycle-desc">
+                  รองรับผู้สมัครกว่า <strong>2,000 คน/ปี</strong>, ลดเวลาการตรวจเอกสารและคัดกรองประวัติได้ <strong>400+ ชม./ปี</strong>, ลดอัตราเอกสารตีกลับ (Document Bounce Rate) ลงกว่า <strong>-80%</strong>, ผู้สมัครทราบผลและนัดสัมภาษณ์ได้รวดเร็วขึ้นภายใน 24 ชม.
+                </p>
+              </div>
+            </div>
+
+            <!-- Stage 8-9 -->
+            <div class="lifecycle-stage-row">
+              <div class="lifecycle-badge" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed;">8-9</div>
+              <div class="lifecycle-content">
+                <div class="lifecycle-header-row">
+                  <span class="lifecycle-stage-title">Standardize, Handover & Scale Up</span>
+                  <span class="principle-micro-tag" style="background: rgba(124, 58, 237, 0.12); color: #6d28d9;">Sustainability over Quick Fix</span>
+                </div>
+                <p class="lifecycle-desc">
+                  จัดทำคู่มือการใช้งานระบบคัดกรองและการจัดการฐานข้อมูลผู้สมัคร ส่งมอบให้ HRBP Manager เป็น <strong>Process Owner</strong> ประจำวัน พร้อมวางแผนเชื่อมต่อกับระบบ HRIS Core ในระยะถัดไป
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="case-footer-bar">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 12px; color: #64748b;">การนำไปปฏิบัติ:</span>
+            <strong style="font-size: 12px; color: #0f172a;">ใช้งานจริง 100% เชื่อมต่อระบบรับสมัครงาน 3 นิติบุคคล</strong>
+          </div>
+          <span style="font-size: 12px; font-weight: 700; color: #7c3aed;">✓ ผ่านการรับรอง Completion Criteria ตามระเบียบ WI ข้อ 5</span>
+        </div>
       </div>
 
       <!-- Completion Criteria Card (WI Policy Section 5 Compliance) -->
@@ -4650,6 +5095,33 @@
         clearInterval(s.intervalTimer);
         s.intervalTimer = null;
       }
+    }
+
+    // 4.5 Interactive Case Study Switcher Engine (Section per Case)
+    function switchCaseStudy(caseId, btn) {
+      const allCards = document.querySelectorAll('.case-showcase-card');
+      const allBtns = document.querySelectorAll('.case-tab-btn');
+      
+      allBtns.forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+
+      allCards.forEach(card => {
+        if (caseId === 'all') {
+          card.style.display = 'block';
+          card.style.opacity = '1';
+        } else {
+          if (card.id === caseId) {
+            card.style.display = 'block';
+            card.style.opacity = '1';
+            // Smoothly align the card into view with header offset
+            const yOffset = -90;
+            const y = card.getBoundingClientRect().top + window.pageYOffset + yOffset;
+            window.scrollTo({ top: y, behavior: 'smooth' });
+          } else {
+            card.style.display = 'none';
+          }
+        }
+      });
     }
 
     // 5. Lightbox Modal Engine
