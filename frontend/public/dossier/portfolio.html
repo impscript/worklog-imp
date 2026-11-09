@@ -1871,6 +1871,135 @@
       }
     }
 
+    /* ============================================================
+       METHODOLOGY IN ACTION SECTION
+       ============================================================ */
+    .methodology-section {
+      padding: 85px 0;
+      background: #f8fafc;
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      position: relative;
+    }
+    .policy-banner-box {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border-radius: 20px;
+      padding: 24px 32px;
+      color: #fff;
+      margin-bottom: 36px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .policy-tag-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 999px;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(129, 140, 248, 0.4);
+      color: #a5b4fc;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .principles-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      margin-bottom: 36px;
+    }
+    .principle-chip {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .principle-chip:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px -4px rgba(0,0,0,0.08);
+      border-color: #cbd5e1;
+    }
+    .deepdive-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 28px;
+      margin-bottom: 32px;
+    }
+    .deepdive-card {
+      background: #ffffff;
+      border-radius: 24px;
+      border: 1px solid #e2e8f0;
+      padding: 32px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .deepdive-header {
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 18px;
+      margin-bottom: 20px;
+    }
+    .stage-timeline-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .stage-item {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .stage-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11.5px;
+      font-weight: 800;
+      flex-shrink: 0;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .stage-content {
+      flex: 1;
+    }
+    .stage-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .stage-desc {
+      font-size: 12.5px;
+      color: #475569;
+      line-height: 1.55;
+      margin-top: 3px;
+    }
+    .completion-criteria-card {
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      border: 1px solid #bbf7d0;
+      border-radius: 20px;
+      padding: 24px 28px;
+    }
+    @media (max-width: 768px) {
+      .deepdive-grid {
+        grid-template-columns: 1fr;
+      }
+      .deepdive-card {
+        padding: 22px;
+      }
+    }
+
             @media print {
       @page {
         size: A4 landscape;
@@ -2623,6 +2752,7 @@
         <li><a href="#about">About</a></li>
         <li><a href="#skills">Capabilities</a></li>
         <li><a href="#projects">2026 Flagships</a></li>
+        <li><a href="#methodology">Methodology</a></li>
         <li><a href="#strategy">2027 Strategy</a></li>
         <li><a href="#leadership">People & AI</a></li>
         <li><a href="#appraisal">AI Appraisal</a></li>
@@ -3291,6 +3421,252 @@
                 <div style="font-size: 10.5px; color: var(--text-muted);">ความสม่ำเสมอ 100% ไร้ขาด</div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SECTION: Methodology in Action (Policy Compliance & Deep Dive) -->
+  <section class="methodology-section" id="methodology">
+    <div class="container">
+      <div class="section-header-center reveal">
+        <div class="section-kicker">Managerial Rigor • Process Improvement Methodology Policy</div>
+        <h2 class="section-title">Methodology in Action: ถอดรหัสการทำงานตามมาตรฐานส่วนงาน</h2>
+        <p class="section-desc">
+          การนำกรอบการทำงาน <strong>9-Stage Lifecycle</strong> และ <strong>5 Guiding Principles</strong> ตามนโยบายส่วนงานปรับปรุงกระบวนการ (อนุมัติโดย คุณจินตนา ภูดิทธนภาคย์, มีผลบังคับใช้ 1 พ.ย. 2569) มาปฏิบัติจริงผ่าน 2 กรณีศึกษาเชิงลึก เพื่อพิสูจน์ความพร้อมในการเป็นผู้นำที่ขับเคลื่อนงานด้วยหลักฐาน ไม่มุ่งแก้ปัญหาเฉพาะหน้า และส่งมอบผลลัพธ์ที่ยั่งยืน
+        </p>
+      </div>
+
+      <!-- Policy Governance Banner -->
+      <div class="policy-banner-box reveal">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(129, 140, 248, 0.35); display: flex; align-items: center; justify-content: center; font-size: 22px;">
+            📜
+          </div>
+          <div>
+            <div style="font-size: 15px; font-weight: 800; color: #fff;">
+              Process Improvement Methodology Policy (Version 1.0)
+            </div>
+            <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">
+              Document Owner: Process Improvement • Approved by: Jintana P. (Effective 1/11/2026)
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <span class="policy-tag-pill">9 Stages Lifecycle</span>
+          <span class="policy-tag-pill" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(52, 211, 153, 0.4); color: #6ee7b7;">5 Guiding Principles</span>
+          <span class="policy-tag-pill" style="background: rgba(245, 158, 11, 0.15); border-color: rgba(251, 191, 36, 0.4); color: #fde68a;">Completion Criteria</span>
+        </div>
+      </div>
+
+      <!-- 5 Guiding Principles Row -->
+      <div class="principles-row reveal">
+        <div class="principle-chip">
+          <div style="font-size: 11px; font-weight: 800; color: #6366f1; text-transform: uppercase;">Principle 1</div>
+          <div style="font-size: 13.5px; font-weight: 700; color: #0f172a; margin-top: 3px;">Data before Opinion</div>
+          <div style="font-size: 11.5px; color: #64748b; margin-top: 4px; line-height: 1.45;">ตัดสินใจบนข้อมูลสถิติจริงและหลักฐานเชิงประจักษ์ ไม่ใช้เพียงความรู้สึก</div>
+        </div>
+        <div class="principle-chip">
+          <div style="font-size: 11px; font-weight: 800; color: #0284c7; text-transform: uppercase;">Principle 2</div>
+          <div style="font-size: 13.5px; font-weight: 700; color: #0f172a; margin-top: 3px;">Root Cause before Solution</div>
+          <div style="font-size: 11.5px; color: #64748b; margin-top: 4px; line-height: 1.45;">แยกอาการ (Symptom) ออกจากรากเหง้า (Root Cause) เพื่อไม่แก้ปัญหาที่ปลายเหตุ</div>
+        </div>
+        <div class="principle-chip">
+          <div style="font-size: 11px; font-weight: 800; color: #059669; text-transform: uppercase;">Principle 3</div>
+          <div style="font-size: 13.5px; font-weight: 700; color: #0f172a; margin-top: 3px;">End-to-End over Silo</div>
+          <div style="font-size: 11.5px; color: #64748b; margin-top: 4px; line-height: 1.45;">มองทั้งสายคุณค่าข้ามแผนก ไม่สร้าง Local Optimum ที่ไปสร้างภาระให้แผนกอื่น</div>
+        </div>
+        <div class="principle-chip">
+          <div style="font-size: 11px; font-weight: 800; color: #d97706; text-transform: uppercase;">Principle 4</div>
+          <div style="font-size: 13.5px; font-weight: 700; color: #0f172a; margin-top: 3px;">Business Value over Activity</div>
+          <div style="font-size: 11.5px; color: #64748b; margin-top: 4px; line-height: 1.45;">วัดความสำเร็จจากเวลาที่ประหยัดได้และการลดความเสี่ยง ไม่นับเพียงจำนวนโปรเจกต์</div>
+        </div>
+        <div class="principle-chip">
+          <div style="font-size: 11px; font-weight: 800; color: #7c3aed; text-transform: uppercase;">Principle 5</div>
+          <div style="font-size: 13.5px; font-weight: 700; color: #0f172a; margin-top: 3px;">Sustainability over Quick Fix</div>
+          <div style="font-size: 11.5px; color: #64748b; margin-top: 4px; line-height: 1.45;">งานจะสมบูรณ์เมื่อมี Process Owner และ Control ที่ทำให้ระบบรันต่อได้หลังส่งมอบ</div>
+        </div>
+      </div>
+
+      <!-- 2 Deep-Dive Case Studies Grid -->
+      <div class="deepdive-grid">
+
+        <!-- Case 1: ITC Precast Digital Twin (Operations & Factory) -->
+        <div class="deepdive-card reveal">
+          <div>
+            <div class="deepdive-header">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 11px; font-weight: 800; color: #059669; background: rgba(5, 150, 105, 0.1); padding: 3px 10px; border-radius: 6px;">
+                  🏭 กรณีศึกษาที่ 1: Operational Excellence & Plant Logistics
+                </span>
+                <span style="font-size: 11px; font-weight: 700; color: #059669;">950+ ชม./ปี Saved</span>
+              </div>
+              <h3 style="font-size: 20px; font-weight: 800; color: #0f172a; line-height: 1.3;">
+                ITC Precast Digital Twin & Yard Operations
+              </h3>
+              <p style="font-size: 13px; color: #64748b; margin-top: 6px; line-height: 1.5;">
+                ถอดรหัสกระบวนการแก้ปัญหาคอขวดในโรงหล่อคอนกรีตสำเร็จรูปและลานสต็อก ตามกรอบนโยบาย Process Improvement Policy
+              </p>
+            </div>
+
+            <!-- Stages Breakdown -->
+            <div class="stage-timeline-list">
+              <div class="stage-item">
+                <div class="stage-badge" style="background: rgba(5, 150, 105, 0.15); color: #059669;">1-3</div>
+                <div class="stage-content">
+                  <div class="stage-title">Identify, As-Is & Root Cause Analysis</div>
+                  <div class="stage-desc">
+                    ลงพื้นที่โรงงานศึกษา As-Is จริง พบคอขวดรถบรรทุกจอดคอยเฉลี่ย 45 นาที/คัน และใช้เวลาค้นหาแผ่นช้า 15-20 นาที/แผ่น Root Cause เกิดจาก <strong>"ขาดพิกัดดิจิทัลในลานสต็อก และระบบตรวจ QC เป็นกระดาษในจุดอับสัญญาณ Wi-Fi"</strong> (Root Cause before Solution)
+                  </div>
+                </div>
+              </div>
+
+              <div class="stage-item">
+                <div class="stage-badge" style="background: rgba(14, 165, 233, 0.15); color: #0284c7;">4-5</div>
+                <div class="stage-content">
+                  <div class="stage-title">Design Improvement & Risk Assessment</div>
+                  <div class="stage-desc">
+                    ออกแบบ To-Be ผสาน 3D Yard Map กับแอปแท็บเล็ตตรวจ QC1/QC3 พร้อมระบบ <strong>Local Offline SQLite Caching</strong> ป้องกันความเสี่ยงกรณีเน็ตหลุดหน้าลานสต็อก เมื่อกลับเข้าจุดมีสัญญาณ ข้อมูลจะ Auto-Sync เข้าศูนย์กลางทันที (End-to-End over Silo)
+                  </div>
+                </div>
+              </div>
+
+              <div class="stage-item">
+                <div class="stage-badge" style="background: rgba(99, 102, 241, 0.15); color: #4f46e5;">6</div>
+                <div class="stage-content">
+                  <div class="stage-title">Develop, Test & UAT with Field Engineers</div>
+                  <div class="stage-desc">
+                    ควบคุมการพัฒนาและจัดทำ UAT ร่วมกับวิศวกร QC และหัวหน้าลานสต็อกหน้างานจริง ปรับแต่งปุ่มกดให้แตะง่ายแม้วิศวกรสวมถุงมือ ทดสอบ Edge Cases จนผ่านเกณฑ์ตรวจรับงานตามข้อ 5 ก่อนประกาศ Go-Live
+                  </div>
+                </div>
+              </div>
+
+              <div class="stage-item">
+                <div class="stage-badge" style="background: rgba(217, 119, 6, 0.15); color: #d97706;">7</div>
+                <div class="stage-content">
+                  <div class="stage-title">Benefit Realization & Measured Results</div>
+                  <div class="stage-desc">
+                    ติดตามยอดผลิตสะสม <strong>11,450 แผ่น</strong>, ลดเวลาเดินค้นหาแผ่นและเช็กสต็อกสะสม <strong>950+ ชม./ปี</strong> (คิดเฉลี่ย 5 นาที/แผ่น), ลดงานซ่อมผิวคอนกรีตลง <strong>-35%</strong> (Business Value over Activity)
+                  </div>
+                </div>
+              </div>
+
+              <div class="stage-item">
+                <div class="stage-badge" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed;">8-9</div>
+                <div class="stage-content">
+                  <div class="stage-title">Standardize, Handover & Scale Up</div>
+                  <div class="stage-desc">
+                    จัดทำคู่มือและ Digital Checklist ส่งมอบให้ผู้จัดการโรงงานและวิศวกร QC เป็น <strong>Process Owner</strong> ดูแลระบบต่อเนื่อง พร้อมวางพิมพ์เขียวขยายผลสู่ <strong>Phase 2: Multi-Device Mobile Operations</strong> ในปี 2027 (Sustainability over Quick Fix)
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 11.5px; color: #64748b;">Process Owner: ผู้จัดการโรงงาน & หัวหน้า QC</span>
+            <span style="font-size: 11.5px; font-weight: 700; color: #059669;">✓ Handover & In Production</span>
+          </div>
+        </div>
+
+        <!-- Case 2: FxCurrency 365-Day Sync (Governance & Risk) -->
+        <div class="deepdive-card reveal">
+          <div>
+            <div class="deepdive-header">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 11px; font-weight: 800; color: #0284c7; background: rgba(2, 132, 199, 0.1); padding: 3px 10px; border-radius: 6px;">
+                  🏛️ กรณีศึกษาที่ 2: Governance, Risk & ERP Automation
+                </span>
+                <span style="font-size: 11px; font-weight: 700; color: #0284c7;">100% Accuracy</span>
+              </div>
+              <h3 style="font-size: 20px; font-weight: 800; color: #0f172a; line-height: 1.3;">
+                FxCurrency 365-Day Sync & NetSuite ERP
+              </h3>
+              <p style="font-size: 13px; color: #64748b; margin-top: 6px; line-height: 1.5;">
+                ถอดรหัสกระบวนการควบคุมความเสี่ยงอัตราแลกเปลี่ยนเงินตราต่างประเทศ เชื่อมต่อ ERP บัญชีตลอด 365 วัน
+              </p>
+            </div>
+
+            <!-- Stages Breakdown -->
+            <div class="stage-timeline-list">
+              <div class="stage-item">
+                <div class="stage-badge" style="background: rgba(2, 132, 199, 0.15); color: #0284c7;">1-3</div>
+                <div class="stage-content">
+                  <div class="stage-title">Identify, As-Is & Root Cause Analysis</div>
+                  <div class="stage-desc">
+                    เดิมฝ่ายบัญชีต้องเข้าเว็บ 4 ธนาคาร (BOT, SCB, KBANK, KTB) ทุกเช้าเพื่อจดเรทและคีย์มือเข้า NetSuite และ Mango เสี่ยงต่อ Human Error ในธุรกรรมซื้อขายต่างประเทศมูลค่าหลายสิบล้านบาท (Data before Opinion)
+                  </div>
+                </div>
+              </div>
+
+              <div class="stage-item">
+                <div class="stage-badge" style="background: rgba(14, 165, 233, 0.15); color: #0284c7;">4-5</div>
+                <div class="stage-content">
+                  <div class="stage-title">Design Improvement & Risk Assessment</div>
+                  <div class="stage-desc">
+                    ออกแบบ To-Be เป็นระบบ Automated API ดึงเรทตรงทุก 09:00 น. ตลอด 365 วัน พร้อมประเมินความเสี่ยงและวาง <strong>Dual PIN Override สำหรับ Manager</strong> และกลไก Fallback Rate กรณีวันหยุดธนาคาร ป้องกันระบบ ERP หยุดชะงัก
+                  </div>
+                </div>
+              </div>
+
+              <div class="stage-item">
+                <div class="stage-badge" style="background: rgba(99, 102, 241, 0.15); color: #4f46e5;">6</div>
+                <div class="stage-content">
+                  <div class="stage-title">Develop, Test & UAT with Finance Team</div>
+                  <div class="stage-desc">
+                    จัดทำ UAT ร่วมกับ Senior Accounting Manager ทดสอบ Stress Test วันหยุดยาวและวันปิดงวดบัญชี ตรวจสอบ Audit Trail ทุกการบันทึก จนมั่นใจว่าไร้ข้อผิดพลาดตาม Completion Criteria ของนโยบาย
+                  </div>
+                </div>
+              </div>
+
+              <div class="stage-item">
+                <div class="stage-badge" style="background: rgba(217, 119, 6, 0.15); color: #d97706;">7</div>
+                <div class="stage-content">
+                  <div class="stage-title">Benefit Realization & Measured Results</div>
+                  <div class="stage-desc">
+                    ตัดงานคีย์เรทด้วยมือ <strong>182.5 ชม./ปี (100% Automated)</strong>, ปราศจาก Human Error <strong>0 เคส</strong> ตลอด 365 วัน, และกระทบยอดปิดบัญชีสิ้นเดือนใน NetSuite ERP ได้อย่างแม่นยำ 100% (Business Value over Activity)
+                  </div>
+                </div>
+              </div>
+
+              <div class="stage-item">
+                <div class="stage-badge" style="background: rgba(124, 58, 237, 0.15); color: #7c3aed;">8-9</div>
+                <div class="stage-content">
+                  <div class="stage-title">Standardize, Handover & Scale Up</div>
+                  <div class="stage-desc">
+                    จัดทำ Decision Log และ Checklist ตามข้อ 6 ของ Policy ส่งมอบให้ Senior Accounting Manager เป็น <strong>Process Owner</strong> และเตรียมต่อยอดเป็นพิมพ์เขียวสำหรับระบบนำเข้าอัตราภาษีและอัตราดอกเบี้ยในเครือข่าย ERP
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 11.5px; color: #64748b;">Process Owner: Senior Accounting Manager</span>
+            <span style="font-size: 11.5px; font-weight: 700; color: #0284c7;">✓ Handover & In Production</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Completion Criteria Card (Policy Section 5 Compliance) -->
+      <div class="completion-criteria-card reveal">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <span style="font-size: 11px; font-weight: 800; color: #059669; text-transform: uppercase; letter-spacing: 0.5px;">
+              🛡️ การปฏิบัติตามเกณฑ์ตรวจรับงานสมบูรณ์ (Policy Section 5: Completion Criteria)
+            </span>
+            <span style="font-size: 11.5px; font-weight: 700; color: #047857; background: rgba(5, 150, 105, 0.15); padding: 3px 10px; border-radius: 999px;">
+              ผ่านเกณฑ์ครบถ้วน 100% ทั้ง 2 ระบบ
+            </span>
+          </div>
+          <div style="font-size: 14.5px; font-weight: 800; color: #064e3b;">
+            "Development Completed ไม่ถือเป็น Project Completed จนกว่าจะผ่านการ Test, Implementation และ Handover"
+          </div>
+          <div style="font-size: 12.5px; color: #065f46; line-height: 1.6; margin-top: 4px;">
+            ทั้งโครงการ ITC Precast และ FxCurrency ไม่ได้หยุดอยู่แค่การเขียนโค้ดเสร็จ (Code Completed) แต่ผ่านขั้นตอนการทดสอบ UAT ร่วมกับผู้ใช้งานจริง, แก้ไข Critical Issues, มี Process Owner ตัวจริงรับมอบงาน, มีตัวเลขผลลัพธ์ที่วัดผลได้หลัง Go-Live, และมีเอกสารควบคุม (Checklist & Decision Log) ที่พร้อมให้หน่วยงานใช้งานต่อได้อย่างยั่งยืน ตามมาตรฐานที่ คุณจินตนา ภูดิทธนภาคย์ ได้กำหนดไว้
           </div>
         </div>
       </div>
