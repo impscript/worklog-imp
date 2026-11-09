@@ -101,6 +101,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/worklog/share/:id" element={<PublicWorklogPage />} />
             <Route path="/dossier" element={<DossierViewerPage />} />
+            <Route path="/dossier/:slug" element={<DossierViewerPage />} />
             <Route path="/dossier/portfolio" element={<DossierViewerPage />} />
             <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/log" element={<ProtectedRoute><LogWorkPage /></ProtectedRoute>} />

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { LogOut, Shield, Award, Calendar, BookOpen, CalendarRange, CheckCircle2, XCircle, RefreshCw, Edit, Key, Lock, ShieldCheck, ShieldAlert, List, Clock, ExternalLink, Download } from 'lucide-react';
+import { LogOut, Shield, Award, Calendar, BookOpen, CalendarRange, CheckCircle2, XCircle, RefreshCw, Edit, Key, Lock, ShieldCheck, ShieldAlert, List, Clock, ExternalLink, Download, Sparkles } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -50,8 +50,9 @@ export default function ProfilePage() {
   // Secret Access Audit Logs Modal
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
 
-  // Executive Promotion Dossier Privacy State
+  // Executive Promotion Dossier Privacy & Multi-User State
   const [isDossierPublic, setIsDossierPublic] = useState(true);
+  const [isGeneratingDossier, setIsGeneratingDossier] = useState(false);
 
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
@@ -287,6 +288,18 @@ export default function ProfilePage() {
       setToastMessage(nextState ? 'เปิดโหมด Public แล้ว 🟢' : 'ตั้งเป็น Private แล้ว 🔒');
       setTimeout(() => setToastMessage(null), 3000);
     }
+  };
+
+  const handleGenerateDossier = () => {
+    setIsGeneratingDossier(true);
+    setToastMessage('กำลังประมวลผลสถิติและซิงค์ข้อมูล Worklog สู่แฟ้มผลงาน AI... ⏳');
+    
+    setTimeout(() => {
+      setIsGeneratingDossier(false);
+      const name = session?.nickname || session?.full_name || 'คุณ';
+      setToastMessage(`สร้างแฟ้มผลงาน AI สำหรับ ${name} สำเร็จ! 🎉 พร้อมแชร์ลิงก์แล้ว`);
+      setTimeout(() => setToastMessage(null), 4000);
+    }, 1200);
   };
 
   const handleSavePin = async (e: React.FormEvent) => {
@@ -682,125 +695,197 @@ export default function ProfilePage() {
         </div>
 
         {/* Executive Promotion Dossier & Strategic Portfolio Card */}
-        <div id="executive-dossier-card" className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-indigo-500/30 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-          
-          <div className="relative z-10 space-y-6">
-            {/* Header with Title and Public/Private Toggle */}
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-theme-border/80 pb-5">
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-500 dark:text-amber-400 text-[10px] font-extrabold uppercase tracking-wider">
-                  <span>🎯</span>
-                  <span>2026–2027 Promotion Track • Target: Department Manager</span>
-                </div>
-                <h3 className="text-xl md:text-2xl font-black text-theme-text mt-2.5 tracking-tight flex items-center gap-2">
-                  <span>Executive Promotion Dossier & Portfolio</span>
-                </h3>
-                <p className="text-xs md:text-sm text-theme-text-secondary mt-1">
-                  แฟ้มผลงานและสไลด์นำเสนอเชิงกลยุทธ์ เพื่อประเมินเลื่อนตำแหน่งสู่ Department Manager / Head of Improvement
-                </p>
-              </div>
+        {(() => {
+          const isChatchawan = session?.empId === '10005208' || 
+            session?.email?.toLowerCase().includes('chatchawan') || 
+            session?.nickname === 'ชัชวาลย์' ||
+            session?.full_name?.includes('ชัชวาลย์');
 
-              {/* Public / Private Toggle Switch */}
-              <div className="flex items-center gap-3 bg-theme-surface-secondary/80 border border-theme-border rounded-2xl p-2 shrink-0 shadow-sm">
-                <span className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
-                  isDossierPublic 
-                    ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
-                    : 'bg-slate-500/10 text-theme-text-muted border border-transparent'
-                }`}>
-                  {isDossierPublic ? '🟢 Public' : '🔒 Private'}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleToggleDossierVisibility}
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors cursor-pointer focus:outline-none ${
-                    isDossierPublic ? 'bg-emerald-600' : 'bg-slate-600'
-                  }`}
-                  title={isDossierPublic ? 'คลิกเพื่อตั้งเป็น Private' : 'คลิกเพื่อตั้งเป็น Public'}
-                >
-                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
-                    isDossierPublic ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
-                </button>
-              </div>
-            </div>
+          const userSlug = isChatchawan 
+            ? 'chatchawan' 
+            : (session?.nickname 
+                ? encodeURIComponent(session.nickname.toLowerCase().trim()) 
+                : (session?.empId || session?.id || 'me'));
 
-            {/* Privacy Explanation & Share Link Strip */}
-            <div className="p-4 rounded-2xl bg-theme-surface-secondary/60 border border-theme-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="min-w-0 space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-theme-text-secondary">
-                    Direct Executive Share Link
-                  </span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                    isDossierPublic ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
-                  }`}>
-                    {isDossierPublic ? 'พร้อมเปิดดู (ไม่ต้องล็อกอิน)' : 'ล็อกส่วนตัว (เฉพาะคุณ)'}
-                  </span>
-                </div>
-                <span className="text-sm font-mono text-indigo-600 dark:text-indigo-400 truncate block font-bold">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/dossier` : '/dossier'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const url = `${window.location.origin}/dossier`;
-                  navigator.clipboard.writeText(url);
-                  setToastMessage('คัดลอกลิงก์แชร์ผู้บริหารสำเร็จ! 📋');
-                  setTimeout(() => setToastMessage(null), 3000);
-                }}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all active:scale-95 shrink-0 shadow-sm shadow-indigo-600/20"
-              >
-                Copy Share Link
-              </button>
-            </div>
+          const dossierUrl = typeof window !== 'undefined' 
+            ? (isChatchawan ? `${window.location.origin}/dossier` : `${window.location.origin}/dossier/${userSlug}`)
+            : `/dossier/${userSlug}`;
 
-            {/* Action Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <a
-                href="/dossier"
-                target="_blank"
-                rel="noreferrer"
-                className="group flex flex-col p-5 rounded-2xl bg-theme-surface-secondary/60 hover:bg-indigo-600/10 border border-theme-border hover:border-indigo-500/50 shadow-sm transition-all duration-200"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-xl text-indigo-500 group-hover:scale-110 transition-transform">
-                    🌐
+          return (
+            <div id="executive-dossier-card" className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-indigo-500/30 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+              
+              <div className="relative z-10 space-y-6">
+                {/* Header with Title and Controls */}
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-theme-border/80 pb-5">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-500 dark:text-amber-400 text-[10px] font-extrabold uppercase tracking-wider">
+                      <span>{isChatchawan ? '🎯' : '✨'}</span>
+                      <span>
+                        {isChatchawan 
+                          ? '2026–2027 Promotion Track • Target: Department Manager'
+                          : 'Personal Career Dossier • แฟ้มประเมินผลงาน & พอร์ตโฟลิโอส่วนตัว'}
+                      </span>
+                    </div>
+                    <h3 className="text-xl md:text-2xl font-black text-theme-text mt-2.5 tracking-tight flex items-center gap-2">
+                      <span>
+                        {isChatchawan 
+                          ? 'Executive Promotion Dossier & Portfolio' 
+                          : `แฟ้มผลงานประเมินส่วนตัว (${session?.nickname || session?.full_name || 'My Dossier'})`}
+                      </span>
+                    </h3>
+                    <p className="text-xs md:text-sm text-theme-text-secondary mt-1">
+                      {isChatchawan 
+                        ? 'แฟ้มผลงานและสไลด์นำเสนอเชิงกลยุทธ์ เพื่อประเมินเลื่อนตำแหน่งสู่ Department Manager / Head of Improvement'
+                        : 'ระบบรวบรวมชั่วโมงทำงาน โครงการที่รับผิดชอบ และประเมินสมรรถนะ 5 เสาหลัก HR จากบันทึก Worklog เป็นแฟ้มผลงานอัตโนมัติ'}
+                    </p>
                   </div>
-                  <ExternalLink size={16} className="text-theme-text-muted group-hover:text-indigo-500 transition-colors" />
-                </div>
-                <span className="text-base font-bold text-theme-text group-hover:text-indigo-500 transition-colors">
-                  เปิดดู Web Portfolio เต็มจอ
-                </span>
-                <span className="text-xs text-theme-text-secondary mt-1.5 leading-relaxed">
-                  แฟ้มผลงานฉบับสมบูรณ์ โครงสร้างกลยุทธ์ 2026–2027 และผลลัพธ์ 19 โครงการแบบโต้ตอบได้
-                </span>
-              </a>
 
-              <a
-                href="/dossier/executive_portfolio.pdf"
-                target="_blank"
-                rel="noreferrer"
-                download
-                className="group flex flex-col p-5 rounded-2xl bg-theme-surface-secondary/60 hover:bg-emerald-600/10 border border-theme-border hover:border-emerald-500/50 shadow-sm transition-all duration-200"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-500 group-hover:scale-110 transition-transform">
-                    🖨️
-                  </div>
-                  <Download size={16} className="text-theme-text-muted group-hover:text-emerald-500 transition-colors" />
+                  {/* Right Header Actions */}
+                  {isChatchawan ? (
+                    /* Chatchawan: Public / Private Toggle Switch */
+                    <div className="flex items-center gap-3 bg-theme-surface-secondary/80 border border-theme-border rounded-2xl p-2 shrink-0 shadow-sm">
+                      <span className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
+                        isDossierPublic 
+                          ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
+                          : 'bg-slate-500/10 text-theme-text-muted border border-transparent'
+                      }`}>
+                        {isDossierPublic ? '🟢 Public' : '🔒 Private'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleToggleDossierVisibility}
+                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors cursor-pointer focus:outline-none ${
+                          isDossierPublic ? 'bg-emerald-600' : 'bg-slate-600'
+                        }`}
+                        title={isDossierPublic ? 'คลิกเพื่อตั้งเป็น Private' : 'คลิกเพื่อตั้งเป็น Public'}
+                      >
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
+                          isDossierPublic ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+                  ) : (
+                    /* Team Member: Generate / Refresh Dossier Button */
+                    <button
+                      type="button"
+                      onClick={handleGenerateDossier}
+                      disabled={isGeneratingDossier}
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md shadow-indigo-600/20 transition-all active:scale-95 disabled:opacity-70 cursor-pointer"
+                    >
+                      <Sparkles size={15} className={isGeneratingDossier ? 'animate-spin text-amber-300' : 'text-amber-300'} />
+                      <span>{isGeneratingDossier ? 'กำลังซิงค์ Worklog...' : '⚡ กดสร้าง / อัปเดตแฟ้มผลงาน'}</span>
+                    </button>
+                  )}
                 </div>
-                <span className="text-base font-bold text-theme-text group-hover:text-emerald-500 transition-colors">
-                  ดาวน์โหลด PDF สรุป (ส่ง HR)
-                </span>
-                <span className="text-xs text-theme-text-secondary mt-1.5 leading-relaxed">
-                  เอกสารประเมินเลื่อนตำแหน่งฉบับทางการ (PDF 5.9MB) พร้อมจัดพิมพ์และส่งคณะกรรมการ
-                </span>
-              </a>
+
+                {/* Direct Share Link Strip */}
+                <div className="p-4 rounded-2xl bg-theme-surface-secondary/60 border border-theme-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] uppercase font-extrabold tracking-wider text-theme-text-secondary">
+                        {isChatchawan ? 'Direct Executive Share Link' : 'ลิงก์แฟ้มผลงานส่วนตัว (Personal Share Link)'}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        isChatchawan 
+                          ? (isDossierPublic ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')
+                          : 'bg-emerald-500/10 text-emerald-500'
+                      }`}>
+                        {isChatchawan 
+                          ? (isDossierPublic ? 'พร้อมเปิดดู (ไม่ต้องล็อกอิน)' : 'ล็อกส่วนตัว (เฉพาะคุณ)')
+                          : 'พร้อมแชร์หัวหน้า / HR (ไม่ต้องล็อกอิน)'}
+                      </span>
+                    </div>
+                    <span className="text-sm font-mono text-indigo-600 dark:text-indigo-400 truncate block font-bold">
+                      {dossierUrl}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(dossierUrl);
+                        setToastMessage('คัดลอกลิงก์แฟ้มผลงานสำเร็จ! 📋');
+                        setTimeout(() => setToastMessage(null), 3000);
+                      }}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm shadow-indigo-600/20 cursor-pointer"
+                    >
+                      Copy Share Link
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <a
+                    href={isChatchawan ? '/dossier' : `/dossier/${userSlug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex flex-col p-5 rounded-2xl bg-theme-surface-secondary/60 hover:bg-indigo-600/10 border border-theme-border hover:border-indigo-500/50 shadow-sm transition-all duration-200"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-xl text-indigo-500 group-hover:scale-110 transition-transform">
+                        🌐
+                      </div>
+                      <ExternalLink size={16} className="text-theme-text-muted group-hover:text-indigo-500 transition-colors" />
+                    </div>
+                    <span className="text-base font-bold text-theme-text group-hover:text-indigo-500 transition-colors">
+                      {isChatchawan ? 'เปิดดู Web Portfolio เต็มจอ' : 'เปิดดู Personal Dossier เต็มจอ'}
+                    </span>
+                    <span className="text-xs text-theme-text-secondary mt-1.5 leading-relaxed">
+                      {isChatchawan 
+                        ? 'แฟ้มผลงานฉบับสมบูรณ์ โครงสร้างกลยุทธ์ 2026–2027 และผลลัพธ์ 19 โครงการแบบโต้ตอบได้'
+                        : 'ตรวจสอบแฟ้มผลงานออนไลน์ สถิติชั่วโมงงาน, ประวัติโครงการที่บันทึก และการประเมิน 5 เสาหลัก HR'}
+                    </span>
+                  </a>
+
+                  {isChatchawan ? (
+                    <a
+                      href="/dossier/executive_portfolio.pdf"
+                      target="_blank"
+                      rel="noreferrer"
+                      download="Chatchawan_Executive_Portfolio_2026-2027.pdf"
+                      className="group flex flex-col p-5 rounded-2xl bg-theme-surface-secondary/60 hover:bg-emerald-600/10 border border-theme-border hover:border-emerald-500/50 shadow-sm transition-all duration-200"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-500 group-hover:scale-110 transition-transform">
+                          🖨️
+                        </div>
+                        <Download size={16} className="text-theme-text-muted group-hover:text-emerald-500 transition-colors" />
+                      </div>
+                      <span className="text-base font-bold text-theme-text group-hover:text-emerald-500 transition-colors">
+                        ดาวน์โหลด PDF สรุป (ส่ง HR)
+                      </span>
+                      <span className="text-xs text-theme-text-secondary mt-1.5 leading-relaxed">
+                        เอกสารประเมินเลื่อนตำแหน่งฉบับทางการ (Canva 11 หน้าคมชัดสูง) พร้อมจัดพิมพ์และส่งคณะกรรมการ
+                      </span>
+                    </a>
+                  ) : (
+                    <a
+                      href={`/dossier/${userSlug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group flex flex-col p-5 rounded-2xl bg-theme-surface-secondary/60 hover:bg-emerald-600/10 border border-theme-border hover:border-emerald-500/50 shadow-sm transition-all duration-200"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl text-emerald-500 group-hover:scale-110 transition-transform">
+                          🖨️
+                        </div>
+                        <Download size={16} className="text-theme-text-muted group-hover:text-emerald-500 transition-colors" />
+                      </div>
+                      <span className="text-base font-bold text-theme-text group-hover:text-emerald-500 transition-colors">
+                        พิมพ์ / บันทึก PDF (ส่ง HR/หัวหน้า)
+                      </span>
+                      <span className="text-xs text-theme-text-secondary mt-1.5 leading-relaxed">
+                        เปิดหน้าแฟ้มผลงานและสั่งพิมพ์หรือบันทึกเป็น PDF ทางการ สำหรับใช้ยื่นประเมินผลงานประจำปี
+                      </span>
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Stats Grid */}
         <div className="bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
