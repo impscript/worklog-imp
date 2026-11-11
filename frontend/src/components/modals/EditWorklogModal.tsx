@@ -700,22 +700,33 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       .map(p => p.project_type))).sort();
   }, [holding, role, mapProjectStructure]);
 
+  // The log's saved project/module may no longer exist in the active structure (e.g. the project was
+  // deactivated). Keep them selectable ONLY while the form still points at the log's own holding/role/type
+  // (projects) or its own project (modules); otherwise they'd leak into other projects' option lists.
+  const sameKey = (a?: string | null, b?: string | null) =>
+    (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+  const isLogScope = !!log
+    && sameKey(holding, log.holding)
+    && sameKey(role, log.department_operator)
+    && projectType === log.project_type;
+  const isLogProject = isLogScope && projectName === log.project_name;
+
   const availableProjects = useMemo(() => {
     if (!holding || !role || !projectType) return [];
     const list = Array.from(new Set(mapProjectStructure
-      .filter(p => 
-        (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() && 
-        (p.department_operator || '').trim().toLowerCase() === (role || '').trim().toLowerCase() && 
+      .filter(p =>
+        (p.holding || '').trim().toLowerCase() === (holding || '').trim().toLowerCase() &&
+        (p.department_operator || '').trim().toLowerCase() === (role || '').trim().toLowerCase() &&
         p.project_type === projectType
       )
       .map(p => p.project_name))).sort();
 
-    if (log && log.project_name && !list.includes(log.project_name)) {
+    if (isLogScope && log && log.project_name && !list.includes(log.project_name)) {
       list.push(log.project_name);
       list.sort();
     }
     return list;
-  }, [holding, role, projectType, mapProjectStructure, log]);
+  }, [holding, role, projectType, mapProjectStructure, log, isLogScope]);
 
   const availableModules = useMemo(() => {
     if (!projectName) return [];
@@ -731,12 +742,12 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
         .filter(Boolean) as string[]
     )).sort();
 
-    if (log && log.module && !list.includes(log.module)) {
+    if (isLogProject && log && log.module && !list.includes(log.module)) {
       list.push(log.module);
       list.sort();
     }
     return list;
-  }, [projectName, projectType, role, holding, mapProjectStructure, log]);
+  }, [projectName, projectType, role, holding, mapProjectStructure, log, isLogProject]);
 
   // When no modules exist for the selected project, expose BU/Dept options for manual selection
   const noModuleMode = projectName && availableModules.length === 0;
@@ -876,8 +887,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
   useEffect(() => {
     if (projectName) {
       const hasModules = mapProjectStructure.some(p =>
-        p.holding === holding &&
-        p.department_operator === role &&
+        sameKey(p.holding, holding) &&
+        sameKey(p.department_operator, role) &&
         p.project_type === projectType &&
         p.project_name === projectName &&
         p.module
@@ -886,8 +897,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       if (hasModules) {
         if (module) {
           const matches = mapProjectStructure.filter(p =>
-            p.holding === holding &&
-            p.department_operator === role &&
+            sameKey(p.holding, holding) &&
+            sameKey(p.department_operator, role) &&
             p.project_type === projectType &&
             p.project_name === projectName &&
             p.module === module
