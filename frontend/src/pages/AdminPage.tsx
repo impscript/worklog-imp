@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { Plus, Edit2, Trash2, Search, Database, RefreshCw, X, Check, Cpu, Key, Save, AlertTriangle, CheckCircle, MessageSquare, RotateCcw, ChevronDown, Upload, Download, Power, PowerOff, Copy, Filter } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { useLocation } from 'react-router-dom';
@@ -943,6 +943,16 @@ export default function AdminPage() {
 
           return matchesSearch && matchesHolding && matchesRole && matchesType && matchesProject && matchesBU;
         });
+        // Keep every project (name + holding + role) contiguous so the table can render it as one group.
+        data.sort((a, b) =>
+          (a.project_name || '').localeCompare(b.project_name || '') ||
+          (a.holding || '').localeCompare(b.holding || '') ||
+          (a.department_operator || '').localeCompare(b.department_operator || '') ||
+          (a.project_type || '').localeCompare(b.project_type || '') ||
+          (a.module || '').localeCompare(b.module || '') ||
+          (a.bu || '').localeCompare(b.bu || '') ||
+          (a.department || '').localeCompare(b.department || '')
+        );
         break;
       case 'users':
         data = usersList.filter(u => 
@@ -1520,6 +1530,20 @@ export default function AdminPage() {
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
   const paginatedData = filteredData.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
 
+  // Project Structures are shown grouped by project (name + holding + role) so one project with several
+  // types / modules / departments reads as one block instead of many look-alike rows.
+  const structGroupKey = (r: { project_name?: string; holding?: string; department_operator?: string }) =>
+    `${r.project_name || ''}|${r.holding || ''}|${r.department_operator || ''}`;
+  const structGroups = new Map<string, typeof filteredData>();
+  if (activeTab === 'map_project') {
+    filteredData.forEach((r) => {
+      const key = structGroupKey(r);
+      const list = structGroups.get(key);
+      if (list) list.push(r);
+      else structGroups.set(key, [r]);
+    });
+  }
+
   const distinctSalarySources = Array.from(
     new Map(salaryRates.filter(r => r.source_url || r.source_label).map(r => [r.source_url || r.source_label, r])).values()
   );
@@ -1992,9 +2016,9 @@ export default function AdminPage() {
                         )}
                         {activeTab === 'map_project' && (
                           <tr>
-                            <th className="px-6 py-4 font-semibold">Project & Module</th>
                             <th className="px-6 py-4 font-semibold">Project Type</th>
-                            <th className="px-6 py-4 font-semibold">Allocation & Context</th>
+                            <th className="px-6 py-4 font-semibold">Module</th>
+                            <th className="px-6 py-4 font-semibold">Department / BU</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
@@ -2035,8 +2059,39 @@ export default function AdminPage() {
                           const isSpecialSharedTable = activeTab === 'holiday' || activeTab === 'users';
                           const canModify = isSuperAdmin || isRecordOwner || isSpecialSharedTable;
 
+                          const prevRow = idx > 0 ? paginatedData[idx - 1] : null;
+                          const isStructGroupStart = activeTab === 'map_project' && (!prevRow || structGroupKey(prevRow) !== structGroupKey(row));
+                          const isStructTypeStart = !prevRow || structGroupKey(prevRow) !== structGroupKey(row) || prevRow.project_type !== row.project_type;
+                          const structGroupRows = activeTab === 'map_project' ? (structGroups.get(structGroupKey(row)) ?? []) : [];
+                          const structTypeCounts = new Map<string, number>();
+                          structGroupRows.forEach((r) => {
+                            const label: string = r.project_type || '-';
+                            structTypeCounts.set(label, (structTypeCounts.get(label) ?? 0) + 1);
+                          });
+
                           return (
-                            <tr key={idx} className="hover:bg-theme-surface-secondary dark:hover:bg-theme-surface-secondary/30 transition-colors">
+                            <Fragment key={idx}>
+                            {isStructGroupStart && (
+                              <tr className="bg-indigo-500/5 dark:bg-indigo-500/10 border-t-2 border-indigo-500/20">
+                                <td colSpan={6} className="px-6 py-3">
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                                    <span className="font-bold text-indigo-400 text-sm">{row.project_name}</span>
+                                    <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md border border-theme-border bg-theme-surface-tertiary text-theme-text">{row.holding}</span>
+                                    <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md border border-indigo-400/25 bg-indigo-500/10 text-indigo-400">{row.department_operator}</span>
+                                    <span className="text-[11px] text-theme-text-muted">{structGroupRows.length} รายการ</span>
+                                    {Array.from(structTypeCounts.entries()).map(([typeLabel, count]) => (
+                                      <span key={typeLabel} className={cn('inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-md border whitespace-nowrap', getProjectTypeMeta(typeLabel).badge)}>
+                                        {typeLabel} × {count}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                            <tr className={cn(
+                              'hover:bg-theme-surface-secondary dark:hover:bg-theme-surface-secondary/30 transition-colors',
+                              activeTab === 'map_project' && row.is_active === false && 'opacity-60'
+                            )}>
                               {activeTab === 'holding' && (
                                 <>
                                   <td className="px-6 py-4 font-bold text-theme-text">{row.holding_name}</td>
@@ -2160,13 +2215,10 @@ export default function AdminPage() {
                               )}
                               {activeTab === 'map_project' && (
                                 <>
-                                  <td className="px-6 py-4">
-                                    <div className="font-bold text-indigo-400 text-sm">{row.project_name}</div>
-                                    {row.module && <div className="text-xs text-theme-text-secondary mt-0.5">Module: {row.module}</div>}
-                                    {row.project_description && <div className="text-[11px] text-theme-text-muted mt-1 italic line-clamp-2 max-w-[200px]" title={row.project_description}>{row.project_description}</div>}
-                                  </td>
-                                  <td className="px-6 py-4">
-                                    {row.project_type ? (
+                                  <td className="px-6 py-3 align-top whitespace-nowrap">
+                                    {!isStructTypeStart ? (
+                                      <span className="pl-3 text-theme-text-muted/50 text-sm" aria-hidden="true">↳</span>
+                                    ) : row.project_type ? (
                                       <span className={cn('inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-md border whitespace-nowrap', getProjectTypeMeta(row.project_type).badge)}>
                                         {row.project_type}
                                       </span>
@@ -2174,10 +2226,13 @@ export default function AdminPage() {
                                       <span className="text-xs text-theme-text-muted">-</span>
                                     )}
                                   </td>
-                                  <td className="px-6 py-4 text-xs space-y-1">
-                                    <div><span className="text-theme-text-muted font-medium">Holding:</span> <span className="text-theme-text font-semibold">{row.holding}</span></div>
-                                    <div><span className="text-theme-text-muted font-medium">Role:</span> <span className="text-indigo-400 font-semibold">{row.department_operator}</span></div>
-                                    <div><span className="text-theme-text-muted font-medium">BU/Dept:</span> <span className="text-theme-text font-medium">{row.bu} / {row.department}</span></div>
+                                  <td className="px-6 py-3 align-top text-xs">
+                                    {row.module ? <span className="font-semibold text-theme-text">{row.module}</span> : <span className="text-theme-text-muted">—</span>}
+                                  </td>
+                                  <td className="px-6 py-3 align-top text-xs">
+                                    <div className="font-semibold text-theme-text">{row.department || '-'}</div>
+                                    <div className="text-theme-text-muted">BU: {row.bu || '-'}</div>
+                                    {row.project_description && <div className="text-[11px] text-theme-text-muted mt-1 italic line-clamp-2 max-w-[240px]" title={row.project_description}>{row.project_description}</div>}
                                   </td>
                                   {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
@@ -2272,6 +2327,7 @@ export default function AdminPage() {
                                 </>
                               )}
                             </tr>
+                            </Fragment>
                           );
                         })}
                       </tbody>
