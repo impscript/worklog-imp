@@ -1554,7 +1554,7 @@ export default function AdminPage() {
         
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
+          <div className="min-w-0">
             <div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-bold text-indigo-400">
               <ActiveTabIcon size={13} />
               <span>{activeTabMeta?.label}</span>
@@ -1567,18 +1567,47 @@ export default function AdminPage() {
               Add, edit, or check your Supabase master tables and relationship cascading structures.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-nowrap items-center gap-2 shrink-0">
             {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
               <button 
                 onClick={loadAllData}
-                className="p-2.5 rounded-xl bg-theme-surface-tertiary dark:bg-theme-surface-tertiary hover:bg-slate-700 text-theme-text-secondary transition-all border border-theme-border/50"
+                className="w-10 h-10 inline-flex items-center justify-center shrink-0 rounded-xl bg-theme-surface-tertiary dark:bg-theme-surface-tertiary hover:bg-slate-700 text-theme-text-secondary transition-all border border-theme-border/50"
                 title="Refresh database entries"
               >
                 <RefreshCw size={18} className={cn(isLoading && "animate-spin")} />
               </button>
             )}
+            {activeTab === 'map_project' && (
+              <label
+                className={cn(
+                  'inline-flex items-center gap-2 px-3 h-10 shrink-0 whitespace-nowrap rounded-xl border text-sm font-bold cursor-pointer select-none transition-colors',
+                  filterStatus === 'active'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    : 'bg-theme-surface-tertiary border-theme-border/50 text-theme-text-secondary hover:text-theme-text'
+                )}
+                title="ติ๊กออกเพื่อแสดงรายการที่ปิดใช้งานด้วย"
+              >
+                <input
+                  type="checkbox"
+                  checked={filterStatus === 'active'}
+                  onChange={(e) => setFilterStatus(e.target.checked ? 'active' : 'all')}
+                  className="sr-only"
+                />
+                <span
+                  className={cn(
+                    'w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors',
+                    filterStatus === 'active'
+                      ? 'bg-emerald-500 border-emerald-500 text-white'
+                      : 'border-theme-border bg-theme-surface'
+                  )}
+                >
+                  {filterStatus === 'active' && <Check size={11} strokeWidth={3} />}
+                </span>
+                <span>Active</span>
+              </label>
+            )}
              {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-nowrap items-center gap-2">
                 {activeTab === 'map_project' && (
                   <>
                     {/* Export CSV Dropdown */}
@@ -1587,13 +1616,13 @@ export default function AdminPage() {
                         type="button"
                         onClick={() => setIsExportDropdownOpen(prev => !prev)}
                         className={cn(
-                          "inline-flex items-center gap-2 bg-theme-surface border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text px-4 py-2.5 rounded-xl font-bold transition-all active:scale-95 text-sm shadow-sm",
+                          "inline-flex items-center gap-1.5 h-10 shrink-0 whitespace-nowrap bg-theme-surface border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text px-3 rounded-xl font-bold transition-all active:scale-95 text-sm shadow-sm",
                           isExportDropdownOpen && "ring-2 ring-indigo-500/50 bg-theme-surface-secondary text-theme-text"
                         )}
                         title="Export Project Structures to CSV"
                       >
                         <Download size={16} className="text-indigo-400" />
-                        <span>Export CSV</span>
+                        <span>Export</span>
                         <ChevronDown size={14} className={cn("transition-transform duration-200 text-theme-text-secondary", isExportDropdownOpen && "rotate-180")} />
                       </button>
 
@@ -1670,11 +1699,11 @@ export default function AdminPage() {
                     </div>
                     <button 
                       onClick={() => document.getElementById('import-project-structures-csv')?.click()}
-                      className="inline-flex items-center gap-2 bg-theme-surface border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text px-4 py-2.5 rounded-xl font-bold transition-all active:scale-95 text-sm"
+                      className="inline-flex items-center gap-1.5 h-10 shrink-0 whitespace-nowrap bg-theme-surface border border-theme-border hover:bg-theme-surface-secondary text-theme-text-secondary hover:text-theme-text px-3 rounded-xl font-bold transition-all active:scale-95 text-sm"
                       title="Import Project Structures from CSV"
                     >
                       <Upload size={16} />
-                      <span>Import CSV</span>
+                      <span>Import</span>
                     </button>
                     <input 
                       type="file" 
@@ -1687,10 +1716,11 @@ export default function AdminPage() {
                 )}
                 <button 
                   onClick={() => openModal()}
-                  className="inline-flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-theme-text px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg active:scale-95 text-sm"
+                  className="inline-flex items-center gap-1.5 h-10 shrink-0 whitespace-nowrap bg-indigo-500 hover:bg-indigo-600 text-theme-text px-4 rounded-xl font-bold transition-all shadow-lg active:scale-95 text-sm"
+                  title="Add a new entry"
                 >
                   <Plus size={16} />
-                  <span>Add Entry</span>
+                  <span>Add</span>
                 </button>
               </div>
             )}
@@ -1702,8 +1732,8 @@ export default function AdminPage() {
             {/* Search Bar & Filters */}
             {activeTab !== 'ai_settings' && activeTab !== 'ai_prompt' && (
               <div className="relative z-20 bg-theme-surface-tertiary dark:bg-theme-surface-tertiary/80 backdrop-blur-xl border border-theme-border/50 rounded-2xl p-4 shadow-lg flex flex-col gap-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="relative w-full md:w-1/3">
+                <div className="flex flex-col md:flex-row md:flex-wrap md:items-center justify-between gap-3">
+                  <div className={cn('relative w-full', activeTab === 'map_project' ? 'md:w-56 shrink-0' : 'md:w-1/3')}>
                     <input 
                       type="text" 
                       value={searchQuery}
@@ -1713,37 +1743,57 @@ export default function AdminPage() {
                     />
                     <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-theme-text-secondary" />
                   </div>
+                  {activeTab === 'map_project' && (
+                    <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                      <MultiSelectFilter
+                        className="w-full sm:w-36"
+                        label="Project"
+                        defaultAllLabel="All Projects"
+                        options={uniqueProjects.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterProject}
+                        onChange={setFilterProject}
+                        alwaysShowSearch
+                      />
+                      <MultiSelectFilter
+                        className="w-full sm:w-36"
+                        label="Holding"
+                        defaultAllLabel="All Holdings"
+                        options={uniqueHoldings.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterHolding}
+                        onChange={setFilterHolding}
+                        alwaysShowSearch
+                      />
+                      <MultiSelectFilter
+                        className="w-full sm:w-36"
+                        label="Role"
+                        defaultAllLabel="All Roles"
+                        options={uniqueRoles.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterRole}
+                        onChange={setFilterRole}
+                        alwaysShowSearch
+                      />
+                      <MultiSelectFilter
+                        className="w-full sm:w-36"
+                        label="Type"
+                        defaultAllLabel="All Types"
+                        options={uniqueProjectTypes.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterType}
+                        onChange={setFilterType}
+                        alwaysShowSearch
+                      />
+                      <MultiSelectFilter
+                        className="w-full sm:w-36"
+                        label="BU / Dept"
+                        defaultAllLabel="All BUs"
+                        options={uniqueBUs.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterBU}
+                        onChange={setFilterBU}
+                        alwaysShowSearch
+                        align="right"
+                      />
+                    </div>
+                  )}
                   <div className="flex items-center gap-4 self-stretch md:self-auto justify-end">
-                    {activeTab === 'map_project' && (
-                      <label
-                        className={cn(
-                          'inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer select-none transition-colors',
-                          filterStatus === 'active'
-                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                            : 'bg-theme-surface-secondary border-theme-border text-theme-text-secondary hover:text-theme-text'
-                        )}
-                        title="ติ๊กออกเพื่อแสดงรายการที่ปิดใช้งานด้วย"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={filterStatus === 'active'}
-                          onChange={(e) => setFilterStatus(e.target.checked ? 'active' : 'all')}
-                          className="sr-only"
-                        />
-                        <span
-                          className={cn(
-                            'w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors',
-                            filterStatus === 'active'
-                              ? 'bg-emerald-500 border-emerald-500 text-white'
-                              : 'border-theme-border bg-theme-surface'
-                          )}
-                        >
-                          {filterStatus === 'active' && <Check size={11} strokeWidth={3} />}
-                        </span>
-                        <span>Active only (เฉพาะที่เปิดใช้งาน)</span>
-                      </label>
-                    )}
-
                     {(activeTab !== 'holiday' && activeTab !== 'users' && activeTab !== 'map_project') && (
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold text-theme-text-secondary whitespace-nowrap">Status (สถานะ):</span>
@@ -1784,77 +1834,6 @@ export default function AdminPage() {
                     )}
                   </div>
                 </div>
-
-                {activeTab === 'map_project' && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-4 border-t border-theme-border/30">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-theme-text-secondary">Project</label>
-                      <MultiSelectFilter
-                        className="w-full"
-                        label="Project"
-                        defaultAllLabel="All Projects"
-                        options={uniqueProjects.map((v) => ({ value: v, label: v }))}
-                        selectedValues={filterProject}
-                        onChange={setFilterProject}
-                        alwaysShowSearch
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-theme-text-secondary">Holding</label>
-                      <MultiSelectFilter
-                        className="w-full"
-                        label="Holding"
-                        defaultAllLabel="All Holdings"
-                        options={uniqueHoldings.map((v) => ({ value: v, label: v }))}
-                        selectedValues={filterHolding}
-                        onChange={setFilterHolding}
-                        alwaysShowSearch
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-theme-text-secondary">Role</label>
-                      <MultiSelectFilter
-                        className="w-full"
-                        label="Role"
-                        defaultAllLabel="All Roles"
-                        options={uniqueRoles.map((v) => ({ value: v, label: v }))}
-                        selectedValues={filterRole}
-                        onChange={setFilterRole}
-                        alwaysShowSearch
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-theme-text-secondary">Type</label>
-                      <MultiSelectFilter
-                        className="w-full"
-                        label="Type"
-                        defaultAllLabel="All Types"
-                        options={uniqueProjectTypes.map((v) => ({ value: v, label: v }))}
-                        selectedValues={filterType}
-                        onChange={setFilterType}
-                        alwaysShowSearch
-                        align="right"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-theme-text-secondary">BU / Dept</label>
-                      <MultiSelectFilter
-                        className="w-full"
-                        label="BU / Dept"
-                        defaultAllLabel="All BUs"
-                        options={uniqueBUs.map((v) => ({ value: v, label: v }))}
-                        selectedValues={filterBU}
-                        onChange={setFilterBU}
-                        alwaysShowSearch
-                        align="right"
-                      />
-                    </div>
-                  </div>
-                )}
 
                 {activeTab === 'salary_rate' && (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-theme-border/30">
