@@ -1,19 +1,22 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Sparkles, PlusCircle, CheckCircle2, Clock, ShieldCheck,
   TrendingUp, Users, Award, BookOpen, AlertCircle,
   FileCheck2, Building2, Sliders, Search,
-  Calendar, RotateCcw, Check, ShieldAlert,
-  ChevronRight, Laptop, Layers
+  RotateCcw, Check, ShieldAlert,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Laptop, Layers, Compass, Bot,
+  User, Globe, Activity, Send
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import AiLifecycleOnboardingModal from '../components/ai-enterprise/AiLifecycleOnboardingModal';
 import AiTeamMemberPicker, { type AiTeamMember } from '../components/ai-enterprise/AiTeamMemberPicker';
 import AiSeatRosterGrid from '../components/ai-enterprise/AiSeatRosterGrid';
+import AiDepartmentPresetMatcher from '../components/ai-enterprise/AiDepartmentPresetMatcher';
+import { type DepartmentAiPreset } from '../components/ai-enterprise/aiDepartmentPresets';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 import { cn } from '../lib/utils';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 // Types
 export interface AiRequest {
@@ -89,11 +92,67 @@ const AI_FUNCTION_OPTIONS = [
   { id: 'automation', label: 'สร้าง Agent อัตโนมัติ (Autonomous Workflow)', desc: 'เชื่อมต่อ n8n, API, บ็อตตอบคำถาม' }
 ];
 
+function splitDepartmentName(dept: string): { main: string; sub: string } {
+  if (!dept) return { main: '', sub: '' };
+  const match = dept.match(/^([^(]+)(?:\((.*)\))?$/);
+  if (match) {
+    return {
+      main: match[1].trim(),
+      sub: match[2]?.trim() || ''
+    };
+  }
+  return { main: dept, sub: '' };
+}
+
 export default function AiEnterprisePage() {
   const { showToast, showConfirm } = useNotification();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'request' | 'evaluations' | 'reports' | 'governance'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'presets' | 'request' | 'evaluations' | 'reports' | 'governance'>('dashboard');
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [onboardingInitialStep, setOnboardingInitialStep] = useState(0);
+
+  // Tab dock scroll indicators and controls
+  const tabDockRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkTabScroll = useCallback(() => {
+    const el = tabDockRef.current;
+    if (!el) return;
+    const hasScroll = el.scrollWidth > el.clientWidth + 4;
+    setCanScrollLeft(el.scrollLeft > 10);
+    setCanScrollRight(hasScroll && el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
+  }, []);
+
+  useEffect(() => {
+    checkTabScroll();
+    const el = tabDockRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', checkTabScroll, { passive: true });
+    window.addEventListener('resize', checkTabScroll);
+    return () => {
+      el.removeEventListener('scroll', checkTabScroll);
+      window.removeEventListener('resize', checkTabScroll);
+    };
+  }, [checkTabScroll]);
+
+  // Keep active tab visible when changed
+  useEffect(() => {
+    const el = tabDockRef.current;
+    if (!el) return;
+    const activeBtn = el.querySelector<HTMLButtonElement>('[data-active="true"]');
+    if (activeBtn) {
+      activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+    // Re-check scroll indicators after DOM paint
+    const t = setTimeout(checkTabScroll, 100);
+    return () => clearTimeout(t);
+  }, [activeTab, checkTabScroll]);
+
+  const handleTabScroll = (direction: 'left' | 'right') => {
+    if (!tabDockRef.current) return;
+    const scrollAmount = direction === 'left' ? -280 : 280;
+    tabDockRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+  };
 
   // Session user info
   const sessionUser = useMemo(() => {
@@ -115,6 +174,10 @@ export default function AiEnterprisePage() {
   const [evaluations, setEvaluations] = useState<AiEvaluation[]>([]);
   const [reports, setReports] = useState<AiMonthlyReport[]>([]);
 
+  // Tri-Persona Dashboard Perspective & Scoping
+  const [dashboardPerspective, setDashboardPerspective] = useState<'auto' | 'my_impact' | 'department' | 'enterprise_coe'>('auto');
+  const [isLiveData, setIsLiveData] = useState<boolean>(false);
+
   // Dashboard view toggle
   const [activeDashboardView, setActiveDashboardView] = useState<'initiatives' | 'roster'>('initiatives');
 
@@ -122,6 +185,10 @@ export default function AiEnterprisePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
+
+  // Table Pagination
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
 
   // Form states: Request FM-001
   const [formTier, setFormTier] = useState<'virtual_employee' | 'general_web'>('virtual_employee');
@@ -155,6 +222,47 @@ export default function AiEnterprisePage() {
   const [formExpectedBenefits, setFormExpectedBenefits] = useState('');
   const [formDataSafetyCertified, setFormDataSafetyCertified] = useState(false);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
+  // URL Query Params & Graduation Package Bridge
+  const [searchParams] = useSearchParams();
+
+  // Load Graduation Package from AI Sandbox if available
+  useEffect(() => {
+    let hasGraduation = false;
+    try {
+      const rawPkg = localStorage.getItem('ai_enterprise_graduation_package');
+      if (rawPkg) {
+        const pkg = JSON.parse(rawPkg);
+        if (pkg?.prefillForm) {
+          const pf = pkg.prefillForm;
+          if (pf.title) setFormTitle(pf.title);
+          if (pf.department) setFormDept(pf.department);
+          if (pf.recommendedSeats) setFormSeats(pf.recommendedSeats);
+          if (pf.asIsHours) setFormAsIsHours(pf.asIsHours);
+          if (pf.targetHoursSaved) setFormTargetHoursSaved(pf.targetHoursSaved);
+          if (pf.businessJustification) setFormExpectedBenefits(pf.businessJustification);
+          setFormDataSafetyCertified(true);
+          hasGraduation = true;
+          localStorage.removeItem('ai_enterprise_graduation_package');
+        }
+      }
+    } catch {
+      // Ignore errors
+    }
+
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['dashboard', 'presets', 'request', 'evaluations', 'reports', 'governance'].includes(tabParam)) {
+      setActiveTab(tabParam as any);
+      if (hasGraduation && tabParam === 'request') {
+        showToast('🎉 นำเข้าข้อมูลผลการทดสอบเชิงประจักษ์จาก Sandbox สู่แบบฟอร์ม FM-001 เรียบร้อยแล้ว!', 'success');
+      }
+    } else if (hasGraduation || searchParams.get('source') === 'sandbox') {
+      setActiveTab('request');
+      if (hasGraduation) {
+        showToast('🎉 นำเข้าข้อมูลผลการทดสอบเชิงประจักษ์จาก Sandbox สู่แบบฟอร์ม FM-001 เรียบร้อยแล้ว!', 'success');
+      }
+    }
+  }, [searchParams, showToast]);
 
   // Form states: Monthly Report FM-002
   const [reportRequestId, setReportRequestId] = useState('');
@@ -196,6 +304,9 @@ export default function AiEnterprisePage() {
 
       if (reqErr) throw reqErr;
       setRequests(reqData || []);
+      if (reqData && reqData.length > 0) {
+        setIsLiveData(true);
+      }
 
       // 2. Fetch Evaluations
       const { data: evalData, error: evalErr } = await supabase
@@ -215,6 +326,7 @@ export default function AiEnterprisePage() {
 
     } catch (err: unknown) {
       console.warn('Backend tables not loaded or migration pending, falling back to local workspace data:', err);
+      setIsLiveData(false);
       // Fallback Seed Data to keep the UI interactive and rich
       const fallbackRequests: AiRequest[] = [
         {
@@ -497,6 +609,116 @@ export default function AiEnterprisePage() {
     };
   }, [requests, reports]);
 
+  // Effective Perspective derived from user session if set to 'auto'
+  const effectivePerspective: 'my_impact' | 'department' | 'enterprise_coe' = useMemo(() => {
+    if (dashboardPerspective !== 'auto') return dashboardPerspective;
+    if (sessionUser?.role === 'admin' || sessionUser?.workspaceRole === 'admin') return 'enterprise_coe';
+    if (sessionUser?.workspaceRole === 'manager') return 'department';
+    return 'my_impact';
+  }, [dashboardPerspective, sessionUser]);
+
+  // Scoped Data Lookups
+  const isMyRequest = useCallback((r: AiRequest) => {
+    if (!sessionUser) return false;
+    const myEmpId = sessionUser.emp_id || sessionUser.empId;
+    const myName = (sessionUser.name || sessionUser.full_name || '').trim().toLowerCase();
+    const myEmail = (sessionUser.email || '').trim().toLowerCase();
+
+    if (r.user_id && (r.user_id === sessionUser.id || (myEmpId && r.user_id === myEmpId))) return true;
+    if (myEmail && r.email && r.email.toLowerCase() === myEmail) return true;
+    if (myName && r.requester_name && r.requester_name.toLowerCase().includes(myName)) return true;
+
+    if (r.team_members && r.team_members.length > 0) {
+      return r.team_members.some(m => {
+        if (myEmpId && m.emp_id === myEmpId) return true;
+        if (myName && m.name && m.name.toLowerCase().includes(myName)) return true;
+        if (myEmail && m.email && m.email.toLowerCase() === myEmail) return true;
+        return false;
+      });
+    }
+    return false;
+  }, [sessionUser]);
+
+  const isMyDeptRequest = useCallback((r: AiRequest) => {
+    if (!sessionUser?.department) return true;
+    const myDept = sessionUser.department.toLowerCase();
+    const reqDept = (r.department || '').toLowerCase();
+    return reqDept.includes(myDept) || myDept.includes(reqDept);
+  }, [sessionUser]);
+
+  // User's own requests
+  const myRequests = useMemo(() => {
+    const list = requests.filter(isMyRequest);
+    // If none matches in mock/dev mode, pick the first request as sample
+    if (list.length === 0 && requests.length > 0) {
+      return [requests[0]];
+    }
+    return list;
+  }, [requests, isMyRequest]);
+
+  // Department requests
+  const myDeptRequests = useMemo(() => {
+    const list = requests.filter(isMyDeptRequest);
+    if (list.length === 0 && requests.length > 0) {
+      const sampleDept = requests[0]?.department;
+      return requests.filter(r => r.department === sampleDept);
+    }
+    return list;
+  }, [requests, isMyDeptRequest]);
+
+  // Ghost seats (Approved requests with 0 active days or missing reports)
+  const ghostSeats = useMemo(() => {
+    return requests.filter(r => {
+      if (r.status !== 'approved_sandbox') return false;
+      const rep = reports.find(rp => rp.request_id === r.id);
+      return !rep || rep.active_days === 0;
+    });
+  }, [requests, reports]);
+
+  // Personal Metrics (My Impact)
+  const myMetrics = useMemo(() => {
+    const activeReq = myRequests.find(r => r.status === 'approved_sandbox') || myRequests[0];
+    const userReports = reports.filter(rep => myRequests.some(r => r.id === rep.request_id));
+    const weeklyHours = userReports.length > 0
+      ? userReports.reduce((sum, rep) => sum + (Number(rep.actual_hours_saved_per_week) || 0), 0)
+      : (Number(activeReq?.target_hours_saved_per_week) || 0);
+    const monthlyHours = Math.round(weeklyHours * 4.2);
+    const monthlySavings = monthlyHours * 300;
+    const latestReport = userReports[0];
+
+    return {
+      activeRequest: activeReq,
+      weeklyHours,
+      monthlyHours,
+      monthlySavings,
+      activeDays: latestReport ? latestReport.active_days : (activeReq?.status === 'approved_sandbox' ? 18 : 0),
+      totalRequests: myRequests.length
+    };
+  }, [myRequests, reports]);
+
+  // Department Metrics (Team Productivity)
+  const deptMetrics = useMemo(() => {
+    const approved = myDeptRequests.filter(r => r.status === 'approved_sandbox' || r.status === 'completed');
+    const allocatedSeats = approved.reduce((sum, r) => sum + (r.requested_seats || 1), 0);
+    const deptReports = reports.filter(rep => myDeptRequests.some(r => r.id === rep.request_id));
+    const weeklyHours = deptReports.length > 0
+      ? deptReports.reduce((sum, rep) => sum + (Number(rep.actual_hours_saved_per_week) || 0), 0)
+      : approved.reduce((sum, r) => sum + (Number(r.target_hours_saved_per_week) || 0), 0);
+    const monthlyHours = Math.round(weeklyHours * 4.2);
+    const monthlySavings = monthlyHours * 300;
+    const pendingCount = myDeptRequests.filter(r => r.status === 'pending_review').length;
+
+    return {
+      allocatedSeats,
+      weeklyHours,
+      monthlyHours,
+      monthlySavings,
+      totalRequests: myDeptRequests.length,
+      pendingCount,
+      approvedCount: approved.length
+    };
+  }, [myDeptRequests, reports]);
+
   // Filtered requests list
   const filteredRequests = useMemo(() => {
     return requests.filter(r => {
@@ -512,12 +734,45 @@ export default function AiEnterprisePage() {
     });
   }, [requests, searchTerm, filterDepartment, filterStatus]);
 
+  // Paginated requests
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+  }, [filteredRequests.length, pageSize]);
+
+  const paginatedRequests = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRequests.slice(start, start + pageSize);
+  }, [filteredRequests, currentPage, pageSize]);
+
+  // Reset to first page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterDepartment, filterStatus, pageSize]);
+
   // Unique departments for filter
   const departments = useMemo(() => {
     const depts = new Set<string>();
     requests.forEach(r => depts.add(r.department));
     return Array.from(depts);
   }, [requests]);
+
+  // Action: Apply Departmental Preset to FM-001 Request Form
+  const handleApplyDepartmentPreset = useCallback((preset: DepartmentAiPreset) => {
+    setFormTier(preset.prefillForm.tier);
+    setFormDept(preset.deptName);
+    setFormSeats(preset.prefillForm.recommendedSeats);
+    setFormTitle(preset.prefillForm.title);
+    setFormAiJd(preset.prefillForm.aiJd);
+    setFormAsIsProcess(preset.prefillForm.asIsProcess);
+    setFormFrequency(preset.prefillForm.workFrequency);
+    setFormAsIsHours(preset.prefillForm.asIsHours);
+    setFormTargetHoursSaved(preset.prefillForm.targetHoursSaved);
+    setFormSelectedFunctions(preset.prefillForm.aiFunctions);
+    setFormExpectedBenefits(preset.prefillForm.expectedBenefits);
+    setFormAllowPartialAllocation(true);
+    setActiveTab('request');
+    showToast(`โหลดชุดข้อมูล Preset ของ "${preset.deptName}" ลงในฟอร์ม FM-001 เรียบร้อยแล้ว!`, 'success');
+  }, [showToast]);
 
   // Action: Handle Submit Request (FM-001)
   const handleSubmitRequest = async (e: React.FormEvent) => {
@@ -856,13 +1111,13 @@ export default function AiEnterprisePage() {
   return (
     <AppLayout>
       <div className="min-h-screen bg-theme-bg-page text-theme-text pb-16">
-        {/* Top Header Banner */}
-        <div className="border-b border-theme-border/70 bg-gradient-to-r from-indigo-900/15 via-purple-900/10 to-transparent backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Top Header Banner: Clean Enterprise Theme */}
+        <div className="border-b border-theme-border/80 bg-theme-surface/60 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-amber-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-xs">
                     <Sparkles size={20} className="animate-pulse" />
                   </div>
                   <div>
@@ -870,134 +1125,190 @@ export default function AiEnterprisePage() {
                       <h1 className="text-xl sm:text-2xl font-black tracking-tight text-theme-text flex items-center gap-2">
                         AI Enterprise Hub
                       </h1>
-                      <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                        Governance & ROI
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                        ศูนย์บริการ AI ประจำองค์กร
                       </span>
                     </div>
-                    <p className="text-xs text-theme-text-muted mt-0.5">
-                      ศูนย์กลางขับเคลื่อน ปันส่วนสิทธิ์ (Seat Allocation) และวัดผลความคุ้มค่า AI ระดับองค์กร (CoE & Process Improvement)
+                    <p className="text-xs sm:text-sm text-theme-text-muted mt-0.5 leading-relaxed">
+                      เลือกโมเดล AI ที่ตอบโจทย์ ยื่นขอจัดสรรสิทธิ์ และติดตามผลลัพธ์การทำงานที่คุ้มค่าสำหรับทุกฝ่ายงาน
                     </p>
                     <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
-                        🌱 Transform Me (ยกระดับตนเอง)
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-theme-bg-page text-indigo-600 dark:text-indigo-400 border border-theme-border/60">
+                        🌱 เพิ่มประสิทธิภาพงานรายบุคคล
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-500 border border-purple-500/20">
-                        🤝 Transform Us (แบ่งปันทั้งองค์กร)
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-theme-bg-page text-purple-600 dark:text-purple-400 border border-theme-border/60">
+                        🤝 แชร์คลังความรู้ร่วมกันในฝ่าย
                       </span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                        🛡️ 3Ts (Trust • Transparency • Transformation)
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-theme-bg-page text-emerald-600 dark:text-emerald-400 border border-theme-border/60">
+                        🛡️ ปลอดภัยตามระเบียบข้อมูลองค์กร
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2.5">
+              {/* Action Buttons: Clean & Non-redundant */}
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => {
                     setOnboardingInitialStep(0);
                     setIsOnboardingOpen(true);
                   }}
-                  className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                   title="เปิดดูคู่มือและภาพรวมวงจร 4 ขั้นตอน"
                 >
-                  <Sparkles size={14} className="text-indigo-500 animate-pulse" />
-                  <span>ดูวงจร AI Lifecycle (4 ขั้นตอน)</span>
+                  <Sparkles size={14} className="text-indigo-500" />
+                  <span>💡 คู่มือเริ่มต้น 4 ขั้นตอน</span>
                 </button>
-                <button
-                  onClick={() => setActiveTab('request')}
-                  className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/25 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                <Link
+                  to="/ai-chat"
+                  className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+                  title="เปิดห้องแชต AI ใช้งานทั่วไป"
                 >
-                  <PlusCircle size={15} />
-                  <span>ยื่นคำขอใช้งาน (FM-001)</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('reports')}
-                  className="px-3.5 py-2 text-xs font-semibold rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-tertiary transition-all flex items-center gap-1.5 text-theme-text cursor-pointer"
-                >
-                  <FileCheck2 size={15} className="text-emerald-500" />
-                  <span>ส่งผลงานประจำเดือน (FM-002)</span>
-                </button>
+                  <Bot size={14} className="text-indigo-500" />
+                  <span>เปิด AI Chat</span>
+                </Link>
               </div>
             </div>
 
-            {/* Navigation Tabs (Ordered strictly by Natural Lifecycle 1-2-3-4) */}
-            <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-1 border-b border-theme-border/40 scrollbar-none">
-              <button
-                onClick={() => setActiveTab('dashboard')}
-                className={cn(
-                  "px-3.5 py-2 rounded-t-lg text-xs font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
-                  activeTab === 'dashboard'
-                    ? "border-indigo-500 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 font-bold"
-                    : "border-transparent text-theme-text-muted hover:text-theme-text hover:bg-theme-surface-tertiary"
-                )}
-              >
-                <TrendingUp size={15} />
-                <span>1. ภาพรวม & ROI</span>
-              </button>
+            {/* Modern Segmented Navigation Dock (Tabs 1-6) with Arrow Guide */}
+            <div className="relative mt-5 group/nav">
+              {/* Left Arrow Guide Button with Gradient Mask */}
+              {canScrollLeft && (
+                <div className="absolute left-0 top-0 bottom-0 z-20 flex items-center pr-4 pl-1 bg-gradient-to-r from-theme-bg-page via-theme-bg-page/95 to-transparent rounded-l-2xl">
+                  <button
+                    type="button"
+                    onClick={() => handleTabScroll('left')}
+                    className="w-7 h-7 rounded-full bg-theme-surface border border-theme-border shadow-md flex items-center justify-center text-theme-text hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-500/50 transition-all cursor-pointer active:scale-90"
+                    title="เลื่อนไปแท็บก่อนหน้า"
+                    aria-label="Previous tabs"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                </div>
+              )}
 
-              <button
-                onClick={() => setActiveTab('request')}
-                className={cn(
-                  "px-3.5 py-2 rounded-t-lg text-xs font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
-                  activeTab === 'request'
-                    ? "border-indigo-500 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 font-bold"
-                    : "border-transparent text-theme-text-muted hover:text-theme-text hover:bg-theme-surface-tertiary"
-                )}
+              {/* Scrollable Tab Container */}
+              <div
+                ref={tabDockRef}
+                className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-theme-bg-page/80 border border-theme-border/80 border-t-white/35 dark:border-t-white/15 backdrop-blur-xl shadow-xs overflow-x-auto scrollbar-none scroll-smooth"
               >
-                <PlusCircle size={15} />
-                <span>2. ยื่นคำขอ AI (FM-001)</span>
-              </button>
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  data-active={activeTab === 'dashboard'}
+                  className={cn(
+                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
+                    activeTab === 'dashboard'
+                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
+                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
+                  )}
+                >
+                  <TrendingUp size={14} className={activeTab === 'dashboard' ? 'text-indigo-600 dark:text-indigo-400' : 'text-theme-text-muted'} />
+                  <span>1. ภาพรวม &amp; สถิติ</span>
+                </button>
 
-              <button
-                onClick={() => setActiveTab('evaluations')}
-                className={cn(
-                  "px-3.5 py-2 rounded-t-lg text-xs font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
-                  activeTab === 'evaluations'
-                    ? "border-indigo-500 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 font-bold"
-                    : "border-transparent text-theme-text-muted hover:text-theme-text hover:bg-theme-surface-tertiary"
-                )}
-              >
-                <Sliders size={15} />
-                <span>3. ประเมินเกณฑ์ CoE (100 คะแนน)</span>
-                {evaluations.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-500/15 text-indigo-500 font-mono font-bold">
-                    {evaluations.length}
+                <button
+                  onClick={() => setActiveTab('presets')}
+                  data-active={activeTab === 'presets'}
+                  className={cn(
+                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
+                    activeTab === 'presets'
+                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
+                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
+                  )}
+                >
+                  <Compass size={14} className={activeTab === 'presets' ? 'text-amber-500' : 'text-amber-500/70'} />
+                  <span>2. แนะนำแพ็กเกจ (Presets)</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold">
+                    New
                   </span>
-                )}
-                {isAdminOrManager && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-rose-500/15 text-rose-500 font-bold">
-                    Admin
-                  </span>
-                )}
-              </button>
+                </button>
 
-              <button
-                onClick={() => setActiveTab('reports')}
-                className={cn(
-                  "px-3.5 py-2 rounded-t-lg text-xs font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
-                  activeTab === 'reports'
-                    ? "border-indigo-500 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 font-bold"
-                    : "border-transparent text-theme-text-muted hover:text-theme-text hover:bg-theme-surface-tertiary"
-                )}
-              >
-                <Calendar size={15} />
-                <span>4. รายงานผลรายเดือน (FM-002)</span>
-              </button>
+                <button
+                  onClick={() => setActiveTab('request')}
+                  data-active={activeTab === 'request'}
+                  className={cn(
+                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
+                    activeTab === 'request'
+                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
+                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
+                  )}
+                >
+                  <PlusCircle size={14} className={activeTab === 'request' ? 'text-indigo-600 dark:text-indigo-400' : 'text-theme-text-muted'} />
+                  <span>3. ยื่นขอสิทธิ์ AI (FM-001)</span>
+                </button>
 
-              <button
-                onClick={() => setActiveTab('governance')}
-                className={cn(
-                  "px-3.5 py-2 rounded-t-lg text-xs font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer",
-                  activeTab === 'governance'
-                    ? "border-indigo-500 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 font-bold"
-                    : "border-transparent text-theme-text-muted hover:text-theme-text hover:bg-theme-surface-tertiary"
-                )}
-              >
-                <BookOpen size={15} />
-                <span>5. ระเบียบปฏิบัติ & WI-001</span>
-              </button>
+                <button
+                  onClick={() => setActiveTab('evaluations')}
+                  data-active={activeTab === 'evaluations'}
+                  className={cn(
+                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
+                    activeTab === 'evaluations'
+                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
+                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
+                  )}
+                >
+                  <Sliders size={14} className={activeTab === 'evaluations' ? 'text-indigo-600 dark:text-indigo-400' : 'text-theme-text-muted'} />
+                  <span>4. ผลการพิจารณา</span>
+                  {evaluations.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-500/15 text-indigo-500 font-mono font-bold">
+                      {evaluations.length}
+                    </span>
+                  )}
+                  {isAdminOrManager && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-rose-500/15 text-rose-500 font-bold">
+                      Admin
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('reports')}
+                  data-active={activeTab === 'reports'}
+                  className={cn(
+                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
+                    activeTab === 'reports'
+                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
+                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
+                  )}
+                >
+                  <FileCheck2 size={14} className={activeTab === 'reports' ? 'text-emerald-500' : 'text-emerald-500/70'} />
+                  <span>5. ส่งผลงาน (FM-002)</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('governance')}
+                  data-active={activeTab === 'governance'}
+                  className={cn(
+                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
+                    activeTab === 'governance'
+                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
+                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
+                  )}
+                >
+                  <BookOpen size={14} className={activeTab === 'governance' ? 'text-indigo-600 dark:text-indigo-400' : 'text-theme-text-muted'} />
+                  <span>6. ระเบียบปฏิบัติ (WI-001)</span>
+                </button>
+              </div>
+
+              {/* Right Arrow Guide Button with Gradient Mask & Animated Pulse */}
+              {canScrollRight && (
+                <div className="absolute right-0 top-0 bottom-0 z-20 flex items-center pl-4 pr-1 bg-gradient-to-l from-theme-bg-page via-theme-bg-page/95 to-transparent rounded-r-2xl">
+                  <button
+                    type="button"
+                    onClick={() => handleTabScroll('right')}
+                    className="h-7 px-2.5 rounded-full bg-theme-surface border border-indigo-500/40 shadow-md flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold text-[11px] hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all cursor-pointer active:scale-90"
+                    title="มีหัวข้อถัดไป (เช่น 6. ระเบียบปฏิบัติ) คลิกเพื่อเลื่อนดู"
+                    aria-label="Next tabs"
+                  >
+                    <span className="hidden sm:inline text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                      มีหัวข้อถัดไป
+                    </span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping inline-block" />
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1011,94 +1322,687 @@ export default function AiEnterprisePage() {
                 <span>กำลังโหลดข้อมูลภาพรวมโครงการ AI...</span>
               </div>
             )}
-            {/* Metric KPI Cards */}
+            {/* Tri-Persona Perspective Switcher & Workspace Control Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 rounded-2xl bg-theme-surface border border-theme-border/80 shadow-2xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-theme-text-muted mr-1">มุมมองข้อมูล:</span>
+                
+                {/* 1. My Impact */}
+                <button
+                  type="button"
+                  onClick={() => setDashboardPerspective('my_impact')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer",
+                    effectivePerspective === 'my_impact'
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-theme-surface-secondary text-theme-text hover:bg-theme-surface-tertiary border border-theme-border/60"
+                  )}
+                >
+                  <User size={14} className={effectivePerspective === 'my_impact' ? "text-white" : "text-indigo-500"} />
+                  <span>งานของฉัน (My Impact)</span>
+                  {dashboardPerspective === 'auto' && effectivePerspective === 'my_impact' && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/20">Auto</span>
+                  )}
+                </button>
+
+                {/* 2. Department */}
+                <button
+                  type="button"
+                  onClick={() => setDashboardPerspective('department')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer",
+                    effectivePerspective === 'department'
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-theme-surface-secondary text-theme-text hover:bg-theme-surface-tertiary border border-theme-border/60"
+                  )}
+                >
+                  <Building2 size={14} className={effectivePerspective === 'department' ? "text-white" : "text-indigo-500"} />
+                  <span>ฝ่ายของฉัน</span>
+                  {sessionUser?.department && (
+                    <span className="text-[10px] opacity-75 hidden xl:inline max-w-[140px] truncate">
+                      ({sessionUser.department})
+                    </span>
+                  )}
+                  {dashboardPerspective === 'auto' && effectivePerspective === 'department' && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/20">Auto</span>
+                  )}
+                </button>
+
+                {/* 3. Enterprise CoE Hub */}
+                <button
+                  type="button"
+                  onClick={() => setDashboardPerspective('enterprise_coe')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer",
+                    effectivePerspective === 'enterprise_coe'
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-theme-surface-secondary text-theme-text hover:bg-theme-surface-tertiary border border-theme-border/60"
+                  )}
+                >
+                  <Globe size={14} className={effectivePerspective === 'enterprise_coe' ? "text-white" : "text-indigo-500"} />
+                  <span>ภาพรวมองค์กร (CoE Hub)</span>
+                  {dashboardPerspective === 'auto' && effectivePerspective === 'enterprise_coe' && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/20">Auto</span>
+                  )}
+                </button>
+
+                {dashboardPerspective !== 'auto' && (
+                  <button
+                    type="button"
+                    onClick={() => setDashboardPerspective('auto')}
+                    className="text-[11px] text-theme-text-muted hover:text-indigo-600 dark:hover:text-indigo-400 underline underline-offset-2 ml-1 cursor-pointer"
+                  >
+                    รีเซ็ตเป็นอัตโนมัติ
+                  </button>
+                )}
+              </div>
+
+              {/* Badges: DB Mode & Governance */}
+              <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                <span
+                  className={cn(
+                    "px-2.5 py-1 rounded-lg text-[11px] font-medium border flex items-center gap-1.5",
+                    isLiveData
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
+                      : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25"
+                  )}
+                  title={isLiveData ? "เชื่อมต่อฐานข้อมูล Supabase สำเร็จ" : "ระบบทำงานในโหมด Local Sandbox / Mock Data"}
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isLiveData ? "bg-emerald-500" : "bg-amber-500")} />
+                  <span>{isLiveData ? "🟢 Supabase Live DB" : "🟡 Local Sandbox / Cache"}</span>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('governance')}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-theme-surface-secondary hover:bg-theme-surface-tertiary border border-theme-border text-theme-text-muted hover:text-theme-text flex items-center gap-1 transition-all cursor-pointer"
+                >
+                  <BookOpen size={12} className="text-indigo-500" />
+                  <span>ระเบียบ WI-PI-AI-001</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Adaptive Metric KPI Cards (Scoped by Perspective) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-indigo-500/40 transition-all">
+              {/* Card 1: Hours Saved */}
+              <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-emerald-500/40 transition-all">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-theme-text-muted uppercase tracking-wider">ชั่วโมงที่ประหยัดได้/เดือน</span>
+                  <span className="text-xs font-medium text-theme-text-muted uppercase tracking-wider">
+                    {effectivePerspective === 'my_impact'
+                      ? 'เวลาที่ฉันประหยัดได้/เดือน'
+                      : effectivePerspective === 'department'
+                        ? 'เวลาที่ฝ่ายประหยัดได้/เดือน'
+                        : 'ชั่วโมงที่ประหยัดได้/เดือน'}
+                  </span>
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                     <Clock size={16} />
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
                   <span className="text-3xl font-black text-theme-text tracking-tight font-mono">
-                    {metrics.totalMonthlyHoursSaved.toLocaleString()}
+                    {effectivePerspective === 'my_impact'
+                      ? myMetrics.monthlyHours.toLocaleString()
+                      : effectivePerspective === 'department'
+                        ? deptMetrics.monthlyHours.toLocaleString()
+                        : metrics.totalMonthlyHoursSaved.toLocaleString()}
                   </span>
-                  <span className="text-xs text-emerald-500 font-semibold flex items-center">
-                    ชม./เดือน
-                  </span>
+                  <span className="text-xs text-emerald-500 font-semibold">ชม./เดือน</span>
                 </div>
                 <p className="text-[11px] text-theme-text-muted mt-2">
-                  คำนวณจาก {metrics.totalWeeklyHoursSaved} ชม./สัปดาห์ ทุกโครงการรวมกัน
+                  {effectivePerspective === 'my_impact'
+                    ? `คำนวณจากเป้าหมาย ${myMetrics.weeklyHours} ชม./สัปดาห์ ของงานฉัน`
+                    : effectivePerspective === 'department'
+                      ? `คำนวณจาก ${deptMetrics.weeklyHours} ชม./สัปดาห์ ในฝ่าย ${sessionUser?.department || 'ของฉัน'}`
+                      : `คำนวณจาก ${metrics.totalWeeklyHoursSaved} ชม./สัปดาห์ ทุกโครงการรวมกัน`}
                 </p>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400" />
               </div>
 
+              {/* Card 2: Cost Savings (ROI) */}
               <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-indigo-500/40 transition-all">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-theme-text-muted uppercase tracking-wider">มูลค่าประหยัดสะสม (ROI)</span>
+                  <span className="text-xs font-medium text-theme-text-muted uppercase tracking-wider">
+                    {effectivePerspective === 'my_impact'
+                      ? 'มูลค่าผลงานส่วนบุคคล (ROI)'
+                      : effectivePerspective === 'department'
+                        ? 'มูลค่าประหยัดรวมทั้งฝ่าย'
+                        : 'มูลค่าประหยัดสะสม (ROI)'}
+                  </span>
                   <div className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
                     <TrendingUp size={16} />
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
                   <span className="text-3xl font-black text-theme-text tracking-tight font-mono">
-                    ฿{metrics.monthlyCostSavings.toLocaleString()}
+                    ฿{effectivePerspective === 'my_impact'
+                      ? myMetrics.monthlySavings.toLocaleString()
+                      : effectivePerspective === 'department'
+                        ? deptMetrics.monthlySavings.toLocaleString()
+                        : metrics.monthlyCostSavings.toLocaleString()}
                   </span>
-                  <span className="text-xs text-indigo-500 font-semibold">
-                    /เดือน
-                  </span>
+                  <span className="text-xs text-indigo-500 font-semibold">/เดือน</span>
                 </div>
                 <p className="text-[11px] text-theme-text-muted mt-2">
-                  อิง Standard Blended Rate 300 ฿/ชม. ของพนักงาน
+                  อิง Standard Blended Rate 300 ฿/ชม. ตามระเบียบ WI-001
                 </p>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500" />
               </div>
 
-              <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-indigo-500/40 transition-all">
+              {/* Card 3: Seats & Allocation Status */}
+              <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-amber-500/40 transition-all">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-theme-text-muted uppercase tracking-wider">สิทธิ์ที่จัดสรร (Seats)</span>
+                  <span className="text-xs font-medium text-theme-text-muted uppercase tracking-wider">
+                    {effectivePerspective === 'my_impact'
+                      ? 'สถานะสิทธิ์ AI ของฉัน'
+                      : effectivePerspective === 'department'
+                        ? 'สิทธิ์ที่จัดสรรในฝ่าย'
+                        : 'สิทธิ์ที่จัดสรร (Seats)'}
+                  </span>
                   <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
-                    <Users size={16} />
+                    {effectivePerspective === 'my_impact' ? <ShieldCheck size={16} /> : <Users size={16} />}
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-theme-text tracking-tight font-mono">
-                    {metrics.totalAllocatedSeats}
+                  <span className="text-2xl sm:text-3xl font-black text-theme-text tracking-tight font-mono">
+                    {effectivePerspective === 'my_impact'
+                      ? (myMetrics.activeRequest?.status === 'approved_sandbox' ? '1 ที่นั่ง' : myMetrics.activeRequest?.status === 'pending_review' ? 'รอพิจารณา' : 'ยื่นขอใช้งาน')
+                      : effectivePerspective === 'department'
+                        ? `${deptMetrics.allocatedSeats} ที่นั่ง`
+                        : metrics.totalAllocatedSeats}
                   </span>
                   <span className="text-xs text-amber-500 font-semibold">
-                    / 20 Seats (Seed Pool)
+                    {effectivePerspective === 'my_impact'
+                      ? (myMetrics.activeRequest?.status === 'approved_sandbox' ? '• Sandbox 90 วัน' : '• FM-001')
+                      : effectivePerspective === 'department'
+                        ? `(จาก ${deptMetrics.approvedCount} โครงการ)`
+                        : '/ 20 Seats (Seed Pool)'}
                   </span>
                 </div>
                 <p className="text-[11px] text-theme-text-muted mt-2">
-                  Sandbox 90 วัน • ปัจจุบันมี {metrics.approvedCount} โครงการที่ได้รับสิทธิ์
+                  {effectivePerspective === 'my_impact'
+                    ? (myMetrics.activeRequest?.title || 'ยังไม่มีโครงการที่บันทึก')
+                    : effectivePerspective === 'department'
+                      ? `โควตารวมเฉพาะฝ่าย ${sessionUser?.department || 'ของฉัน'}`
+                      : `Sandbox 90 วัน • อนุมัติแล้ว ${metrics.approvedCount} โครงการ`}
                 </p>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-400" />
               </div>
 
-              <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-indigo-500/40 transition-all">
+              {/* Card 4: Activity / Pending */}
+              <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-sky-500/40 transition-all">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-theme-text-muted uppercase tracking-wider">คิวรอพิจารณา (Pending)</span>
+                  <span className="text-xs font-medium text-theme-text-muted uppercase tracking-wider">
+                    {effectivePerspective === 'my_impact'
+                      ? 'วันที่ Active เดือนนี้'
+                      : effectivePerspective === 'department'
+                        ? 'คำขอรออนุมัติในฝ่าย'
+                        : 'คิวรอพิจารณา (Pending)'}
+                  </span>
                   <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center">
-                    <FileCheck2 size={16} />
+                    {effectivePerspective === 'my_impact' ? <Activity size={16} /> : <FileCheck2 size={16} />}
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
                   <span className="text-3xl font-black text-theme-text tracking-tight font-mono">
-                    {metrics.pendingCount}
+                    {effectivePerspective === 'my_impact'
+                      ? myMetrics.activeDays
+                      : effectivePerspective === 'department'
+                        ? deptMetrics.pendingCount
+                        : metrics.pendingCount}
                   </span>
                   <span className="text-xs text-sky-500 font-semibold">
-                    คำขอ
+                    {effectivePerspective === 'my_impact' ? 'วัน/เดือน' : 'คำขอ'}
                   </span>
                 </div>
                 <p className="text-[11px] text-theme-text-muted mt-2">
-                  จากทั้งหมด {metrics.totalRequests} คำขอที่ยื่นเข้ามาในระบบ
+                  {effectivePerspective === 'my_impact'
+                    ? 'เกณฑ์รักษาที่นั่ง: ใช้งานอย่างน้อย 10 วัน/เดือน'
+                    : effectivePerspective === 'department'
+                      ? `จากทั้งหมด ${deptMetrics.totalRequests} คำขอในฝ่าย`
+                      : `จากทั้งหมด ${metrics.totalRequests} คำขอที่ยื่นเข้ามา`}
                 </p>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-500 to-blue-400" />
               </div>
             </div>
 
-            {/* 2-Tier Strategy Showcase: Virtual AI Employee vs General Users */}
+            {/* VIEW A: MY IMPACT (Personal Workspace View) */}
+            {effectivePerspective === 'my_impact' && (
+              <div className="space-y-6">
+                {/* 1. Personal AI Lifecycle Progress Stepper Card */}
+                <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-6 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25">
+                          Personal AI Journey
+                        </span>
+                        <span className="text-xs text-theme-text-muted">ความคืบหน้าสิทธิ์และการใช้งานของฉัน</span>
+                      </div>
+                      <h3 className="text-base font-bold text-theme-text mt-1 flex items-center gap-2">
+                        <span>{myMetrics.activeRequest?.title || 'โครงการเพิ่มประสิทธิภาพด้วย AI'}</span>
+                      </h3>
+                    </div>
+                    {/* Quick action buttons */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        to="/ai-chat"
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-xs transition-all"
+                      >
+                        <Bot size={14} />
+                        <span>เปิด AI Chat ทันที</span>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (myMetrics.activeRequest) setReportRequestId(myMetrics.activeRequest.id);
+                          setActiveTab('reports');
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                      >
+                        <Send size={13} />
+                        <span>ส่งผลงานประจำเดือน (FM-002)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('request')}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-theme-surface-secondary hover:bg-theme-surface-tertiary border border-theme-border text-theme-text flex items-center gap-1 transition-all cursor-pointer"
+                      >
+                        <PlusCircle size={13} />
+                        <span>ยื่นคำขอใหม่ (FM-001)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4-Step Stepper Progress */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+                    {/* Step 1 */}
+                    <div className="p-4 rounded-xl border bg-theme-surface-secondary/40 border-emerald-500/30">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">✓</div>
+                        <span className="text-xs font-bold text-theme-text">1. ยื่นคำขอ FM-001</span>
+                      </div>
+                      <p className="text-[11px] text-theme-text-muted mt-2">
+                        ระบุปัญหา As-Is และเป้าหมายเวลาที่ลด {myMetrics.weeklyHours} ชม./สัปดาห์
+                      </p>
+                      <span className="inline-block mt-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        สำเร็จแล้ว
+                      </span>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className={cn(
+                      "p-4 rounded-xl border",
+                      myMetrics.activeRequest?.status === 'approved_sandbox'
+                        ? "bg-theme-surface-secondary/40 border-emerald-500/30"
+                        : "bg-theme-surface-secondary/20 border-indigo-500/30"
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
+                          myMetrics.activeRequest?.status === 'approved_sandbox'
+                            ? "bg-emerald-500 text-white"
+                            : "bg-indigo-500 text-white animate-pulse"
+                        )}>
+                          {myMetrics.activeRequest?.status === 'approved_sandbox' ? '✓' : '2'}
+                        </div>
+                        <span className="text-xs font-bold text-theme-text">2. CoE ประเมินเกณฑ์ 100 คะแนน</span>
+                      </div>
+                      <p className="text-[11px] text-theme-text-muted mt-2">
+                        พิจารณา ROI, ความพร้อมของข้อมูล และความเสี่ยง Data Security
+                      </p>
+                      <span className={cn(
+                        "inline-block mt-2 text-[10px] font-bold",
+                        myMetrics.activeRequest?.status === 'approved_sandbox'
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-indigo-600 dark:text-indigo-400"
+                      )}>
+                        {myMetrics.activeRequest?.status === 'approved_sandbox' ? 'ผ่านเกณฑ์อนุมัติ' : 'กำลังพิจารณา'}
+                      </span>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className={cn(
+                      "p-4 rounded-xl border",
+                      myMetrics.activeRequest?.status === 'approved_sandbox'
+                        ? "bg-theme-surface-secondary/40 border-emerald-500/30"
+                        : "bg-theme-surface-secondary/10 border-theme-border/60 opacity-70"
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold",
+                          myMetrics.activeRequest?.status === 'approved_sandbox' ? "bg-emerald-500 text-white" : "bg-theme-surface-tertiary text-theme-text-muted"
+                        )}>
+                          {myMetrics.activeRequest?.status === 'approved_sandbox' ? '✓' : '3'}
+                        </div>
+                        <span className="text-xs font-bold text-theme-text">3. จัดสรรสิทธิ์ & IT SSO</span>
+                      </div>
+                      <p className="text-[11px] text-theme-text-muted mt-2">
+                        ออกบัญชี Claude Team Premium / Seed Pool ทดลอง 90 วัน
+                      </p>
+                      <span className="inline-block mt-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        {myMetrics.activeRequest?.status === 'approved_sandbox' ? 'เปิดใช้งานพร้อมแล้ว' : 'รอดำเนินการ'}
+                      </span>
+                    </div>
+
+                    {/* Step 4 */}
+                    <div className="p-4 rounded-xl border bg-theme-surface-secondary/40 border-amber-500/30">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">4</div>
+                        <span className="text-xs font-bold text-theme-text">4. ส่งผลงานประจำเดือน FM-002</span>
+                      </div>
+                      <p className="text-[11px] text-theme-text-muted mt-2">
+                        บันทึก Active Days (ปัจจุบัน {myMetrics.activeDays} วัน) และเวลาที่ลดจริง
+                      </p>
+                      <span className="inline-block mt-2 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                        ต้องส่งทุกสิ้นเดือน
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2-Column: Department Champions & My Deliverables */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Department AI Champions (เพื่อนร่วมฝ่ายที่มีสิทธิ์ AI) */}
+                  <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h4 className="text-sm font-bold text-theme-text flex items-center gap-2">
+                          <Users size={16} className="text-indigo-500" />
+                          <span>AI Champions ในฝ่าย {sessionUser?.department || 'ของฉัน'}</span>
+                        </h4>
+                        <p className="text-xs text-theme-text-muted mt-0.5">
+                          เพื่อนร่วมงานที่ได้รับสิทธิ์ AI ในฝ่าย สามารถแลกเปลี่ยน Prompts และปรึกษาการใช้งานได้
+                        </p>
+                      </div>
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                        {myDeptRequests.filter(r => r.status === 'approved_sandbox').length} สิทธิ์ในฝ่าย
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {myDeptRequests.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-theme-text-muted">
+                          ยังไม่มีคำขอในฝ่ายของคุณ
+                        </div>
+                      ) : (
+                        myDeptRequests.map((req) => (
+                          <div key={req.id} className="p-3.5 rounded-xl bg-theme-surface-secondary/50 border border-theme-border/60 flex items-center justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-xs text-theme-text">{req.requester_name}</span>
+                                <span className="text-[11px] text-theme-text-muted">• {req.position || 'เจ้าหน้าที่'}</span>
+                              </div>
+                              <p className="text-xs text-theme-text-secondary mt-0.5">{req.title}</p>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-500">
+                                  {req.requested_seats} ที่นั่ง
+                                </span>
+                                <span className="text-[10px] text-theme-text-muted">
+                                  ลดเวลา: {req.target_hours_saved_per_week} ชม./สัปดาห์
+                                </span>
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              {req.status === 'approved_sandbox' ? (
+                                <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                  Active Champion
+                                </span>
+                              ) : (
+                                <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                  {req.status === 'pending_review' ? 'รอพิจารณา' : 'รอดำเนินการ'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* My Deliverables & Guidelines */}
+                  <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-sm font-bold text-theme-text flex items-center gap-2">
+                          <Award size={16} className="text-amber-500" />
+                          <span>ผลงานและความสำเร็จของฉัน (Deliverables)</span>
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('reports')}
+                          className="text-xs text-indigo-500 hover:text-indigo-400 font-medium flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>ดูรายงาน FM-002</span>
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-xl bg-theme-surface-secondary/40 border border-theme-border/60">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-theme-text">สรุปเวลาประหยัดสะสม</span>
+                            <span className="text-xs font-mono font-bold text-emerald-500">
+                              +{myMetrics.weeklyHours} ชม./สัปดาห์
+                            </span>
+                          </div>
+                          <p className="text-xs text-theme-text-muted mt-1">
+                            ช่วยให้งานเสร็จเร็วขึ้น ลดภาระงานรูทีน และนำเวลาไปพัฒนางานเชิงกลยุทธ์
+                          </p>
+                        </div>
+
+                        {/* Security Guidelines Tip */}
+                        <div className="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/20">
+                          <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                            <ShieldCheck size={15} />
+                            <span>แนวปฏิบัติ Data Security ตามระเบียบ WI-PI-AI-001</span>
+                          </div>
+                          <ul className="text-[11px] text-theme-text-muted mt-2 space-y-1 list-disc list-inside">
+                            <li>อนุญาตเฉพาะข้อมูลภายใน (Internal) ชั้นความลับ 1-2</li>
+                            <li>ห้ามนำข้อมูลลูกค้า บัญชีธนาคาร หรือรหัสผ่านเข้าสู่โมเดลเด็ดขาด</li>
+                            <li>หากใช้งานโมเดลภายนอก ต้องเปิดสวิตช์ <em>Do Not Train</em> เสมอ</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-theme-border/40 flex items-center justify-between text-xs text-theme-text-muted">
+                      <span>ต้องการยกระดับทักษะ Prompt หรือสอบถามปัญหา:</span>
+                      <span className="font-semibold text-indigo-500">ติดต่อ CoE ทีม Process Improvement</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW B: DEPARTMENT (Team Productivity & Manager Overview) */}
+            {effectivePerspective === 'department' && (
+              <div className="space-y-6">
+                {/* Department Header Banner */}
+                <div className="p-6 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
+                        ฝ่าย {sessionUser?.department || 'ฝ่ายงาน'}
+                      </span>
+                      <span className="text-xs text-theme-text-muted">ภาพรวมผลิตภาพและความคุ้มค่า AI ระดับฝ่าย</span>
+                    </div>
+                    <h3 className="text-lg font-bold text-theme-text mt-1.5 flex items-center gap-2">
+                      <Building2 size={20} className="text-indigo-500" />
+                      <span>ทีม {sessionUser?.department || 'ฝ่ายงาน'} • จัดสรรแล้ว {deptMetrics.allocatedSeats} ที่นั่ง</span>
+                    </h3>
+                    <p className="text-xs text-theme-text-muted mt-1 max-w-2xl leading-relaxed">
+                      ติดตามการใช้ประโยชน์จาก AI ของพนักงานในฝ่าย ตรวจสอบคำขอที่รอการรับรอง และประเมินความคุ้มค่าเทียบกับชั่วโมงการทำงานจริง
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('request')}
+                      className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <PlusCircle size={14} />
+                      <span>ยื่นคำขอในนามฝ่าย (FM-001)</span>
+                    </button>
+                    {isAdminOrManager && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('evaluations')}
+                        className="px-4 py-2 rounded-xl text-xs font-bold bg-theme-surface border border-indigo-500/40 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Sliders size={14} />
+                        <span>ประเมินคำขอของทีม ({deptMetrics.pendingCount})</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2-Column: Department Initiatives & Team Utilization */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left: Department Requests & Pipeline */}
+                  <div className="lg:col-span-2 bg-theme-surface border border-theme-border/80 rounded-2xl p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h4 className="text-sm font-bold text-theme-text flex items-center gap-2">
+                          <Layers size={16} className="text-indigo-500" />
+                          <span>รายการคำขอและโครงการ AI ในฝ่าย ({myDeptRequests.length} โครงการ)</span>
+                        </h4>
+                        <p className="text-xs text-theme-text-muted mt-0.5">
+                          ติดตามสถานะตั้งแต่การยื่นคำขอจนถึงการอนุมัติ Sandbox
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {myDeptRequests.length === 0 ? (
+                        <div className="text-center py-8 text-xs text-theme-text-muted">
+                          ยังไม่มีคำขอจากฝ่ายนี้ในระบบ
+                        </div>
+                      ) : (
+                        myDeptRequests.map((req) => (
+                          <div key={req.id} className="p-4 rounded-xl bg-theme-surface-secondary/40 border border-theme-border/60 hover:border-theme-border transition-all">
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-xs text-theme-text">{req.title}</span>
+                                  <span className="text-[10px] px-2 py-0.5 rounded font-mono bg-theme-surface-tertiary">
+                                    {req.requested_seats} ที่นั่ง
+                                  </span>
+                                </div>
+                                <div className="text-xs text-theme-text-muted mt-1 flex items-center gap-2">
+                                  <span>ผู้ยื่น: {req.requester_name}</span>
+                                  {req.position && <span>• {req.position}</span>}
+                                </div>
+                                <p className="text-xs text-theme-text-secondary mt-1.5 line-clamp-2">
+                                  {req.as_is_process}
+                                </p>
+                              </div>
+
+                              <div className="sm:text-right shrink-0 mt-2 sm:mt-0 flex sm:flex-col items-center sm:items-end justify-between gap-1.5">
+                                {req.status === 'approved_sandbox' ? (
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                    ✓ อนุมัติ Sandbox (90 วัน)
+                                  </span>
+                                ) : req.status === 'pending_review' ? (
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
+                                    ⏱️ รอ CoE ประเมิน
+                                  </span>
+                                ) : (
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                    ⏳ Waiting List
+                                  </span>
+                                )}
+                                <span className="text-xs font-mono font-bold text-emerald-500 block">
+                                  ลดเวลา {req.target_hours_saved_per_week} ชม./สัปดาห์
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Team Productivity Insights & Deliverables */}
+                  <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-theme-text flex items-center gap-2 mb-3">
+                        <TrendingUp size={16} className="text-emerald-500" />
+                        <span>ผลตอบแทนความคุ้มค่า (ROI ของฝ่าย)</span>
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="p-3.5 rounded-xl bg-theme-surface-secondary/50 border border-theme-border/60">
+                          <div className="text-[11px] text-theme-text-muted">มูลค่าประหยัดต่อปี (Estimated Annual ROI)</div>
+                          <div className="text-xl font-black text-theme-text font-mono mt-1">
+                            ฿{(deptMetrics.monthlySavings * 12).toLocaleString()}
+                          </div>
+                          <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
+                            ประหยัดเวลา {deptMetrics.monthlyHours * 12} ชั่วโมงทำงาน/ปี
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-theme-surface-secondary/50 border border-theme-border/60">
+                          <div className="text-[11px] text-theme-text-muted">ความสม่ำเสมอในการใช้งาน (Active Days)</div>
+                          <div className="text-sm font-bold text-theme-text mt-1">
+                            เกณฑ์ขั้นต่ำ 10 วัน/เดือน
+                          </div>
+                          <div className="text-[10px] text-theme-text-muted mt-0.5">
+                            สิทธิ์ที่ไม่มีความเคลื่อนไหวเกิน 14 วัน จะถูก CoE แจ้งเตือนเพื่อหมุนเวียนสิทธิ์
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-theme-border/40">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('reports')}
+                        className="w-full py-2 rounded-xl text-xs font-bold bg-theme-surface-secondary hover:bg-theme-surface-tertiary border border-theme-border text-theme-text flex items-center justify-center gap-1 transition-all cursor-pointer"
+                      >
+                        <span>ดูรายงานผลงาน FM-002 ของฝ่าย →</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW C: ENTERPRISE COE HUB (Governance & Full Registry) */}
+            {effectivePerspective === 'enterprise_coe' && (
+              <div className="space-y-6">
+                {/* Dormant / Ghost Seat Alert Banner (if any) */}
+                {ghostSeats.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-transparent border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                        <ShieldAlert size={18} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-theme-text flex items-center gap-2">
+                          <span>⚠️ สัญญาณเตือนสิทธิ์ว่าง / ไม่มีการใช้งาน (Dormant Licenses)</span>
+                          <span className="px-2 py-0.2 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                            {ghostSeats.length} ที่นั่ง
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-theme-text-muted mt-1 max-w-3xl leading-relaxed">
+                          ตรวจพบโครงการที่ได้รับอนุมัติแต่ไม่มีความเคลื่อนไหวเกิน 14 วัน หรือยังขาดส่งรายงาน FM-002 — ตามระเบียบ <strong>WI-PI-AI-001 ข้อ 6</strong> คณะกรรมการ CoE สามารถแจ้งเตือนเพื่อหมุนเวียนสิทธิ์ (License Reclamation) ให้ผู้ขอที่อยู่ใน Waiting List
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveDashboardView('roster');
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold whitespace-nowrap shadow-xs transition-all cursor-pointer shrink-0"
+                    >
+                      ตรวจสอบทำเนียบ 20 สิทธิ์ →
+                    </button>
+                  </div>
+                )}
+
+                {/* 2-Tier Strategy Showcase: Virtual AI Employee vs General Users */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/30 flex flex-col justify-between shadow-xs">
                 <div>
@@ -1257,22 +2161,35 @@ export default function AiEnterprisePage() {
             <div className="bg-theme-surface border border-theme-border/80 rounded-2xl p-6 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
-                  <h3 className="text-base font-bold text-theme-text flex items-center gap-2">
-                    {activeDashboardView === 'initiatives' ? (
-                      <>
-                        <Laptop size={18} className="text-indigo-500" />
-                        <span>ทะเบียนโครงการ AI และสถานะคำขอ (All Initiatives)</span>
-                      </>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-bold text-theme-text flex items-center gap-2">
+                      {activeDashboardView === 'initiatives' ? (
+                        <>
+                          <Laptop size={18} className="text-indigo-500" />
+                          <span>ทะเบียนโครงการ AI และสถานะคำขอ (All Initiatives)</span>
+                        </>
+                      ) : (
+                        <>
+                          <Users size={18} className="text-indigo-500" />
+                          <span>ทำเนียบสิทธิ์ 20 ที่นั่งประจำองค์กร (20-Seat Corporate Roster)</span>
+                        </>
+                      )}
+                    </h3>
+                    {!isLiveData ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/25 flex items-center gap-1 shadow-2xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        <span>ข้อมูลจำลองทดสอบ (Seed Data)</span>
+                      </span>
                     ) : (
-                      <>
-                        <Users size={18} className="text-indigo-500" />
-                        <span>ทำเนียบสิทธิ์ 20 ที่นั่งประจำองค์กร (20-Seat Corporate Roster)</span>
-                      </>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 flex items-center gap-1 shadow-2xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span>ฐานข้อมูลจริง (Live Data)</span>
+                      </span>
                     )}
-                  </h3>
-                  <p className="text-xs text-theme-text-muted mt-0.5">
+                  </div>
+                  <p className="text-xs text-theme-text-muted mt-1">
                     {activeDashboardView === 'initiatives'
-                      ? 'ติดตามการจัดสรรสิทธิ์และสถานะการพิจารณาคำขอใช้งานของทุกฝ่าย'
+                      ? 'ติดตามการจัดสรรสิทธิ์และสถานะการพิจารณาคำขอใช้งานของทุกฝ่าย (เมื่อยื่นแบบฟอร์ม FM-001 ข้อมูลจริงจะบันทึกลงระบบทันที)'
                       : 'ตรวจสอบรายชื่อพนักงานที่ถือครองสิทธิ์ทั้ง 20 ที่นั่ง พร้อมสถานะความเคลื่อนไหวและ Active Days'}
                   </p>
                 </div>
@@ -1322,160 +2239,509 @@ export default function AiEnterprisePage() {
                 />
               ) : (
                 <>
-                  {/* Filters for Initiatives Table */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                    <div className="relative">
-                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-muted" />
-                      <input
-                        type="text"
-                        placeholder="ค้นหาชื่อโครงการ, แผนก..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8 pr-3 py-1.5 rounded-lg text-xs bg-theme-surface-secondary border border-theme-border focus:outline-none focus:border-indigo-500 text-theme-text w-48 sm:w-56"
-                      />
+                  {/* Enhanced Filters & Search Toolbar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 p-3 rounded-xl bg-theme-surface-secondary/40 border border-theme-border/60">
+                    <div className="flex items-center gap-3 flex-1 max-w-md">
+                      <div className="relative flex-1">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-muted" />
+                        <input
+                          type="text"
+                          placeholder="ค้นหาชื่อโครงการ, ผู้เสนอคำขอ, แผนก..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full pl-9 pr-7 py-1.5 rounded-lg text-xs bg-theme-surface border border-theme-border/80 focus:outline-none focus:border-indigo-500 text-theme-text transition-all"
+                        />
+                        {searchTerm && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchTerm('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text text-xs cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-theme-text-muted whitespace-nowrap hidden lg:inline">
+                        พบ <strong className="text-theme-text font-mono font-bold">{filteredRequests.length}</strong> จาก {requests.length} โครงการ
+                      </span>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <select
-                        value={filterDepartment}
-                        onChange={(e) => setFilterDepartment(e.target.value)}
-                        className="py-1.5 px-2.5 rounded-lg text-xs bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
-                      >
-                        <option value="ALL">ทุกแผนก</option>
-                        {departments.map(d => (
-                          <option key={d} value={d}>{d}</option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-1.5">
+                        <Building2 size={13} className="text-theme-text-muted hidden sm:inline" />
+                        <select
+                          value={filterDepartment}
+                          onChange={(e) => setFilterDepartment(e.target.value)}
+                          className="py-1.5 px-2.5 rounded-lg text-xs bg-theme-surface border border-theme-border/80 text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs font-medium"
+                        >
+                          <option value="ALL">ทุกแผนก ({departments.length})</option>
+                          {departments.map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                      <select
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                        className="py-1.5 px-2.5 rounded-lg text-xs bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
-                      >
-                        <option value="ALL">ทุกสถานะ</option>
-                        <option value="pending_review">รอพิจารณา (Pending)</option>
-                        <option value="approved_sandbox">อนุมัติ Sandbox 90 วัน</option>
-                        <option value="waiting_list">รอคิว (Waiting List)</option>
-                        <option value="rejected">ส่งกลับปรับปรุง</option>
-                      </select>
+                      <div className="flex items-center gap-1.5">
+                        <Sliders size={13} className="text-theme-text-muted hidden sm:inline" />
+                        <select
+                          value={filterStatus}
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                          className="py-1.5 px-2.5 rounded-lg text-xs bg-theme-surface border border-theme-border/80 text-theme-text focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs font-medium"
+                        >
+                          <option value="ALL">ทุกสถานะ</option>
+                          <option value="approved_sandbox">✓ อนุมัติ Sandbox (90 วัน)</option>
+                          <option value="pending_review">⏱️ รอพิจารณา (Pending)</option>
+                          <option value="waiting_list">⏳ รอคิว (Waiting List)</option>
+                          <option value="rejected">✕ ส่งกลับปรับปรุง</option>
+                        </select>
+                      </div>
+
+                      {(searchTerm || filterDepartment !== 'ALL' || filterStatus !== 'ALL') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearchTerm('');
+                            setFilterDepartment('ALL');
+                            setFilterStatus('ALL');
+                          }}
+                          className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline px-2 py-1 font-semibold cursor-pointer"
+                        >
+                          ล้างตัวกรอง
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Table */}
-                  <div className="overflow-x-auto border border-theme-border/60 rounded-xl">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="border-b border-theme-border bg-theme-surface-secondary/80 text-theme-text-muted font-semibold">
-                          <th className="py-3 px-4">ชื่อโครงการ & ผู้เสนอคำขอ</th>
-                          <th className="py-3 px-4">แผนก</th>
-                          <th className="py-3 px-4 text-center">สิทธิ์ที่ขอ (Seats)</th>
-                          <th className="py-3 px-4 text-right">เป้าหมายเวลาที่ลด (Target)</th>
-                          <th className="py-3 px-4 text-center">สถานะ</th>
-                          <th className="py-3 px-4 text-right">การจัดการ</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-theme-border/40">
-                        {filteredRequests.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="py-8 text-center text-theme-text-muted">
-                              ไม่พบรายการคำขอที่ตรงกับเงื่อนไข
-                            </td>
+                  {/* Initiatives: Desktop Table + Mobile Cards + Pagination */}
+                  <div className="border border-theme-border/60 rounded-2xl shadow-2xs overflow-hidden bg-theme-surface">
+                    {/* 1. Desktop & Tablet Table View (md:block) */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs min-w-[880px]">
+                        <thead>
+                          <tr className="border-b border-theme-border bg-theme-surface-secondary/70 text-theme-text-muted font-bold text-[11px] uppercase tracking-wider">
+                            <th className="py-3 px-3 min-w-[220px]">ชื่อโครงการ & ผู้เสนอคำขอ</th>
+                            <th className="py-3 px-3 min-w-[190px] whitespace-nowrap">ฝ่าย / แผนก</th>
+                            <th className="py-3 px-3 text-center min-w-[75px] whitespace-nowrap">สิทธิ์ที่ขอ</th>
+                            <th className="py-3 px-3 text-right min-w-[110px] whitespace-nowrap">เป้าหมายเวลาที่ลด</th>
+                            <th className="py-3 px-3 text-center min-w-[140px] whitespace-nowrap">สถานะคำขอ</th>
+                            <th className="py-3 px-3 text-right min-w-[145px] whitespace-nowrap">การจัดการ</th>
                           </tr>
-                        ) : (
-                          filteredRequests.map((req) => (
-                            <tr key={req.id} className="hover:bg-theme-surface-secondary/40 transition-colors">
-                              <td className="py-3 px-4">
-                                <div className="font-bold text-theme-text">{req.title}</div>
-                                <div className="text-[11px] text-theme-text-muted flex items-center gap-1.5 mt-0.5">
-                                  <span>{req.requester_name}</span>
-                                  {req.position && <span>• {req.position}</span>}
-                                </div>
-                                {req.team_members && req.team_members.length > 1 && (
-                                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 flex items-center gap-1">
-                                      <Users size={10} />
-                                      <span>คณะทำงาน {req.team_members.length} คน</span>
-                                    </span>
-                                    <span className="text-[10px] text-theme-text-muted truncate max-w-[280px]">
-                                      ({req.team_members.map(m => m.name.split(' ')[0]).join(', ')})
-                                    </span>
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-theme-text-secondary font-medium">
-                                {req.department}
-                              </td>
-                              <td className="py-3 px-4 text-center font-mono font-bold">
-                                <span className="px-2 py-0.5 rounded-full bg-theme-surface-tertiary">
-                                  {req.requested_seats}
-                                </span>
-                                {req.team_members && req.team_members.length > 0 && (
-                                  <span className="text-[10px] text-theme-text-muted block mt-0.5">
-                                    {req.team_members.length} สิทธิ์ระบุ
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-right font-mono font-bold text-emerald-500">
-                                {req.target_hours_saved_per_week} ชม./สัปดาห์
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                {req.status === 'approved_sandbox' ? (
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                    ✓ อนุมัติ Sandbox (90 วัน)
-                                  </span>
-                                ) : req.status === 'waiting_list' ? (
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                                    ⏳ Waiting List
-                                  </span>
-                                ) : req.status === 'rejected' ? (
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
-                                    ✕ ปรับปรุงข้อเสนอ
-                                  </span>
-                                ) : (
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
-                                    ⏱️ รอตรวจสอบ
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  {isAdminOrManager && (
-                                    <button
-                                      onClick={() => {
-                                        setSelectedEvalRequestId(req.id);
-                                        setActiveTab('evaluations');
-                                      }}
-                                      className="px-2.5 py-1 rounded text-[11px] font-medium bg-theme-surface-secondary hover:bg-theme-surface-tertiary border border-theme-border text-theme-text transition-all"
-                                    >
-                                      ประเมินคะแนน
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={() => {
-                                      setReportRequestId(req.id);
-                                      setActiveTab('reports');
-                                    }}
-                                    className="px-2.5 py-1 rounded text-[11px] font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition-all"
-                                  >
-                                    ส่งผลงาน
-                                  </button>
+                        </thead>
+                        <tbody className="divide-y divide-theme-border/40">
+                          {paginatedRequests.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} className="py-12 text-center text-theme-text-muted">
+                                <div className="max-w-xs mx-auto text-center space-y-2">
+                                  <Search size={24} className="mx-auto text-theme-text-muted/60" />
+                                  <div className="font-semibold text-theme-text text-xs">ไม่พบรายการคำขอที่ตรงกับเงื่อนไข</div>
+                                  <p className="text-[11px] text-theme-text-muted">ลองปรับเปลี่ยนคำค้นหา หรือกดล้างตัวกรองเพื่อดูข้อมูลทั้งหมด</p>
                                 </div>
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : (
+                            paginatedRequests.map((req) => (
+                              <tr key={req.id} className="hover:bg-theme-surface-secondary/40 transition-colors">
+                                <td className="py-3.5 px-3.5 align-top">
+                                  <div className="font-bold text-xs text-theme-text hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors leading-snug">
+                                    {req.title}
+                                  </div>
+                                  <div className="text-[11px] text-theme-text-muted flex items-center gap-1.5 mt-1 flex-wrap">
+                                    <span className="font-semibold text-theme-text-secondary whitespace-nowrap">{req.requester_name}</span>
+                                    {req.position && <span className="opacity-75 whitespace-nowrap">• {req.position}</span>}
+                                  </div>
+                                  {req.team_members && req.team_members.length > 1 && (
+                                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 flex items-center gap-1 shrink-0">
+                                        <Users size={10} />
+                                        <span>คณะทำงาน {req.team_members.length} คน:</span>
+                                      </span>
+                                      <span className="text-[11px] text-theme-text-muted">
+                                        {req.team_members.map(m => m.name.split(' ')[0]).join(', ')}
+                                      </span>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-3.5 align-top">
+                                  {(() => {
+                                    const { main, sub } = splitDepartmentName(req.department);
+                                    return (
+                                      <div className="flex flex-col">
+                                        <div className="font-semibold text-xs text-theme-text flex items-center gap-1.5 leading-snug">
+                                          <Building2 size={13} className="text-indigo-500 shrink-0" />
+                                          <span className="whitespace-nowrap">{main}</span>
+                                        </div>
+                                        {sub && (
+                                          <div className="text-[10.5px] text-theme-text-muted mt-0.5 pl-[19px] font-medium tracking-wide whitespace-nowrap">
+                                            {sub}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+                                </td>
+                                <td className="py-3.5 px-3.5 align-top text-center">
+                                  <div className="inline-flex flex-col items-center">
+                                    <span className="px-3 py-1 rounded-full font-mono font-bold text-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25">
+                                      {req.requested_seats} ที่นั่ง
+                                    </span>
+                                    {req.team_members && req.team_members.length > 0 && (
+                                      <span className="text-[10px] text-theme-text-muted mt-1 whitespace-nowrap">
+                                        {req.team_members.length} สิทธิ์ระบุชื่อ
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-3.5 align-top text-right">
+                                  <div className="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                                    {req.target_hours_saved_per_week} ชม./สัปดาห์
+                                  </div>
+                                  <div className="text-[10px] text-theme-text-muted mt-1 whitespace-nowrap font-mono">
+                                    ~{Math.round(req.target_hours_saved_per_week * 4.2)} ชม./เดือน
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-3.5 align-top text-center">
+                                  <div className="inline-flex flex-col items-center">
+                                    {req.status === 'approved_sandbox' ? (
+                                      <>
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 whitespace-nowrap shadow-2xs">
+                                          <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
+                                          <span>อนุมัติ Sandbox</span>
+                                        </span>
+                                        <span className="text-[10px] text-theme-text-muted mt-1 whitespace-nowrap font-medium">
+                                          ระยะเวลา 90 วัน
+                                        </span>
+                                      </>
+                                    ) : req.status === 'waiting_list' ? (
+                                      <>
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 whitespace-nowrap shadow-2xs">
+                                          <span>⏳</span>
+                                          <span>Waiting List</span>
+                                        </span>
+                                        <span className="text-[10px] text-theme-text-muted mt-1 whitespace-nowrap font-medium">
+                                          รอโควตารอบถัดไป
+                                        </span>
+                                      </>
+                                    ) : req.status === 'rejected' ? (
+                                      <>
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25 whitespace-nowrap shadow-2xs">
+                                          <span>✕</span>
+                                          <span>ปรับปรุงข้อเสนอ</span>
+                                        </span>
+                                        <span className="text-[10px] text-theme-text-muted mt-1 whitespace-nowrap font-medium">
+                                          ส่งกลับแก้ไข
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 whitespace-nowrap shadow-2xs">
+                                          <span>⏱️</span>
+                                          <span>รอตรวจสอบ</span>
+                                        </span>
+                                        <span className="text-[10px] text-theme-text-muted mt-1 whitespace-nowrap font-medium">
+                                          รอพิจารณา CoE
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-3.5 align-top text-right">
+                                  <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                                    {isAdminOrManager && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedEvalRequestId(req.id);
+                                          setActiveTab('evaluations');
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-theme-surface hover:bg-theme-surface-secondary border border-theme-border text-theme-text transition-all cursor-pointer shadow-2xs shrink-0 active:scale-95"
+                                        title="ประเมินเกณฑ์ 100 คะแนน (FM-PI-AI-001)"
+                                      >
+                                        ประเมินคะแนน
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setReportRequestId(req.id);
+                                        setActiveTab('reports');
+                                      }}
+                                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all cursor-pointer shadow-2xs shrink-0 active:scale-95 flex items-center gap-1"
+                                      title="บันทึกผลงานประจำเดือน (FM-002)"
+                                    >
+                                      <Send size={12} />
+                                      <span>ส่งผลงาน</span>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* 2. Mobile Responsive Card Deck View (block md:hidden) */}
+                    <div className="block md:hidden divide-y divide-theme-border/50">
+                      {paginatedRequests.length === 0 ? (
+                        <div className="p-8 text-center text-theme-text-muted space-y-2">
+                          <Search size={24} className="mx-auto text-theme-text-muted/60" />
+                          <div className="font-semibold text-theme-text text-xs">ไม่พบรายการคำขอ</div>
+                          <p className="text-[11px] text-theme-text-muted">ลองปรับเปลี่ยนคำค้นหาหรือตัวกรอง</p>
+                        </div>
+                      ) : (
+                        paginatedRequests.map((req) => (
+                          <div key={req.id} className="p-4 space-y-3 hover:bg-theme-surface-secondary/30 transition-colors">
+                            {/* Card Header: Dept & Status */}
+                            <div className="flex items-start justify-between gap-2">
+                              {(() => {
+                                const { main, sub } = splitDepartmentName(req.department);
+                                return (
+                                  <div className="flex flex-col">
+                                    <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-theme-text">
+                                      <Building2 size={12} className="text-indigo-500 shrink-0" />
+                                      <span>{main}</span>
+                                    </div>
+                                    {sub && (
+                                      <span className="text-[10px] text-theme-text-muted pl-4 font-medium">
+                                        {sub}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                              <div className="shrink-0 text-right">
+                                {req.status === 'approved_sandbox' ? (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                                      <CheckCircle2 size={10} className="text-emerald-500" />
+                                      <span>อนุมัติ Sandbox</span>
+                                    </span>
+                                    <div className="text-[9.5px] text-theme-text-muted mt-0.5 font-medium">
+                                      ระยะเวลา 90 วัน
+                                    </div>
+                                  </>
+                                ) : req.status === 'waiting_list' ? (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                                      <span>⏳</span>
+                                      <span>Waiting List</span>
+                                    </span>
+                                    <div className="text-[9.5px] text-theme-text-muted mt-0.5 font-medium">
+                                      รอรอบถัดไป
+                                    </div>
+                                  </>
+                                ) : req.status === 'rejected' ? (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+                                      <span>✕</span>
+                                      <span>ปรับปรุง</span>
+                                    </span>
+                                    <div className="text-[9.5px] text-theme-text-muted mt-0.5 font-medium">
+                                      ส่งกลับแก้ไข
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25">
+                                      <span>⏱️</span>
+                                      <span>รอตรวจสอบ</span>
+                                    </span>
+                                    <div className="text-[9.5px] text-theme-text-muted mt-0.5 font-medium">
+                                      รอพิจารณา CoE
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Card Title & Requester */}
+                            <div>
+                              <h4 className="font-bold text-sm text-theme-text leading-snug">
+                                {req.title}
+                              </h4>
+                              <div className="text-xs text-theme-text-muted mt-1 flex items-center gap-1.5">
+                                <span className="font-medium text-theme-text-secondary">{req.requester_name}</span>
+                                {req.position && <span className="opacity-75">• {req.position}</span>}
+                              </div>
+                              {req.team_members && req.team_members.length > 1 && (
+                                <div className="text-[11px] text-theme-text-muted mt-1">
+                                  คณะทำงาน ({req.team_members.length} คน): {req.team_members.map(m => m.name.split(' ')[0]).join(', ')}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card 2-Tile Stats */}
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                              <div className="p-2.5 rounded-xl bg-theme-surface-secondary/60 border border-theme-border/50 text-center">
+                                <div className="text-[10px] text-theme-text-muted">สิทธิ์ที่ขอ</div>
+                                <div className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">
+                                  {req.requested_seats} ที่นั่ง
+                                </div>
+                              </div>
+                              <div className="p-2.5 rounded-xl bg-theme-surface-secondary/60 border border-theme-border/50 text-center">
+                                <div className="text-[10px] text-theme-text-muted">เป้าหมายลดเวลา</div>
+                                <div className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                  {req.target_hours_saved_per_week} ชม./สัปดาห์
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card Actions */}
+                            <div className="flex items-center gap-2 pt-1">
+                              {isAdminOrManager && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedEvalRequestId(req.id);
+                                    setActiveTab('evaluations');
+                                  }}
+                                  className="flex-1 py-2 rounded-xl text-xs font-semibold bg-theme-surface hover:bg-theme-surface-secondary border border-theme-border text-theme-text text-center transition-all cursor-pointer shadow-2xs"
+                                >
+                                  ประเมินคะแนน
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReportRequestId(req.id);
+                                  setActiveTab('reports');
+                                }}
+                                className="flex-1 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white text-center transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-1"
+                              >
+                                <Send size={12} />
+                                <span>ส่งผลงาน</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* 3. International Pagination Control Bar */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-t border-theme-border/60 bg-theme-surface-secondary/40 text-xs">
+                      <div className="flex items-center gap-3 text-theme-text-muted">
+                        <span>
+                          แสดง <strong className="text-theme-text font-mono font-bold">{filteredRequests.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</strong> - <strong className="text-theme-text font-mono font-bold">{Math.min(currentPage * pageSize, filteredRequests.length)}</strong> จากทั้งหมด <strong className="text-theme-text font-mono font-bold">{filteredRequests.length}</strong> รายการ
+                        </span>
+                        <div className="h-4 w-px bg-theme-border/60 hidden sm:block" />
+                        <div className="flex items-center gap-1.5">
+                          <span className="hidden sm:inline">แถวละ:</span>
+                          <select
+                            value={pageSize}
+                            onChange={(e) => setPageSize(Number(e.target.value))}
+                            className="py-1 px-2 rounded-lg bg-theme-surface border border-theme-border text-theme-text font-mono font-bold text-xs focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
+                          >
+                            <option value={5}>5 รายการ</option>
+                            <option value={10}>10 รายการ</option>
+                            <option value={20}>20 รายการ</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Pagination Page Buttons */}
+                      <div className="flex items-center gap-1 self-center sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(1)}
+                          disabled={currentPage === 1}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-theme-surface hover:bg-theme-surface-secondary border border-theme-border text-theme-text disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                          title="หน้าแรก"
+                        >
+                          <ChevronsLeft size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-theme-surface hover:bg-theme-surface-secondary border border-theme-border text-theme-text disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                          title="หน้าก่อนหน้า"
+                        >
+                          <ChevronLeft size={14} />
+                        </button>
+
+                        {/* Page number buttons */}
+                        <div className="flex items-center gap-1 px-1">
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                            <button
+                              key={pageNum}
+                              type="button"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={cn(
+                                "w-8 h-8 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center",
+                                currentPage === pageNum
+                                  ? "bg-indigo-600 text-white shadow-xs"
+                                  : "bg-theme-surface hover:bg-theme-surface-secondary border border-theme-border text-theme-text shadow-2xs"
+                              )}
+                            >
+                              {pageNum}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-theme-surface hover:bg-theme-surface-secondary border border-theme-border text-theme-text disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                          title="หน้าถัดไป"
+                        >
+                          <ChevronRight size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(totalPages)}
+                          disabled={currentPage === totalPages}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center bg-theme-surface hover:bg-theme-surface-secondary border border-theme-border text-theme-text disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                          title="หน้าสุดท้าย"
+                        >
+                          <ChevronsRight size={14} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
             </div>
           </div>
         )}
+          </div>
+        )}
 
-        {/* Tab 2: AI Intake Form (FM-PI-AI-001) */}
+        {/* Tab 2: Departmental AI Preset & Recommendation Engine */}
+        {activeTab === 'presets' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 animate-fade-in">
+            <AiDepartmentPresetMatcher
+              onApplyPreset={handleApplyDepartmentPreset}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+            />
+          </div>
+        )}
+
+        {/* Tab 3: AI Intake Form (FM-PI-AI-001) */}
         {activeTab === 'request' && (
           <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in space-y-5">
+            {/* Helper Banner to jump to Department Presets */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-transparent border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <Compass size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-bold text-theme-text">
+                    ไม่แน่ใจว่าหน่วยงานของคุณเหมาะกับ AI รุ่นไหน หรือควรกรอก AI JD อย่างไร?
+                  </div>
+                  <p className="text-[11px] text-theme-text-muted mt-0.5">
+                    ดูชุดข้อมูลสำเร็จรูป (Preset) ของทั้ง 8 ฝ่ายงาน แล้วกดดึงข้อมูลมากรอกฟอร์มนี้ได้ในคลิกเดียว
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('presets')}
+                className="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0"
+              >
+                🧭 เลือกจาก Preset รายฝ่าย →
+              </button>
+            </div>
+
             <div className="bg-theme-surface border border-theme-border/80 rounded-2xl shadow-sm p-6 sm:p-8">
               <div className="border-b border-theme-border/60 pb-5 mb-6">
                 <div className="flex items-center gap-2">

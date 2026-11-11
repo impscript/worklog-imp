@@ -6,6 +6,9 @@ import {
   Globe,
   LayoutTemplate,
   Key,
+  Swords,
+  BookOpen,
+  GraduationCap,
 } from 'lucide-react';
 import type { ModelInfo, ThinkingLevel } from '../../../hooks/useOpenRouterModels';
 import { SMART_PRESETS } from '../../../hooks/useOpenRouterModels';
@@ -26,6 +29,11 @@ interface ChatHeaderProps {
   hasArtifacts: boolean;
   isArtifactDrawerOpen: boolean;
   onToggleArtifactDrawer: () => void;
+  // Arena & Sandbox Controls
+  isArenaMode?: boolean;
+  onToggleArenaMode?: () => void;
+  onOpenTaskKitsModal?: () => void;
+  onOpenGraduationModal?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -43,6 +51,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   hasArtifacts,
   isArtifactDrawerOpen,
   onToggleArtifactDrawer,
+  isArenaMode = false,
+  onToggleArenaMode,
+  onOpenTaskKitsModal,
+  onOpenGraduationModal,
 }) => {
   return (
     <header className="h-14 border-b border-theme-border/60 px-4 sm:px-6 flex items-center justify-between bg-theme-surface/60 dark:bg-theme-bg-page/40 backdrop-blur-md relative z-10 shrink-0">
@@ -116,10 +128,55 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Thinking Effort, Artifacts & Settings */}
-      <div className="flex items-center gap-2">
+      {/* Center/Right: Arena & Sandbox Action Badges */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Toggle Arena Button */}
+        {onToggleArenaMode && (
+          <button
+            type="button"
+            onClick={onToggleArenaMode}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-black transition-all cursor-pointer select-none shadow-xs',
+              isArenaMode
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-amber-600 shadow-amber-500/20'
+                : 'bg-theme-surface border-theme-border text-theme-text-muted hover:text-amber-600 hover:border-amber-500/40'
+            )}
+            title="สลับโหมดประลอง 4 ค่าย (Side-by-Side Model Arena)"
+          >
+            <Swords size={14} className={isArenaMode ? 'animate-pulse' : ''} />
+            <span className="hidden sm:inline">ประลอง Arena</span>
+            <span className="text-[10px] px-1 py-0.2 rounded-md bg-black/20 font-black">4 ค่าย</span>
+          </button>
+        )}
+
+        {/* Task Kits Button */}
+        {onOpenTaskKitsModal && (
+          <button
+            type="button"
+            onClick={onOpenTaskKitsModal}
+            className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text text-xs font-bold transition-all cursor-pointer select-none"
+            title="คลังโจทย์ทดสอบมาตรฐาน 8 ฝ่ายงาน"
+          >
+            <BookOpen size={13} className="text-indigo-500" />
+            <span>โจทย์ 8 ฝ่าย</span>
+          </button>
+        )}
+
+        {/* Sandbox Graduation Button */}
+        {onOpenGraduationModal && (
+          <button
+            type="button"
+            onClick={onOpenGraduationModal}
+            className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold transition-all cursor-pointer select-none"
+            title="สรุปผลลัพธ์ Sandbox และส่งข้อมูลขอสิทธิ์ FM-001"
+          >
+            <GraduationCap size={14} />
+            <span>Sandbox สู่ FM-001</span>
+          </button>
+        )}
+
         {/* Thinking Effort Selector */}
-        <div className="hidden sm:flex items-center gap-1 bg-theme-surface-secondary/50 p-1 rounded-2xl border border-theme-border/60 text-[10px]">
+        <div className="hidden xl:flex items-center gap-1 bg-theme-surface-secondary/50 p-1 rounded-2xl border border-theme-border/60 text-[10px]">
           <span className="font-bold text-theme-text-muted px-1.5 flex items-center gap-1">
             <Brain size={12} className="text-violet-500" />
             ความคิด:
@@ -146,7 +203,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           type="button"
           onClick={onToggleArtifactDrawer}
           className={cn(
-            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none',
+            'inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none',
             isArtifactDrawerOpen
               ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
               : hasArtifacts
