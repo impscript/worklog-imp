@@ -1,13 +1,16 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Sparkles, PlusCircle, CheckCircle2, Clock, ShieldCheck,
   TrendingUp, Users, Award, BookOpen, AlertCircle,
   FileCheck2, Building2, Sliders, Search,
   RotateCcw, Check, ShieldAlert,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Laptop, Layers, Compass, Bot,
-  User, Globe, Activity, Send
+  User, Globe, Activity, Send, HelpCircle
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
+import AiHubNav from '../components/ai-enterprise/AiHubNav';
+import { AI_HUB_TABS, type AiHubTab } from '../components/ai-enterprise/aiHubTabs';
+import AiHubHome from '../components/ai-enterprise/AiHubHome';
 import AiLifecycleOnboardingModal from '../components/ai-enterprise/AiLifecycleOnboardingModal';
 import AiTeamMemberPicker, { type AiTeamMember } from '../components/ai-enterprise/AiTeamMemberPicker';
 import AiSeatRosterGrid from '../components/ai-enterprise/AiSeatRosterGrid';
@@ -106,53 +109,9 @@ function splitDepartmentName(dept: string): { main: string; sub: string } {
 
 export default function AiEnterprisePage() {
   const { showToast, showConfirm } = useNotification();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'presets' | 'request' | 'evaluations' | 'reports' | 'governance'>('dashboard');
+  const [activeTab, setActiveTab] = useState<AiHubTab>('home');
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [onboardingInitialStep, setOnboardingInitialStep] = useState(0);
-
-  // Tab dock scroll indicators and controls
-  const tabDockRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const checkTabScroll = useCallback(() => {
-    const el = tabDockRef.current;
-    if (!el) return;
-    const hasScroll = el.scrollWidth > el.clientWidth + 4;
-    setCanScrollLeft(el.scrollLeft > 10);
-    setCanScrollRight(hasScroll && el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
-  }, []);
-
-  useEffect(() => {
-    checkTabScroll();
-    const el = tabDockRef.current;
-    if (!el) return;
-    el.addEventListener('scroll', checkTabScroll, { passive: true });
-    window.addEventListener('resize', checkTabScroll);
-    return () => {
-      el.removeEventListener('scroll', checkTabScroll);
-      window.removeEventListener('resize', checkTabScroll);
-    };
-  }, [checkTabScroll]);
-
-  // Keep active tab visible when changed
-  useEffect(() => {
-    const el = tabDockRef.current;
-    if (!el) return;
-    const activeBtn = el.querySelector<HTMLButtonElement>('[data-active="true"]');
-    if (activeBtn) {
-      activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-    }
-    // Re-check scroll indicators after DOM paint
-    const t = setTimeout(checkTabScroll, 100);
-    return () => clearTimeout(t);
-  }, [activeTab, checkTabScroll]);
-
-  const handleTabScroll = (direction: 'left' | 'right') => {
-    if (!tabDockRef.current) return;
-    const scrollAmount = direction === 'left' ? -280 : 280;
-    tabDockRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-  };
 
   // Session user info
   const sessionUser = useMemo(() => {
@@ -251,8 +210,8 @@ export default function AiEnterprisePage() {
     }
 
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['dashboard', 'presets', 'request', 'evaluations', 'reports', 'governance'].includes(tabParam)) {
-      setActiveTab(tabParam as any);
+    if (tabParam && (AI_HUB_TABS as string[]).includes(tabParam)) {
+      setActiveTab(tabParam as AiHubTab);
       if (hasGraduation && tabParam === 'request') {
         showToast('🎉 นำเข้าข้อมูลผลการทดสอบเชิงประจักษ์จาก Sandbox สู่แบบฟอร์ม FM-001 เรียบร้อยแล้ว!', 'success');
       }
@@ -873,7 +832,7 @@ export default function AiEnterprisePage() {
           }
         ]);
       }
-      setActiveTab('dashboard');
+      setActiveTab('home');
     } catch (err) {
       showToast('เกิดข้อผิดพลาดในการส่งคำขอ: ' + String(err), 'error');
     } finally {
@@ -992,7 +951,7 @@ export default function AiEnterprisePage() {
 
       showToast('ส่งรายงานผลสัมฤทธิ์รายเดือน (FM-PI-AI-002) เรียบร้อยแล้ว', 'success');
       setReportDeliverables('');
-      setActiveTab('dashboard');
+      setActiveTab('home');
     } catch (err) {
       showToast('เกิดข้อผิดพลาดในการส่งรายงาน: ' + String(err), 'error');
     } finally {
@@ -1111,207 +1070,72 @@ export default function AiEnterprisePage() {
   return (
     <AppLayout>
       <div className="min-h-screen bg-theme-bg-page text-theme-text pb-16">
-        {/* Top Header Banner: Clean Enterprise Theme */}
-        <div className="border-b border-theme-border/80 bg-theme-surface/60 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-xs">
-                    <Sparkles size={20} className="animate-pulse" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h1 className="text-xl sm:text-2xl font-black tracking-tight text-theme-text flex items-center gap-2">
-                        AI Enterprise Hub
-                      </h1>
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                        ศูนย์บริการ AI ประจำองค์กร
-                      </span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-theme-text-muted mt-0.5 leading-relaxed">
-                      เลือกโมเดล AI ที่ตอบโจทย์ ยื่นขอจัดสรรสิทธิ์ และติดตามผลลัพธ์การทำงานที่คุ้มค่าสำหรับทุกฝ่ายงาน
-                    </p>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-theme-bg-page text-indigo-600 dark:text-indigo-400 border border-theme-border/60">
-                        🌱 เพิ่มประสิทธิภาพงานรายบุคคล
-                      </span>
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-theme-bg-page text-purple-600 dark:text-purple-400 border border-theme-border/60">
-                        🤝 แชร์คลังความรู้ร่วมกันในฝ่าย
-                      </span>
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-theme-bg-page text-emerald-600 dark:text-emerald-400 border border-theme-border/60">
-                        🛡️ ปลอดภัยตามระเบียบข้อมูลองค์กร
-                      </span>
-                    </div>
-                  </div>
+        {/* Page header + primary navigation */}
+        <div className="border-b border-theme-border/80 bg-theme-surface">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+                  <Sparkles size={22} />
+                </div>
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-theme-text">AI Enterprise Hub</h1>
+                  <p className="text-sm text-theme-text-muted mt-0.5">ศูนย์กลางขอใช้ AI ขององค์กร: เลือก ยื่นคำขอ และติดตามผลในที่เดียว</p>
                 </div>
               </div>
 
-              {/* Action Buttons: Clean & Non-redundant */}
               <div className="flex items-center gap-2 shrink-0">
                 <button
+                  type="button"
                   onClick={() => {
                     setOnboardingInitialStep(0);
                     setIsOnboardingOpen(true);
                   }}
-                  className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title="เปิดดูคู่มือและภาพรวมวงจร 4 ขั้นตอน"
+                  className="px-3.5 py-2 text-sm font-medium rounded-lg text-theme-text-muted hover:text-theme-text hover:bg-theme-surface-secondary transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Sparkles size={14} className="text-indigo-500" />
-                  <span>💡 คู่มือเริ่มต้น 4 ขั้นตอน</span>
+                  <HelpCircle size={16} />
+                  <span>วิธีใช้งาน</span>
                 </button>
                 <Link
                   to="/ai-chat"
-                  className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
-                  title="เปิดห้องแชต AI ใช้งานทั่วไป"
+                  className="px-3.5 py-2 text-sm font-semibold rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text transition-colors flex items-center gap-1.5"
                 >
-                  <Bot size={14} className="text-indigo-500" />
+                  <Bot size={16} className="text-indigo-500" />
                   <span>เปิด AI Chat</span>
                 </Link>
               </div>
             </div>
 
-            {/* Modern Segmented Navigation Dock (Tabs 1-6) with Arrow Guide */}
-            <div className="relative mt-5 group/nav">
-              {/* Left Arrow Guide Button with Gradient Mask */}
-              {canScrollLeft && (
-                <div className="absolute left-0 top-0 bottom-0 z-20 flex items-center pr-4 pl-1 bg-gradient-to-r from-theme-bg-page via-theme-bg-page/95 to-transparent rounded-l-2xl">
-                  <button
-                    type="button"
-                    onClick={() => handleTabScroll('left')}
-                    className="w-7 h-7 rounded-full bg-theme-surface border border-theme-border shadow-md flex items-center justify-center text-theme-text hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-500/50 transition-all cursor-pointer active:scale-90"
-                    title="เลื่อนไปแท็บก่อนหน้า"
-                    aria-label="Previous tabs"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                </div>
-              )}
-
-              {/* Scrollable Tab Container */}
-              <div
-                ref={tabDockRef}
-                className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-theme-bg-page/80 border border-theme-border/80 border-t-white/35 dark:border-t-white/15 backdrop-blur-xl shadow-xs overflow-x-auto scrollbar-none scroll-smooth"
-              >
-                <button
-                  onClick={() => setActiveTab('dashboard')}
-                  data-active={activeTab === 'dashboard'}
-                  className={cn(
-                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
-                    activeTab === 'dashboard'
-                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
-                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
-                  )}
-                >
-                  <TrendingUp size={14} className={activeTab === 'dashboard' ? 'text-indigo-600 dark:text-indigo-400' : 'text-theme-text-muted'} />
-                  <span>1. ภาพรวม &amp; สถิติ</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('presets')}
-                  data-active={activeTab === 'presets'}
-                  className={cn(
-                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
-                    activeTab === 'presets'
-                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
-                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
-                  )}
-                >
-                  <Compass size={14} className={activeTab === 'presets' ? 'text-amber-500' : 'text-amber-500/70'} />
-                  <span>2. แนะนำแพ็กเกจ (Presets)</span>
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold">
-                    New
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('request')}
-                  data-active={activeTab === 'request'}
-                  className={cn(
-                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
-                    activeTab === 'request'
-                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
-                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
-                  )}
-                >
-                  <PlusCircle size={14} className={activeTab === 'request' ? 'text-indigo-600 dark:text-indigo-400' : 'text-theme-text-muted'} />
-                  <span>3. ยื่นขอสิทธิ์ AI (FM-001)</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('evaluations')}
-                  data-active={activeTab === 'evaluations'}
-                  className={cn(
-                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
-                    activeTab === 'evaluations'
-                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
-                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
-                  )}
-                >
-                  <Sliders size={14} className={activeTab === 'evaluations' ? 'text-indigo-600 dark:text-indigo-400' : 'text-theme-text-muted'} />
-                  <span>4. ผลการพิจารณา</span>
-                  {evaluations.length > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-500/15 text-indigo-500 font-mono font-bold">
-                      {evaluations.length}
-                    </span>
-                  )}
-                  {isAdminOrManager && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-rose-500/15 text-rose-500 font-bold">
-                      Admin
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('reports')}
-                  data-active={activeTab === 'reports'}
-                  className={cn(
-                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
-                    activeTab === 'reports'
-                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
-                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
-                  )}
-                >
-                  <FileCheck2 size={14} className={activeTab === 'reports' ? 'text-emerald-500' : 'text-emerald-500/70'} />
-                  <span>5. ส่งผลงาน (FM-002)</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('governance')}
-                  data-active={activeTab === 'governance'}
-                  className={cn(
-                    "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ease-out flex items-center gap-2 whitespace-nowrap cursor-pointer shrink-0 active:scale-95",
-                    activeTab === 'governance'
-                      ? "bg-theme-surface text-indigo-600 dark:text-indigo-400 font-bold shadow-xs border border-theme-border border-t-white/40 dark:border-t-white/20"
-                      : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface/50 border border-transparent"
-                  )}
-                >
-                  <BookOpen size={14} className={activeTab === 'governance' ? 'text-indigo-600 dark:text-indigo-400' : 'text-theme-text-muted'} />
-                  <span>6. ระเบียบปฏิบัติ (WI-001)</span>
-                </button>
-              </div>
-
-              {/* Right Arrow Guide Button with Gradient Mask & Animated Pulse */}
-              {canScrollRight && (
-                <div className="absolute right-0 top-0 bottom-0 z-20 flex items-center pl-4 pr-1 bg-gradient-to-l from-theme-bg-page via-theme-bg-page/95 to-transparent rounded-r-2xl">
-                  <button
-                    type="button"
-                    onClick={() => handleTabScroll('right')}
-                    className="h-7 px-2.5 rounded-full bg-theme-surface border border-indigo-500/40 shadow-md flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold text-[11px] hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all cursor-pointer active:scale-90"
-                    title="มีหัวข้อถัดไป (เช่น 6. ระเบียบปฏิบัติ) คลิกเพื่อเลื่อนดู"
-                    aria-label="Next tabs"
-                  >
-                    <span className="hidden sm:inline text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
-                      มีหัวข้อถัดไป
-                    </span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping inline-block" />
-                    <ChevronRight size={15} />
-                  </button>
-                </div>
-              )}
-            </div>
+            <AiHubNav
+              active={activeTab}
+              onChange={setActiveTab}
+              isAdmin={isAdminOrManager}
+              pendingCount={metrics.pendingCount}
+            />
           </div>
         </div>
+
+        {/* Home: start here */}
+        {activeTab === 'home' && (
+          <AiHubHome
+            userName={sessionUser?.name || sessionUser?.full_name || ''}
+            myRequests={requests.filter(isMyRequest)}
+            reports={reports}
+            isAdmin={isAdminOrManager}
+            pendingCount={metrics.pendingCount}
+            dormantCount={ghostSeats.length}
+            loading={loading}
+            onNavigate={setActiveTab}
+            onRequest={(tier) => {
+              setFormTier(tier);
+              setActiveTab('request');
+            }}
+            onOpenGuide={() => {
+              setOnboardingInitialStep(0);
+              setIsOnboardingOpen(true);
+            }}
+          />
+        )}
 
         {/* Tab 1: Dashboard (Overview & ROI) */}
         {activeTab === 'dashboard' && (
@@ -2002,67 +1826,6 @@ export default function AiEnterprisePage() {
                   </div>
                 )}
 
-                {/* 2-Tier Strategy Showcase: Virtual AI Employee vs General Users */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/30 flex flex-col justify-between shadow-xs">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
-                      ทางเลือกที่ 1 • Power Users (งานเฉพาะทาง)
-                    </span>
-                    <span className="text-[11px] font-mono font-bold text-indigo-500">Claude Team Premium</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-theme-text mt-2.5 flex items-center gap-1.5">
-                    <Laptop size={16} className="text-indigo-500" />
-                    <span>สั่งจ้าง "พนักงานเสมือน" (Virtual AI Employee)</span>
-                  </h4>
-                  <p className="text-xs text-theme-text-muted mt-1 leading-relaxed">
-                    จัดสรรสิทธิ์รายบุคคลสำหรับงานที่ซับซ้อน เสมือนมีพนักงาน 1 คนช่วยทีม โดยต้องระบุ <strong>Job Description (JD)</strong> ชัดเจน บริหารจัดการโดย HR และกำกับความปลอดภัยโดย IT
-                  </p>
-                </div>
-                <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-theme-border/40 pt-3">
-                  <span className="text-[11px] text-theme-text-secondary">รอบจัดสรรสิทธิ์ & วางบิล: <strong>ทุกวันที่ 15</strong></span>
-                  <button
-                    onClick={() => {
-                      setFormTier('virtual_employee');
-                      setActiveTab('request');
-                    }}
-                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-xs flex items-center justify-center gap-1"
-                  >
-                    <span>+ ยื่นขอพนักงาน AI (FM-001)</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/30 flex flex-col justify-between shadow-xs">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                      ทางเลือกที่ 2 • General Users (พนักงานทั่วไป)
-                    </span>
-                    <span className="text-[11px] font-mono font-bold text-emerald-500">No Data Training • Pay-As-You-Go</span>
-                  </div>
-                  <h4 className="text-sm font-bold text-theme-text mt-2.5 flex items-center gap-1.5">
-                    <Sparkles size={16} className="text-emerald-500" />
-                    <span>ระบบ AI ภายในสำหรับพนักงานทุกคน (Internal Platform)</span>
-                  </h4>
-                  <p className="text-xs text-theme-text-muted mt-1 leading-relaxed">
-                    รวมพลังโมเดลชั้นนำระดับโลก <strong>ChatGPT, DeepSeek และ Minimax (Pro)</strong> ให้พนักงานทุกคนเข้าถึงได้ทันทีผ่าน Web UI ภายใน ไม่ถูกนำข้อมูลไปเทรน ปลอดภัย 100%
-                  </p>
-                </div>
-                <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-theme-border/40 pt-3">
-                  <span className="text-[11px] text-theme-text-secondary">เว็บภายใน: <strong>chat.futuregreenergy.com</strong></span>
-                  <Link
-                    to="/ai-chat"
-                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-xs flex items-center justify-center gap-1"
-                  >
-                    <span>เปิด AI Chat ทันที</span>
-                    <ChevronRight size={13} />
-                  </Link>
-                </div>
-              </div>
-            </div>
-
             {/* Department Adoption & Recent Deliverables Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Department Adoption Card */}
@@ -2745,17 +2508,32 @@ export default function AiEnterprisePage() {
             <div className="bg-theme-surface border border-theme-border/80 rounded-2xl shadow-sm p-6 sm:p-8">
               <div className="border-b border-theme-border/60 pb-5 mb-6">
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                    FORM: FM-PI-AI-001
-                  </span>
-                  <span className="text-xs text-theme-text-muted">ฝ่ายปรับปรุงกระบวนการทำงาน (Process Improvement / AI CoE)</span>
+                  <span className="text-[11px] text-theme-text-muted">แบบฟอร์ม FM-PI-AI-001 · ฝ่ายปรับปรุงกระบวนการทำงาน (AI CoE)</span>
                 </div>
-                <h2 className="text-lg font-bold text-theme-text mt-2">
-                  แบบฟอร์มเสนอคำขอใช้งาน AI และจัดสรรสิทธิ์ (AI Use Case Intake)
+                <h2 className="text-xl font-bold text-theme-text mt-2">
+                  ขอใช้งาน AI
                 </h2>
-                <p className="text-xs text-theme-text-muted mt-1">
-                  กรอกรายละเอียดปัญหา As-Is และเป้าหมาย To-Be เพื่อให้คณะกรรมการ CoE ประเมินความคุ้มค่าและจัดสรรสิทธิ์ Sandbox
+                <p className="text-sm text-theme-text-muted mt-1">
+                  กรอก 4 ส่วนด้านล่าง ใช้เวลาประมาณ 5 นาที ช่องที่มี * ต้องกรอก คณะกรรมการ CoE จะใช้ข้อมูลนี้พิจารณาและแจ้งผลให้ทราบ
                 </p>
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {[
+                    ['req-sec-1', 'ผู้ขอและจำนวนสิทธิ์'],
+                    ['req-sec-2', 'งานที่ทำอยู่ตอนนี้'],
+                    ['req-sec-3', 'เป้าหมายที่คาดหวัง'],
+                    ['req-sec-4', 'ยืนยันความปลอดภัย'],
+                  ].map(([id, label], i) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-xs font-medium text-theme-text transition-colors cursor-pointer"
+                    >
+                      <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold inline-flex items-center justify-center">{i + 1}</span>
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <form onSubmit={handleSubmitRequest} className="space-y-6">
@@ -2820,11 +2598,14 @@ export default function AiEnterprisePage() {
                 </div>
 
                 {/* Section 1: Requester Info */}
-                <div className="space-y-4 pt-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-500 flex items-center gap-1.5">
-                    <Users size={14} />
-                    <span>1. ข้อมูลผู้เสนอคำขอและสิทธิ์ที่ต้องการ</span>
-                  </h3>
+                <div id="req-sec-1" className="space-y-4 rounded-xl border border-theme-border/70 bg-theme-surface-secondary/30 p-5 scroll-mt-24">
+                  <div className="flex items-start gap-3">
+                    <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold inline-flex items-center justify-center shrink-0">1</span>
+                    <div>
+                      <h3 className="text-sm font-semibold text-theme-text">ผู้ขอและจำนวนสิทธิ์</h3>
+                      <p className="text-xs text-theme-text-muted mt-0.5">ระบุว่าใครจะใช้ AI และต้องการกี่สิทธิ์</p>
+                    </div>
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div>
@@ -2918,11 +2699,14 @@ export default function AiEnterprisePage() {
                 </div>
 
                 {/* Section 2: As-Is Process */}
-                <div className="space-y-4 pt-4 border-t border-theme-border/60">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-500 flex items-center gap-1.5">
-                    <Clock size={14} />
-                    <span>2. กระบวนการทำงานปัจจุบัน (As-Is Process & Bottlenecks)</span>
-                  </h3>
+                <div id="req-sec-2" className="space-y-4 rounded-xl border border-theme-border/70 bg-theme-surface-secondary/30 p-5 scroll-mt-24">
+                  <div className="flex items-start gap-3">
+                    <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold inline-flex items-center justify-center shrink-0">2</span>
+                    <div>
+                      <h3 className="text-sm font-semibold text-theme-text">งานที่ทำอยู่ตอนนี้</h3>
+                      <p className="text-xs text-theme-text-muted mt-0.5">เล่าวิธีทำงานปัจจุบัน และสิ่งที่ทำให้งานช้าหรือผิดพลาด</p>
+                    </div>
+                  </div>
 
                   <div>
                     <label className="block text-xs font-medium text-theme-text mb-1">
@@ -2940,7 +2724,7 @@ export default function AiEnterprisePage() {
 
                   <div>
                     <label className="block text-xs font-medium text-theme-text mb-1">
-                      ขั้นตอนการทำงานปัจจุบันและจุดที่เป็นคอขวด (Pain Points) *
+                      วิธีทำงานปัจจุบัน และสิ่งที่ทำให้ช้าหรือผิดพลาด *
                     </label>
                     <textarea
                       required
@@ -2980,15 +2764,18 @@ export default function AiEnterprisePage() {
                 </div>
 
                 {/* Section 3: To-Be Process */}
-                <div className="space-y-4 pt-4 border-t border-theme-border/60">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-500 flex items-center gap-1.5">
-                    <TrendingUp size={14} />
-                    <span>3. รูปแบบการนำ AI ไปใช้และเป้าหมาย (To-Be Targets)</span>
-                  </h3>
+                <div id="req-sec-3" className="space-y-4 rounded-xl border border-theme-border/70 bg-theme-surface-secondary/30 p-5 scroll-mt-24">
+                  <div className="flex items-start gap-3">
+                    <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold inline-flex items-center justify-center shrink-0">3</span>
+                    <div>
+                      <h3 className="text-sm font-semibold text-theme-text">AI จะช่วยอะไร และประหยัดเวลาได้เท่าไร</h3>
+                      <p className="text-xs text-theme-text-muted mt-0.5">เลือกงานที่จะให้ AI ช่วย และตั้งเป้าเวลาที่คาดว่าจะประหยัดได้</p>
+                    </div>
+                  </div>
 
                   <div>
                     <label className="block text-xs font-medium text-theme-text mb-2">
-                      ฟังก์ชัน AI ที่คาดว่าจะใช้งานหลัก (เลือกได้มากกว่า 1 ข้อ)
+                      ให้ AI ช่วยเรื่องอะไร (เลือกได้มากกว่า 1 ข้อ)
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {AI_FUNCTION_OPTIONS.map((opt) => {
@@ -3029,7 +2816,7 @@ export default function AiEnterprisePage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-theme-text mb-1">
-                        เป้าหมายเวลาที่คาดว่าจะประหยัดได้ (Target Hours Saved/สัปดาห์/คน) *
+                        เวลาที่คาดว่าจะประหยัดได้ (ชม./สัปดาห์/คน) *
                       </label>
                       <input
                         type="number"
@@ -3043,7 +2830,7 @@ export default function AiEnterprisePage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-theme-text mb-1">
-                        ผลลัพธ์เชิงคุณภาพอื่นๆ (Quality Improvements)
+                        ผลลัพธ์อื่นที่คาดหวัง (ไม่บังคับ)
                       </label>
                       <input
                         type="text"
@@ -3057,11 +2844,14 @@ export default function AiEnterprisePage() {
                 </div>
 
                 {/* Section 4: Data Governance & PDPA Check */}
-                <div className="space-y-4 pt-4 border-t border-theme-border/60">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-rose-500 flex items-center gap-1.5">
-                    <ShieldAlert size={14} />
-                    <span>4. การประเมินความปลอดภัยข้อมูลและ PDPA (Data Governance)</span>
-                  </h3>
+                <div id="req-sec-4" className="space-y-4 rounded-xl border border-theme-border/70 bg-theme-surface-secondary/30 p-5 scroll-mt-24">
+                  <div className="flex items-start gap-3">
+                    <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold inline-flex items-center justify-center shrink-0">4</span>
+                    <div>
+                      <h3 className="text-sm font-semibold text-theme-text">ยืนยันความปลอดภัยของข้อมูล</h3>
+                      <p className="text-xs text-theme-text-muted mt-0.5">ต้องติ๊กยืนยันก่อนจึงจะส่งคำขอได้</p>
+                    </div>
+                  </div>
 
                   <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-2">
                     <div className="flex items-start gap-3">
@@ -3074,7 +2864,7 @@ export default function AiEnterprisePage() {
                         className="mt-1 rounded text-indigo-600 focus:ring-indigo-500"
                       />
                       <label htmlFor="pdpa-check" className="text-xs text-theme-text cursor-pointer leading-relaxed">
-                        <strong className="text-amber-600 dark:text-amber-400 block mb-0.5">การรับรองความปลอดภัยข้อมูล (Mandatory Certification):</strong>
+                        <strong className="text-amber-600 dark:text-amber-400 block mb-0.5">ข้อตกลงก่อนส่งคำขอ:</strong>
                         ข้าพเจ้ารับรองว่าข้อมูลที่นำมาใช้งานร่วมกับระบบ AI จะไม่ประกอบด้วยข้อมูลส่วนบุคคลอ่อนไหว (PII) เช่น เลขบัตรประชาชน, เลขที่บัญชีธนาคาร หรือข้อมูลลับทางการค้า เว้นแต่จะได้ทำการ Masking ข้อมูลเรียบร้อยแล้วตามระเบียบปฏิบัติ WI-PI-AI-001
                       </label>
                     </div>
@@ -3085,7 +2875,7 @@ export default function AiEnterprisePage() {
                 <div className="pt-4 flex items-center justify-end gap-3">
                   <button
                     type="button"
-                    onClick={() => setActiveTab('dashboard')}
+                    onClick={() => setActiveTab('home')}
                     className="px-4 py-2 text-xs font-semibold rounded-lg border border-theme-border hover:bg-theme-surface-tertiary transition-all"
                   >
                     ยกเลิก
@@ -3103,7 +2893,7 @@ export default function AiEnterprisePage() {
                     ) : (
                       <>
                         <Check size={16} />
-                        <span>ส่งคำขอใช้งาน AI (Submit Request)</span>
+                        <span>ส่งคำขอ</span>
                       </>
                     )}
                   </button>
@@ -3392,7 +3182,24 @@ export default function AiEnterprisePage() {
         )}
 
         {/* Tab 3: CoE Rubric Evaluation (100 Points) */}
-        {activeTab === 'evaluations' && (
+        {activeTab === 'evaluations' && !isAdminOrManager && (
+          <div className="max-w-xl mx-auto px-4 py-16 text-center animate-fade-in">
+            <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <ShieldAlert size={22} />
+            </div>
+            <h2 className="mt-4 text-lg font-semibold text-theme-text">หน้านี้สำหรับผู้ดูแล (CoE) เท่านั้น</h2>
+            <p className="mt-1 text-sm text-theme-text-muted">คุณดูสถานะและผลการพิจารณาคำขอของคุณได้ที่หน้าแรก</p>
+            <button
+              type="button"
+              onClick={() => setActiveTab('home')}
+              className="mt-5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors cursor-pointer"
+            >
+              กลับหน้าแรก
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'evaluations' && isAdminOrManager && (
           <div className="max-w-5xl mx-auto px-4 py-8 animate-fade-in space-y-6">
             <div className="bg-theme-surface border border-theme-border/80 rounded-2xl shadow-sm p-6 sm:p-8">
               <div className="border-b border-theme-border/60 pb-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
