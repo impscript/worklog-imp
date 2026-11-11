@@ -445,12 +445,11 @@ export default function AiDepartmentPresetMatcher({
         </div>
 
         {/* 8 Department Cards (2 Rows of 4 Columns - Full Readability, No Truncation, Semantic Colors) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
           {DEPARTMENT_AI_PRESETS.map((preset) => {
             const IconComp = ICON_MAP[preset.iconName] || Briefcase;
             const isSelected = selectedDeptId === preset.id;
             const deptTheme = DEPT_THEMES[preset.colorTheme] || DEPT_THEMES.indigo;
-            const cleanModelName = preset.primaryModel.split('(')[0].trim();
 
             return (
               <button
@@ -460,86 +459,41 @@ export default function AiDepartmentPresetMatcher({
                   setSeatCount(preset.recommendedSeats || 3);
                 }}
                 className={cn(
-                  'p-3.5 rounded-2xl border text-left transition-all duration-200 flex flex-col justify-between cursor-pointer group active:scale-[0.98]',
+                  'p-3.5 rounded-2xl border text-left transition-all duration-200 flex items-center cursor-pointer group active:scale-[0.98]',
                   isSelected
                     ? cn(deptTheme.selectedGradient, deptTheme.selectedRing, deptTheme.selectedShadow, 'text-white border-t-white/30')
                     : cn('bg-theme-surface/75 hover:bg-theme-surface text-theme-text', deptTheme.border, deptTheme.borderHover, deptTheme.bgTint, 'shadow-2xs hover:shadow-xs')
                 )}
               >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        'w-8 h-8 rounded-xl flex items-center justify-center transition-colors shadow-2xs',
-                        isSelected
-                          ? 'bg-white/20 text-white'
-                          : cn(deptTheme.iconBg, deptTheme.iconColor)
-                      )}
-                    >
-                      <IconComp size={16} />
-                    </span>
-                    <span
-                      className={cn(
-                        'text-xs font-mono font-bold tracking-wider uppercase px-2 py-0.5 rounded-md border',
-                        isSelected
-                          ? 'bg-white/20 text-white border-white/30'
-                          : cn(deptTheme.badgeBg, deptTheme.badgeText, deptTheme.badgeBorder)
-                      )}
-                    >
-                      {preset.deptCode}
-                    </span>
-                  </div>
-
+                <div className="flex items-center gap-3 w-full">
                   <span
                     className={cn(
-                      'text-xs font-mono px-2 py-0.5 rounded-md font-bold tabular-nums',
+                      'w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors shadow-2xs',
                       isSelected
-                        ? 'bg-white/20 text-white border border-white/30'
-                        : 'bg-theme-bg-page/90 text-theme-text-muted border border-theme-border/50'
+                        ? 'bg-white/20 text-white'
+                        : cn(deptTheme.iconBg, deptTheme.iconColor)
                     )}
-                    title={`พนักงานจริง: ${preset.headcountActual} คน (OC: ${preset.headcountOc})`}
                   >
-                    {preset.headcountActual} FTE
+                    <IconComp size={22} />
                   </span>
-                </div>
-
-                <div className="mt-2.5">
-                  <h4
-                    className={cn(
-                      'text-sm sm:text-base font-bold leading-snug',
-                      isSelected ? 'text-white' : cn('text-theme-text', deptTheme.titleHover)
-                    )}
-                  >
-                    {preset.deptName}
-                  </h4>
-                  <p
-                    className={cn(
-                      'text-xs leading-tight mt-1 line-clamp-1',
-                      isSelected ? 'text-white/85' : 'text-theme-text-muted'
-                    )}
-                  >
-                    {preset.deptNameEn.split('(')[0].trim()}
-                  </p>
-                </div>
-
-                <div className="mt-3 pt-2.5 border-t border-white/10 dark:border-white/10 flex items-center justify-between text-xs">
-                  <span
-                    className={cn(
-                      'truncate max-w-[155px] font-medium',
-                      isSelected ? 'text-white/90' : 'text-theme-text-muted'
-                    )}
-                    title={cleanModelName}
-                  >
-                    โมเดล: {cleanModelName}
-                  </span>
-                  <span
-                    className={cn(
-                      'font-mono shrink-0',
-                      isSelected ? 'text-amber-200 font-black' : cn(deptTheme.accentText, 'font-bold')
-                    )}
-                  >
-                    แนะแนว {preset.recommendedSeats} ที่นั่ง
-                  </span>
+                  <div className="min-w-0">
+                    <h4
+                      className={cn(
+                        'text-sm font-bold leading-snug',
+                        isSelected ? 'text-white' : cn('text-theme-text', deptTheme.titleHover)
+                      )}
+                    >
+                      {preset.deptName}
+                    </h4>
+                    <p
+                      className={cn(
+                        'text-xs leading-tight mt-0.5',
+                        isSelected ? 'text-white/85' : 'text-theme-text-muted'
+                      )}
+                    >
+                      {preset.deptNameEn.split('(')[0].trim()}
+                    </p>
+                  </div>
                 </div>
               </button>
             );
