@@ -597,6 +597,52 @@ export function getActiveWorkspaceId(): string | null {
   }
 }
 
+// PostgREST receives `.in(column, values)` as part of the request URL, and the proxy in front of it rejects
+// URLs longer than roughly 8 KB with "400 Bad Request". Thai text is expensive there (every Thai character
+// becomes 9 characters once percent-encoded), so a long project list must be fetched in several smaller
+// requests, and each request is paged because PostgREST caps a response at 1,000 rows.
+const IN_FILTER_URL_BUDGET = 3500; // encoded characters per .in() filter, well under the URL limit
+const IN_FILTER_PAGE_SIZE = 1000;
+
+function chunkByEncodedLength(values: string[], budget = IN_FILTER_URL_BUDGET): string[][] {
+  const chunks: string[][] = [];
+  let current: string[] = [];
+  let used = 0;
+  for (const value of values) {
+    const cost = encodeURIComponent(value).length + 3; // quotes + comma
+    if (current.length > 0 && used + cost > budget) {
+      chunks.push(current);
+      current = [];
+      used = 0;
+    }
+    current.push(value);
+    used += cost;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+/**
+ * Runs an `.in()` query over `values` in URL-sized chunks and pages through every result.
+ * `run` must order its query by a unique key (the callers end with `.order('id')`) so paging is stable.
+ */
+async function fetchInChunks<T>(
+  values: string[],
+  run: (chunk: string[], from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (const chunk of chunkByEncodedLength(Array.from(new Set(values)))) {
+    for (let from = 0; ; from += IN_FILTER_PAGE_SIZE) {
+      const { data, error } = await run(chunk, from, from + IN_FILTER_PAGE_SIZE - 1);
+      if (error) throw error;
+      const page = data ?? [];
+      rows.push(...page);
+      if (page.length < IN_FILTER_PAGE_SIZE) break;
+    }
+  }
+  return rows;
+}
+
 /**
  * Fetch all projects for Gantt Roadmap view with team members, milestones, and cost savings
  */
@@ -638,58 +684,71 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
     });
 
     // 3. Fetch Team Contributions
-    const { data: teamData, error: teamErr } = await supabase
-      .from('tb_project_team_contribution')
-      .select('*')
-      .in('project_id', projectIds);
-    if (teamErr) throw teamErr;
+    const teamData = await fetchInChunks(projectIds, (ids, from, to) =>
+      supabase.from('tb_project_team_contribution').select('*').in('project_id', ids).order('id', { ascending: true }).range(from, to)
+    );
 
     // 4. Fetch Milestones
-    const { data: milestonesData, error: milestonesErr } = await supabase
-      .from('tb_project_milestones')
-      .select('*')
-      .in('project_id', projectIds)
-      .order('sequence_order', { ascending: true });
-    if (milestonesErr) throw milestonesErr;
+    const milestonesData = await fetchInChunks(projectIds, (ids, from, to) =>
+      supabase
+        .from('tb_project_milestones')
+        .select('*')
+        .in('project_id', ids)
+        .order('sequence_order', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     // 5. Fetch Cost Savings
-    const { data: savingsData, error: savingsErr } = await supabase
-      .from('tb_project_cost_savings')
-      .select('*')
-      .in('project_id', projectIds);
-    if (savingsErr) throw savingsErr;
+    const savingsData = await fetchInChunks(projectIds, (ids, from, to) =>
+      supabase.from('tb_project_cost_savings').select('*').in('project_id', ids).order('id', { ascending: true }).range(from, to)
+    );
 
     // 5b. Fetch Indirect Savings Line Items
-    const { data: indirectItemsData, error: indirectItemsErr } = await supabase
-      .from('tb_project_indirect_savings_items')
-      .select('*')
-      .in('project_id', projectIds)
-      .order('sequence_order', { ascending: true });
-    if (indirectItemsErr) throw indirectItemsErr;
+    const indirectItemsData = await fetchInChunks(projectIds, (ids, from, to) =>
+      supabase
+        .from('tb_project_indirect_savings_items')
+        .select('*')
+        .in('project_id', ids)
+        .order('sequence_order', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     // 5c. Fetch Direct Savings Market Rate Reference Items
-    const { data: marketRateItemsData, error: marketRateItemsErr } = await supabase
-      .from('tb_project_direct_market_rate_items')
-      .select('*')
-      .in('project_id', projectIds)
-      .order('sequence_order', { ascending: true });
-    if (marketRateItemsErr) throw marketRateItemsErr;
+    const marketRateItemsData = await fetchInChunks(projectIds, (ids, from, to) =>
+      supabase
+        .from('tb_project_direct_market_rate_items')
+        .select('*')
+        .in('project_id', ids)
+        .order('sequence_order', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     // 5d. Fetch Cost Avoidance Line Items
-    const { data: avoidanceItemsData, error: avoidanceItemsErr } = await supabase
-      .from('tb_project_avoidance_items')
-      .select('*')
-      .in('project_id', projectIds)
-      .order('sequence_order', { ascending: true });
-    if (avoidanceItemsErr) throw avoidanceItemsErr;
+    const avoidanceItemsData = await fetchInChunks(projectIds, (ids, from, to) =>
+      supabase
+        .from('tb_project_avoidance_items')
+        .select('*')
+        .in('project_id', ids)
+        .order('sequence_order', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
-    // 6. Fetch Actual Worklog Hours grouped by project_name and user_id
+    // 6. Fetch Actual Worklog Hours grouped by project_name and user_id.
+    // Project names are Thai, so this is the filter that overflowed the URL limit; it is also the one that
+    // can match thousands of rows, so every chunk is paged (otherwise hours were silently cut at 1,000 rows).
     const projectNames = rawProjects.map((p) => p.project_name);
-    const { data: worklogs, error: worklogsErr } = await supabase
-      .from('col_worklog')
-      .select('project_name, user_id, total_hours')
-      .in('project_name', projectNames);
-    if (worklogsErr) throw worklogsErr;
+    const worklogs = await fetchInChunks(projectNames, (names, from, to) =>
+      supabase
+        .from('col_worklog')
+        .select('project_name, user_id, total_hours')
+        .in('project_name', names)
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     // Build worklog aggregation map: projectName -> { totalHours, userHours: { [userIdOrName]: hours } }
     const worklogSummary = new Map<string, { totalHours: number; userHours: Map<string, number> }>();
