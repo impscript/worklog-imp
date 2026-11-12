@@ -93,7 +93,7 @@ export const LICENSING_ROUTES: AiLicensingRoute[] = [
     id: 'subscription_team',
     name: 'Claude Team Standard',
     badge: 'ยอดนิยม • สายเอกสาร',
-    priceRange: '฿700 - ฿875',
+    priceRange: '700 - 875 บาท',
     billingType: 'รายเดือน ($20 - $25 / คน)',
     bestFor: 'บัญชี, จัดซื้อ, กฎหมาย, ทรัพยากรบุคคล (HR) และผู้ใช้งานวิเคราะห์เอกสารทุกวัน',
     pros: [
@@ -112,7 +112,7 @@ export const LICENSING_ROUTES: AiLicensingRoute[] = [
     id: 'subscription_premium',
     name: 'Claude Team Premium / Copilot',
     badge: 'งานหนัก • โปรแกรมเมอร์',
-    priceRange: '฿3,500 - ฿4,375',
+    priceRange: '3,500 - 4,375 บาท',
     billingType: 'รายเดือน ($100 - $125 / คน)',
     bestFor: 'ทีมพัฒนาซอฟต์แวร์, Data Science, AI Engineer ที่ต้องประมวลผลงานหนักตลอดวัน',
     pros: [
@@ -131,7 +131,7 @@ export const LICENSING_ROUTES: AiLicensingRoute[] = [
     id: 'api_payg',
     name: 'พอร์ทัลกลางองค์กร (AI Chat Sandbox)',
     badge: 'จ่ายตามจริง • ใช้ไม่ประจำ',
-    priceRange: '฿70 - ฿280',
+    priceRange: '70 - 280 บาท',
     billingType: 'ตามปริมาณใช้งาน ($2 - $8 / คน)',
     bestFor: 'พนักงานที่ใช้งานเป็นครั้งคราว ค้นคว้า ร่างอีเมล แปลภาษา หรือทดลองประลองโมเดล',
     pros: [
@@ -150,7 +150,7 @@ export const LICENSING_ROUTES: AiLicensingRoute[] = [
     id: 'enterprise_zdr',
     name: 'Claude Enterprise (Dedicated)',
     badge: 'ความลับสูงสุด • แผนกใหญ่',
-    priceRange: '~฿2,100',
+    priceRange: '~2,100 บาท',
     billingType: 'สัญญาองค์กรรายปี (~$60 / คน)',
     bestFor: 'ผู้บริหารระดับสูง, ศูนย์กลาง AI CoE, หน่วยงานที่มีข้อมูลความลับสูงสุด (Confidential)',
     pros: [

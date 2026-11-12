@@ -1034,9 +1034,9 @@ export default function AiDepartmentPresetMatcher({
               </span>
               <div className="mt-1 flex items-baseline gap-1.5">
                 <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-indigo-600 dark:text-indigo-400 tabular-nums">
-                  ฿{(seatCount * 25 * 35).toLocaleString()}
+                  {(seatCount * 25 * 35).toLocaleString()}
                 </span>
-                <span className="text-xs text-theme-text-muted">/ เดือน</span>
+                <span className="text-xs text-theme-text-muted">บาท / เดือน</span>
                 <span className="text-[11px] font-mono font-semibold text-theme-text-muted ml-auto">
                   (${seatCount * 25})
                 </span>
@@ -1065,23 +1065,23 @@ export default function AiDepartmentPresetMatcher({
 
             if (route.id === 'subscription_team') {
               const usd = seatCount * 25;
-              totalThbText = `฿${(usd * 35).toLocaleString()}`;
+              totalThbText = `${(usd * 35).toLocaleString()} บาท`;
               totalUsdText = `$${usd}`;
-              formulaText = `$25 × ${seatCount} ที่นั่ง (~฿35/$)`;
+              formulaText = `$25 × ${seatCount} ที่นั่ง (~35 บาท/$)`;
             } else if (route.id === 'subscription_premium') {
               const usd = seatCount * 100;
-              totalThbText = `฿${(usd * 35).toLocaleString()}`;
+              totalThbText = `${(usd * 35).toLocaleString()} บาท`;
               totalUsdText = `$${usd}`;
               formulaText = `$100 × ${seatCount} ที่นั่ง`;
             } else if (route.id === 'api_payg') {
               const usd = Math.round(seatCount * 5);
-              totalThbText = `~฿${(usd * 35).toLocaleString()}`;
+              totalThbText = `~${(usd * 35).toLocaleString()} บาท`;
               totalUsdText = `~$${usd}`;
               formulaText = `เฉลี่ย ~$5/คน ตามปริมาณจริง`;
             } else {
               const seats = Math.max(seatCount, 20);
               const usd = seats * 60;
-              totalThbText = `~฿${(usd * 35).toLocaleString()}`;
+              totalThbText = `~${(usd * 35).toLocaleString()} บาท`;
               totalUsdText = `~$${usd}`;
               formulaText = `สัญญารายปี ขั้นต่ำ 20 ที่นั่ง`;
             }
