@@ -13,6 +13,19 @@ import { AI_HUB_TABS, type AiHubTab } from '../components/ai-enterprise/aiHubTab
 import AiHubHome from '../components/ai-enterprise/AiHubHome';
 import AiLifecycleOnboardingModal from '../components/ai-enterprise/AiLifecycleOnboardingModal';
 import AiTeamMemberPicker, { type AiTeamMember } from '../components/ai-enterprise/AiTeamMemberPicker';
+import AiUseCaseEditor from '../components/ai-enterprise/AiUseCaseEditor';
+import AiRequestSummary, { AiValueEstimateBox } from '../components/ai-enterprise/AiRequestSummary';
+import AiSupervisorPicker, { type AiSupervisor } from '../components/ai-enterprise/AiSupervisorPicker';
+import {
+  buildLegacyFields,
+  emptyUseCase,
+  memberKey,
+  reassignTasks,
+  serializeUseCases,
+  taskFromHoursPair,
+  validateRequestForm,
+  type AiUseCase,
+} from '../components/ai-enterprise/aiRequestForm';
 import AiSeatRosterGrid from '../components/ai-enterprise/AiSeatRosterGrid';
 import AiDepartmentPresetMatcher from '../components/ai-enterprise/AiDepartmentPresetMatcher';
 import { type DepartmentAiPreset } from '../components/ai-enterprise/aiDepartmentPresets';
@@ -46,6 +59,13 @@ export interface AiRequest {
   linked_project_id?: string | null;
   team_members?: AiTeamMember[];
   allow_partial_allocation?: boolean;
+  /** Per-task list saved by the v2 form (see migration 20261112090000). */
+  use_cases?: ReturnType<typeof serializeUseCases>;
+  supervisor_name?: string | null;
+  supervisor_emp_id?: string | null;
+  supervisor_email?: string | null;
+  supervisor_status?: 'pending' | 'confirmed' | 'declined';
+  supervisor_confirmed_at?: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -150,8 +170,15 @@ export default function AiEnterprisePage() {
   const [pageSize, setPageSize] = useState<number>(5);
 
   // Form states: Request FM-001
+  // Key of the requester as a team member (same key the team picker uses), so task owners line up with members.
+  const sessionLeadKey = sessionUser
+    ? memberKey({
+        emp_id: sessionUser.emp_id || '',
+        email: sessionUser.email || '',
+        name: sessionUser.name || sessionUser.full_name || 'ตัวแทนผู้ยื่นคำขอ',
+      })
+    : '';
   const [formTier, setFormTier] = useState<'virtual_employee' | 'general_web'>('virtual_employee');
-  const [formTitle, setFormTitle] = useState('');
   const [formDept, setFormDept] = useState(sessionUser?.department || '');
   const [formPosition, setFormPosition] = useState(sessionUser?.position || '');
   const [formSeats, setFormSeats] = useState(1);
@@ -171,16 +198,37 @@ export default function AiEnterprisePage() {
     return [];
   });
   const [formAllowPartialAllocation, setFormAllowPartialAllocation] = useState(false);
+  // Tasks the requester wants AI to help with; the first one is owned by the requester (lead).
+  const [formTasks, setFormTasks] = useState<AiUseCase[]>(() => [emptyUseCase(sessionLeadKey)]);
   const [formContractMonths, setFormContractMonths] = useState(3);
   const [formAiJd, setFormAiJd] = useState('');
-  const [formAsIsProcess, setFormAsIsProcess] = useState('');
-  const [formFrequency, setFormFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
-  const [formAsIsHours, setFormAsIsHours] = useState(8);
-  const [formSelectedFunctions, setFormSelectedFunctions] = useState<string[]>(['synthesis']);
-  const [formTargetHoursSaved, setFormTargetHoursSaved] = useState(4);
   const [formExpectedBenefits, setFormExpectedBenefits] = useState('');
+  const [formSupervisor, setFormSupervisor] = useState<AiSupervisor | null>(null);
+  const [showFormErrors, setShowFormErrors] = useState(false);
   const [formDataSafetyCertified, setFormDataSafetyCertified] = useState(false);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
+  // With a single member every task belongs to that member, so the owner is never asked for or left empty.
+  const effectiveTasks = useMemo(
+    () => (formTeamMembers.length === 1 ? formTasks.map((t) => ({ ...t, owner_key: memberKey(formTeamMembers[0]) })) : formTasks),
+    [formTasks, formTeamMembers]
+  );
+  const formValidation = useMemo(
+    () =>
+      validateRequestForm({
+        requesterEmail: sessionUser?.email,
+        requesterEmpId: sessionUser?.emp_id || sessionUser?.empId,
+        supervisor: formSupervisor,
+        members: formTeamMembers,
+        seats: formSeats,
+        allowPartial: formAllowPartialAllocation,
+        tasks: effectiveTasks,
+        consent: formDataSafetyCertified,
+        requireAiJd: formTier === 'virtual_employee',
+        aiJd: formAiJd,
+      }),
+    [sessionUser, formSupervisor, formTeamMembers, formSeats, formAllowPartialAllocation, effectiveTasks, formDataSafetyCertified, formTier, formAiJd]
+  );
 
   // URL Query Params & Graduation Package Bridge
   const [searchParams] = useSearchParams();
@@ -194,11 +242,21 @@ export default function AiEnterprisePage() {
         const pkg = JSON.parse(rawPkg);
         if (pkg?.prefillForm) {
           const pf = pkg.prefillForm;
-          if (pf.title) setFormTitle(pf.title);
           if (pf.department) setFormDept(pf.department);
           if (pf.recommendedSeats) setFormSeats(pf.recommendedSeats);
-          if (pf.asIsHours) setFormAsIsHours(pf.asIsHours);
-          if (pf.targetHoursSaved) setFormTargetHoursSaved(pf.targetHoursSaved);
+          if (pf.title || pf.asIsHours || pf.targetHoursSaved) {
+            setFormTasks([
+              taskFromHoursPair({
+                ownerKey: sessionLeadKey,
+                title: pf.title || '',
+                asIsProcess: '',
+                aiFunctions: [],
+                asIsHoursPerWeek: Number(pf.asIsHours) || 0,
+                targetHoursSavedPerWeek: Number(pf.targetHoursSaved) || 0,
+                basis: 'sandbox',
+              }),
+            ]);
+          }
           if (pf.businessJustification) setFormExpectedBenefits(pf.businessJustification);
           setFormDataSafetyCertified(true);
           hasGraduation = true;
@@ -221,7 +279,7 @@ export default function AiEnterprisePage() {
         showToast('🎉 นำเข้าข้อมูลผลการทดสอบเชิงประจักษ์จาก Sandbox สู่แบบฟอร์ม FM-001 เรียบร้อยแล้ว!', 'success');
       }
     }
-  }, [searchParams, showToast]);
+  }, [searchParams, showToast, sessionLeadKey]);
 
   // Form states: Monthly Report FM-002
   const [reportRequestId, setReportRequestId] = useState('');
@@ -720,39 +778,60 @@ export default function AiEnterprisePage() {
     setFormTier(preset.prefillForm.tier);
     setFormDept(preset.deptName);
     setFormSeats(preset.prefillForm.recommendedSeats);
-    setFormTitle(preset.prefillForm.title);
     setFormAiJd(preset.prefillForm.aiJd);
-    setFormAsIsProcess(preset.prefillForm.asIsProcess);
-    setFormFrequency(preset.prefillForm.workFrequency);
-    setFormAsIsHours(preset.prefillForm.asIsHours);
-    setFormTargetHoursSaved(preset.prefillForm.targetHoursSaved);
-    setFormSelectedFunctions(preset.prefillForm.aiFunctions);
     setFormExpectedBenefits(preset.prefillForm.expectedBenefits);
+    // The preset describes one piece of work as an hours-per-week pair; load it as the first task
+    // (owned by the lead) so the numbers stay the same and the requester can refine them.
+    const leadMember = formTeamMembers.find((m) => m.is_lead) || formTeamMembers[0];
+    setFormTasks([
+      taskFromHoursPair({
+        ownerKey: leadMember ? memberKey(leadMember) : sessionLeadKey,
+        title: preset.prefillForm.title,
+        asIsProcess: preset.prefillForm.asIsProcess,
+        aiFunctions: preset.prefillForm.aiFunctions,
+        asIsHoursPerWeek: preset.prefillForm.asIsHours,
+        targetHoursSavedPerWeek: preset.prefillForm.targetHoursSaved,
+      }),
+    ]);
     setFormAllowPartialAllocation(true);
     setActiveTab('request');
-    showToast(`โหลดชุดข้อมูล Preset ของ "${preset.deptName}" ลงในฟอร์ม FM-001 เรียบร้อยแล้ว!`, 'success');
-  }, [showToast]);
+    showToast(`โหลดชุดข้อมูล Preset ของ "${preset.deptName}" ลงในฟอร์มแล้ว ตรวจและปรับตัวเลขในข้อ 2 ได้`, 'success');
+  }, [showToast, formTeamMembers, sessionLeadKey]);
+
+  // Removing a member who owns tasks must not silently orphan those tasks: move them to the lead first.
+  const handleTeamMembersChange = useCallback(
+    async (next: AiTeamMember[]) => {
+      const removed = formTeamMembers.filter((m) => !next.some((n) => memberKey(n) === memberKey(m)));
+      if (removed.length === 0) {
+        setFormTeamMembers(next);
+        return;
+      }
+      const lead = next.find((m) => m.is_lead) || next[0];
+      const owned = formTasks.filter((t) => removed.some((r) => memberKey(r) === t.owner_key));
+      if (owned.length > 0 && lead) {
+        const ok = await showConfirm({
+          title: 'นำสมาชิกออก: มีงานที่รับผิดชอบอยู่',
+          message: `${removed.map((r) => r.name).join(', ')} รับผิดชอบ ${owned.length} งาน\nต้องการย้ายงานเหล่านี้ไปให้ ${lead.name} (ผู้ขอหลัก) แล้วนำออกหรือไม่?\n(หรือกดยกเลิกแล้วลบงานในข้อ 2 ก่อน)`,
+          confirmText: 'ย้ายงานและนำออก',
+          cancelText: 'ยกเลิก',
+          type: 'primary',
+        });
+        if (!ok) return;
+        setFormTasks(removed.reduce((acc, r) => reassignTasks(acc, memberKey(r), memberKey(lead)), formTasks));
+      }
+      setFormTeamMembers(next);
+    },
+    [formTeamMembers, formTasks, showConfirm]
+  );
 
   // Action: Handle Submit Request (FM-001)
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formTitle.trim() || !formAsIsProcess.trim()) {
-      showToast('กรุณากรอกชื่องานและรายละเอียดกระบวนการทำงานเดิม', 'warning');
-      return;
-    }
-    if (!formDataSafetyCertified) {
-      showToast('กรุณากดยืนยันการประเมินความปลอดภัยข้อมูลและ PDPA', 'warning');
-      return;
-    }
-
-    // Check team members count if not allowing partial allocation
-    if (!formAllowPartialAllocation && formTeamMembers.length < formSeats) {
-      showToast(`กรุณาระบุรายชื่อสมาชิกให้ครบทั้ง ${formSeats} สิทธิ์ หรือติ๊กเลือก "ระบุเฉพาะสมาชิกที่ทราบก่อน"`, 'warning');
-      return;
-    }
-
-    if (formTeamMembers.length > formSeats) {
-      showToast(`จำนวนสมาชิกในรายชื่อ (${formTeamMembers.length} คน) เกินกว่าจำนวนสิทธิ์ที่ขอ (${formSeats} สิทธิ์) กรุณาปรับเพิ่มสิทธิ์ที่ขอ หรือลบสมาชิกส่วนเกินออก`, 'warning');
+    setShowFormErrors(true);
+    if (formValidation.errors.length > 0) {
+      showToast(`ยังส่งคำขอไม่ได้ ต้องแก้ ${formValidation.errors.length} รายการ (ดูรายการในข้อ 3 ของฟอร์ม)`, 'warning');
+      const target = formValidation.errors[0].targetId;
+      if (target) document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
 
@@ -780,13 +859,13 @@ export default function AiEnterprisePage() {
         tier: formTier,
         ai_jd: formAiJd.trim(),
         contract_months: Number(formContractMonths),
-        title: formTitle.trim(),
-        as_is_process: formAsIsProcess.trim(),
-        work_frequency: formFrequency,
-        as_is_hours_per_week: Number(formAsIsHours),
-        ai_functions: formSelectedFunctions,
-        target_hours_saved_per_week: Number(formTargetHoursSaved),
+        ...buildLegacyFields(effectiveTasks, activeMembers),
         expected_benefits: formExpectedBenefits.trim(),
+        use_cases: serializeUseCases(effectiveTasks),
+        supervisor_name: formSupervisor?.name.trim() || null,
+        supervisor_emp_id: formSupervisor?.emp_id.trim() || null,
+        supervisor_email: formSupervisor?.email?.trim().toLowerCase() || null,
+        supervisor_status: 'pending',
         data_safety_certified: formDataSafetyCertified,
         status: 'pending_review',
         team_members: activeMembers,
@@ -799,8 +878,10 @@ export default function AiEnterprisePage() {
         .select()
         .single();
 
+      let dbError = '';
       if (error) {
-        // If supabase write fails (e.g. migration not linked yet), add to local state
+        dbError = error.message || 'unknown error';
+        // If supabase write fails (e.g. migration not linked yet), keep it in local state so the demo stays usable
         const localReq: AiRequest = {
           ...newReq,
           id: `req-${Date.now()}`,
@@ -811,11 +892,21 @@ export default function AiEnterprisePage() {
         setRequests(prev => [data, ...prev]);
       }
 
-      showToast(`ยื่นคำขอใช้งาน AI สำหรับคณะทำงาน (${activeMembers.length} คน) สำเร็จ! ส่งต่อทีม CoE ตรวจสอบแล้ว`, 'success');
+      if (dbError) {
+        const needsMigration = /use_cases|supervisor_/.test(dbError);
+        showToast(
+          `ยังไม่ได้บันทึกลงฐานข้อมูล: ${dbError}${needsMigration ? ' (ต้องรัน migration 20261112090000 ก่อน)' : ''} คำขอแสดงในหน้านี้ชั่วคราวเท่านั้น`,
+          'warning',
+          9000
+        );
+      } else {
+        showToast(`ยื่นคำขอใช้งาน AI สำหรับคณะทำงาน (${activeMembers.length} คน) สำเร็จ! ส่งต่อทีม CoE ตรวจสอบแล้ว`, 'success');
+      }
       // Reset form
-      setFormTitle('');
       setFormAiJd('');
-      setFormAsIsProcess('');
+      setFormTasks([emptyUseCase(sessionLeadKey)]);
+      setFormSupervisor(null);
+      setShowFormErrors(false);
       setFormExpectedBenefits('');
       setFormDataSafetyCertified(false);
       setFormSeats(1);
@@ -1299,16 +1390,16 @@ export default function AiEnterprisePage() {
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
                   <span className="text-3xl font-black text-theme-text tracking-tight font-mono">
-                    ฿{effectivePerspective === 'my_impact'
+                    {effectivePerspective === 'my_impact'
                       ? myMetrics.monthlySavings.toLocaleString()
                       : effectivePerspective === 'department'
                         ? deptMetrics.monthlySavings.toLocaleString()
                         : metrics.monthlyCostSavings.toLocaleString()}
                   </span>
-                  <span className="text-xs text-indigo-500 font-semibold">/เดือน</span>
+                  <span className="text-xs text-indigo-500 font-semibold">บาท/เดือน</span>
                 </div>
                 <p className="text-[11px] text-theme-text-muted mt-2">
-                  อิง Standard Blended Rate 300 ฿/ชม. ตามระเบียบ WI-001
+                  อิง Standard Blended Rate 300 บาท/ชม. ตามระเบียบ WI-001
                 </p>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500" />
               </div>
@@ -1759,7 +1850,7 @@ export default function AiEnterprisePage() {
                         <div className="p-3.5 rounded-xl bg-theme-surface-secondary/50 border border-theme-border/60">
                           <div className="text-[11px] text-theme-text-muted">มูลค่าประหยัดต่อปี (Estimated Annual ROI)</div>
                           <div className="text-xl font-black text-theme-text font-mono mt-1">
-                            ฿{(deptMetrics.monthlySavings * 12).toLocaleString()}
+                            {(deptMetrics.monthlySavings * 12).toLocaleString()} บาท
                           </div>
                           <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
                             ประหยัดเวลา {deptMetrics.monthlyHours * 12} ชั่วโมงทำงาน/ปี
@@ -2507,20 +2598,17 @@ export default function AiEnterprisePage() {
 
             <div className="bg-theme-surface border border-theme-border/80 rounded-2xl shadow-sm p-6 sm:p-8">
               <div className="border-b border-theme-border/60 pb-5 mb-6">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-theme-text-muted">แบบฟอร์ม FM-PI-AI-001 · ฝ่ายปรับปรุงกระบวนการทำงาน (AI CoE)</span>
-                </div>
-                <h2 className="text-xl font-bold text-theme-text mt-2">
+                <h2 className="text-xl font-bold text-theme-text">
                   ขอใช้งาน AI
                 </h2>
                 <p className="text-sm text-theme-text-muted mt-1">
-                  กรอก 4 ส่วนด้านล่าง ใช้เวลาประมาณ 5 นาที ช่องที่มี * ต้องกรอก คณะกรรมการ CoE จะใช้ข้อมูลนี้พิจารณาและแจ้งผลให้ทราบ
+                  ช่องที่มี * ต้องกรอก คณะกรรมการ CoE จะใช้ข้อมูลนี้พิจารณาและแจ้งผลให้ทราบ
                 </p>
                 <div className="flex flex-wrap gap-2 mt-4">
                   {[
-                    ['req-sec-1', 'ผู้ขอและจำนวนสิทธิ์'],
-                    ['req-sec-2', 'งานที่ทำอยู่ตอนนี้'],
-                    ['req-sec-3', 'เป้าหมายที่คาดหวัง'],
+                    ['req-sec-1', 'ผู้ขอและรายชื่อ'],
+                    ['req-sec-2', 'งานและผลที่คาดหวัง'],
+                    ['req-sec-3', 'สรุปและตรวจสอบ'],
                     ['req-sec-4', 'ยืนยันความปลอดภัย'],
                   ].map(([id, label], i) => (
                     <button
@@ -2536,7 +2624,7 @@ export default function AiEnterprisePage() {
                 </div>
               </div>
 
-              <form onSubmit={handleSubmitRequest} className="space-y-6">
+              <form onSubmit={handleSubmitRequest} noValidate className="space-y-6">
                 {/* Tier Selection */}
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-theme-text">รูปแบบบริการ AI ที่ต้องการขอใช้งาน *</label>
@@ -2597,100 +2685,115 @@ export default function AiEnterprisePage() {
                   </div>
                 </div>
 
-                {/* Section 1: Requester Info */}
+                {/* Section 1: requester, request details, people who will use AI */}
                 <div id="req-sec-1" className="space-y-4 rounded-xl border border-theme-border/70 bg-theme-surface-secondary/30 p-5 scroll-mt-24">
                   <div className="flex items-start gap-3">
                     <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold inline-flex items-center justify-center shrink-0">1</span>
                     <div>
                       <h3 className="text-sm font-semibold text-theme-text">ผู้ขอและจำนวนสิทธิ์</h3>
-                      <p className="text-xs text-theme-text-muted mt-0.5">ระบุว่าใครจะใช้ AI และต้องการกี่สิทธิ์</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-theme-text-muted mb-1">ชื่อผู้เสนอคำขอ</label>
-                      <input
-                        type="text"
-                        value={sessionUser?.name || ''}
-                        disabled
-                        className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text opacity-80 cursor-not-allowed"
-                      />
+                  {/* 1.1 Requester (one line) + supervisor (second line) */}
+                  <div className="space-y-3 rounded-lg border border-theme-border/60 bg-theme-surface p-4">
+                    <h4 className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">1.1 ข้อมูลผู้เสนอคำขอ</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-theme-text-muted mb-1">ชื่อผู้เสนอคำขอ</label>
+                        <input
+                          type="text"
+                          value={sessionUser?.name || ''}
+                          disabled
+                          className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text opacity-80 cursor-not-allowed"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-theme-text-muted mb-1">ฝ่าย / แผนก *</label>
+                        <input
+                          type="text"
+                          value={formDept}
+                          onChange={(e) => setFormDept(e.target.value)}
+                          placeholder="เช่น จัดซื้อ, บัญชี, HR"
+                          className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-theme-text-muted mb-1">ตำแหน่ง</label>
+                        <input
+                          type="text"
+                          value={formPosition}
+                          onChange={(e) => setFormPosition(e.target.value)}
+                          placeholder="เช่น Senior Officer"
+                          className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-theme-text-muted mb-1">ฝ่าย / แผนก *</label>
-                      <input
-                        type="text"
-                        required
-                        value={formDept}
-                        onChange={(e) => setFormDept(e.target.value)}
-                        placeholder="เช่น จัดซื้อ, บัญชี, HR"
-                        className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-theme-text-muted mb-1">ตำแหน่ง</label>
-                      <input
-                        type="text"
-                        value={formPosition}
-                        onChange={(e) => setFormPosition(e.target.value)}
-                        placeholder="เช่น Senior Officer"
-                        className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-theme-text-muted mb-1">สิทธิ์ที่ขอ (Seats) *</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="10"
-                        required
-                        value={formSeats}
-                        onChange={(e) => setFormSeats(Number(e.target.value))}
-                        className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text font-mono font-bold focus:outline-none focus:border-indigo-500"
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-theme-text-muted">หัวหน้างาน * (พิมพ์รหัสพนักงาน แล้วกดค้นหา)</label>
+                      <AiSupervisorPicker
+                        value={formSupervisor}
+                        onChange={setFormSupervisor}
+                        blockedEmpIds={[sessionUser?.emp_id || sessionUser?.empId || '', ...formTeamMembers.map((m) => m.emp_id)].filter(Boolean)}
+                        blockedEmails={[sessionUser?.email || '', ...formTeamMembers.map((m) => m.email || '')].filter(Boolean)}
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-theme-text-muted mb-1">ระยะเวลาที่ขอใช้งาน *</label>
-                      <select
-                        value={formContractMonths}
-                        onChange={(e) => setFormContractMonths(Number(e.target.value))}
-                        className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
-                      >
-                        <option value={1}>1 เดือน (ทดลองใช้งานระยะสั้น)</option>
-                        <option value={3}>3 เดือน (รอบ Sandbox 90 วัน - แนะนำ)</option>
-                        <option value={6}>6 เดือน (โครงการระยะกลาง)</option>
-                        <option value={12}>12 เดือน (ประจำปี)</option>
-                      </select>
+                  {/* 1.2 Request details */}
+                  <div className="space-y-3 rounded-lg border border-theme-border/60 bg-theme-surface p-4">
+                    <h4 className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">1.2 รายละเอียดการขอใช้งาน</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-theme-text-muted mb-1">ระยะเวลาที่ขอใช้งาน *</label>
+                        <select
+                          value={formContractMonths}
+                          onChange={(e) => setFormContractMonths(Number(e.target.value))}
+                          className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
+                        >
+                          <option value={1}>1 เดือน (ทดลองใช้งานระยะสั้น)</option>
+                          <option value={3}>3 เดือน (รอบ Sandbox 90 วัน - แนะนำ)</option>
+                          <option value={6}>6 เดือน (โครงการระยะกลาง)</option>
+                          <option value={12}>12 เดือน (ประจำปี)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-theme-text-muted mb-1">สิทธิ์ที่ขอ (Seats) *</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={formSeats}
+                          onChange={(e) => setFormSeats(Number(e.target.value))}
+                          className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text font-mono font-bold focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
                     </div>
+
+                    {/* AI JD (Only for Virtual Employee) */}
+                    {formTier === 'virtual_employee' && (
+                      <div>
+                        <label className="block text-xs font-medium text-theme-text-muted mb-1">
+                          รายละเอียดลักษณะงานของ AI (Job Description - JD ของพนักงานเสมือน) *
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder="ระบุหน้าที่ความรับผิดชอบของพนักงาน AI เสมือน เช่น ทำหน้าที่ตรวจร่างสัญญาเปรียบเทียบข้อกำหนด, ตรวจสอบ Action Items จากบันทึกการประชุม..."
+                          value={formAiJd}
+                          onChange={(e) => setFormAiJd(e.target.value)}
+                          className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    )}
                   </div>
 
-                  {/* AI JD (Only for Virtual Employee) */}
-                  {formTier === 'virtual_employee' && (
-                    <div>
-                      <label className="block text-xs font-medium text-theme-text mb-1">
-                        รายละเอียดลักษณะงานของ AI (Job Description - JD ของพนักงานเสมือน) *
-                      </label>
-                      <textarea
-                        required
-                        rows={2}
-                        placeholder="ระบุหน้าที่ความรับผิดชอบของพนักงาน AI เสมือน เช่น ทำหน้าที่ตรวจร่างสัญญาเปรียบเทียบข้อกำหนด, ตรวจสอบ Action Items จากบันทึกการประชุม..."
-                        value={formAiJd}
-                        onChange={(e) => setFormAiJd(e.target.value)}
-                        className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  )}
-
-                  {/* Team Member Allocation for Group Intake */}
-                  <div className="pt-2">
+                  {/* 1.3 People who will use AI: search first, table once picked */}
+                  <div className="space-y-3 rounded-lg border border-theme-border/60 bg-theme-surface p-4">
+                    <h4 className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">1.3 รายชื่อผู้ที่จะขอใช้งาน</h4>
                     <AiTeamMemberPicker
                       totalSeats={formSeats}
                       members={formTeamMembers}
-                      onChange={setFormTeamMembers}
+                      onChange={handleTeamMembersChange}
                       sessionUser={sessionUser}
                       allowPartialAllocation={formAllowPartialAllocation}
                       onAllowPartialChange={setFormAllowPartialAllocation}
@@ -2698,148 +2801,62 @@ export default function AiEnterprisePage() {
                   </div>
                 </div>
 
-                {/* Section 2: As-Is Process */}
+                {/* Section 2: tasks (as-is + expected AI help per task) */}
                 <div id="req-sec-2" className="space-y-4 rounded-xl border border-theme-border/70 bg-theme-surface-secondary/30 p-5 scroll-mt-24">
-                  <div className="flex items-start gap-3">
-                    <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold inline-flex items-center justify-center shrink-0">2</span>
-                    <div>
-                      <h3 className="text-sm font-semibold text-theme-text">งานที่ทำอยู่ตอนนี้</h3>
-                      <p className="text-xs text-theme-text-muted mt-0.5">เล่าวิธีทำงานปัจจุบัน และสิ่งที่ทำให้งานช้าหรือผิดพลาด</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-theme-text mb-1">
-                      ชื่องาน / โครงการที่ต้องการนำ AI ไปประยุกต์ใช้ *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="เช่น การวิเคราะห์เปรียบเทียบสัญญาจัดซื้อ, การสรุปรายงานการประชุมพร้อม Action Items"
-                      value={formTitle}
-                      onChange={(e) => setFormTitle(e.target.value)}
-                      className="w-full text-xs py-2.5 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-theme-text mb-1">
-                      วิธีทำงานปัจจุบัน และสิ่งที่ทำให้ช้าหรือผิดพลาด *
-                    </label>
-                    <textarea
-                      required
-                      rows={3}
-                      placeholder="อธิบายว่าเดิมทีทำอย่างไร ใครเป็นคนทำ และติดขัดอะไรที่ทำให้งานช้าหรือมีข้อผิดพลาดบ่อย..."
-                      value={formAsIsProcess}
-                      onChange={(e) => setFormAsIsProcess(e.target.value)}
-                      className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-theme-text-muted mb-1">ความถี่ของงาน</label>
-                      <select
-                        value={formFrequency}
-                        onChange={(e) => setFormFrequency(e.target.value as 'daily' | 'weekly' | 'monthly')}
-                        className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
-                      >
-                        <option value="daily">รายวัน (Daily)</option>
-                        <option value="weekly">รายสัปดาห์ (Weekly)</option>
-                        <option value="monthly">รายเดือน (Monthly)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-theme-text-muted mb-1">เวลาที่ทีมใช้ในปัจจุบัน (ชม./สัปดาห์/คน)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={formAsIsHours}
-                        onChange={(e) => setFormAsIsHours(Number(e.target.value))}
-                        className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text font-mono focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
+                  <AiUseCaseEditor
+                    tasks={effectiveTasks}
+                    members={formTeamMembers}
+                    onChange={setFormTasks}
+                    functionOptions={AI_FUNCTION_OPTIONS}
+                    showErrors={showFormErrors}
+                    heading={
+                      <div className="flex items-start gap-3">
+                        <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold inline-flex items-center justify-center shrink-0">2</span>
+                        <div>
+                          <h3 className="text-sm font-semibold text-theme-text">งานที่ทำอยู่ตอนนี้ และ AI จะช่วยอะไร</h3>
+                          <p className="text-xs text-theme-text-muted mt-0.5">
+                            ถ้างานเดียวกันมีหลายคนทำ ให้แยกเป็นงานต่อคน
+                          </p>
+                        </div>
+                      </div>
+                    }
+                  />
                 </div>
 
-                {/* Section 3: To-Be Process */}
+                {/* Section 3: summary + checks */}
                 <div id="req-sec-3" className="space-y-4 rounded-xl border border-theme-border/70 bg-theme-surface-secondary/30 p-5 scroll-mt-24">
-                  <div className="flex items-start gap-3">
-                    <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold inline-flex items-center justify-center shrink-0">3</span>
-                    <div>
-                      <h3 className="text-sm font-semibold text-theme-text">AI จะช่วยอะไร และประหยัดเวลาได้เท่าไร</h3>
-                      <p className="text-xs text-theme-text-muted mt-0.5">เลือกงานที่จะให้ AI ช่วย และตั้งเป้าเวลาที่คาดว่าจะประหยัดได้</p>
+                  {/* Wide: heading + table label stacked on the left, value box spans both rows on the right.
+                      Narrow: heading, value box, table label (so the label stays attached to the table). */}
+                  <div className="@container grid grid-cols-1 @lg:grid-cols-[1fr_auto] gap-x-3 gap-y-2">
+                    <div className="flex items-start gap-3 @lg:col-start-1 @lg:row-start-1">
+                      <span className="w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold inline-flex items-center justify-center shrink-0">3</span>
+                      <div>
+                        <h3 className="text-sm font-semibold text-theme-text">สรุปภาระงานและผลที่คาดหวัง</h3>
+                      </div>
                     </div>
+                    <div className="flex @lg:col-start-2 @lg:row-start-1 @lg:row-span-2">
+                      <AiValueEstimateBox tasks={effectiveTasks} members={formTeamMembers} />
+                    </div>
+                    <p className="text-xs font-semibold text-theme-text @lg:col-start-1 @lg:row-start-2">ภาระงานรายบุคคล</p>
                   </div>
+
+                  <AiRequestSummary
+                    members={formTeamMembers}
+                    tasks={effectiveTasks}
+                    errors={formValidation.errors}
+                    warnings={formValidation.warnings}
+                    showErrors={showFormErrors}
+                  />
 
                   <div>
-                    <label className="block text-xs font-medium text-theme-text mb-2">
-                      ให้ AI ช่วยเรื่องอะไร (เลือกได้มากกว่า 1 ข้อ)
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {AI_FUNCTION_OPTIONS.map((opt) => {
-                        const isChecked = formSelectedFunctions.includes(opt.id);
-                        return (
-                          <div
-                            key={opt.id}
-                            onClick={() => {
-                              if (isChecked) {
-                                setFormSelectedFunctions(formSelectedFunctions.filter(id => id !== opt.id));
-                              } else {
-                                setFormSelectedFunctions([...formSelectedFunctions, opt.id]);
-                              }
-                            }}
-                            className={cn(
-                              "p-3 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-2.5",
-                              isChecked
-                                ? "bg-indigo-500/10 border-indigo-500/50 text-indigo-600 dark:text-indigo-300"
-                                : "bg-theme-surface-secondary/50 border-theme-border hover:bg-theme-surface-secondary"
-                            )}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              readOnly
-                              className="mt-0.5 rounded text-indigo-600"
-                            />
-                            <div>
-                              <div className="font-semibold">{opt.label}</div>
-                              <div className="text-[11px] text-theme-text-muted mt-0.5">{opt.desc}</div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-theme-text mb-1">
-                        เวลาที่คาดว่าจะประหยัดได้ (ชม./สัปดาห์/คน) *
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        required
-                        value={formTargetHoursSaved}
-                        onChange={(e) => setFormTargetHoursSaved(Number(e.target.value))}
-                        className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text font-mono font-bold focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-theme-text mb-1">
-                        ผลลัพธ์อื่นที่คาดหวัง (ไม่บังคับ)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="เช่น ลดข้อผิดพลาด, ส่งมอบงานไวขึ้น 2 เท่า"
-                        value={formExpectedBenefits}
-                        onChange={(e) => setFormExpectedBenefits(e.target.value)}
-                        className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
+                    <label className="block text-xs font-medium text-theme-text mb-1">ผลลัพธ์อื่นที่คาดหวัง (ไม่บังคับ)</label>
+                    <input
+                      type="text"
+                      placeholder="เช่น ลดข้อผิดพลาด, ส่งมอบงานไวขึ้น 2 เท่า"
+                      value={formExpectedBenefits}
+                      onChange={(e) => setFormExpectedBenefits(e.target.value)}
+                      className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
+                    />
                   </div>
                 </div>
 
@@ -2858,7 +2875,6 @@ export default function AiEnterprisePage() {
                       <input
                         type="checkbox"
                         id="pdpa-check"
-                        required
                         checked={formDataSafetyCertified}
                         onChange={(e) => setFormDataSafetyCertified(e.target.checked)}
                         className="mt-1 rounded text-indigo-600 focus:ring-indigo-500"
