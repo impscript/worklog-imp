@@ -61,9 +61,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '1.1.0',
     date: '2026-09-17',
-    title: 'ระบบงานประจำ (Routine Tasks) & Leaderboard',
+    title: 'ระบบ To do list & Leaderboard',
     highlights: [
-      'เพิ่มเมนู **"งานประจำ"** สำหรับบันทึกงานประจำรายวัน/สัปดาห์/เดือน พร้อมระบบแจ้งเตือนงานวันนี้',
+      'เพิ่มเมนู **"To do list"** สำหรับบันทึกงานรายวัน/สัปดาห์/เดือน พร้อมระบบแจ้งเตือนงานวันนี้',
       'ปรับปรุงการซิงค์ปฏิทิน และแก้ปัญหา Leaderboard แสดงชื่อไม่ครบเมื่อสลับ Workspace',
     ],
   },
