@@ -97,7 +97,7 @@ export const SandboxGraduationModal: React.FC<SandboxGraduationModalProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base sm:text-lg font-black text-theme-text">
-                  สรุปผลลัพธ์ Sandbox & สำเร็จการประเมินสู่ Enterprise License (FM-001)
+                  สรุปผลลัพธ์ Sandbox & สำเร็จการประเมินสู่ Enterprise License
                 </h2>
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                   Graduation Ready
@@ -125,7 +125,7 @@ export const SandboxGraduationModal: React.FC<SandboxGraduationModalProps> = ({
             <div className="text-xs">
               <span className="font-bold text-theme-text">ระบุหน่วยงานผู้ขอสิทธิ์:</span>
               <p className="text-theme-text-muted text-[11px] mt-0.5">
-                เลือกฝ่ายงานเพื่อปรับแต่งคำชี้แจงเหตุผลทางธุรกิจในเอกสาร FM-001
+                เลือกฝ่ายงานเพื่อปรับแต่งคำชี้แจงเหตุผลทางธุรกิจในแบบฟอร์มขอใช้งาน AI
               </p>
             </div>
             <input
@@ -335,7 +335,7 @@ export const SandboxGraduationModal: React.FC<SandboxGraduationModalProps> = ({
               onClick={handleGraduate}
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-black flex items-center gap-1.5 shadow-md hover:shadow-indigo-500/25 cursor-pointer transition-all"
             >
-              <span>🚀 นำสถิตินี้ไปขอ License FM-001</span>
+              <span>🚀 นำสถิตินี้ไปขอ License</span>
               <ArrowRight size={14} />
             </button>
           </div>

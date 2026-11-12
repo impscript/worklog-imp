@@ -223,7 +223,7 @@ export const ModelArenaView: React.FC<ModelArenaViewProps> = ({
             className="px-2.5 py-1 rounded-xl text-xs font-bold bg-theme-surface hover:bg-theme-surface-secondary border border-theme-border text-theme-text flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <FileCheck2 size={13} className="text-indigo-500" />
-            <span className="hidden sm:inline">โจทย์ 8 ฝ่ายงาน</span>
+            <span className="hidden sm:inline">โจทย์ตามฝ่ายงาน</span>
           </button>
 
           {/* Open Graduation Modal */}
@@ -231,7 +231,7 @@ export const ModelArenaView: React.FC<ModelArenaViewProps> = ({
             type="button"
             onClick={onOpenGraduationModal}
             className="px-3 py-1 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500/15 to-indigo-500/15 hover:from-amber-500/25 hover:to-indigo-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-            title="นำผลสถิติ Sandbox ไปขออนุมัติ License FM-001"
+            title="นำผลสถิติ Sandbox ไปขออนุมัติ License"
           >
             <GraduationCap size={14} className="text-amber-500" />
             <span>ขอสิทธิ์ Enterprise</span>
@@ -373,7 +373,7 @@ export const ModelArenaView: React.FC<ModelArenaViewProps> = ({
                     <Flame size={24} className="mb-2 text-theme-text-muted/40" />
                     <span className="text-xs font-bold text-theme-text-muted">สังเวียนพร้อมรับคำถาม</span>
                     <span className="text-[10.5px] mt-1 max-w-[200px]">
-                      พิมพ์ Prompt ด้านล่าง หรือกดเลือกโจทย์ทดสอบประจำ 8 ฝ่ายงานเพื่อเริ่มประลอง
+                      พิมพ์ Prompt ด้านล่าง หรือกดเลือกโจทย์ทดสอบตามฝ่ายงานเพื่อเริ่มประลอง
                     </span>
                   </div>
                 )}

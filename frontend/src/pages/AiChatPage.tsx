@@ -318,7 +318,7 @@ export default function AiChatPage() {
   const handleGraduateToForm = useCallback(
     (_pkg: EnterpriseGraduationPackage) => {
       navigate('/enterprise-ai?tab=request&source=sandbox');
-      showToast('นำสถิติการทดลองไปกรอกแบบฟอร์ม FM-001 เรียบร้อยแล้ว', 'success');
+      showToast('นำสถิติการทดลองไปกรอกแบบฟอร์มขอใช้งาน AIเรียบร้อยแล้ว', 'success');
     },
     [navigate, showToast]
   );

@@ -167,11 +167,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 type="button"
                 onClick={onOpenTaskKitsModal}
                 className={cn(BTN, BTN_NEUTRAL, 'hidden @2xl:inline-flex px-2.5')}
-                title="คลังโจทย์ทดสอบมาตรฐาน 8 ฝ่ายงาน"
-                aria-label="คลังโจทย์ทดสอบ 8 ฝ่ายงาน"
+                title="คลังโจทย์ทดสอบมาตรฐานตามฝ่ายงาน"
+                aria-label="คลังโจทย์ทดสอบตามฝ่ายงาน"
               >
                 <BookOpen size={15} className="text-indigo-500" />
-                <span className="hidden @5xl:inline">โจทย์ 8 ฝ่าย</span>
+                <span className="hidden @5xl:inline">โจทย์ตามฝ่ายงาน</span>
               </button>
             )}
 
@@ -180,7 +180,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 type="button"
                 onClick={onOpenGraduationModal}
                 className={cn(BTN, 'hidden @3xl:inline-flex px-2.5 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400')}
-                title="สรุปผลลัพธ์ Sandbox และส่งข้อมูลขอสิทธิ์ใช้งาน AI (FM-001)"
+                title="สรุปผลลัพธ์ Sandbox และส่งข้อมูลขอสิทธิ์ใช้งาน AI"
                 aria-label="สรุปผล Sandbox และขอสิทธิ์ใช้งาน AI"
               >
                 <GraduationCap size={15} />

@@ -76,14 +76,14 @@ export const DepartmentTaskKitModal: React.FC<DepartmentTaskKitModalProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base sm:text-lg font-black text-theme-text">
-                  คลังโจทย์ทดสอบมาตรฐาน 8 ฝ่ายงาน (Department Benchmark Kits)
+                  คลังโจทย์ทดสอบมาตรฐานตามฝ่ายงาน (Department Benchmark Kits)
                 </h2>
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                   {DEPARTMENT_TASK_KITS.length} โจทย์องค์กร
                 </span>
               </div>
               <p className="text-xs text-theme-text-muted mt-1 leading-relaxed">
-                โจทย์จริงอ้างอิงตามโครงสร้างองค์กร (Accounting, Procurement, Legal, HR, IT, Audit, BD, Plant) เพื่อนำไปประลองใน Arena วัดความแม่นยำก่อนขอ License FM-001
+                โจทย์จริงอ้างอิงตามโครงสร้างองค์กร (Accounting, Procurement, Legal, HR, IT, Audit, BD, Plant) เพื่อนำไปประลองใน Arena วัดความแม่นยำก่อนขอ License
               </p>
             </div>
           </div>
