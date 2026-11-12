@@ -7,8 +7,9 @@ export interface StepDetail {
   subtitle: string;
   role: string;
   timeline: string;
-  tabTarget: 'dashboard' | 'request' | 'evaluations' | 'reports' | 'governance';
-  actionLabel: string;
+  /** Optional shortcut shown under the step; the request step has none (the form opens from the page header). */
+  tabTarget?: 'dashboard' | 'evaluations' | 'reports' | 'governance';
+  actionLabel?: string;
   what: string;
   who: string;
   when: string;
@@ -30,12 +31,10 @@ export const LIFECYCLE_STEPS: StepDetail[] = [
   {
     id: 'intake',
     stepNumber: 1,
-    title: 'เลือก Tier & ยื่นขอ FM-001',
+    title: 'เลือก Tier & ยื่นขอใช้งาน AI',
     subtitle: 'กำหนด AI JD & ขอจัดสรรสิทธิ์',
     role: 'ผู้ขอใช้งาน (Requester)',
     timeline: 'ยื่นได้ตลอดเวลา (พิจารณารอบถัดไป)',
-    tabTarget: 'request',
-    actionLabel: 'เริ่มยื่นคำขอ FM-001 เลย',
     what: 'ระบุโจทย์งาน กระบวนการทำงานเดิม (As-Is) และเลือกประเภทสิทธิ์ที่ต้องการใช้งานให้ตรงกับเนื้องาน',
     who: 'พนักงานทุกระดับ หรือหัวหน้าทีม (Department Lead / Project Owner)',
     when: 'ยื่นคำขอได้ตลอดทั้งเดือน โดย CoE จะนำเข้าประชุมพิจารณาตัดรอบทุกวันที่ 15',
@@ -121,20 +120,20 @@ export const LIFECYCLE_STEPS: StepDetail[] = [
   {
     id: 'review',
     stepNumber: 4,
-    title: 'ส่งผลงาน FM-002 & หมุนเวียนสิทธิ์',
+    title: 'ส่งผลงานรายเดือน & หมุนเวียนสิทธิ์',
     subtitle: 'Smart Sync Worklog & Seat Roaming',
     role: 'ผู้ใช้ & คณะกรรมการ CoE',
     timeline: 'ส่งผลงานภายในวันที่ 25 ของทุกเดือน',
     tabTarget: 'reports',
-    actionLabel: 'ส่งผลงาน & ซิงค์ Worklog (FM-002)',
-    what: 'ส่งรายงานสรุปผลงานประจำเดือนผ่าน Smart Sync Worklog หากสิทธิ์ไม่ถูกใช้งานจะหมุนเวียนให้ทีมอื่น (Seat Roaming)',
+    actionLabel: 'ส่งผลงาน & ซิงค์ Worklog',
+    what: 'ส่งรายงานสรุปผลงานประจำเดือนผ่าน Smart Sync Worklog หากเดือนที่ผ่านมาไม่ได้ใช้งานเลย สิทธิ์จะถูกระงับและหมุนเวียนให้ทีมอื่นใน Waiting List',
     who: 'ผู้ถือครองสิทธิ์ทุกคน และ คณะกรรมการ CoE ผู้ตรวจสอบ',
     when: 'ระบบเปิดให้ส่งรายงานผลงานวันที่ 20-25 ของทุกเดือน เพื่อพิจารณาต่ออายุสิทธิ์ในรอบเดือนถัดไป',
     how: [
       'กดปุ่ม "Smart Sync Daily Worklog" เพื่อดึงชั่วโมงที่บันทึกจริงมาสรุปอัตโนมัติ',
       'แนบผลงานที่เป็นรูปธรรม เช่น เอกสารที่วิเคราะห์ได้, โค้ดที่สร้างสำเร็จ, หรือกระบวนการที่ลดเวลาลง',
       'CoE ทบทวนผลงาน: อัตราการใช้งานสม่ำเสมอ -> คงสิทธิ์ / สร้างผลงานโดดเด่น -> ขยายผล Scale',
-      'Seat Roaming Protocol: หากใช้งานน้อยกว่า 10 วันทำการ หรือไม่มีผลงาน สิทธิ์จะถูกโอนย้ายให้ทีมใน Waiting List'
+      'พิจารณาเป็นรายเดือน: หากเดือนที่ผ่านมาไม่ได้ใช้งานเลย สิทธิ์จะถูกระงับและโอนให้ทีมใน Waiting List'
     ],
     pillar3T: {
       name: 'Transformation',

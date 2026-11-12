@@ -209,7 +209,7 @@ export default function AiNeedsAssessmentWizard({
               </h2>
               <p className="text-xs md:text-sm text-theme-text-muted max-w-2xl leading-relaxed">
                 ตอบคำถามสั้นๆ 5 มิติเพื่อวิเคราะห์สถาปัตยกรรมใบอนุญาต (Licensing Track)
-                และโมเดล AI ที่คุ้มค่า สอดคล้องตามระเบียบ WI-PI-AI-001 พร้อมส่งข้อมูลไปกรอกฟอร์ม FM-001 อัตโนมัติ
+                และโมเดล AI ที่คุ้มค่า สอดคล้องตามระเบียบ WI-PI-AI-001 พร้อมส่งข้อมูลไปกรอกแบบฟอร์มขอใช้งาน AIอัตโนมัติ
               </p>
             </div>
 
@@ -220,7 +220,7 @@ export default function AiNeedsAssessmentWizard({
                 className="px-3.5 py-2 rounded-xl bg-theme-surface/70 hover:bg-theme-surface border border-theme-border/80 text-theme-text text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
               >
                 <Compass size={14} className="text-amber-500" />
-                <span>หรือดูพรีเซ็ต 8 ฝ่ายงาน</span>
+                <span>หรือดูพรีเซ็ตตามฝ่ายงาน</span>
               </button>
             )}
           </div>
@@ -743,7 +743,7 @@ export default function AiNeedsAssessmentWizard({
                   className="px-4 py-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 dark:text-indigo-400 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
                 >
                   <Compass size={14} />
-                  <span>หรือเลือกดูแนวทางตาม 8 ฝ่ายงาน (Switch to Presets)</span>
+                  <span>หรือเลือกดูแนวทางตามฝ่ายงาน (Switch to Presets)</span>
                 </button>
               )}
 
@@ -761,12 +761,12 @@ export default function AiNeedsAssessmentWizard({
                 {isApplied ? (
                   <>
                     <Check size={14} className="stroke-[3]" />
-                    <span>ส่งข้อมูลลงฟอร์ม FM-001 เรียบร้อยแล้ว!</span>
+                    <span>ส่งข้อมูลลงแบบฟอร์มขอใช้งาน AIเรียบร้อยแล้ว!</span>
                   </>
                 ) : (
                   <>
                     <Zap size={14} className="fill-current text-amber-200" />
-                    <span>⚡ ส่งผลประเมินนี้ไปยังแบบฟอร์มขออนุมัติ FM-001 (Auto-fill Request)</span>
+                    <span>⚡ ส่งผลประเมินนี้ไปยังแบบฟอร์มขอใช้งาน AI (Auto-fill Request)</span>
                     <ArrowRight size={14} />
                   </>
                 )}

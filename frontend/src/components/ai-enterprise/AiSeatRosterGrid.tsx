@@ -25,7 +25,10 @@ export interface RosterSlot {
   department?: string;
   activeDays?: number;
   monthlyHoursSaved?: number;
-  healthStatus?: 'healthy' | 'warning' | 'risk';
+  /** Month (YYYY-MM) of the report the numbers come from. */
+  reportMonth?: string;
+  /** 'unknown' = no monthly report submitted yet, so there is nothing to judge. */
+  healthStatus?: 'healthy' | 'warning' | 'risk' | 'unknown';
 }
 
 interface AiRequestForRoster {
@@ -52,6 +55,13 @@ interface AiSeatRosterGridProps {
   onNavigateTab?: (tab: string) => void;
 }
 
+function formatReportMonth(key?: string) {
+  if (!key) return '';
+  const [y, m] = key.split('-').map(Number);
+  if (!y || !m) return key;
+  return ' ' + new Date(y, m - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+}
+
 export default function AiSeatRosterGrid({
   requests,
   totalQuota = 20,
@@ -66,6 +76,11 @@ export default function AiSeatRosterGrid({
   const slots: RosterSlot[] = useMemo(() => {
     const list: RosterSlot[] = [];
     let currentSlot = 1;
+
+    const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const today = new Date();
+    const currentMonthKey = monthKey(today);
+    const previousMonthKey = monthKey(new Date(today.getFullYear(), today.getMonth() - 1, 1));
 
     // Filter only approved / active initiatives
     const activeRequests = requests.filter(r =>
@@ -84,18 +99,19 @@ export default function AiSeatRosterGrid({
             }
           ];
 
-      // Grab stats from latest report if available
-      const latestReport = req.monthly_reports?.[0];
-      const activeDays = latestReport?.actual_active_days ?? 12; // default healthy baseline
-      const hoursSaved = latestReport?.hours_saved_monthly ?? 15;
+      // The review is monthly, so use last month's report; fall back to this month's if that is all there is.
+      // An older report says nothing about last month, so it is ignored.
+      const reports = req.monthly_reports || [];
+      const reportFor = (key: string) => reports.find((r) => (r.month || '').slice(0, 7) === key);
+      const latestReport = reportFor(previousMonthKey) ?? reportFor(currentMonthKey);
+      const activeDays = latestReport?.actual_active_days ?? undefined;
+      const hoursSaved = latestReport?.hours_saved_monthly ?? undefined;
 
-      let healthStatus: 'healthy' | 'warning' | 'risk' = 'healthy';
-      if (activeDays >= 10) {
-        healthStatus = 'healthy';
-      } else if (activeDays >= 5) {
-        healthStatus = 'warning';
-      } else {
-        healthStatus = 'risk';
+      // Monthly review: a seat is at risk only when it was not used at all last month.
+      // Without a report there is no evidence either way, so it is shown as unknown rather than guessed.
+      let healthStatus: NonNullable<RosterSlot['healthStatus']> = 'unknown';
+      if (activeDays !== undefined) {
+        healthStatus = activeDays >= 1 ? 'healthy' : 'risk';
       }
 
       members.forEach(member => {
@@ -111,6 +127,7 @@ export default function AiSeatRosterGrid({
             department: member.department || req.department,
             activeDays,
             monthlyHoursSaved: hoursSaved,
+            reportMonth: latestReport?.month?.slice(0, 7),
             healthStatus
           });
           currentSlot++;
@@ -134,7 +151,7 @@ export default function AiSeatRosterGrid({
   const occupiedCount = useMemo(() => slots.filter(s => s.isOccupied).length, [slots]);
   const vacantCount = totalQuota - occupiedCount;
   const warningCount = useMemo(
-    () => slots.filter(s => s.isOccupied && s.healthStatus !== 'healthy').length,
+    () => slots.filter(s => s.isOccupied && s.healthStatus === 'risk').length,
     [slots]
   );
   const utilizationPct = Math.round((occupiedCount / totalQuota) * 100);
@@ -145,7 +162,7 @@ export default function AiSeatRosterGrid({
       // Filter Type
       if (filterType === 'occupied' && !slot.isOccupied) return false;
       if (filterType === 'vacant' && slot.isOccupied) return false;
-      if (filterType === 'warning' && (!slot.isOccupied || slot.healthStatus === 'healthy')) return false;
+      if (filterType === 'warning' && (!slot.isOccupied || slot.healthStatus !== 'risk')) return false;
 
       // Search Query
       if (searchQuery.trim()) {
@@ -208,13 +225,13 @@ export default function AiSeatRosterGrid({
         <div className="p-3.5 rounded-xl bg-theme-surface border border-theme-border shadow-xs">
           <div className="text-[11px] font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
             <AlertTriangle size={13} />
-            <span>เฝ้าระวังต่ำเกณฑ์ (&lt;10 วัน)</span>
+            <span>ไม่ได้ใช้งานเดือนที่ผ่านมา</span>
           </div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
               {warningCount}
             </span>
-            <span className="text-xs text-theme-text-muted">ที่นั่ง (เสี่ยงเรียกคืน)</span>
+            <span className="text-xs text-theme-text-muted">ที่นั่ง (เสี่ยงถูกระงับสิทธิ์)</span>
           </div>
         </div>
       </div>
@@ -286,7 +303,7 @@ export default function AiSeatRosterGrid({
                   : "text-theme-text-muted hover:text-theme-text hover:bg-theme-surface"
               )}
             >
-              ต่ำเกณฑ์ ({warningCount})
+              ไม่ได้ใช้งาน ({warningCount})
             </button>
           )}
         </div>
@@ -411,12 +428,14 @@ export default function AiSeatRosterGrid({
                       "font-mono font-bold",
                       slot.healthStatus === 'healthy'
                         ? "text-emerald-600 dark:text-emerald-400"
+                        : slot.healthStatus === 'unknown'
+                        ? "text-theme-text-muted"
                         : slot.healthStatus === 'warning'
                         ? "text-amber-600 dark:text-amber-400"
                         : "text-rose-500"
                     )}
                   >
-                    {slot.activeDays ?? 0}/20 วัน
+                    {slot.activeDays === undefined ? 'ยังไม่มีรายงาน' : `${slot.activeDays}/20 วัน`}
                   </span>
                 </div>
                 <div className="w-full h-1 rounded-full bg-theme-surface-secondary mt-1 overflow-hidden">
@@ -425,6 +444,8 @@ export default function AiSeatRosterGrid({
                       "h-full rounded-full transition-all",
                       slot.healthStatus === 'healthy'
                         ? "bg-emerald-500"
+                        : slot.healthStatus === 'unknown'
+                        ? "bg-theme-border"
                         : slot.healthStatus === 'warning'
                         ? "bg-amber-500"
                         : "bg-rose-500"
@@ -500,18 +521,22 @@ export default function AiSeatRosterGrid({
               <div className="grid grid-cols-2 gap-2">
                 <div className="p-3 rounded-xl border border-theme-border bg-theme-surface">
                   <div className="text-[10px] text-theme-text-muted">วันที่มีการบันทึก Daily AI Log</div>
-                  <div className="text-lg font-bold font-mono text-emerald-500 mt-0.5">
-                    {selectedSlot.activeDays ?? 0} / 20 วัน
+                  <div className={cn('text-lg font-bold font-mono mt-0.5', selectedSlot.activeDays === undefined ? 'text-theme-text-muted' : selectedSlot.activeDays >= 1 ? 'text-emerald-500' : 'text-rose-500')}>
+                    {selectedSlot.activeDays === undefined ? 'ยังไม่มีข้อมูล' : `${selectedSlot.activeDays} / 20 วัน`}
                   </div>
-                  <div className="text-[10px] text-theme-text-muted">เกณฑ์ขั้นต่ำ: 10 วัน/เดือน</div>
+                  <div className="text-[10px] text-theme-text-muted">
+                    {selectedSlot.activeDays === undefined
+                      ? 'ยังไม่มีรายงานของเดือนที่ผ่านมาหรือเดือนนี้'
+                      : `จากรายงานเดือน${formatReportMonth(selectedSlot.reportMonth)} · ไม่ได้ใช้งานเลยทั้งเดือน สิทธิ์จะถูกระงับ`}
+                  </div>
                 </div>
 
                 <div className="p-3 rounded-xl border border-theme-border bg-theme-surface">
                   <div className="text-[10px] text-theme-text-muted">เวลาเฉลี่ยที่ประหยัดได้</div>
                   <div className="text-lg font-bold font-mono text-indigo-500 mt-0.5">
-                    {selectedSlot.monthlyHoursSaved ?? 0} ชม./เดือน
+                    {selectedSlot.monthlyHoursSaved === undefined ? 'ยังไม่มีข้อมูล' : `${selectedSlot.monthlyHoursSaved} ชม./เดือน`}
                   </div>
-                  <div className="text-[10px] text-theme-text-muted">คำนวณจาก Daily Worklogs</div>
+                  <div className="text-[10px] text-theme-text-muted">จากรายงานรายเดือนล่าสุด</div>
                 </div>
               </div>
             </div>

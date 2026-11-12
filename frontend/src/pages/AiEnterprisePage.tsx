@@ -5,13 +5,16 @@ import {
   FileCheck2, Building2, Sliders, Search,
   RotateCcw, Check, ShieldAlert,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Laptop, Layers, Compass, Bot,
-  User, Globe, Activity, Send, HelpCircle
+  User, Globe, Activity, Send, Calculator
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import AiHubNav from '../components/ai-enterprise/AiHubNav';
 import { AI_HUB_TABS, type AiHubTab } from '../components/ai-enterprise/aiHubTabs';
 import AiHubHome from '../components/ai-enterprise/AiHubHome';
-import AiLifecycleOnboardingModal from '../components/ai-enterprise/AiLifecycleOnboardingModal';
+import AiPackageCalculatorModal from '../components/ai-enterprise/AiPackageCalculatorModal';
+import AiRequestSelect from '../components/ai-enterprise/AiRequestSelect';
+import AiRequestHistory, { type HistoryStatusFilter } from '../components/ai-enterprise/AiRequestHistory';
+import AiLifecycleGuide from '../components/ai-enterprise/AiLifecycleGuide';
 import AiTeamMemberPicker, { type AiTeamMember } from '../components/ai-enterprise/AiTeamMemberPicker';
 import AiUseCaseEditor from '../components/ai-enterprise/AiUseCaseEditor';
 import AiRequestSummary, { AiValueEstimateBox } from '../components/ai-enterprise/AiRequestSummary';
@@ -29,6 +32,7 @@ import {
 import AiSeatRosterGrid from '../components/ai-enterprise/AiSeatRosterGrid';
 import AiDepartmentPresetMatcher from '../components/ai-enterprise/AiDepartmentPresetMatcher';
 import { type DepartmentAiPreset } from '../components/ai-enterprise/aiDepartmentPresets';
+import { asArray } from '../components/ai-enterprise/aiRequestStatus';
 import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 import { cn } from '../lib/utils';
@@ -127,11 +131,13 @@ function splitDepartmentName(dept: string): { main: string; sub: string } {
   return { main: dept, sub: '' };
 }
 
+const isReportableRequest = (r: AiRequest) => r.status === 'approved_sandbox' || r.status === 'completed';
+
 export default function AiEnterprisePage() {
   const { showToast, showConfirm } = useNotification();
   const [activeTab, setActiveTab] = useState<AiHubTab>('home');
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
-  const [onboardingInitialStep, setOnboardingInitialStep] = useState(0);
+  const [historyStatus, setHistoryStatus] = useState<HistoryStatusFilter>('all');
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
 
   // Session user info
   const sessionUser = useMemo(() => {
@@ -170,10 +176,13 @@ export default function AiEnterprisePage() {
   const [pageSize, setPageSize] = useState<number>(5);
 
   // Form states: Request FM-001
+  // The login session stores the employee code as empId (camelCase); older cached sessions may use emp_id.
+  const sessionEmpId: string = sessionUser?.emp_id || sessionUser?.empId || '';
+
   // Key of the requester as a team member (same key the team picker uses), so task owners line up with members.
   const sessionLeadKey = sessionUser
     ? memberKey({
-        emp_id: sessionUser.emp_id || '',
+        emp_id: sessionEmpId,
         email: sessionUser.email || '',
         name: sessionUser.name || sessionUser.full_name || 'ตัวแทนผู้ยื่นคำขอ',
       })
@@ -186,7 +195,7 @@ export default function AiEnterprisePage() {
     if (sessionUser) {
       return [
         {
-          emp_id: sessionUser.emp_id || '',
+          emp_id: sessionEmpId,
           name: sessionUser.name || sessionUser.full_name || 'ตัวแทนผู้ยื่นคำขอ',
           department: sessionUser.department || 'ไม่ระบุแผนก',
           position: sessionUser.position || '',
@@ -271,12 +280,12 @@ export default function AiEnterprisePage() {
     if (tabParam && (AI_HUB_TABS as string[]).includes(tabParam)) {
       setActiveTab(tabParam as AiHubTab);
       if (hasGraduation && tabParam === 'request') {
-        showToast('🎉 นำเข้าข้อมูลผลการทดสอบเชิงประจักษ์จาก Sandbox สู่แบบฟอร์ม FM-001 เรียบร้อยแล้ว!', 'success');
+        showToast('🎉 นำเข้าข้อมูลผลการทดสอบเชิงประจักษ์จาก Sandbox สู่แบบฟอร์มขอใช้งาน AIเรียบร้อยแล้ว!', 'success');
       }
     } else if (hasGraduation || searchParams.get('source') === 'sandbox') {
       setActiveTab('request');
       if (hasGraduation) {
-        showToast('🎉 นำเข้าข้อมูลผลการทดสอบเชิงประจักษ์จาก Sandbox สู่แบบฟอร์ม FM-001 เรียบร้อยแล้ว!', 'success');
+        showToast('🎉 นำเข้าข้อมูลผลการทดสอบเชิงประจักษ์จาก Sandbox สู่แบบฟอร์มขอใช้งาน AIเรียบร้อยแล้ว!', 'success');
       }
     }
   }, [searchParams, showToast, sessionLeadKey]);
@@ -320,7 +329,12 @@ export default function AiEnterprisePage() {
         .order('created_at', { ascending: false });
 
       if (reqErr) throw reqErr;
-      setRequests(reqData || []);
+      // JSON columns can come back as text/null on older rows; normalise once so every screen can rely on arrays
+      setRequests((reqData || []).map((r: AiRequest) => ({
+        ...r,
+        team_members: asArray<AiTeamMember>(r.team_members),
+        use_cases: asArray<NonNullable<AiRequest['use_cases']>[number]>(r.use_cases),
+      })));
       if (reqData && reqData.length > 0) {
         setIsLiveData(true);
       }
@@ -708,7 +722,7 @@ export default function AiEnterprisePage() {
       weeklyHours,
       monthlyHours,
       monthlySavings,
-      activeDays: latestReport ? latestReport.active_days : (activeReq?.status === 'approved_sandbox' ? 18 : 0),
+      activeDays: latestReport ? latestReport.active_days : null,
       totalRequests: myRequests.length
     };
   }, [myRequests, reports]);
@@ -839,7 +853,7 @@ export default function AiEnterprisePage() {
     try {
       const activeMembers = formTeamMembers.length > 0 ? formTeamMembers : [
         {
-          emp_id: sessionUser?.emp_id || '',
+          emp_id: sessionEmpId,
           name: sessionUser?.name || 'พนักงานผู้ยื่นคำขอ',
           department: formDept || 'ไม่ระบุแผนก',
           position: formPosition,
@@ -914,7 +928,7 @@ export default function AiEnterprisePage() {
       if (sessionUser) {
         setFormTeamMembers([
           {
-            emp_id: sessionUser.emp_id || '',
+            emp_id: sessionEmpId,
             name: sessionUser.name || sessionUser.full_name || 'ตัวแทนผู้ยื่นคำขอ',
             department: formDept || sessionUser.department || 'ไม่ระบุแผนก',
             position: formPosition || sessionUser.position || '',
@@ -935,60 +949,93 @@ export default function AiEnterprisePage() {
   const handleAutoSyncWorklog = async () => {
     setIsSyncingWorklog(true);
     try {
-      // Find matching request
-      const req = requests.find(r => r.id === activeReportRequestId);
-      const titleKeywords = req ? req.title.split(' ').filter(w => w.length > 2) : [];
-      
-      // Query recent worklogs for current user in current month
+      const req = requests.find((r) => r.id === activeReportRequestId);
+      if (!req) {
+        showToast('กรุณาเลือกโครงการ AI ที่ต้องการรายงานผลก่อน', 'warning');
+        return;
+      }
+
+      // Month range [first day, first day of next month) so 28/29/30/31-day months all work
+      const [yearStr, monthStr] = reportMonth.split('-');
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      if (!year || !month) {
+        showToast('กรุณาเลือกรอบเดือนที่รายงานก่อน', 'warning');
+        return;
+      }
       const startOfMonth = `${reportMonth}-01`;
-      const endOfMonth = `${reportMonth}-31`;
+      const nextMonth = new Date(year, month, 1);
+      const startOfNextMonth = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
 
-      const { data: logs, error } = await supabase
-        .from('worklogs')
-        .select('*')
-        .gte('work_date', startOfMonth)
-        .lte('work_date', endOfMonth);
+      // 1. Whose work counts: the requester and every named member of this request.
+      //    Worklog rows are keyed by users.id, so employee codes are resolved through the users table.
+      const empIds = asArray<AiTeamMember>(req.team_members).map((m) => m.emp_id).filter(Boolean);
+      const userIds = new Set<string>();
+      if (req.user_id) userIds.add(String(req.user_id));
+      if (empIds.length > 0) {
+        const { data: memberUsers, error: userErr } = await supabase.from('users').select('id, emp_id').in('emp_id', empIds);
+        if (userErr) throw userErr;
+        (memberUsers || []).forEach((u) => {
+          if (u.id) userIds.add(String(u.id));
+        });
+      }
+      if (userIds.size === 0) {
+        showToast('ไม่พบบัญชีผู้ใช้ของคณะทำงานในระบบ Worklog ระบบไม่ได้เปลี่ยนตัวเลขให้ กรุณากรอกเอง', 'warning');
+        return;
+      }
 
-      if (error || !logs || logs.length === 0) {
-        // Simulated smart calculate if local/demo
-        const memberCount = req?.team_members?.length || 1;
-        const simulatedActiveDays = Math.floor(Math.random() * 6) + 14;
-        const baseSaved = req ? (req.target_hours_saved_per_week * 0.95) : 5;
-        const simulatedHoursSaved = (baseSaved * (memberCount > 1 ? Math.min(memberCount * 0.85, 3.5) : 1)).toFixed(1);
-        setReportActiveDays(simulatedActiveDays);
-        setReportActualHoursSaved(Number(simulatedHoursSaved));
-        setReportTurnaround(
-          memberCount > 1
-            ? `ทีมงาน ${memberCount} คนประมวลผลเร็วขึ้น 65% เทียบกับเดือนก่อน`
-            : 'ประมวลผลเร็วขึ้น 65% เทียบกับเดือนก่อน'
-        );
+      // 2. Their worklogs for the month (paged: a response is capped at 1,000 rows)
+      type WorklogRow = { id: string | number; work_date: string; project_name: string | null; description: string | null; total_hours: number | string | null };
+      const logs: WorklogRow[] = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('col_worklog')
+          .select('id, work_date, project_name, description, total_hours')
+          .in('user_id', Array.from(userIds))
+          .gte('work_date', startOfMonth)
+          .lt('work_date', startOfNextMonth)
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        logs.push(...((data || []) as WorklogRow[]));
+        if (!data || data.length < PAGE) break;
+      }
+
+      // Never invent numbers: the report is evidence for keeping or suspending a seat
+      if (logs.length === 0) {
+        showToast(`ไม่พบบันทึก Worklog ของคณะทำงาน ${userIds.size} คนในเดือน ${reportMonth} ระบบไม่ได้เปลี่ยนตัวเลขให้ กรุณาตรวจสอบหรือกรอกเอง`, 'info');
+        return;
+      }
+
+      // 3. Only AI work counts: a "[AI] ..." project, or a description/project that names an AI tool or this request
+      const aiWord = /\b(ai|claude|chatgpt|copilot|gemini|deepseek)\b/i;
+      const requestTitle = req.title.trim().toLowerCase();
+      const aiLogs = logs.filter((l) => {
+        const project = (l.project_name || '').trim();
+        const desc = (l.description || '').toLowerCase();
+        return project.startsWith('[AI]') || aiWord.test(project) || aiWord.test(desc) || (requestTitle.length > 2 && desc.includes(requestTitle));
+      });
+      if (aiLogs.length === 0) {
         showToast(
-          memberCount > 1
-            ? `ดึงข้อมูลจำลอง: พบการลงงาน AI ของคณะทำงานทั้ง ${memberCount} คนในเดือน ${reportMonth} รวม ${simulatedActiveDays} วัน`
-            : `ดึงข้อมูลจำลอง: พบการลงงาน AI ในเดือน ${reportMonth} รวม ${simulatedActiveDays} วัน`,
+          `พบบันทึก Worklog ${logs.length} รายการในเดือน ${reportMonth} แต่ไม่มีรายการที่ระบุว่าเป็นงาน AI (โครงการ [AI] หรือคำอธิบายที่มีคำว่า AI / Claude / ChatGPT / Copilot) ระบบไม่ได้เปลี่ยนตัวเลขให้ กรุณากรอกเอง`,
           'info'
         );
-      } else {
-        const memberCount = req?.team_members?.length || 1;
-        const uniqueDays = new Set(logs.map(l => l.work_date)).size;
-        setReportActiveDays(uniqueDays);
-        
-        // Match duration
-        const matchingHours = logs.reduce((acc, l) => {
-          const desc = (l.description || '').toLowerCase();
-          const isMatch = titleKeywords.some(kw => desc.includes(kw.toLowerCase())) || desc.includes('ai') || desc.includes('claude');
-          return isMatch ? acc + (Number(l.total_hours) || 0) : acc;
-        }, 0);
-
-        const estSaved = (matchingHours * 0.4).toFixed(1);
-        setReportActualHoursSaved(Math.max(1, Number(estSaved)));
-        showToast(
-          memberCount > 1
-            ? `ดึงข้อมูลจาก Worklog สำเร็จ! พบงาน AI ของคณะทำงาน ${memberCount} คน รวม ${uniqueDays} วัน (${matchingHours} ชม.)`
-            : `ดึงข้อมูลจาก Worklog สำเร็จ! พบงาน AI รวม ${uniqueDays} วัน (${matchingHours} ชม.)`,
-          'success'
-        );
+        return;
       }
+
+      const uniqueDays = new Set(aiLogs.map((l) => String(l.work_date).slice(0, 10))).size;
+      const matchingHours = Math.round(aiLogs.reduce((acc, l) => acc + (Number(l.total_hours) || 0), 0) * 10) / 10;
+      setReportActiveDays(uniqueDays);
+
+      const estSaved = (matchingHours * 0.4).toFixed(1);
+      setReportActualHoursSaved(Math.max(1, Number(estSaved)));
+      showToast(
+        userIds.size > 1
+          ? `ดึงข้อมูลจาก Worklog สำเร็จ! พบงาน AI ของคณะทำงาน ${userIds.size} คน รวม ${uniqueDays} วัน (${matchingHours} ชม.)`
+          : `ดึงข้อมูลจาก Worklog สำเร็จ! พบงาน AI รวม ${uniqueDays} วัน (${matchingHours} ชม.)`,
+        'success'
+      );
     } catch {
       showToast('ไม่สามารถดึงข้อมูล Worklog ได้ กรุณาระบุตัวเลขด้วยตนเอง', 'warning');
     } finally {
@@ -1040,7 +1087,7 @@ export default function AiEnterprisePage() {
         setReports(prev => [data, ...prev]);
       }
 
-      showToast('ส่งรายงานผลสัมฤทธิ์รายเดือน (FM-PI-AI-002) เรียบร้อยแล้ว', 'success');
+      showToast('ส่งรายงานผลสัมฤทธิ์รายเดือนเรียบร้อยแล้ว', 'success');
       setReportDeliverables('');
       setActiveTab('home');
     } catch (err) {
@@ -1175,25 +1222,28 @@ export default function AiEnterprisePage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => {
-                    setOnboardingInitialStep(0);
-                    setIsOnboardingOpen(true);
-                  }}
-                  className="px-3.5 py-2 text-sm font-medium rounded-lg text-theme-text-muted hover:text-theme-text hover:bg-theme-surface-secondary transition-colors flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => setIsCalculatorOpen(true)}
+                  title="คำนวณงบประมาณและเปรียบเทียบแพ็กเกจ / โมเดล"
+                  className="px-3.5 py-2 text-sm font-semibold rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <HelpCircle size={16} />
-                  <span>วิธีใช้งาน</span>
+                  <Calculator size={16} className="text-indigo-500" />
+                  <span>คำนวณงบ AI</span>
                 </button>
-                <Link
-                  to="/ai-chat"
-                  className="px-3.5 py-2 text-sm font-semibold rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text transition-colors flex items-center gap-1.5"
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('request')}
+                  aria-current={activeTab === 'request' ? 'page' : undefined}
+                  className={cn(
+                    'px-3.5 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer',
+                    activeTab === 'request' && 'ring-2 ring-indigo-500/40 ring-offset-2 ring-offset-theme-surface'
+                  )}
                 >
-                  <Bot size={16} className="text-indigo-500" />
-                  <span>เปิด AI Chat</span>
-                </Link>
+                  <PlusCircle size={16} />
+                  <span>ขอใช้งาน AI</span>
+                </button>
               </div>
             </div>
 
@@ -1221,9 +1271,26 @@ export default function AiEnterprisePage() {
               setFormTier(tier);
               setActiveTab('request');
             }}
-            onOpenGuide={() => {
-              setOnboardingInitialStep(0);
-              setIsOnboardingOpen(true);
+            onOpenHistory={(status = 'all') => {
+              setHistoryStatus(status);
+              setActiveTab('history');
+            }}
+          />
+        )}
+
+        {/* Request history: members see their own requests, admins can see everyone's */}
+        {activeTab === 'history' && (
+          <AiRequestHistory
+            requests={requests}
+            evaluations={evaluations}
+            isAdmin={isAdminOrManager}
+            isMine={isMyRequest}
+            status={historyStatus}
+            onStatusChange={setHistoryStatus}
+            loading={loading}
+            onEvaluate={(id) => {
+              setSelectedEvalRequestId(id);
+              setActiveTab('evaluations');
             }}
           />
         )}
@@ -1428,7 +1495,7 @@ export default function AiEnterprisePage() {
                   </span>
                   <span className="text-xs text-amber-500 font-semibold">
                     {effectivePerspective === 'my_impact'
-                      ? (myMetrics.activeRequest?.status === 'approved_sandbox' ? '• Sandbox 90 วัน' : '• FM-001')
+                      ? (myMetrics.activeRequest?.status === 'approved_sandbox' ? '• Sandbox 90 วัน' : '• ยังไม่มีคำขอ')
                       : effectivePerspective === 'department'
                         ? `(จาก ${deptMetrics.approvedCount} โครงการ)`
                         : '/ 20 Seats (Seed Pool)'}
@@ -1461,18 +1528,18 @@ export default function AiEnterprisePage() {
                 <div className="mt-3 flex items-baseline gap-2">
                   <span className="text-3xl font-black text-theme-text tracking-tight font-mono">
                     {effectivePerspective === 'my_impact'
-                      ? myMetrics.activeDays
+                      ? (myMetrics.activeDays ?? '-')
                       : effectivePerspective === 'department'
                         ? deptMetrics.pendingCount
                         : metrics.pendingCount}
                   </span>
                   <span className="text-xs text-sky-500 font-semibold">
-                    {effectivePerspective === 'my_impact' ? 'วัน/เดือน' : 'คำขอ'}
+                    {effectivePerspective === 'my_impact' ? (myMetrics.activeDays === null ? 'ยังไม่มีรายงาน' : 'วัน/เดือน') : 'คำขอ'}
                   </span>
                 </div>
                 <p className="text-[11px] text-theme-text-muted mt-2">
                   {effectivePerspective === 'my_impact'
-                    ? 'เกณฑ์รักษาที่นั่ง: ใช้งานอย่างน้อย 10 วัน/เดือน'
+                    ? 'ทั้งเดือนไม่ได้ใช้งานเลย สิทธิ์จะถูกระงับ'
                     : effectivePerspective === 'department'
                       ? `จากทั้งหมด ${deptMetrics.totalRequests} คำขอในฝ่าย`
                       : `จากทั้งหมด ${metrics.totalRequests} คำขอที่ยื่นเข้ามา`}
@@ -1516,15 +1583,7 @@ export default function AiEnterprisePage() {
                         className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
                       >
                         <Send size={13} />
-                        <span>ส่งผลงานประจำเดือน (FM-002)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('request')}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-theme-surface-secondary hover:bg-theme-surface-tertiary border border-theme-border text-theme-text flex items-center gap-1 transition-all cursor-pointer"
-                      >
-                        <PlusCircle size={13} />
-                        <span>ยื่นคำขอใหม่ (FM-001)</span>
+                        <span>ส่งผลงานประจำเดือน</span>
                       </button>
                     </div>
                   </div>
@@ -1535,7 +1594,7 @@ export default function AiEnterprisePage() {
                     <div className="p-4 rounded-xl border bg-theme-surface-secondary/40 border-emerald-500/30">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">✓</div>
-                        <span className="text-xs font-bold text-theme-text">1. ยื่นคำขอ FM-001</span>
+                        <span className="text-xs font-bold text-theme-text">1. ยื่นคำขอใช้งาน AI</span>
                       </div>
                       <p className="text-[11px] text-theme-text-muted mt-2">
                         ระบุปัญหา As-Is และเป้าหมายเวลาที่ลด {myMetrics.weeklyHours} ชม./สัปดาห์
@@ -1604,10 +1663,10 @@ export default function AiEnterprisePage() {
                     <div className="p-4 rounded-xl border bg-theme-surface-secondary/40 border-amber-500/30">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">4</div>
-                        <span className="text-xs font-bold text-theme-text">4. ส่งผลงานประจำเดือน FM-002</span>
+                        <span className="text-xs font-bold text-theme-text">4. ส่งผลงานประจำเดือน</span>
                       </div>
                       <p className="text-[11px] text-theme-text-muted mt-2">
-                        บันทึก Active Days (ปัจจุบัน {myMetrics.activeDays} วัน) และเวลาที่ลดจริง
+                        บันทึก Active Days {myMetrics.activeDays === null ? '(ยังไม่มีรายงาน)' : `(ปัจจุบัน ${myMetrics.activeDays} วัน)`} และเวลาที่ลดจริง
                       </p>
                       <span className="inline-block mt-2 text-[10px] font-bold text-amber-600 dark:text-amber-400">
                         ต้องส่งทุกสิ้นเดือน
@@ -1688,7 +1747,7 @@ export default function AiEnterprisePage() {
                           onClick={() => setActiveTab('reports')}
                           className="text-xs text-indigo-500 hover:text-indigo-400 font-medium flex items-center gap-1 cursor-pointer"
                         >
-                          <span>ดูรายงาน FM-002</span>
+                          <span>ดูรายงานผลงานรายเดือน</span>
                           <ChevronRight size={14} />
                         </button>
                       </div>
@@ -1752,14 +1811,6 @@ export default function AiEnterprisePage() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('request')}
-                      className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <PlusCircle size={14} />
-                      <span>ยื่นคำขอในนามฝ่าย (FM-001)</span>
-                    </button>
                     {isAdminOrManager && (
                       <button
                         type="button"
@@ -1860,10 +1911,10 @@ export default function AiEnterprisePage() {
                         <div className="p-3.5 rounded-xl bg-theme-surface-secondary/50 border border-theme-border/60">
                           <div className="text-[11px] text-theme-text-muted">ความสม่ำเสมอในการใช้งาน (Active Days)</div>
                           <div className="text-sm font-bold text-theme-text mt-1">
-                            เกณฑ์ขั้นต่ำ 10 วัน/เดือน
+                            พิจารณาเป็นรายเดือน
                           </div>
                           <div className="text-[10px] text-theme-text-muted mt-0.5">
-                            สิทธิ์ที่ไม่มีความเคลื่อนไหวเกิน 14 วัน จะถูก CoE แจ้งเตือนเพื่อหมุนเวียนสิทธิ์
+                            เดือนที่ผ่านมาไม่ได้ใช้งานเลย สิทธิ์จะถูกระงับและหมุนเวียนให้ผู้รอใน Waiting List
                           </div>
                         </div>
                       </div>
@@ -1875,7 +1926,7 @@ export default function AiEnterprisePage() {
                         onClick={() => setActiveTab('reports')}
                         className="w-full py-2 rounded-xl text-xs font-bold bg-theme-surface-secondary hover:bg-theme-surface-tertiary border border-theme-border text-theme-text flex items-center justify-center gap-1 transition-all cursor-pointer"
                       >
-                        <span>ดูรายงานผลงาน FM-002 ของฝ่าย →</span>
+                        <span>ดูรายงานผลงานรายเดือนของฝ่าย →</span>
                       </button>
                     </div>
                   </div>
@@ -1901,7 +1952,7 @@ export default function AiEnterprisePage() {
                           </span>
                         </div>
                         <p className="text-[11px] text-theme-text-muted mt-1 max-w-3xl leading-relaxed">
-                          ตรวจพบโครงการที่ได้รับอนุมัติแต่ไม่มีความเคลื่อนไหวเกิน 14 วัน หรือยังขาดส่งรายงาน FM-002 — ตามระเบียบ <strong>WI-PI-AI-001 ข้อ 6</strong> คณะกรรมการ CoE สามารถแจ้งเตือนเพื่อหมุนเวียนสิทธิ์ (License Reclamation) ให้ผู้ขอที่อยู่ใน Waiting List
+                          ตรวจพบโครงการที่ได้รับอนุมัติแต่เดือนที่ผ่านมาไม่ได้ใช้งานเลย หรือยังขาดส่งรายงานผลงานรายเดือน — ตามระเบียบ <strong>WI-PI-AI-001 ข้อ 6</strong> คณะกรรมการ CoE สามารถระงับสิทธิ์และหมุนเวียนให้ผู้ขอที่อยู่ใน Waiting List
                         </p>
                       </div>
                     </div>
@@ -2043,7 +2094,7 @@ export default function AiEnterprisePage() {
                   </div>
                   <p className="text-xs text-theme-text-muted mt-1">
                     {activeDashboardView === 'initiatives'
-                      ? 'ติดตามการจัดสรรสิทธิ์และสถานะการพิจารณาคำขอใช้งานของทุกฝ่าย (เมื่อยื่นแบบฟอร์ม FM-001 ข้อมูลจริงจะบันทึกลงระบบทันที)'
+                      ? 'ติดตามการจัดสรรสิทธิ์และสถานะการพิจารณาคำขอใช้งานของทุกฝ่าย (เมื่อยื่นแบบฟอร์มขอใช้งาน AI ข้อมูลจริงจะบันทึกลงระบบทันที)'
                       : 'ตรวจสอบรายชื่อพนักงานที่ถือครองสิทธิ์ทั้ง 20 ที่นั่ง พร้อมสถานะความเคลื่อนไหวและ Active Days'}
                   </p>
                 </div>
@@ -2084,11 +2135,6 @@ export default function AiEnterprisePage() {
                   onSelectRequest={(id) => {
                     setSelectedEvalRequestId(id);
                     setActiveTab('evaluations');
-                  }}
-                  onNavigateTab={(tab) => {
-                    if (tab === 'dashboard' || tab === 'request' || tab === 'evaluations' || tab === 'reports' || tab === 'governance') {
-                      setActiveTab(tab);
-                    }
                   }}
                 />
               ) : (
@@ -2308,7 +2354,7 @@ export default function AiEnterprisePage() {
                                           setActiveTab('evaluations');
                                         }}
                                         className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-theme-surface hover:bg-theme-surface-secondary border border-theme-border text-theme-text transition-all cursor-pointer shadow-2xs shrink-0 active:scale-95"
-                                        title="ประเมินเกณฑ์ 100 คะแนน (FM-PI-AI-001)"
+                                        title="ประเมินเกณฑ์ 100 คะแนน"
                                       >
                                         ประเมินคะแนน
                                       </button>
@@ -2320,7 +2366,7 @@ export default function AiEnterprisePage() {
                                         setActiveTab('reports');
                                       }}
                                       className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all cursor-pointer shadow-2xs shrink-0 active:scale-95 flex items-center gap-1"
-                                      title="บันทึกผลงานประจำเดือน (FM-002)"
+                                      title="บันทึกผลงานประจำเดือน"
                                     >
                                       <Send size={12} />
                                       <span>ส่งผลงาน</span>
@@ -2564,10 +2610,7 @@ export default function AiEnterprisePage() {
         {/* Tab 2: Departmental AI Preset & Recommendation Engine */}
         {activeTab === 'presets' && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 animate-fade-in">
-            <AiDepartmentPresetMatcher
-              onApplyPreset={handleApplyDepartmentPreset}
-              onNavigateTab={(tab) => setActiveTab(tab)}
-            />
+            <AiDepartmentPresetMatcher onApplyPreset={handleApplyDepartmentPreset} />
           </div>
         )}
 
@@ -2583,7 +2626,7 @@ export default function AiEnterprisePage() {
                     ไม่แน่ใจว่าหน่วยงานของคุณเหมาะกับ AI รุ่นไหน หรือควรกรอก AI JD อย่างไร?
                   </div>
                   <p className="text-[11px] text-theme-text-muted mt-0.5">
-                    ดูชุดข้อมูลสำเร็จรูป (Preset) ของทั้ง 8 ฝ่ายงาน แล้วกดดึงข้อมูลมากรอกฟอร์มนี้ได้ในคลิกเดียว
+                    ดูชุดข้อมูลสำเร็จรูป (Preset) ตามฝ่ายงาน แล้วกดดึงข้อมูลมากรอกฟอร์มนี้ได้ในคลิกเดียว
                   </p>
                 </div>
               </div>
@@ -2794,7 +2837,7 @@ export default function AiEnterprisePage() {
                       totalSeats={formSeats}
                       members={formTeamMembers}
                       onChange={handleTeamMembersChange}
-                      sessionUser={sessionUser}
+                      sessionUser={sessionUser ? { ...sessionUser, emp_id: sessionEmpId } : null}
                       allowPartialAllocation={formAllowPartialAllocation}
                       onAllowPartialChange={setFormAllowPartialAllocation}
                     />
@@ -2850,12 +2893,12 @@ export default function AiEnterprisePage() {
 
                   <div>
                     <label className="block text-xs font-medium text-theme-text mb-1">ผลลัพธ์อื่นที่คาดหวัง (ไม่บังคับ)</label>
-                    <input
-                      type="text"
-                      placeholder="เช่น ลดข้อผิดพลาด, ส่งมอบงานไวขึ้น 2 เท่า"
+                    <textarea
+                      rows={4}
+                      placeholder="เช่น ลดข้อผิดพลาด, ส่งมอบงานไวขึ้น 2 เท่า (พิมพ์ได้หลายบรรทัด)"
                       value={formExpectedBenefits}
                       onChange={(e) => setFormExpectedBenefits(e.target.value)}
-                      className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500"
+                      className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500 resize-y min-h-[5.5rem]"
                     />
                   </div>
                 </div>
@@ -2925,9 +2968,6 @@ export default function AiEnterprisePage() {
             <div className="bg-theme-surface border border-theme-border/80 rounded-2xl shadow-sm p-6 sm:p-8">
               <div className="border-b border-theme-border/60 pb-5 mb-6">
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    FORM: FM-PI-AI-002
-                  </span>
                   <span className="text-xs text-theme-text-muted">กำหนดส่งทุกวันที่ 25 ของทุกเดือน</span>
                 </div>
                 <h2 className="text-lg font-bold text-theme-text mt-2">
@@ -2945,30 +2985,15 @@ export default function AiEnterprisePage() {
                     <label className="block text-xs font-medium text-theme-text mb-1">
                       เลือกโครงการ AI ที่ต้องการรายงานผล *
                     </label>
-                    <select
-                      required
+                    <AiRequestSelect
+                      requests={requests}
                       value={activeReportRequestId}
-                      onChange={(e) => setReportRequestId(e.target.value)}
-                      className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500 font-medium"
-                    >
-                      <option value="">-- เลือกโครงการ AI ที่ได้รับอนุมัติสิทธิ์ --</option>
-                      <optgroup label="✓ โครงการที่ได้รับสิทธิ์ Sandbox (Approved)">
-                        {requests.filter(r => r.status === 'approved_sandbox' || r.status === 'completed').map(r => (
-                          <option key={r.id} value={r.id}>
-                            {r.title} ({r.department})
-                          </option>
-                        ))}
-                      </optgroup>
-                      {requests.some(r => r.status !== 'approved_sandbox' && r.status !== 'completed') && (
-                        <optgroup label="⏳ โครงการสถานะอื่นๆ">
-                          {requests.filter(r => r.status !== 'approved_sandbox' && r.status !== 'completed').map(r => (
-                            <option key={r.id} value={r.id}>
-                              {r.title} ({r.department})
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                    </select>
+                      onChange={setReportRequestId}
+                      isFirstGroup={isReportableRequest}
+                      groupLabels={{ first: 'โครงการที่ได้รับสิทธิ์ Sandbox', second: 'โครงการสถานะอื่น ๆ' }}
+                      placeholder="เลือกโครงการ AI ที่ได้รับอนุมัติสิทธิ์"
+                      align="left"
+                    />
                   </div>
 
                   <div>
@@ -3113,7 +3138,7 @@ export default function AiEnterprisePage() {
                     ) : (
                       <>
                         <Check size={16} />
-                        <span>บันทึกรายงานประจำเดือน (Submit FM-002)</span>
+                        <span>บันทึกรายงานประจำเดือน</span>
                       </>
                     )}
                   </button>
@@ -3237,26 +3262,7 @@ export default function AiEnterprisePage() {
                 {/* Target Request Selector */}
                 <div className="w-full sm:w-72">
                   <label className="block text-[11px] font-medium text-theme-text-muted mb-1">เลือกคำขอที่จะประเมิน</label>
-                  <select
-                    value={activeEvalRequestId}
-                    onChange={(e) => setSelectedEvalRequestId(e.target.value)}
-                    className="w-full text-xs py-2 px-3 rounded-lg bg-theme-surface-secondary border border-theme-border text-theme-text focus:outline-none focus:border-indigo-500 font-medium"
-                  >
-                    <optgroup label="⏱️ คำขอรอพิจารณา (Pending Review)">
-                      {requests.filter(r => r.status === 'pending_review').map(r => (
-                        <option key={r.id} value={r.id}>
-                          {r.title} ({r.department})
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="✓ คำขอที่ประเมินแล้ว (Evaluated)">
-                      {requests.filter(r => r.status !== 'pending_review').map(r => (
-                        <option key={r.id} value={r.id}>
-                          {r.title} ({r.department})
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
+                  <AiRequestSelect requests={requests} value={activeEvalRequestId} onChange={setSelectedEvalRequestId} />
                 </div>
               </div>
 
@@ -3492,6 +3498,9 @@ export default function AiEnterprisePage() {
                 </p>
               </div>
 
+              {/* Lifecycle: request → CoE review → use → monthly report */}
+              <AiLifecycleGuide isAdmin={isAdminOrManager} onNavigate={setActiveTab} />
+
               {/* 3 Pillars of AI Governance */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 rounded-xl border border-indigo-500/30 bg-indigo-500/5 space-y-2">
@@ -3500,7 +3509,7 @@ export default function AiEnterprisePage() {
                   </div>
                   <h4 className="text-xs font-bold text-theme-text">Sandbox 90 วัน (Seed Pool)</h4>
                   <p className="text-[11px] text-theme-text-muted leading-relaxed">
-                    สิทธิ์เริ่มต้นจะถูกจัดสรรในกลุ่ม Seed Pool เป็นเวลา 90 วัน เพื่อทดสอบความคุ้มค่าจริงตามตัวชี้วัดที่ระบุใน FM-001
+                    สิทธิ์เริ่มต้นจะถูกจัดสรรในกลุ่ม Seed Pool เป็นเวลา 90 วัน เพื่อทดสอบความคุ้มค่าจริงตามตัวชี้วัดที่ระบุในแบบฟอร์มขอใช้งาน AI
                   </p>
                 </div>
 
@@ -3510,7 +3519,7 @@ export default function AiEnterprisePage() {
                   </div>
                   <h4 className="text-xs font-bold text-theme-text">รายงานผลสัมฤทธิ์รายเดือน</h4>
                   <p className="text-[11px] text-theme-text-muted leading-relaxed">
-                    ส่งแบบฟอร์ม FM-002 ทุกวันที่ 25 ของเดือน หากไม่มีการใช้งานต่อเนื่องเกิน 2 รอบเดือน CoE มีสิทธิ์เรียกคืนสิทธิ์ (Revoke)
+                    ส่งรายงานผลสัมฤทธิ์ทุกวันที่ 25 ของเดือน และพิจารณาเป็นรายเดือน หากเดือนที่ผ่านมาไม่ได้ใช้งานเลย CoE จะระงับสิทธิ์
                   </p>
                 </div>
 
@@ -3640,7 +3649,7 @@ export default function AiEnterprisePage() {
                   <div className="space-y-0.5">
                     <strong className="text-theme-text block">รอบการตัดจ่ายและการจัดสรรสิทธิ์ (Seat Rotation & Billing Cycle):</strong>
                     <span className="text-[11px] text-theme-text-muted">
-                      ระบบตัดรอบจัดสรรสิทธิ์ทุกวันที่ 15 ของเดือนตามรอบวางบิล Supplier หากหน่วยงานใดไม่มีการใช้งานต่อเนื่อง สิทธิ์จะถูกโอนย้ายไปยัง Waiting List อัตโนมัติ
+                      ระบบตัดรอบจัดสรรสิทธิ์ทุกวันที่ 15 ของเดือนตามรอบวางบิล Supplier หากสิทธิ์ใดไม่ได้ใช้งานเลยตลอดเดือนที่ผ่านมา สิทธิ์จะถูกระงับและโอนย้ายไปยัง Waiting List
                     </span>
                   </div>
                   <span className="px-2.5 py-1 rounded text-[10px] font-mono font-bold bg-theme-surface-secondary border border-theme-border shrink-0 text-center">
@@ -3652,16 +3661,8 @@ export default function AiEnterprisePage() {
           </div>
         )}
 
-        {/* Interactive Onboarding Tour Modal */}
-        <AiLifecycleOnboardingModal
-          isOpen={isOnboardingOpen}
-          onClose={() => setIsOnboardingOpen(false)}
-          onSelectTab={(tab) => {
-            setActiveTab(tab);
-            setIsOnboardingOpen(false);
-          }}
-          initialStepIndex={onboardingInitialStep}
-        />
+        {/* Budget calculator & package / model comparison */}
+        <AiPackageCalculatorModal isOpen={isCalculatorOpen} onClose={() => setIsCalculatorOpen(false)} />
       </div>
     </AppLayout>
   );

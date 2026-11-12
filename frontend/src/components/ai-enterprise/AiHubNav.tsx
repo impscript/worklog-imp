@@ -1,4 +1,4 @@
-import { Home, Compass, PlusCircle, FileCheck2, TrendingUp, BookOpen, Sliders, type LucideIcon } from 'lucide-react';
+import { Home, Compass, History, FileCheck2, TrendingUp, BookOpen, Sliders, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { AiHubTab } from './aiHubTabs';
 
@@ -8,11 +8,11 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-// Ordered by the employee journey: land → choose → request → report → read.
+// Ordered by the employee journey: land → choose → track → report → read. (The request form opens from the header button.)
 const MEMBER_ITEMS: NavItem[] = [
   { id: 'home', label: 'หน้าแรก', icon: Home },
   { id: 'presets', label: 'เลือกแพ็กเกจ', icon: Compass },
-  { id: 'request', label: 'ขอใช้งาน AI', icon: PlusCircle },
+  { id: 'history', label: 'ประวัติคำขอ', icon: History },
   { id: 'reports', label: 'รายงานผลงาน', icon: FileCheck2 },
   { id: 'dashboard', label: 'ผลลัพธ์ & สถิติ', icon: TrendingUp },
   { id: 'governance', label: 'คู่มือ & นโยบาย', icon: BookOpen },

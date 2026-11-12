@@ -110,7 +110,7 @@ export default function AiTeamMemberPicker({
   return (
     <div className="space-y-3">
       {/* 1. Search first */}
-      {!isFull ? (
+      {!isFull && (
         <div className="space-y-2">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -228,16 +228,6 @@ export default function AiTeamMemberPicker({
               })}
             </div>
           )}
-        </div>
-      ) : (
-        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-600 dark:text-emerald-400 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <UserCheck size={16} />
-            <span className="font-semibold">ระบุรายชื่อครบทั้ง {totalSeats} สิทธิ์เรียบร้อยแล้ว</span>
-          </div>
-          <span className="text-[11px] text-theme-text-muted">
-            หากต้องการเปลี่ยนสมาชิก ให้กดปุ่ม ✕ ที่แถวของคนเดิมในตารางด้านล่าง
-          </span>
         </div>
       )}
 

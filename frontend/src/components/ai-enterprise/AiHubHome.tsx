@@ -1,11 +1,13 @@
 import {
-  PlusCircle, FileCheck2, BookOpen, Bot, ChevronRight, Compass, ArrowRight,
-  Laptop, Sparkles, CheckCircle2, Clock, AlertCircle, ShieldAlert, HelpCircle, type LucideIcon
+  FileCheck2, BookOpen, Bot, ChevronRight, Compass, ArrowRight,
+  Laptop, Sparkles, ShieldAlert, HelpCircle, type LucideIcon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import type { AiRequest, AiMonthlyReport } from '../../pages/AiEnterprisePage';
 import type { AiHubTab } from './aiHubTabs';
+import { statusMeta } from './aiRequestStatus';
+import type { HistoryStatusFilter } from './AiRequestHistory';
 
 interface AiHubHomeProps {
   userName: string;
@@ -16,42 +18,11 @@ interface AiHubHomeProps {
   dormantCount: number;
   loading: boolean;
   onNavigate: (tab: AiHubTab) => void;
+  /** Opens the request form with the chosen tier already selected. */
   onRequest: (tier: 'virtual_employee' | 'general_web') => void;
-  onOpenGuide: () => void;
+  /** Opens the request history page, optionally with a status filter already applied. */
+  onOpenHistory: (status?: HistoryStatusFilter) => void;
 }
-
-const STATUS_META: Record<AiRequest['status'], { label: string; hint: string; badge: string; Icon: LucideIcon }> = {
-  pending_review: {
-    label: 'รอพิจารณา',
-    hint: 'คำขอส่งแล้ว กำลังรอคณะกรรมการ CoE พิจารณา',
-    badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30',
-    Icon: Clock,
-  },
-  approved_sandbox: {
-    label: 'อนุมัติแล้ว',
-    hint: 'ใช้งานได้ในรอบ Sandbox 90 วัน อย่าลืมส่งรายงานผลงานรายเดือน',
-    badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-    Icon: CheckCircle2,
-  },
-  waiting_list: {
-    label: 'อยู่ในคิวรอ',
-    hint: 'ผ่านการพิจารณาแล้ว รอสิทธิ์ว่างเพื่อเริ่มใช้งาน',
-    badge: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30',
-    Icon: Clock,
-  },
-  rejected: {
-    label: 'ส่งกลับปรับปรุง',
-    hint: 'ดูเหตุผลจาก CoE แล้วยื่นคำขอใหม่ได้',
-    badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30',
-    Icon: AlertCircle,
-  },
-  completed: {
-    label: 'เสร็จสิ้น',
-    hint: 'โครงการนี้สิ้นสุดแล้ว',
-    badge: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30',
-    Icon: CheckCircle2,
-  },
-};
 
 const STEPS = [
   { title: 'เลือกแพ็กเกจ', desc: 'ดูว่าฝ่ายของคุณเหมาะกับ AI แบบไหน' },
@@ -104,7 +75,7 @@ function ActionCard({ icon: Icon, title, desc, tone, onClick, to, disabledNote }
 
 export default function AiHubHome({
   userName, myRequests, reports, isAdmin, pendingCount, dormantCount, loading,
-  onNavigate, onRequest, onOpenGuide,
+  onNavigate, onRequest, onOpenHistory,
 }: AiHubHomeProps) {
   const month = currentMonthKey();
   const approved = myRequests.filter((r) => r.status === 'approved_sandbox');
@@ -127,18 +98,10 @@ export default function AiHubHome({
             <div className="flex flex-wrap items-center gap-3 mt-6">
               <button
                 type="button"
-                onClick={() => onNavigate('request')}
+                onClick={() => onNavigate('presets')}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-sm transition-colors cursor-pointer"
               >
-                <PlusCircle size={16} />
-                ขอใช้งาน AI
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate('presets')}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-secondary text-theme-text text-sm font-semibold transition-colors cursor-pointer"
-              >
-                <Compass size={16} className="text-amber-500" />
+                <Compass size={16} />
                 ไม่แน่ใจ? ดูแพ็กเกจที่เหมาะกับฝ่ายฉัน
               </button>
             </div>
@@ -170,7 +133,7 @@ export default function AiHubHome({
             <ShieldAlert size={18} /> งานที่รอผู้ดูแล
           </span>
           {pendingCount > 0 && (
-            <button type="button" onClick={() => onNavigate('evaluations')} className="inline-flex items-center gap-1.5 text-sm text-theme-text hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer">
+            <button type="button" onClick={() => onOpenHistory('pending_review')} className="inline-flex items-center gap-1.5 text-sm text-theme-text hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer">
               <strong>{pendingCount}</strong> คำขอรอพิจารณา <ArrowRight size={14} />
             </button>
           )}
@@ -186,13 +149,6 @@ export default function AiHubHome({
       <section aria-labelledby="hub-actions">
         <h3 id="hub-actions" className="text-base font-semibold text-theme-text mb-3">คุณต้องการทำอะไร</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <ActionCard
-            icon={PlusCircle}
-            title="ขอใช้งาน AI"
-            desc="กรอกคำขอเพื่อรับสิทธิ์ใช้ AI สำหรับงานของคุณหรือทีม"
-            tone="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
-            onClick={() => onNavigate('request')}
-          />
           <ActionCard
             icon={FileCheck2}
             title="ส่งรายงานผลงานรายเดือน"
@@ -221,11 +177,11 @@ export default function AiHubHome({
       <section aria-labelledby="hub-my-requests">
         <div className="flex items-center justify-between mb-3">
           <h3 id="hub-my-requests" className="text-base font-semibold text-theme-text">คำขอของฉัน</h3>
-          {myRequests.length > 0 && (
-            <button type="button" onClick={() => onNavigate('request')} className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-              + ยื่นคำขอใหม่
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={() => onOpenHistory('all')} className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
+              ดูประวัติคำขอทั้งหมด
             </button>
-          )}
+          </div>
         </div>
 
         {loading ? (
@@ -236,19 +192,12 @@ export default function AiHubHome({
               <Sparkles size={22} />
             </div>
             <p className="mt-3 text-sm font-semibold text-theme-text">คุณยังไม่มีคำขอ</p>
-            <p className="mt-1 text-xs text-theme-text-muted">เริ่มจากการขอใช้งาน AI คำขอและสถานะจะแสดงที่นี่</p>
-            <button
-              type="button"
-              onClick={() => onNavigate('request')}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors cursor-pointer"
-            >
-              <PlusCircle size={15} /> ขอใช้งาน AI
-            </button>
+            <p className="mt-1 text-xs text-theme-text-muted">คำขอที่คุณยื่นและสถานะจะแสดงที่นี่</p>
           </div>
         ) : (
           <ul className="rounded-xl border border-theme-border/80 bg-theme-surface divide-y divide-theme-border/60 overflow-hidden">
             {myRequests.map((r) => {
-              const meta = STATUS_META[r.status];
+              const meta = statusMeta(r.status);
               const reportDue = needsReport.some((x) => x.id === r.id);
               return (
                 <li key={r.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -335,8 +284,8 @@ export default function AiHubHome({
       {/* 6. Help */}
       <footer className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-theme-border/60 text-sm text-theme-text-muted">
         <span className="inline-flex items-center gap-1.5"><HelpCircle size={15} /> ใช้งานครั้งแรกและยังไม่แน่ใจ?</span>
-        <button type="button" onClick={onOpenGuide} className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-          ดูวิธีใช้งานแบบสั้น ๆ
+        <button type="button" onClick={() => onNavigate('governance')} className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
+          อ่านคู่มือ & วงจรการทำงาน
         </button>
       </footer>
     </div>

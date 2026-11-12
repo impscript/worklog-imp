@@ -249,12 +249,7 @@ export default function AiUseCaseEditor({ tasks, members, onChange, functionOpti
                       return (
                         <label
                           key={opt.id}
-                          className={cn(
-                            'flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition-colors',
-                            checked
-                              ? 'bg-indigo-500/10 border-indigo-500/50 text-indigo-700 dark:text-indigo-300'
-                              : 'bg-theme-surface-secondary/40 border-theme-border hover:bg-theme-surface-secondary'
-                          )}
+                          className="flex items-start gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition-colors bg-theme-surface-secondary/40 border-theme-border hover:bg-theme-surface-secondary"
                         >
                           <input
                             type="checkbox"
