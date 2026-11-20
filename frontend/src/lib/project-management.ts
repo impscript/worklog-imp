@@ -693,7 +693,13 @@ export async function fetchGanttProjects(workspaceId?: string | null): Promise<G
     const limit = createRequestLimiter(16);
 
     // 1. Projects (scoped by workspace) and the users map (employee photos) do not depend on each other
-    let query = supabase.from('tb_project_registry').select('*, parent:parent_project_id(project_name)').order('created_at', { ascending: false });
+    // Deactivated projects (Master Data "Active" off => status 'inactive') do not belong on the roadmap. They used to
+    // be shown as "In Progress" because the status normalisation below has no case for them.
+    let query = supabase
+      .from('tb_project_registry')
+      .select('*, parent:parent_project_id(project_name)')
+      .or('status.is.null,status.neq.inactive')
+      .order('created_at', { ascending: false });
     if (activeWsId) {
       query = query.eq('workspace_id', activeWsId);
     }
