@@ -75,6 +75,7 @@ export default function AdminPage() {
   const [filterRole, setFilterRole] = useState<string[]>([]);
   const [filterType, setFilterType] = useState<string[]>([]);
   const [filterBU, setFilterBU] = useState<string[]>([]);
+  const [filterDepartment, setFilterDepartment] = useState<string[]>([]);
 
   // IT Salary Rate specific filters
   const [filterSalaryCategory, setFilterSalaryCategory] = useState('');
@@ -88,6 +89,7 @@ export default function AdminPage() {
     setFilterRole([]);
     setFilterType([]);
     setFilterBU([]);
+    setFilterDepartment([]);
   };
 
   const resetSalaryRateFilters = () => {
@@ -113,7 +115,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchQuery, filterProject, filterHolding, filterRole, filterType, filterBU, filterSalaryCategory, filterSalaryRole, filterSalaryMin, filterSalaryMax]);
+  }, [activeTab, searchQuery, filterProject, filterHolding, filterRole, filterType, filterBU, filterDepartment, filterSalaryCategory, filterSalaryRole, filterSalaryMin, filterSalaryMax]);
 
   // Database Data States
   const [holdings, setHoldings] = useState<any[]>([]);
@@ -279,6 +281,11 @@ export default function AdminPage() {
   const uniqueBUs = useMemo(() => {
     if (!projectStructures || !Array.isArray(projectStructures)) return [];
     return Array.from(new Set(projectStructures.map(p => p.bu))).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [projectStructures]);
+
+  const uniqueDepartments = useMemo(() => {
+    if (!projectStructures || !Array.isArray(projectStructures)) return [];
+    return Array.from(new Set(projectStructures.map(p => p.department))).filter(Boolean).sort((a, b) => a.localeCompare(b));
   }, [projectStructures]);
 
   const uniqueSalaryCategories = useMemo(() => {
@@ -940,8 +947,9 @@ export default function AdminPage() {
           const matchesType = filterType.length === 0 || filterType.includes(p.project_type);
           const matchesProject = filterProject.length === 0 || filterProject.includes(p.project_name);
           const matchesBU = filterBU.length === 0 || filterBU.includes(p.bu);
+          const matchesDepartment = filterDepartment.length === 0 || filterDepartment.includes(p.department);
 
-          return matchesSearch && matchesHolding && matchesRole && matchesType && matchesProject && matchesBU;
+          return matchesSearch && matchesHolding && matchesRole && matchesType && matchesProject && matchesBU && matchesDepartment;
         });
         // Keep every project (name + holding + role) contiguous so the table can render it as one group.
         data.sort((a, b) =>
@@ -1525,7 +1533,7 @@ export default function AdminPage() {
     );
   };
 
-  const hasStructureFilters = filterProject.length > 0 || filterHolding.length > 0 || filterRole.length > 0 || filterType.length > 0 || filterBU.length > 0;
+  const hasStructureFilters = filterProject.length > 0 || filterHolding.length > 0 || filterRole.length > 0 || filterType.length > 0 || filterBU.length > 0 || filterDepartment.length > 0;
   const filteredData = getFilteredData();
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
   const paginatedData = filteredData.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
@@ -1783,11 +1791,20 @@ export default function AdminPage() {
                       />
                       <MultiSelectFilter
                         className="w-full sm:w-36"
-                        label="BU / Dept"
+                        label="BU"
                         defaultAllLabel="All BUs"
                         options={uniqueBUs.map((v) => ({ value: v, label: v }))}
                         selectedValues={filterBU}
                         onChange={setFilterBU}
+                        alwaysShowSearch
+                      />
+                      <MultiSelectFilter
+                        className="w-full sm:w-36"
+                        label="Department"
+                        defaultAllLabel="All Departments"
+                        options={uniqueDepartments.map((v) => ({ value: v, label: v }))}
+                        selectedValues={filterDepartment}
+                        onChange={setFilterDepartment}
                         alwaysShowSearch
                         align="right"
                       />
