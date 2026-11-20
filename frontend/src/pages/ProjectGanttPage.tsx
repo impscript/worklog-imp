@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useDeferredValue, lazy, Suspense } from 'react';
 import AppLayout from '../components/layout/AppLayout';
 import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +25,10 @@ import {
   type KanbanGroupBy,
   type KanbanSwimlane,
 } from '../components/kanban/ProjectKanbanCanvas';
-import { ProjectDetailDrawer } from '../components/gantt/ProjectDetailDrawer';
+// The drawer is the largest component on this page (~2,700 lines) and only matters once a project is opened,
+// so it is split into its own file and fetched on demand.
+const loadProjectDetailDrawer = () => import('../components/gantt/ProjectDetailDrawer');
+const ProjectDetailDrawer = lazy(() => loadProjectDetailDrawer().then((m) => ({ default: m.ProjectDetailDrawer })));
 import { HiddenProjectsDropdown } from '../components/gantt/HiddenProjectsDropdown';
 import { FolderKanban, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -39,6 +42,8 @@ export default function ProjectGanttPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+  // Mounted from the first time a project is opened and kept, so the slide-out animation still plays on close
+  const [drawerMounted, setDrawerMounted] = useState<boolean>(false);
   const [availableUsers, setAvailableUsers] = useState<{ id: string; name: string; email?: string; emp_id?: string }[]>([]);
 
   // View Mode & Kanban States
@@ -48,6 +53,7 @@ export default function ProjectGanttPage() {
 
   // Filter & Hierarchy State
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [selectedYear, setSelectedYear] = useState<number | 'all'>(new Date().getFullYear());
   const [selectedProjectTypes, setSelectedProjectTypes] = useState<string[]>([]);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
@@ -184,6 +190,13 @@ export default function ProjectGanttPage() {
     });
   }, [loadProjects, loadUsers]);
 
+  // Fetch the drawer's code in the background once the list is shown, so the first click opens instantly
+  useEffect(() => {
+    if (isLoading) return;
+    const id = window.setTimeout(() => void loadProjectDetailDrawer(), 800);
+    return () => window.clearTimeout(id);
+  }, [isLoading]);
+
   // Unique Project Types
   const projectTypesList = useMemo(() => {
     const set = new Set<string>(['Project', 'Support MA', 'Support Go-Live', 'Upgrade', 'Management']);
@@ -256,7 +269,7 @@ export default function ProjectGanttPage() {
         if (!isUserMatch) return false;
       }
 
-      const q = searchQuery.toLowerCase().trim();
+      const q = deferredSearchQuery.toLowerCase().trim();
       if (!q) return true;
       return (
         p.project_name.toLowerCase().includes(q) ||
@@ -266,7 +279,7 @@ export default function ProjectGanttPage() {
         (p.owner_team || '').toLowerCase().includes(q)
       );
     },
-    [selectedYear, showParentsOnly, selectedTeams, selectedHoldings, selectedHealths, selectedUsers, availableUsers, searchQuery]
+    [selectedYear, showParentsOnly, selectedTeams, selectedHoldings, selectedHealths, selectedUsers, availableUsers, deferredSearchQuery]
   );
 
   // Projects within the base scope (used for the KPI overview's own totals, so
@@ -350,10 +363,11 @@ export default function ProjectGanttPage() {
     return projects.find((p) => p.id === selectedProjectId) || null;
   }, [projects, selectedProjectId]);
 
-  const handleSelectProject = (proj: GanttProject) => {
+  const handleSelectProject = useCallback((proj: GanttProject) => {
     setSelectedProjectId(proj.id);
     setIsDrawerOpen(true);
-  };
+    setDrawerMounted(true);
+  }, []);
 
   // Patches the single edited project in place after a drawer save, instead of
   // refetching the whole Gantt list — keeps the table's scroll position and
@@ -362,7 +376,7 @@ export default function ProjectGanttPage() {
     setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
   }, []);
 
-  const handleToggleExpandProject = (id: string) => {
+  const handleToggleExpandProject = useCallback((id: string) => {
     setExpandedProjectIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -372,7 +386,7 @@ export default function ProjectGanttPage() {
       }
       return next;
     });
-  };
+  }, []);
 
   const handleExpandAll = () => {
     setExpandedProjectIds(new Set(projects.map((p) => p.id)));
@@ -641,16 +655,20 @@ export default function ProjectGanttPage() {
       </div>
 
       {/* Project Detail & Value Realization Drawer */}
-      <ProjectDetailDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => {
-          setIsDrawerOpen(false);
-          setSelectedProjectId(null);
-        }}
-        project={selectedProject}
-        onProjectUpdated={handleProjectUpdatedInPlace}
-        availableUsers={availableUsers}
-      />
+      {drawerMounted && (
+        <Suspense fallback={null}>
+          <ProjectDetailDrawer
+            isOpen={isDrawerOpen}
+            onClose={() => {
+              setIsDrawerOpen(false);
+              setSelectedProjectId(null);
+            }}
+            project={selectedProject}
+            onProjectUpdated={handleProjectUpdatedInPlace}
+            availableUsers={availableUsers}
+          />
+        </Suspense>
+      )}
     </AppLayout>
   );
 }
