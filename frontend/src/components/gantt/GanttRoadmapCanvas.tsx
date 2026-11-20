@@ -222,14 +222,15 @@ const GanttRow = React.memo(function GanttRow({
           {/* Head Lead Avatar Badge */}
           {p.head_lead_name ? (
             <span
-              className="shrink-0 max-w-[110px] truncate text-[11px] font-semibold text-amber-700 dark:text-amber-300 select-none cursor-default"
+              className="shrink-0 max-w-[170px] truncate text-[11px] select-none cursor-default"
               title={`${t('gantt.canvas.lead')}: ${p.head_lead_name}`}
             >
-              {p.head_lead_name.split(/\s+/)[0]}
+              <span className="text-theme-text-muted">{t('gantt.canvas.leadShort')}: </span>
+              <span className="font-semibold text-amber-700 dark:text-amber-300">{p.head_lead_name.split(/\s+/)[0]}</span>
             </span>
           ) : (
-            <span className="shrink-0 text-[10px] text-theme-text-muted/60 select-none" title={t('gantt.canvas.unassigned')}>
-              {t('gantt.canvas.unassigned')}
+            <span className="shrink-0 text-[10px] text-theme-text-muted/60 select-none" title={`${t('gantt.canvas.lead')}: ${t('gantt.canvas.unassigned')}`}>
+              {t('gantt.canvas.leadShort')}: {t('gantt.canvas.unassigned')}
             </span>
           )}
 
@@ -316,15 +317,16 @@ const GanttRow = React.memo(function GanttRow({
           {/* Team Overlapping Avatar Stack */}
           {p.team_contributions.length > 0 ? (
             <span
-              className="shrink-0 max-w-[45%] truncate pl-1 text-[10.5px] font-medium text-theme-text-secondary select-none cursor-default"
+              className="shrink-0 max-w-[50%] truncate pl-1 text-[10.5px] font-medium text-theme-text-secondary select-none cursor-default"
               title={`${t('gantt.drawer.tabTeam')} (${p.team_contributions.length}):\n${p.team_contributions.map(item => `${item.user_name} (${TEAM_ROLE_LABELS[item.role_in_project] || item.role_in_project}, ${item.target_contribution_percent}%)`).join('\n')}`}
             >
+              <span className="text-theme-text-muted">{t('gantt.canvas.teamShort')}: </span>
               {p.team_contributions.slice(0, 3).map((tm) => tm.user_name.split(/\s+/)[0]).join(', ')}
               {p.team_contributions.length > 3 && ` +${p.team_contributions.length - 3}`}
             </span>
           ) : (
             <div className="text-[9px] text-theme-text-muted/50 shrink-0">
-              {t('gantt.canvas.unassigned')}
+              {t('gantt.canvas.teamShort')}: {t('gantt.canvas.unassigned')}
             </div>
           )}
         </div>

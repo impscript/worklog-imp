@@ -360,6 +360,8 @@
       "noProjects": "No projects match the selected filters",
       "noProjectsDesc": "Try adjusting filter criteria or create a new project",
       "lead": "Project Lead",
+      "leadShort": "Lead",
+      "teamShort": "Team",
       "targetContribution": "Target Contribution",
       "actualContribution": "Actual Worklog",
       "savings": "Value Realization",
