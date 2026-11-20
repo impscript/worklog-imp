@@ -1,6 +1,5 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react';
 import {
-  User,
   DollarSign,
   ChevronRight,
   ChevronDown,
@@ -16,8 +15,6 @@ import {
   PROJECT_HEALTH_LABELS,
   TEAM_ROLE_LABELS,
   buildGanttTree,
-  getUserAvatarUrl,
-  getUiAvatarFallbackUrl,
   getProjectTypeMeta,
   isAddOnPlusType,
   USAGE_STATUS_META,
@@ -210,8 +207,9 @@ const GanttRow = React.memo(function GanttRow({
             )}
 
             <span
+              title={p.project_name}
               className={cn(
-                'truncate transition-colors',
+                'min-w-0 line-clamp-2 leading-snug [overflow-wrap:anywhere] transition-colors',
                 isChild
                   ? 'text-[11px] font-semibold text-theme-text-secondary group-hover:text-indigo-600 dark:group-hover:text-indigo-400'
                   : 'text-xs font-black text-theme-text group-hover:text-indigo-600 dark:group-hover:text-indigo-400'
@@ -223,32 +221,16 @@ const GanttRow = React.memo(function GanttRow({
 
           {/* Head Lead Avatar Badge */}
           {p.head_lead_name ? (
-            <div
-              className="flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-theme-text select-none cursor-default"
+            <span
+              className="shrink-0 max-w-[110px] truncate text-[11px] font-semibold text-amber-700 dark:text-amber-300 select-none cursor-default"
               title={`${t('gantt.canvas.lead')}: ${p.head_lead_name}`}
             >
-              <div className="w-4.5 h-4.5 rounded-full overflow-hidden ring-1 ring-amber-400/80 shadow-xs shrink-0 bg-slate-200 dark:bg-slate-700">
-                <img
-                  src={getUserAvatarUrl(p.head_lead_name, p.head_lead_emp_id)}
-                  alt={p.head_lead_name}
-                  className="w-full h-full object-cover" loading="lazy" decoding="async"
-                  onError={(e) => {
-                    e.currentTarget.src = getUiAvatarFallbackUrl(p.head_lead_name, 'f59e0b');
-                  }}
-                />
-              </div>
-              <span className="text-[10px] font-extrabold text-amber-700 dark:text-amber-300 truncate max-w-[85px]">
-                {p.head_lead_name.split(/\s+/)[0]}
-              </span>
-            </div>
+              {p.head_lead_name.split(/\s+/)[0]}
+            </span>
           ) : (
-            <div
-              className="text-[9px] font-medium text-theme-text-muted/50 shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-dashed border-theme-border/50 select-none"
-              title={t('gantt.canvas.unassigned')}
-            >
-              <User size={9} />
-              <span>{t('gantt.canvas.unassigned')}</span>
-            </div>
+            <span className="shrink-0 text-[10px] text-theme-text-muted/60 select-none" title={t('gantt.canvas.unassigned')}>
+              {t('gantt.canvas.unassigned')}
+            </span>
           )}
 
           {/* Temporarily Hide Project (presentation-only) */}
@@ -333,35 +315,13 @@ const GanttRow = React.memo(function GanttRow({
 
           {/* Team Overlapping Avatar Stack */}
           {p.team_contributions.length > 0 ? (
-            <div
-              className="flex items-center -space-x-1.5 shrink-0 pl-1 select-none"
-              title={`${t('gantt.drawer.tabTeam')} (${p.team_contributions.length}):\n${p.team_contributions.map(item => `${item.user_name} (${item.target_contribution_percent}%)`).join('\n')}`}
+            <span
+              className="shrink-0 max-w-[45%] truncate pl-1 text-[10.5px] font-medium text-theme-text-secondary select-none cursor-default"
+              title={`${t('gantt.drawer.tabTeam')} (${p.team_contributions.length}):\n${p.team_contributions.map(item => `${item.user_name} (${TEAM_ROLE_LABELS[item.role_in_project] || item.role_in_project}, ${item.target_contribution_percent}%)`).join('\n')}`}
             >
-              {p.team_contributions.slice(0, 3).map((tm, tIdx) => (
-                <div
-                  key={tIdx}
-                  className="w-5 h-5 rounded-full overflow-hidden ring-1.5 ring-theme-surface dark:ring-theme-bg-page shadow-xs shrink-0 bg-slate-200 dark:bg-slate-700 cursor-default"
-                  title={`${tm.user_name} (${TEAM_ROLE_LABELS[tm.role_in_project] || tm.role_in_project}, Target: ${tm.target_contribution_percent}%)`}
-                >
-                  <img
-                    src={getUserAvatarUrl(tm.user_name, tm.emp_id)}
-                    alt={tm.user_name}
-                    className="w-full h-full object-cover" loading="lazy" decoding="async"
-                    onError={(e) => {
-                      e.currentTarget.src = getUiAvatarFallbackUrl(tm.user_name, '6366f1');
-                    }}
-                  />
-                </div>
-              ))}
-              {p.team_contributions.length > 3 && (
-                <div
-                  className="w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center font-bold text-[8px] ring-1.5 ring-theme-surface dark:ring-theme-bg-page shadow-xs shrink-0 cursor-default"
-                  title={`+${p.team_contributions.length - 3}`}
-                >
-                  +{p.team_contributions.length - 3}
-                </div>
-              )}
-            </div>
+              {p.team_contributions.slice(0, 3).map((tm) => tm.user_name.split(/\s+/)[0]).join(', ')}
+              {p.team_contributions.length > 3 && ` +${p.team_contributions.length - 3}`}
+            </span>
           ) : (
             <div className="text-[9px] text-theme-text-muted/50 shrink-0">
               {t('gantt.canvas.unassigned')}
