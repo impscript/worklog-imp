@@ -2262,8 +2262,10 @@ export default function ReportsPage() {
                                   )}
                                 </td>
                                 <td className="px-4 py-2">
-                                  <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded-lg border", typeColors[cat])}>
-                                    {cat}
+                                  {/* Real project type from the worklog (Project, Upgrade, Support MA, Support Go-Live...).
+                                      The colour still follows the Project/Support/Management bucket used by the charts. */}
+                                  <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded-lg border whitespace-nowrap", typeColors[cat])}>
+                                    {e.project_type || '-'}
                                   </span>
                                 </td>
                                 <td 
