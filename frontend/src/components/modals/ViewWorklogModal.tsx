@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 import { googleCalendar } from '../../lib/google-calendar';
 import ModalPortal from './ModalPortal';
+import { lookupTypeColor, typeBadgeStyle, useProjectTypeColors } from '../../lib/project-type-colors';
 
 interface ViewWorklogModalProps {
   isOpen: boolean;
@@ -36,6 +37,7 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
   const [isDeleting, setIsDeleting] = useState(false);
   const { showToast } = useNotification();
   const [employeeProfile, setEmployeeProfile] = useState<any | null>(null);
+  const projectTypeColors = useProjectTypeColors(isOpen ? log?.workspace_id : null);
 
   useEffect(() => {
     if (isOpen && log?.user_id) {
@@ -265,7 +267,10 @@ export default function ViewWorklogModal({ isOpen, onClose, log, onDeleteSuccess
               <div className="border-t border-theme-border pt-3">
                 <span className="text-[9px] font-bold text-theme-text-muted uppercase block">Project Type / Category</span>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className={cn("px-2.5 py-0.5 text-[10px] font-extrabold rounded uppercase tracking-wider border", typeColors[cat])}>
+                  <span
+                    className={cn("px-2.5 py-0.5 text-[10px] font-extrabold rounded uppercase tracking-wider border", !lookupTypeColor(projectTypeColors, log.project_type) && typeColors[cat])}
+                    style={typeBadgeStyle(lookupTypeColor(projectTypeColors, log.project_type))}
+                  >
                     {cat}
                   </span>
                   <span className="text-xs text-theme-text-secondary">({log.project_type})</span>

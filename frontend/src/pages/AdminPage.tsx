@@ -5,6 +5,7 @@ import { useLocation } from 'react-router-dom';
 import { supabase, ensureValidSupabaseSession } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { getProjectTypeMeta } from '../lib/project-management';
+import { PROJECT_TYPE_COLOR_PRESETS, normalizeHex, typeBadgeStyle } from '../lib/project-type-colors';
 import { MultiSelectFilter } from '../components/common/MultiSelectFilter';
 import { ADMIN_TABS, getDefaultAdminTab, type AdminTab } from '../lib/admin-tabs';
 import { useNotification } from '../context/NotificationContext';
@@ -121,6 +122,14 @@ export default function AdminPage() {
   const [holdings, setHoldings] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [projectTypes, setProjectTypes] = useState<any[]>([]);
+  const adminTypeColors = useMemo(() => {
+    const map: Record<string, string> = {};
+    (projectTypes || []).forEach((t: { type_name: string; color?: string | null }) => {
+      const hex = normalizeHex(t.color);
+      if (hex) map[t.type_name] = hex;
+    });
+    return map;
+  }, [projectTypes]);
   const [actions, setActions] = useState<any[]>([]);
   const [userMappings, setUserMappings] = useState<any[]>([]);
   const [projectStructures, setProjectStructures] = useState<any[]>([]);
@@ -132,6 +141,7 @@ export default function AdminPage() {
   const [formHoldingName, setFormHoldingName] = useState('');
   const [formRoleName, setFormRoleName] = useState('');
   const [formTypeName, setFormTypeName] = useState('');
+  const [formTypeColor, setFormTypeColor] = useState<string>('');
   const [formActionCategory, setFormActionCategory] = useState('Project');
   const [formActionName, setFormActionName] = useState('');
 
@@ -1058,8 +1068,10 @@ export default function AdminPage() {
       // Edit mode pre-fills
       if (activeTab === 'holding') setFormHoldingName(row.holding_name);
       else if (activeTab === 'role') setFormRoleName(row.role_name);
-      else if (activeTab === 'project_type') setFormTypeName(row.type_name);
-      else if (activeTab === 'action') {
+      else if (activeTab === 'project_type') {
+        setFormTypeName(row.type_name);
+        setFormTypeColor(normalizeHex(row.color) || '');
+      } else if (activeTab === 'action') {
         setFormActionCategory(row.action_category);
         setFormActionName(row.action_name);
       } else if (activeTab === 'salary_rate') {
@@ -1105,6 +1117,7 @@ export default function AdminPage() {
       setFormHoldingName('');
       setFormRoleName('');
       setFormTypeName('');
+      setFormTypeColor('');
       setFormActionCategory(actionCategoryOptions[0] || 'Project');
       setFormActionName('');
       setFormSalaryCategory('');
@@ -1170,13 +1183,24 @@ export default function AdminPage() {
           showToast('Note: Cannot modify Primary Key text directly. Delete and recreate if needed.', 'warning');
         }
       } else if (activeTab === 'project_type') {
+        const colorValue = normalizeHex(formTypeColor);
         if (!editRow) {
           const payload: any = { type_name: formTypeName };
+          if (colorValue) payload.color = colorValue;
           if (workspaceId) payload.workspace_id = workspaceId;
           const { error } = await supabase.from('tb_master_project_type').insert(payload);
           if (error) throw error;
         } else {
-          showToast('Note: Cannot modify Primary Key text directly. Delete and recreate if needed.', 'warning');
+          // The name is part of the primary key, so only the colour can change here.
+          let colorUpdate = supabase
+            .from('tb_master_project_type')
+            .update({ color: colorValue })
+            .eq('type_name', editRow.type_name);
+          colorUpdate = editRow.workspace_id
+            ? colorUpdate.eq('workspace_id', editRow.workspace_id)
+            : colorUpdate.is('workspace_id', null);
+          const { error } = await colorUpdate;
+          if (error) throw error;
         }
       } else if (activeTab === 'action') {
         const payload: any = { action_category: formActionCategory, action_name: formActionName };
@@ -1977,6 +2001,7 @@ export default function AdminPage() {
                         {activeTab === 'project_type' && (
                           <tr>
                             <th className="px-6 py-4 font-semibold">Project Type Name</th>
+                            <th className="px-6 py-4 font-semibold">Color (สี)</th>
                             <th className="px-6 py-4 font-semibold">Status (สถานะ)</th>
                             <th className="px-6 py-4 font-semibold">Workspace (สังกัด)</th>
                             <th className="px-6 py-4 font-semibold text-right">Actions</th>
@@ -2076,7 +2101,7 @@ export default function AdminPage() {
                                     <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md border border-indigo-400/25 bg-indigo-500/10 text-indigo-400">{row.department_operator}</span>
                                     <span className="text-[11px] text-theme-text-muted">{structGroupRows.length} รายการ</span>
                                     {Array.from(structTypeCounts.entries()).map(([typeLabel, count]) => (
-                                      <span key={typeLabel} className={cn('inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-md border whitespace-nowrap', getProjectTypeMeta(typeLabel).badge)}>
+                                      <span key={typeLabel} className={cn('inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-md border whitespace-nowrap', !adminTypeColors[typeLabel] && getProjectTypeMeta(typeLabel).badge)} style={typeBadgeStyle(adminTypeColors[typeLabel])}>
                                         {typeLabel} × {count}
                                       </span>
                                     ))}
@@ -2119,13 +2144,31 @@ export default function AdminPage() {
                               {activeTab === 'project_type' && (
                                 <>
                                   <td className="px-6 py-4 font-bold text-theme-text">{row.type_name}</td>
+                                  <td className="px-6 py-4">
+                                    {normalizeHex(row.color) ? (
+                                      <span
+                                        className="inline-flex items-center gap-2 px-2 py-0.5 text-[11px] font-bold rounded-md border whitespace-nowrap"
+                                        style={typeBadgeStyle(row.color)}
+                                      >
+                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: normalizeHex(row.color) as string }} />
+                                        {normalizeHex(row.color)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-theme-text-muted">Default</span>
+                                    )}
+                                  </td>
                                   {renderStatusToggle(row, canModify)}
                                   <td className="px-6 py-4">{renderScopeBadge(row)}</td>
                                   <td className="px-6 py-4 text-right space-x-2">
                                     {canModify && (
-                                      <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
-                                        <Trash2 size={16} />
-                                      </button>
+                                      <>
+                                        <button onClick={() => openModal(row)} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors" title="Set color">
+                                          <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => handleDelete(row)} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </>
                                     )}
                                   </td>
                                 </>
@@ -2215,7 +2258,7 @@ export default function AdminPage() {
                                     {!isStructTypeStart ? (
                                       <span className="pl-3 text-theme-text-muted/50 text-sm" aria-hidden="true">↳</span>
                                     ) : row.project_type ? (
-                                      <span className={cn('inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-md border whitespace-nowrap', getProjectTypeMeta(row.project_type).badge)}>
+                                      <span className={cn('inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-md border whitespace-nowrap', !adminTypeColors[row.project_type] && getProjectTypeMeta(row.project_type).badge)} style={typeBadgeStyle(adminTypeColors[row.project_type])}>
                                         {row.project_type}
                                       </span>
                                     ) : (
@@ -2456,7 +2499,53 @@ export default function AdminPage() {
                     required
                     disabled={!!editRow}
                   />
-                  {editRow && <p className="text-xs text-amber-400 mt-2">Primary key cannot be modified directly.</p>}
+                  {editRow && <p className="text-xs text-amber-400 mt-2">Name cannot be modified directly (primary key). You can change the color.</p>}
+
+                  <label className="block text-sm font-medium text-theme-text-secondary mt-5 mb-2">Color (สี) — applies to this workspace only</label>
+                  <div className="flex flex-wrap gap-2">
+                    {PROJECT_TYPE_COLOR_PRESETS.map((hex) => (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => setFormTypeColor(hex)}
+                        title={hex}
+                        className={cn(
+                          'w-7 h-7 rounded-full border-2 transition-transform hover:scale-110',
+                          normalizeHex(formTypeColor) === hex ? 'border-theme-text scale-110' : 'border-transparent'
+                        )}
+                        style={{ backgroundColor: hex }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-3 mt-3">
+                    <input
+                      type="color"
+                      value={normalizeHex(formTypeColor) || '#6366F1'}
+                      onChange={(e) => setFormTypeColor(e.target.value.toUpperCase())}
+                      className="w-10 h-8 p-0 border border-theme-border rounded cursor-pointer bg-transparent"
+                      aria-label="Custom color"
+                    />
+                    <span className="text-xs font-mono text-theme-text-secondary">{normalizeHex(formTypeColor) || 'Default'}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormTypeColor('')}
+                      className="text-xs text-theme-text-secondary hover:text-theme-text underline"
+                    >
+                      Reset to default
+                    </button>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-xs text-theme-text-muted">Preview:</span>
+                    <span
+                      className={cn(
+                        'inline-flex items-center px-2 py-0.5 text-[11px] font-bold rounded-md border whitespace-nowrap',
+                        !normalizeHex(formTypeColor) && getProjectTypeMeta(formTypeName || null).badge
+                      )}
+                      style={typeBadgeStyle(formTypeColor)}
+                    >
+                      {formTypeName || 'Type name'}
+                    </span>
+                  </div>
                 </div>
               )}
 

@@ -8,6 +8,7 @@ import { MultiSelectFilter } from '../components/common/MultiSelectFilter';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
+import { lookupTypeColor, typeBadgeStyle, useProjectTypeColors } from '../lib/project-type-colors';
 import { useNavigate } from 'react-router-dom';
 import { supabase, ensureValidSupabaseSession } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
@@ -115,6 +116,15 @@ export default function ReportsPage() {
   // State
   const [activeTab, setActiveTab] = useState<'personal' | 'overview' | 'individual' | 'manpower' | 'project_summary'>('project_summary');
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
+  const ownWorkspaceId = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('worklog_session');
+      return raw ? (JSON.parse(raw).activeWorkspaceId as string | undefined) || '' : '';
+    } catch {
+      return '';
+    }
+  }, []);
+  const projectTypeColors = useProjectTypeColors(selectedWorkspaceId || ownWorkspaceId);
   const [workspacesList, setWorkspacesList] = useState<{ id: string; workspace_name: string; invite_code: string }[]>([]);
   const { grants } = useWorkspaceGrants();
   const [manpowerDimension, setManpowerDimension] = useState<'projectTypes' | 'actions' | 'bus'>('projectTypes');
@@ -2264,7 +2274,10 @@ export default function ReportsPage() {
                                 <td className="px-4 py-2">
                                   {/* Real project type from the worklog (Project, Upgrade, Support MA, Support Go-Live...).
                                       The colour still follows the Project/Support/Management bucket used by the charts. */}
-                                  <span className={cn("px-2 py-0.5 text-[9px] font-bold rounded-lg border whitespace-nowrap", typeColors[cat])}>
+                                  <span
+                                    className={cn("px-2 py-0.5 text-[9px] font-bold rounded-lg border whitespace-nowrap", !lookupTypeColor(projectTypeColors, e.project_type) && typeColors[cat])}
+                                    style={typeBadgeStyle(lookupTypeColor(projectTypeColors, e.project_type))}
+                                  >
                                     {e.project_type || '-'}
                                   </span>
                                 </td>
