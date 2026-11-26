@@ -582,6 +582,8 @@ export default function RecoverGCalModal({
       const parsedList: RecoverableEvent[] = [];
 
       for (const evt of rawEvents) {
+        // To-do reminders created by the routine task feature are not worklogs; never offer them for recovery.
+        if (evt.extendedProperties?.private?.worklog_routine_task_id) continue;
         const summary = (evt.summary || 'Google Calendar Event').trim();
         const rawDesc = evt.description || '';
         const cleanDesc = googleCalendar.convertHtmlToPlainText(rawDesc);

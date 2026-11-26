@@ -12,6 +12,7 @@ import { resolveTypeColor, typeBadgeStyle, useProjectTypeColors } from '../lib/p
 import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
+import { occurrencesInRange, formatYMD as formatRecurrenceYMD, type RecurrenceFields } from '../lib/routine-recurrence';
 import WorkspaceSwitcher from '../components/common/WorkspaceSwitcher';
 import ModalPortal from '../components/modals/ModalPortal';
 import {
@@ -56,6 +57,15 @@ const formatDateToYMD = (date: Date) => {
   return `${y}-${m}-${d}`;
 };
 
+// To-do list items the user chose to "save to calendar" — shown as reminders, not worklogs.
+interface CalendarReminderTask extends RecurrenceFields {
+  id: string;
+  title: string;
+  description: string | null;
+  start_time: string | null;
+  end_time: string | null;
+}
+
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [entries, setEntries] = useState<WorklogEntry[]>([]);
@@ -67,6 +77,7 @@ export default function CalendarPage() {
     return entries.filter((e) => e.work_date === selectedDateStr);
   }, [entries, selectedDateStr]);
   const [isLoading, setIsLoading] = useState(true);
+  const [reminderTasks, setReminderTasks] = useState<CalendarReminderTask[]>([]);
 
   // ── GCal Re-Sync State ───────────────────────────────────────────────────────
   const [isSyncing, setIsSyncing] = useState(false);
@@ -787,6 +798,17 @@ export default function CalendarPage() {
                       : "bg-theme-surface-secondary/10 dark:bg-slate-900/10"
                   )}
                 >
+                  {(remindersByDate[dStr] ?? []).map((r) => (
+                    <button
+                      key={`reminder-${r.id}`}
+                      type="button"
+                      onClick={() => canCreateWorklog && handleLogReminder(r, dStr)}
+                      title={`${r.title}${r.start_time ? ` (${r.start_time.slice(0, 5)})` : ''}`}
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded text-left truncate border border-dashed border-amber-500/60 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-all"
+                    >
+                      ⏰ {r.start_time ? `${r.start_time.slice(0, 5)} ` : ''}{r.title}
+                    </button>
+                  ))}
                   {allDayEntries.map(e => {
                     const isBeingDragged = dragState?.entryId === e.id;
                     const cardColor = getCardColorClasses(e);
@@ -827,7 +849,7 @@ export default function CalendarPage() {
                       </button>
                     );
                   })}
-                  {allDayEntries.length === 0 && (
+                  {allDayEntries.length === 0 && (remindersByDate[dStr] ?? []).length === 0 && (
                     <span className="text-[9px] text-theme-text-muted/30 text-center my-auto italic select-none">-</span>
                   )}
                 </div>
@@ -1152,6 +1174,65 @@ export default function CalendarPage() {
       window.removeEventListener('worklog_session_refreshed', handleRefresh);
     };
   }, []);
+
+  // Reminder occurrences for the visible window (previous, current and next month, like the worklog fetch).
+  const visibleYear = currentDate.getFullYear();
+  const visibleMonth = currentDate.getMonth();
+  const remindersByDate: Record<string, CalendarReminderTask[]> = {};
+  if (reminderTasks.length > 0) {
+    const from = formatRecurrenceYMD(new Date(visibleYear, visibleMonth - 1, 1));
+    const to = formatRecurrenceYMD(new Date(visibleYear, visibleMonth + 2, 0));
+    for (const task of reminderTasks) {
+      for (const dateStr of occurrencesInRange(task, from, to)) {
+        const list = remindersByDate[dateStr] ?? [];
+        list.push(task);
+        remindersByDate[dateStr] = list;
+      }
+    }
+  }
+
+  useEffect(() => {
+    const sessionStr = localStorage.getItem('worklog_session');
+    if (!sessionStr) return;
+    const session = JSON.parse(sessionStr);
+    const workspaceId = selectedWorkspaceId || session.activeWorkspaceId;
+    let cancelled = false;
+    (async () => {
+      // Reminders are personal: only on the user's own calendar.
+      if (!workspaceId || workspaceId === 'N/A' || (selectedUserId && selectedUserId !== session.id)) {
+        if (!cancelled) setReminderTasks([]);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('tb_routine_task')
+          .select('id, title, description, start_time, end_time, frequency_type, recurrence_interval, days_of_week, day_of_month, month_of_year, monthly_mode, week_position, start_date, recurrence_end_type, recurrence_end_date, recurrence_count, created_at')
+          .eq('workspace_id', workspaceId)
+          .eq('created_by', session.id)
+          .eq('is_active', true)
+          .eq('save_to_calendar', true);
+        if (error) throw error;
+        if (!cancelled) setReminderTasks((data || []) as CalendarReminderTask[]);
+      } catch (err) {
+        console.warn('[Calendar] Failed to load to-do reminders:', err);
+        if (!cancelled) setReminderTasks([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedUserId, selectedWorkspaceId, refreshTrigger]);
+
+  // Open Log Work for a reminder so the user can add Type / Project / Action on the day.
+  const handleLogReminder = (task: CalendarReminderTask, dateStr: string) => {
+    const prefillDescription = task.description ? `${task.title}\n${task.description}` : task.title;
+    navigate('/log', {
+      state: {
+        prefillDescription,
+        prefillDate: dateStr,
+        prefillStartTime: task.start_time ? task.start_time.slice(0, 5) : undefined,
+        prefillEndTime: task.end_time ? task.end_time.slice(0, 5) : undefined,
+      },
+    });
+  };
 
   // Main worklog fetching effect
   useEffect(() => {
@@ -1925,6 +2006,7 @@ export default function CalendarPage() {
                   const dayEntries = entries.filter((e) => e.work_date === dStr);
                   const hoursSum = dayEntries.reduce((sum, e) => sum + e.total_hours, 0);
                   const dayTypes = Array.from(new Set(dayEntries.map((e) => e.project_type).filter((t): t is string => !!t)));
+                  const dayReminders = remindersByDate[dStr] ?? [];
 
                   const isSelected = selectedDateStr === dStr;
                   const isToday = formatDateToYMD(new Date()) === dStr;
@@ -2004,6 +2086,14 @@ export default function CalendarPage() {
                             )}
                           </div>
                         )}
+                        {cell.isCurrentMonth && dayReminders.length > 0 && (
+                          <span
+                            title={dayReminders.map((r) => r.title).join('\n')}
+                            className="text-[9px] sm:text-[10px] font-bold rounded px-1 py-0.5 self-start leading-none bg-amber-500/15 text-amber-500 border border-amber-500/30 select-none"
+                          >
+                            ⏰ {dayReminders.length}
+                          </span>
+                        )}
                         {cell.isCurrentMonth && hasHours && (
                           <span className={cn(
                             "text-[9px] sm:text-[10px] font-extrabold font-mono rounded px-1 sm:px-1.5 py-0.5 self-start select-none shadow-sm leading-none",
@@ -2039,6 +2129,35 @@ export default function CalendarPage() {
                 <ClipboardList size={18} className="text-indigo-400" />
                 <span>Details for {selectedDateStr ? new Date(selectedDateStr).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Selected Day'}</span>
               </h2>
+
+              {(remindersByDate[selectedDateStr ?? ''] ?? []).length > 0 && (
+                <div className="mb-4 rounded-xl border border-dashed border-amber-500/50 bg-amber-500/5 p-3 space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                    ⏰ {t('routineTask.calendarReminders')}
+                  </p>
+                  {(remindersByDate[selectedDateStr ?? ''] ?? []).map((r) => (
+                    <div key={r.id} className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-theme-text truncate">{r.title}</p>
+                        {r.start_time && (
+                          <p className="text-[10px] font-mono text-theme-text-muted">
+                            {r.start_time.slice(0, 5)}{r.end_time ? ` - ${r.end_time.slice(0, 5)}` : ''}
+                          </p>
+                        )}
+                      </div>
+                      {canCreateWorklog && selectedDateStr && (
+                        <button
+                          type="button"
+                          onClick={() => handleLogReminder(r, selectedDateStr)}
+                          className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-all"
+                        >
+                          {t('routineTask.logReminder')}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {isLoading ? (
                 <div className="flex-1 flex items-center justify-center animate-pulse py-12">

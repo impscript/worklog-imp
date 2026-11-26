@@ -7,6 +7,8 @@ import { supabase } from '../lib/supabase';
 import { useNotification } from '../context/NotificationContext';
 import { cn } from '../lib/utils';
 import RoutineTaskFormModal, { type RoutineTask } from '../components/modals/RoutineTaskFormModal';
+import { describeRecurrence, occursOn } from '../lib/routine-recurrence';
+import { removeRoutineTaskFromGCal } from '../lib/routine-calendar-sync';
 
 interface SessionUser {
   id: string;
@@ -29,25 +31,6 @@ function getErrorMessage(err: unknown): string {
     return (err as { message: string }).message;
   }
   return String(err);
-}
-
-function isDueToday(task: RoutineTask, today: Date): boolean {
-  if (task.frequency_type === 'daily') return true;
-  if (task.frequency_type === 'weekly') {
-    return (task.days_of_week || []).includes(today.getDay());
-  }
-  if (task.frequency_type === 'monthly') {
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const targetDay = Math.min(task.day_of_month || 1, lastDayOfMonth);
-    return today.getDate() === targetDay;
-  }
-  if (task.frequency_type === 'yearly') {
-    const targetMonth = task.month_of_year || 1;
-    const lastDayOfTargetMonth = new Date(today.getFullYear(), targetMonth, 0).getDate();
-    const targetDay = Math.min(task.day_of_month || 1, lastDayOfTargetMonth);
-    return today.getMonth() + 1 === targetMonth && today.getDate() === targetDay;
-  }
-  return false;
 }
 
 export default function RoutineTaskPage() {
@@ -158,7 +141,7 @@ export default function RoutineTaskPage() {
 
   const today = useMemo(() => new Date(), []);
   const dueTasks = useMemo(
-    () => tasks.filter((task) => isDueToday(task, today)),
+    () => tasks.filter((task) => occursOn(task, today)),
     [tasks, today]
   );
   const doneCount = useMemo(
@@ -166,19 +149,7 @@ export default function RoutineTaskPage() {
     [dueTasks, completedTaskIds]
   );
 
-  const frequencyLabel = (task: RoutineTask) => {
-    if (task.frequency_type === 'daily') return t('routineTask.frequencyDaily');
-    if (task.frequency_type === 'weekly') {
-      return (task.days_of_week || []).map((d) => t(`routineTask.weekdayFull${d}`)).join(', ');
-    }
-    if (task.frequency_type === 'yearly') {
-      return t('routineTask.everyYearDate', {
-        day: task.day_of_month,
-        month: t(`routineTask.month${task.month_of_year || 1}`),
-      });
-    }
-    return t('routineTask.everyMonthDay', { day: task.day_of_month });
-  };
+  const frequencyLabel = (task: RoutineTask) => describeRecurrence(task, t);
 
   const handleToggleComplete = async (task: RoutineTask, isDone: boolean) => {
     if (!sessionUser?.id) return;
@@ -241,6 +212,7 @@ export default function RoutineTaskPage() {
     if (!ok) return;
 
     try {
+      if (sessionUser?.id) await removeRoutineTaskFromGCal(task, sessionUser.id);
       const { error } = await supabase.from('tb_routine_task').delete().eq('id', task.id);
       if (error) throw error;
       showToast(t('routineTask.deleteSuccess'), 'success');
@@ -389,11 +361,12 @@ export default function RoutineTaskPage() {
                   <p className="text-xs text-theme-text-muted">{t('routineTask.noTasksYet')}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                  {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((freq) => {
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+                  {(['none', 'daily', 'weekly', 'monthly', 'yearly'] as const).map((freq) => {
                     const columnTasks = tasks.filter((task) => task.frequency_type === freq);
                     const columnLabel =
-                      freq === 'daily' ? t('routineTask.groupDaily')
+                      freq === 'none' ? t('routineTask.groupNone')
+                      : freq === 'daily' ? t('routineTask.groupDaily')
                       : freq === 'weekly' ? t('routineTask.groupWeekly')
                       : freq === 'monthly' ? t('routineTask.groupMonthly')
                       : t('routineTask.groupYearly');

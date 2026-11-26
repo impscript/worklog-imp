@@ -347,8 +347,22 @@ export default function LogWorkPage() {
   const [isICSModalOpen, setIsICSModalOpen] = useState<boolean>(false);
   const [isICSCollapseOpen, setIsICSCollapseOpen] = useState<boolean>(false);
   
+  // A To-do reminder opened from the Calendar hands over its date (and time, when it has one).
+  // It is read once at mount so the form simply starts on those values.
+  const [reminderPrefill] = useState(() => {
+    const state = location.state as { prefillDate?: string; prefillStartTime?: string; prefillEndTime?: string } | null;
+    if (!state?.prefillDate && !state?.prefillStartTime) return null;
+    let endTime = state.prefillEndTime;
+    if (state.prefillStartTime && !endTime) {
+      const [h, m] = state.prefillStartTime.split(':').map(Number);
+      endTime = `${String(Math.min(23, h + 1)).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    return { date: state.prefillDate, startTime: state.prefillStartTime, endTime };
+  });
+
   // Form State
   const [date, setDate] = useState(() => {
+    if (reminderPrefill?.date && /^\d{4}-\d{2}-\d{2}$/.test(reminderPrefill.date)) return reminderPrefill.date;
     const params = new URLSearchParams(window.location.search);
     const dateParam = params.get('date');
     if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
@@ -360,10 +374,10 @@ export default function LogWorkPage() {
     const d = String(today.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   });
-  const [startTime, setStartTime] = useState(DEFAULT_WORK_START_TIME);
-  const [endTime, setEndTime] = useState(DEFAULT_WORK_END_TIME);
-  const lastValidStartTime = useRef(DEFAULT_WORK_START_TIME);
-  const lastValidEndTime = useRef(DEFAULT_WORK_END_TIME);
+  const [startTime, setStartTime] = useState(reminderPrefill?.startTime ?? DEFAULT_WORK_START_TIME);
+  const [endTime, setEndTime] = useState(reminderPrefill?.startTime ? (reminderPrefill.endTime ?? DEFAULT_WORK_END_TIME) : DEFAULT_WORK_END_TIME);
+  const lastValidStartTime = useRef(reminderPrefill?.startTime ?? DEFAULT_WORK_START_TIME);
+  const lastValidEndTime = useRef(reminderPrefill?.startTime ? (reminderPrefill.endTime ?? DEFAULT_WORK_END_TIME) : DEFAULT_WORK_END_TIME);
   const [isBreak, setIsBreak] = useState(true);
   const [description, setDescription] = useState('');
 
@@ -392,8 +406,8 @@ export default function LogWorkPage() {
     }
   }, [description]);
   const [isExplicitOt, setIsExplicitOt] = useState(false);
-  const [isTimeCustomized, setIsTimeCustomized] = useState(false);
-  const isTimeCustomizedRef = useRef(false);
+  const [isTimeCustomized, setIsTimeCustomized] = useState(Boolean(reminderPrefill?.startTime));
+  const isTimeCustomizedRef = useRef(Boolean(reminderPrefill?.startTime));
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isClassifying, setIsClassifying] = useState(false);
   const [isResetDescModalOpen, setIsResetDescModalOpen] = useState(false);

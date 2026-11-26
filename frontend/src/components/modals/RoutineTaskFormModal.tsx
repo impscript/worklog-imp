@@ -1,11 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Save, RefreshCw, Trash2, Repeat, Link2 } from 'lucide-react';
+import { X, Save, RefreshCw, Trash2, Repeat, Link2, CalendarCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { useNotification } from '../../context/NotificationContext';
 import { cn } from '../../lib/utils';
+import {
+  applyPreset,
+  detectPreset,
+  formatYMD,
+  isLastWeekdayOfMonth,
+  nthWeekdayOfMonth,
+  parseYMD,
+  type MonthlyMode,
+  type RecurrenceEndType,
+  type RecurrenceFields,
+  type RecurrenceFreq,
+  type RecurrencePreset,
+} from '../../lib/routine-recurrence';
+import { syncRoutineTaskToGCal } from '../../lib/routine-calendar-sync';
 
-export type RoutineFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type RoutineFrequency = RecurrenceFreq;
 export type RoutineVisibility = 'only_me' | 'specific';
 
 function getErrorMessage(err: unknown): string {
@@ -16,7 +30,7 @@ function getErrorMessage(err: unknown): string {
   return String(err);
 }
 
-export interface RoutineTask {
+export interface RoutineTask extends RecurrenceFields {
   id: string;
   workspace_id: string;
   created_by: string;
@@ -26,6 +40,10 @@ export interface RoutineTask {
   days_of_week: number[] | null;
   day_of_month: number | null;
   month_of_year: number | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  save_to_calendar?: boolean;
+  gcal_event_id?: string | null;
   visibility: RoutineVisibility;
   is_active: boolean;
   created_at: string;
@@ -48,8 +66,7 @@ interface RoutineTaskFormModalProps {
 }
 
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
-const FREQUENCIES: RoutineFrequency[] = ['daily', 'weekly', 'monthly', 'yearly'];
-const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+const UNITS: Exclude<RoutineFrequency, 'none'>[] = ['daily', 'weekly', 'monthly', 'yearly'];
 
 export default function RoutineTaskFormModal({
   isOpen,
@@ -66,10 +83,21 @@ export default function RoutineTaskFormModal({
   const [description, setDescription] = useState('');
   const [links, setLinks] = useState<string[]>([]);
   const [newLinkInput, setNewLinkInput] = useState('');
+  const [startDate, setStartDate] = useState(() => formatYMD(new Date()));
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [preset, setPreset] = useState<RecurrencePreset>('daily');
   const [frequencyType, setFrequencyType] = useState<RoutineFrequency>('daily');
+  const [interval, setIntervalValue] = useState<number | ''>(1);
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
+  const [monthlyMode, setMonthlyMode] = useState<MonthlyMode>('day_of_month');
+  const [weekPosition, setWeekPosition] = useState<number>(1);
   const [dayOfMonth, setDayOfMonth] = useState<number | ''>(1);
   const [monthOfYear, setMonthOfYear] = useState<number>(1);
+  const [endType, setEndType] = useState<RecurrenceEndType>('never');
+  const [endDate, setEndDate] = useState('');
+  const [endCount, setEndCount] = useState<number | ''>(10);
+  const [saveToCalendar, setSaveToCalendar] = useState(false);
   const [visibility, setVisibility] = useState<RoutineVisibility>('only_me');
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -84,10 +112,23 @@ export default function RoutineTaskFormModal({
     setDescription(task?.description || '');
     setLinks([]);
     setNewLinkInput('');
+    const start = task ? (task.start_date || formatYMD(new Date(task.created_at))) : formatYMD(new Date());
+    const startObj = parseYMD(start);
+    setStartDate(start);
+    setStartTime(task?.start_time ? task.start_time.slice(0, 5) : '');
+    setEndTime(task?.end_time ? task.end_time.slice(0, 5) : '');
+    setPreset(task ? detectPreset(task, startObj) : 'daily');
     setFrequencyType(task?.frequency_type || 'daily');
+    setIntervalValue(task?.recurrence_interval || 1);
     setDaysOfWeek(task?.days_of_week || []);
-    setDayOfMonth(task?.day_of_month || 1);
-    setMonthOfYear(task?.month_of_year || 1);
+    setMonthlyMode(task?.monthly_mode || 'day_of_month');
+    setWeekPosition(task?.week_position ?? nthWeekdayOfMonth(startObj));
+    setDayOfMonth(task?.day_of_month || startObj.getDate());
+    setMonthOfYear(task?.month_of_year || startObj.getMonth() + 1);
+    setEndType(task?.recurrence_end_type || 'never');
+    setEndDate(task?.recurrence_end_date || '');
+    setEndCount(task?.recurrence_count || 10);
+    setSaveToCalendar(task?.save_to_calendar ?? false);
     setVisibility(task?.visibility || 'only_me');
     setSelectedUserIds([]);
     setSelectedNewUserId('');
@@ -201,26 +242,142 @@ export default function RoutineTaskFormModal({
     setDaysOfWeek((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()));
   };
 
+  const startObj = parseYMD(startDate || formatYMD(new Date()));
+  const startWeekday = startObj.getDay();
+  const startNth = nthWeekdayOfMonth(startObj);
+  const startIsLast = isLastWeekdayOfMonth(startObj);
+
+  const presetOptions: RecurrencePreset[] = [
+    'none',
+    'daily',
+    'weekly',
+    ...(startNth <= 4 ? (['monthly_nth'] as RecurrencePreset[]) : []),
+    ...(startIsLast ? (['monthly_last'] as RecurrencePreset[]) : []),
+    'monthly_day',
+    'yearly',
+    'weekdays',
+    'custom',
+  ];
+
+  const presetLabel = (p: RecurrencePreset) => {
+    const weekday = t(`routineTask.weekdayName${startWeekday}`);
+    switch (p) {
+      case 'none': return t('routineTask.recNone');
+      case 'daily': return t('routineTask.recDaily');
+      case 'weekly': return t('routineTask.recWeeklyOn', { weekday });
+      case 'monthly_nth': return t('routineTask.recMonthlyNth', { weekday, nth: t(`routineTask.nth${startNth}`) });
+      case 'monthly_last': return t('routineTask.recMonthlyLast', { weekday });
+      case 'monthly_day': return t('routineTask.recMonthlyDay', { day: startObj.getDate() });
+      case 'yearly': return t('routineTask.recYearly', { month: t(`routineTask.month${startObj.getMonth() + 1}`), day: startObj.getDate() });
+      case 'weekdays': return t('routineTask.recWeekdays');
+      default: return t('routineTask.recCustom');
+    }
+  };
+
+  const loadRecurrence = (fields: Partial<RecurrenceFields>, anchor: Date) => {
+    setFrequencyType((fields.frequency_type as RoutineFrequency) || 'daily');
+    setIntervalValue(fields.recurrence_interval || 1);
+    setDaysOfWeek(fields.days_of_week || []);
+    setMonthlyMode(fields.monthly_mode || 'day_of_month');
+    setWeekPosition(fields.week_position ?? nthWeekdayOfMonth(anchor));
+    setDayOfMonth(fields.day_of_month || anchor.getDate());
+    setMonthOfYear(fields.month_of_year || anchor.getMonth() + 1);
+  };
+
+  const handlePresetChange = (next: RecurrencePreset) => {
+    setPreset(next);
+    if (next === 'custom') {
+      if (frequencyType === 'none') loadRecurrence(applyPreset('weekly', startObj), startObj);
+      return;
+    }
+    loadRecurrence(applyPreset(next, startObj), startObj);
+    if (next === 'none') setEndType('never');
+  };
+
+  const handleStartDateChange = (value: string) => {
+    setStartDate(value);
+    if (!value || preset === 'custom') return;
+    const next = parseYMD(value);
+    // Presets are defined relative to the start date ("monthly on the 4th Friday"), so re-derive them.
+    const stillValid =
+      preset === 'monthly_last' ? isLastWeekdayOfMonth(next) : preset === 'monthly_nth' ? nthWeekdayOfMonth(next) <= 4 : true;
+    const target: RecurrencePreset = stillValid ? preset : 'weekly';
+    setPreset(target);
+    loadRecurrence(applyPreset(target, next), next);
+  };
+
+  const handleUnitChange = (unit: Exclude<RoutineFrequency, 'none'>) => {
+    setFrequencyType(unit);
+    if (unit === 'weekly' && daysOfWeek.length === 0) setDaysOfWeek([startWeekday]);
+    if (unit === 'monthly') {
+      setMonthlyMode('day_of_month');
+      setDayOfMonth(startObj.getDate());
+    }
+    if (unit === 'yearly') {
+      setMonthOfYear(startObj.getMonth() + 1);
+      setDayOfMonth(startObj.getDate());
+    }
+  };
+
+  const monthlyChoice = monthlyMode === 'day_of_month' ? 'day' : weekPosition === -1 ? 'last' : 'nth';
+  const handleMonthlyChoice = (choice: string) => {
+    if (choice === 'day') {
+      setMonthlyMode('day_of_month');
+      setDayOfMonth(startObj.getDate());
+      return;
+    }
+    setMonthlyMode('nth_weekday');
+    setDaysOfWeek([startWeekday]);
+    setWeekPosition(choice === 'last' ? -1 : startNth);
+  };
+
   const handleSave = async () => {
     if (!title.trim()) {
       showToast(t('routineTask.titleRequired'), 'error');
+      return;
+    }
+    if (!startDate) {
+      showToast(t('routineTask.startDateRequired'), 'error');
       return;
     }
     if (frequencyType === 'weekly' && daysOfWeek.length === 0) {
       showToast(t('routineTask.daysOfWeekRequired'), 'error');
       return;
     }
+    const repeats = frequencyType !== 'none';
+    if (repeats && endType === 'on_date' && (!endDate || endDate < startDate)) {
+      showToast(t('routineTask.endBeforeStart'), 'error');
+      return;
+    }
+    if (startTime && endTime && endTime <= startTime) {
+      showToast(t('routineTask.endTimeBeforeStart'), 'error');
+      return;
+    }
 
     setIsSaving(true);
     try {
+      const isNth = frequencyType === 'monthly' && monthlyMode === 'nth_weekday';
       const payload = {
         workspace_id: workspaceId,
         title: title.trim(),
         description: description.trim() || null,
         frequency_type: frequencyType,
-        days_of_week: frequencyType === 'weekly' ? daysOfWeek : null,
-        day_of_month: (frequencyType === 'monthly' || frequencyType === 'yearly') ? (dayOfMonth === '' ? 1 : dayOfMonth) : null,
+        recurrence_interval: repeats ? Math.max(1, interval === '' ? 1 : interval) : 1,
+        days_of_week: frequencyType === 'weekly' || isNth ? daysOfWeek : null,
+        day_of_month:
+          (frequencyType === 'monthly' && monthlyMode === 'day_of_month') || frequencyType === 'yearly'
+            ? (dayOfMonth === '' ? 1 : dayOfMonth)
+            : null,
         month_of_year: frequencyType === 'yearly' ? monthOfYear : null,
+        monthly_mode: frequencyType === 'monthly' ? monthlyMode : null,
+        week_position: isNth ? weekPosition : null,
+        start_date: startDate,
+        start_time: startTime || null,
+        end_time: startTime ? (endTime || null) : null,
+        recurrence_end_type: repeats ? endType : 'never',
+        recurrence_end_date: repeats && endType === 'on_date' ? endDate : null,
+        recurrence_count: repeats && endType === 'after_count' ? Math.max(1, endCount === '' ? 1 : endCount) : null,
+        save_to_calendar: saveToCalendar,
         visibility,
         updated_at: new Date().toISOString(),
       };
@@ -270,6 +427,16 @@ export default function RoutineTaskFormModal({
       }
 
       showToast(t('routineTask.saveSuccess'), 'success');
+
+      // Mirror to Google Calendar (create / update / remove). The in-app Calendar reads the row directly.
+      if (taskId && (saveToCalendar || task?.save_to_calendar)) {
+        try {
+          await syncRoutineTaskToGCal(taskId, currentUserId);
+        } catch (syncErr: unknown) {
+          showToast(t('routineTask.gcalSyncError') + getErrorMessage(syncErr), 'warning');
+        }
+      }
+
       onSaved();
       onClose();
     } catch (err: unknown) {
@@ -376,121 +543,180 @@ export default function RoutineTaskFormModal({
             )}
           </div>
 
-          <div>
-            <label className="block text-[11px] font-semibold text-theme-text-secondary mb-2">
-              {t('routineTask.frequencyLabel')}
-            </label>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {FREQUENCIES.map((freq) => (
-                <button
-                  key={freq}
-                  type="button"
-                  onClick={() => setFrequencyType(freq)}
-                  className={cn(
-                    'px-3 py-2 rounded-lg text-[11px] font-bold border transition-all',
-                    frequencyType === freq
-                      ? 'bg-indigo-500 text-white border-indigo-500 shadow-md shadow-indigo-500/20'
-                      : 'bg-theme-surface border-theme-border text-theme-text-secondary hover:border-indigo-500/40'
-                  )}
-                >
-                  {freq === 'daily' && t('routineTask.frequencyDaily')}
-                  {freq === 'weekly' && t('routineTask.frequencyWeekly')}
-                  {freq === 'monthly' && t('routineTask.frequencyMonthly')}
-                  {freq === 'yearly' && t('routineTask.frequencyYearly')}
-                </button>
-              ))}
-            </div>
-
-            {frequencyType === 'weekly' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[10px] font-semibold text-theme-text-muted mb-1.5 uppercase tracking-wide">
-                  {t('routineTask.daysOfWeekLabel')}
-                </label>
-                <div className="flex gap-1.5 flex-wrap">
-                  {WEEKDAYS.map((day) => (
-                    <button
-                      key={day}
-                      type="button"
-                      onClick={() => toggleDayOfWeek(day)}
-                      className={cn(
-                        'w-9 h-9 rounded-lg text-[11px] font-bold border transition-all',
-                        daysOfWeek.includes(day)
-                          ? 'bg-indigo-500 text-white border-indigo-500'
-                          : 'bg-theme-surface border-theme-border text-theme-text-secondary hover:border-indigo-500/40'
-                      )}
-                    >
-                      {t(`routineTask.weekday${day}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {frequencyType === 'monthly' && (
-              <div className="w-32">
-                <label className="block text-[10px] font-semibold text-theme-text-muted mb-1.5 uppercase tracking-wide">
-                  {t('routineTask.dayOfMonthLabel')}
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1">
+                  {t('routineTask.startDateLabel')} *
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={dayOfMonth}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === '') {
-                      setDayOfMonth('');
-                      return;
-                    }
-                    const parsed = Number(raw);
-                    if (!Number.isNaN(parsed)) setDayOfMonth(parsed);
-                  }}
-                  onBlur={() => setDayOfMonth((prev) => Math.min(31, Math.max(1, prev === '' ? 1 : prev)))}
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
                   className="w-full theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
                 />
               </div>
-            )}
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1">
+                  {t('routineTask.startTimeLabel')}
+                </label>
+                <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1">
+                  {t('routineTask.endTimeLabel')}
+                </label>
+                <input
+                  type="time"
+                  value={endTime}
+                  disabled={!startTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="w-full theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all disabled:opacity-40"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-theme-text-muted -mt-1">{t('routineTask.timeHint')}</p>
 
-            {frequencyType === 'yearly' && (
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="block text-[10px] font-semibold text-theme-text-muted mb-1.5 uppercase tracking-wide">
-                    {t('routineTask.monthOfYearLabel')}
-                  </label>
-                  <select
-                    value={monthOfYear}
-                    onChange={(e) => setMonthOfYear(Number(e.target.value))}
-                    className="w-full theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
-                  >
-                    {MONTHS.map((m) => (
-                      <option key={m} value={m}>{t(`routineTask.month${m}`)}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="w-24">
-                  <label className="block text-[10px] font-semibold text-theme-text-muted mb-1.5 uppercase tracking-wide">
-                    {t('routineTask.dayOfMonthLabel')}
-                  </label>
+            <div>
+              <label className="block text-[11px] font-semibold text-theme-text-secondary mb-1">
+                {t('routineTask.frequencyLabel')}
+              </label>
+              <select value={preset} onChange={(e) => handlePresetChange(e.target.value as RecurrencePreset)} className="w-full theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all">
+                {presetOptions.map((p) => (
+                  <option key={p} value={p}>{presetLabel(p)}</option>
+                ))}
+              </select>
+            </div>
+
+            {preset === 'custom' && (
+              <div className="rounded-xl border border-theme-border/60 bg-theme-surface-secondary/40 p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-theme-text-secondary">{t('routineTask.repeatEvery')}</span>
                   <input
                     type="number"
                     min={1}
-                    max={31}
-                    value={dayOfMonth}
+                    max={999}
+                    value={interval}
                     onChange={(e) => {
                       const raw = e.target.value;
-                      if (raw === '') {
-                        setDayOfMonth('');
-                        return;
-                      }
+                      if (raw === '') { setIntervalValue(''); return; }
                       const parsed = Number(raw);
-                      if (!Number.isNaN(parsed)) setDayOfMonth(parsed);
+                      if (!Number.isNaN(parsed)) setIntervalValue(parsed);
                     }}
-                    onBlur={() => setDayOfMonth((prev) => Math.min(31, Math.max(1, prev === '' ? 1 : prev)))}
-                    className="w-full theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                    onBlur={() => setIntervalValue((prev) => Math.min(999, Math.max(1, prev === '' ? 1 : prev)))}
+                    className="w-20 theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
                   />
+                  <select
+                    value={frequencyType === 'none' ? 'weekly' : frequencyType}
+                    onChange={(e) => handleUnitChange(e.target.value as Exclude<RoutineFrequency, 'none'>)}
+                    className="flex-1 theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all"
+                  >
+                    {UNITS.map((u) => (
+                      <option key={u} value={u}>
+                        {u === 'daily' ? t('routineTask.unitDay') : u === 'weekly' ? t('routineTask.unitWeek') : u === 'monthly' ? t('routineTask.unitMonth') : t('routineTask.unitYear')}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                {frequencyType === 'weekly' && (
+                  <div>
+                    <label className="block text-[10px] font-semibold text-theme-text-muted mb-1.5 uppercase tracking-wide">
+                      {t('routineTask.repeatOnLabel')}
+                    </label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {WEEKDAYS.map((day) => (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => toggleDayOfWeek(day)}
+                          className={cn(
+                            'w-9 h-9 rounded-lg text-[11px] font-bold border transition-all',
+                            daysOfWeek.includes(day)
+                              ? 'bg-indigo-500 text-white border-indigo-500'
+                              : 'bg-theme-surface border-theme-border text-theme-text-secondary hover:border-indigo-500/40'
+                          )}
+                        >
+                          {t(`routineTask.weekday${day}`)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {frequencyType === 'monthly' && (
+                  <select value={monthlyChoice} onChange={(e) => handleMonthlyChoice(e.target.value)} className="w-full theme-field rounded-lg px-3 py-2 text-xs border focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none transition-all">
+                    <option value="day">{presetLabel('monthly_day')}</option>
+                    {startNth <= 4 && <option value="nth">{presetLabel('monthly_nth')}</option>}
+                    {startIsLast && <option value="last">{presetLabel('monthly_last')}</option>}
+                  </select>
+                )}
+
+                {frequencyType === 'yearly' && (
+                  <p className="text-[11px] text-theme-text-muted">{presetLabel('yearly')}</p>
+                )}
               </div>
             )}
+
+            {frequencyType !== 'none' && (
+              <div className="rounded-xl border border-theme-border/60 p-3 space-y-2">
+                <label className="block text-[11px] font-semibold text-theme-text-secondary">
+                  {t('routineTask.endsLabel')}
+                </label>
+                <label className="flex items-center gap-2 text-xs text-theme-text">
+                  <input type="radio" name="routine-end" checked={endType === 'never'} onChange={() => setEndType('never')} />
+                  {t('routineTask.endNever')}
+                </label>
+                <label className="flex items-center gap-2 text-xs text-theme-text">
+                  <input type="radio" name="routine-end" checked={endType === 'on_date'} onChange={() => setEndType('on_date')} />
+                  <span className="w-20 shrink-0">{t('routineTask.endOnDate')}</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    min={startDate}
+                    disabled={endType !== 'on_date'}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="flex-1 theme-field rounded-lg px-3 py-1.5 text-xs border outline-none disabled:opacity-40"
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-xs text-theme-text">
+                  <input type="radio" name="routine-end" checked={endType === 'after_count'} onChange={() => setEndType('after_count')} />
+                  <span className="w-20 shrink-0">{t('routineTask.endAfter')}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={endCount}
+                    disabled={endType !== 'after_count'}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') { setEndCount(''); return; }
+                      const parsed = Number(raw);
+                      if (!Number.isNaN(parsed)) setEndCount(parsed);
+                    }}
+                    onBlur={() => setEndCount((prev) => Math.min(999, Math.max(1, prev === '' ? 1 : prev)))}
+                    className="w-20 theme-field rounded-lg px-3 py-1.5 text-xs border outline-none disabled:opacity-40"
+                  />
+                  <span>{t('routineTask.endOccurrences')}</span>
+                </label>
+              </div>
+            )}
+
+            <label className="flex items-start gap-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={saveToCalendar}
+                onChange={(e) => setSaveToCalendar(e.target.checked)}
+                className="mt-0.5 rounded border-slate-500 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span>
+                <span className="flex items-center gap-1.5 text-xs font-bold text-theme-text">
+                  <CalendarCheck size={13} className="text-indigo-500" />
+                  {t('routineTask.saveToCalendar')}
+                </span>
+                <span className="block text-[11px] text-theme-text-muted mt-0.5">{t('routineTask.saveToCalendarHint')}</span>
+              </span>
+            </label>
           </div>
 
           <div>
