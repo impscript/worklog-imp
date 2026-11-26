@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, Fragment } from 'react';
-import { X, Clock, Sparkles, RefreshCw, CheckCircle2, Search, Layers } from 'lucide-react';
+import { X, Clock, Sparkles, RefreshCw, CheckCircle2, Search, Layers, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { googleCalendar } from '../../lib/google-calendar';
 import { useNotification } from '../../context/NotificationContext';
@@ -293,6 +293,7 @@ export default function RecoverGCalModal({
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
   const [filterTab, setFilterTab] = useState<'all' | 'missing' | 'existing'>('missing');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showQuickFill, setShowQuickFill] = useState(true);
   const [rowOverrides, setRowOverrides] = useState<Record<string, RowMapping>>({});
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
@@ -1095,42 +1096,52 @@ export default function RecoverGCalModal({
           {/* Section 1: Destination Project Classification */}
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h3 className="text-xs font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5">
-                <Layers size={14} />
-                <span>1. ตัวช่วยกรอกเร็ว (ไม่บังคับ) — แต่ละแถวเลือกค่าของตัวเองได้ในตารางด้านล่าง</span>
-              </h3>
               <button
                 type="button"
-                onClick={applyTemplateToSelected}
-                disabled={isLoadingMaster || selectedEventIds.length === 0}
-                className="px-3 py-1.5 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                onClick={() => setShowQuickFill(v => !v)}
+                aria-expanded={showQuickFill}
+                className="text-xs font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5 cursor-pointer text-left"
               >
-                ใช้ค่านี้กับแถวที่เลือก
+                <ChevronDown size={14} className={cn('transition-transform shrink-0', !showQuickFill && '-rotate-90')} />
+                <Layers size={14} className="shrink-0" />
+                <span>1. ตัวช่วยกรอกเร็ว (ไม่บังคับ) — แต่ละแถวเลือกค่าของตัวเองได้ในตาราง</span>
               </button>
+              {showQuickFill && (
+                <button
+                  type="button"
+                  onClick={applyTemplateToSelected}
+                  disabled={isLoadingMaster || selectedEventIds.length === 0}
+                  className="px-3 py-1 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                >
+                  ใช้ค่านี้กับแถวที่เลือก
+                </button>
+              )}
             </div>
 
-            <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
+            {showQuickFill && (
+
+            <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border rounded-xl p-3 grid grid-cols-2 lg:grid-cols-3 gap-2 shadow-sm">
               {/* Row 1: Holding & Role Operator */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1.5">HOLDING</label>
+                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">HOLDING</label>
                   <select
                     value={selectedHolding}
                     onChange={e => handleHoldingChange(e.target.value)}
                     disabled={isLoadingMaster}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500"
+                    className="w-full px-2.5 py-1 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500"
                   >
                     <option value="">— เลือก Holding —</option>
                     {availableHoldings.map(h => <option key={h} value={h}>{h}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1.5">ROLE OPERATOR</label>
+                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">ROLE OPERATOR</label>
                   <select
                     value={selectedRoleOperator}
                     onChange={e => handleRoleOperatorChange(e.target.value)}
                     disabled={!selectedHolding || isLoadingMaster}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
+                    className="w-full px-2.5 py-1 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
                   >
                     <option value="">— เลือก Role Operator —</option>
                     {availableRoleOperators.map(o => <option key={o} value={o}>{o}</option>)}
@@ -1139,26 +1150,26 @@ export default function RecoverGCalModal({
               </div>
 
               {/* Row 2: Project Type & Project Name */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1.5">PROJECT TYPE</label>
+                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">PROJECT TYPE</label>
                   <select
                     value={projectType}
                     onChange={e => handleProjectTypeChange(e.target.value)}
                     disabled={!selectedRoleOperator}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
+                    className="w-full px-2.5 py-1 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
                   >
                     <option value="">— เลือก Project Type —</option>
                     {availableProjectTypes.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1.5">PROJECT NAME</label>
+                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">PROJECT NAME</label>
                   <select
                     value={selectedProjectKey}
                     onChange={e => handleProjectKeyChange(e.target.value)}
                     disabled={!projectType}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
+                    className="w-full px-2.5 py-1 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
                   >
                     <option value="">— เลือก Project Name —</option>
                     {availableProjects.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
@@ -1167,26 +1178,26 @@ export default function RecoverGCalModal({
               </div>
 
               {/* Row 3: Module & Action Name */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div className="contents">
                 <div>
-                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1.5">MODULE / PHASE</label>
+                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">MODULE / PHASE</label>
                   <select
                     value={module}
                     onChange={e => handleModuleChange(e.target.value)}
                     disabled={!selectedProjectKey || availableModules.length === 0}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
+                    className="w-full px-2.5 py-1 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
                   >
                     <option value="">{availableModules.length === 0 && selectedProjectKey ? 'ไม่มี Module (Auto-skip)' : '— เลือก Module —'}</option>
                     {availableModules.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1.5">ACTION / กิจกรรม</label>
+                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">ACTION / กิจกรรม</label>
                   <select
                     value={actionName}
                     onChange={e => setActionName(e.target.value)}
                     disabled={!projectType}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
+                    className="w-full px-2.5 py-1 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
                   >
                     <option value="">— เลือกกิจกรรม —</option>
                     {availableActions.map(a => <option key={a} value={a}>{a}</option>)}
@@ -1196,25 +1207,25 @@ export default function RecoverGCalModal({
 
               {/* Row 4: BU & Department (Conditional) */}
               {selectedProjectKey && (noModuleMode || (module && (availableBUsForModule.length > 1 || availableDeptsForModule.length > 1))) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 border-t border-theme-border/60 pt-3">
+                <div className="col-span-full grid grid-cols-2 gap-2 border-t border-theme-border/60 pt-2">
                   <div>
-                    <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1.5">BUSINESS UNIT (BU)</label>
+                    <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">BUSINESS UNIT (BU)</label>
                     <select
                       value={bu}
                       onChange={e => { setBu(e.target.value); setDepartment(''); }}
-                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500"
+                      className="w-full px-2.5 py-1 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500"
                     >
                       <option value="">— เลือก BU —</option>
                       {(noModuleMode ? availableBUs : availableBUsForModule).map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-1.5">TARGET DEPARTMENT</label>
+                    <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">TARGET DEPARTMENT</label>
                     <select
                       value={department}
                       onChange={e => setDepartment(e.target.value)}
                       disabled={!bu}
-                      className="w-full px-3.5 py-2 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
+                      className="w-full px-2.5 py-1 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40"
                     >
                       <option value="">— เลือก Department —</option>
                       {(noModuleMode ? availableDepts : availableDeptsForModule).map(d => <option key={d} value={d}>{d}</option>)}
@@ -1223,6 +1234,7 @@ export default function RecoverGCalModal({
                 </div>
               )}
             </div>
+            )}
           </div>
 
           {/* Section 2: Scanned GCal Events Table & Filter */}
