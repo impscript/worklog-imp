@@ -91,20 +91,40 @@ export function googleColorMatch(hex?: string | null): { colorId: string; name: 
   if (!base) return null;
   const exactHit = GOOGLE_API_COLORS.find((c) => c.hex === base);
   if (exactHit) return { colorId: exactHit.colorId, name: exactHit.name, hex: exactHit.hex, exact: true };
-  const [r, g, b] = hexToRgb(base);
+  // Older custom shades: match by hue family first (red -> Tomato, purple -> Grape, ...), then by
+  // saturation and lightness. Plain RGB distance sent red to Tangerine and purple to Lavender.
+  const target = hexToHsl(base);
   let best = GOOGLE_API_COLORS[0];
-  let bestDist = Infinity;
-  for (const c of GOOGLE_API_COLORS) {
-    const [r2, g2, b2] = hexToRgb(c.hex);
-    // Weighted RGB distance (closer to how the eye sees colour than plain Euclidean).
-    const rm = (r + r2) / 2;
-    const dist = (2 + rm / 256) * (r - r2) ** 2 + 4 * (g - g2) ** 2 + (2 + (255 - rm) / 256) * (b - b2) ** 2;
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = c;
+  if (target.s < 0.2) {
+    best = GOOGLE_API_COLORS.find((c) => c.name === 'Graphite') || best; // greys
+  } else {
+    let bestDist = Infinity;
+    for (const c of GOOGLE_API_COLORS) {
+      const hsl = hexToHsl(c.hex);
+      const hueDiff = Math.min(Math.abs(target.h - hsl.h), 360 - Math.abs(target.h - hsl.h));
+      const dist = 3 * (hueDiff / 180) + 0.5 * Math.abs(target.s - hsl.s) + 0.5 * Math.abs(target.l - hsl.l);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = c;
+      }
     }
   }
   return { colorId: best.colorId, name: best.name, hex: best.hex, exact: false };
+}
+
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const [r8, g8, b8] = hexToRgb(hex);
+  const r = r8 / 255, g = g8 / 255, b = b8 / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d === 0) return { h: 0, s: 0, l };
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let h: number;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s, l };
 }
 
 /** Google Calendar colorId (1-11) for a hex colour, or null when no colour is given. */

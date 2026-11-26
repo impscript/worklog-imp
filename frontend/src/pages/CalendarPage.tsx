@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { ChevronLeft, ChevronRight, Plus, ClipboardList, Clock, Eye, RefreshCw, CalendarCheck, SlidersHorizontal } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { cn } from '../lib/utils';
@@ -224,56 +224,15 @@ export default function CalendarPage() {
     width: number;
   }
 
+  // Card colours follow the project type colour chosen for the workspace (or its built-in fallback).
+  // Overtime keeps a visible cue through a dashed border; its "OT / type" label is unchanged.
   const getCardColorClasses = (entry: WorklogEntry) => {
     const isOT = entry.is_ot || entry.is_implied_ot;
-    const projectType = (entry.project_type || '').toLowerCase();
-    
-    if (isOT) {
-      // Orange (Tangerine / colorId 6)
-      return {
-        bg: "bg-orange-500/10 dark:bg-orange-500/10",
-        border: "border-orange-500/30 dark:border-orange-500/40",
-        text: "text-orange-600 dark:text-orange-400 hover:bg-orange-500/20",
-        badge: "text-orange-500 dark:text-orange-400 bg-orange-500/10 dark:bg-orange-500/20 border-orange-500/20 dark:border-orange-500/30"
-      };
-    }
-    
-    if (projectType === 'project' || projectType === 'upgrade') {
-      // Blue (Blueberry / colorId 9)
-      return {
-        bg: "bg-blue-500/10 dark:bg-blue-500/10",
-        border: "border-blue-500/30 dark:border-blue-500/40",
-        text: "text-blue-600 dark:text-blue-400 hover:bg-blue-500/20",
-        badge: "text-blue-500 dark:text-blue-400 bg-blue-500/10 dark:bg-blue-500/20 border-blue-500/20 dark:border-blue-500/30"
-      };
-    }
-    
-    if (projectType.includes('support')) {
-      // Green (Sage / colorId 2)
-      return {
-        bg: "bg-emerald-500/10 dark:bg-emerald-500/10",
-        border: "border-emerald-500/30 dark:border-emerald-500/40",
-        text: "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20",
-        badge: "text-emerald-500 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 dark:border-emerald-500/30"
-      };
-    }
-    
-    if (projectType.includes('e-learning') || projectType === 'elearning') {
-      // Pink (Flamingo / colorId 4)
-      return {
-        bg: "bg-pink-500/10 dark:bg-pink-500/10",
-        border: "border-pink-500/30 dark:border-pink-500/40",
-        text: "text-pink-600 dark:text-pink-400 hover:bg-pink-500/20",
-        badge: "text-pink-500 dark:text-pink-400 bg-pink-500/10 dark:bg-pink-500/20 border-pink-500/20 dark:border-pink-500/30"
-      };
-    }
-    
-    // Fallback Yellow (Banana / colorId 5) for Management, Admin, etc.
+    const typeColor = resolveTypeColor(projectTypeColors, entry.project_type);
+    const base = typeBadgeStyle(typeColor) || {};
     return {
-      bg: "bg-amber-500/10 dark:bg-amber-500/10",
-      border: "border-amber-500/30 dark:border-amber-500/40",
-      text: "text-amber-600 dark:text-amber-400 hover:bg-amber-500/20",
-      badge: "text-amber-500 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20 dark:border-amber-500/30"
+      style: { ...base, borderStyle: isOT ? 'dashed' : 'solid' } as CSSProperties,
+      badgeStyle: base,
     };
   };
 
@@ -855,14 +814,12 @@ export default function CalendarPage() {
                           }
                           handleDayClick(dayDate);
                         }}
+                        style={isBeingDragged ? undefined : cardColor.style}
                         className={cn(
                           "text-[9px] font-bold px-1.5 py-0.5 rounded text-left truncate border shadow-sm",
-                          isBeingDragged 
+                          isBeingDragged
                             ? "z-50 shadow-2xl opacity-90 scale-[1.02] border-indigo-500 cursor-grabbing bg-indigo-500 text-white"
-                            : cn(
-                                "transition-all active:scale-95 cursor-grab",
-                                `${cardColor.bg} ${cardColor.border} ${cardColor.text}`
-                              )
+                            : "transition-all active:scale-95 cursor-grab"
                         )}
                         title={`${e.project_type || 'Other'} | ${e.project_name}: ${e.action_name}`}
                       >
@@ -949,6 +906,7 @@ export default function CalendarPage() {
                             handleDayClick(dayDate);
                           }}
                           style={{
+                            ...(isBeingDragged ? {} : cardColor.style),
                             top: `${top}px`,
                             height: `${height}px`,
                             left: width < 100 ? `calc(${left}% + 1px)` : `${left}%`,
@@ -958,16 +916,16 @@ export default function CalendarPage() {
                             "absolute rounded-lg p-1.5 border text-left overflow-hidden group flex flex-col justify-between select-none !transition-all hover:scale-[0.98] hover:shadow-lg hover:z-20 active:scale-95 cursor-grab",
                             isBeingDragged 
                               ? "z-50 shadow-2xl opacity-90 scale-[1.02] border-indigo-500 cursor-grabbing bg-indigo-500/20 text-indigo-300 !transition-none"
-                              : `${cardColor.bg} ${cardColor.border} ${cardColor.text}`
+                              : ""
                           )}
                           title={`${entry.project_type || 'Other'} | ${entry.project_name}\n${entry.action_name}\n${entry.start_time?.slice(0, 5)} - ${entry.end_time?.slice(0, 5)} (${entry.total_hours}h)`}
                         >
                           <div className="leading-none overflow-hidden flex-1 w-full">
                             {/* Project Type Badge */}
-                            <span className={cn(
-                              "text-[7px] font-black uppercase tracking-wider px-1 py-0.2 rounded border w-fit block mb-1 select-none",
-                              cardColor.badge
-                            )}>
+                            <span
+                              className="text-[7px] font-black uppercase tracking-wider px-1 py-0.2 rounded border w-fit block mb-1 select-none"
+                              style={cardColor.badgeStyle}
+                            >
                               {(entry.is_ot || entry.is_implied_ot) ? `OT / ${entry.project_type || 'Other'}` : (entry.project_type || 'Other')}
                             </span>
                             {/* Action Name */}
