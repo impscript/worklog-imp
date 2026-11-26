@@ -127,6 +127,15 @@ function hexToHsl(hex: string): { h: number; s: number; l: number } {
   return { h: (h * 60 + 360) % 360, s, l };
 }
 
+/**
+ * The Google Calendar colour (as hex) a stored colour stands for: itself when it is already one of the
+ * 11 colours, otherwise the same-hue Google colour. Every place that shows a type colour uses this, so
+ * older custom shades look the same here as in Google Calendar. Null for no colour.
+ */
+export function snapToGoogleColor(hex?: string | null): string | null {
+  return googleColorMatch(hex)?.hex ?? null;
+}
+
 /** Google Calendar colorId (1-11) for a hex colour, or null when no colour is given. */
 export function nearestGoogleColorId(hex?: string | null): string | null {
   return googleColorMatch(hex)?.colorId ?? null;
@@ -142,7 +151,7 @@ export async function fetchProjectTypeColors(workspaceId?: string | null): Promi
     .eq('workspace_id', workspaceId);
   if (!error && data) {
     for (const row of data as { type_name: string; color: string | null }[]) {
-      const hex = normalizeHex(row.color);
+      const hex = snapToGoogleColor(row.color);
       if (hex) map[row.type_name] = hex;
     }
   }

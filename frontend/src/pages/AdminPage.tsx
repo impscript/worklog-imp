@@ -5,7 +5,7 @@ import { useLocation } from 'react-router-dom';
 import { supabase, ensureValidSupabaseSession } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { getProjectTypeMeta } from '../lib/project-management';
-import { GOOGLE_CALENDAR_COLORS, googleColorMatch, normalizeHex, typeBadgeStyle } from '../lib/project-type-colors';
+import { GOOGLE_CALENDAR_COLORS, googleColorMatch, normalizeHex, snapToGoogleColor, typeBadgeStyle } from '../lib/project-type-colors';
 import { MultiSelectFilter } from '../components/common/MultiSelectFilter';
 import { ADMIN_TABS, getDefaultAdminTab, type AdminTab } from '../lib/admin-tabs';
 import { useNotification } from '../context/NotificationContext';
@@ -125,7 +125,7 @@ export default function AdminPage() {
   const adminTypeColors = useMemo(() => {
     const map: Record<string, string> = {};
     (projectTypes || []).forEach((t: { type_name: string; color?: string | null }) => {
-      const hex = normalizeHex(t.color);
+      const hex = snapToGoogleColor(t.color);
       if (hex) map[t.type_name] = hex;
     });
     return map;
@@ -1070,7 +1070,7 @@ export default function AdminPage() {
       else if (activeTab === 'role') setFormRoleName(row.role_name);
       else if (activeTab === 'project_type') {
         setFormTypeName(row.type_name);
-        setFormTypeColor(normalizeHex(row.color) || '');
+        setFormTypeColor(snapToGoogleColor(row.color) || '');
       } else if (activeTab === 'action') {
         setFormActionCategory(row.action_category);
         setFormActionName(row.action_name);
@@ -2145,13 +2145,13 @@ export default function AdminPage() {
                                 <>
                                   <td className="px-6 py-4 font-bold text-theme-text">{row.type_name}</td>
                                   <td className="px-6 py-4">
-                                    {normalizeHex(row.color) ? (
+                                    {googleColorMatch(row.color) ? (
                                       <span
                                         className="inline-flex items-center gap-2 px-2 py-0.5 text-[11px] font-bold rounded-md border whitespace-nowrap"
-                                        style={typeBadgeStyle(row.color)}
+                                        style={typeBadgeStyle(snapToGoogleColor(row.color))}
                                       >
-                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: normalizeHex(row.color) as string }} />
-                                        {normalizeHex(row.color)}
+                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: snapToGoogleColor(row.color) as string }} />
+                                        {googleColorMatch(row.color)?.name}
                                       </span>
                                     ) : (
                                       <span className="text-xs text-theme-text-muted">Default</span>
