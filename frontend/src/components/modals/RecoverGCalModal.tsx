@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, Fragment } from 'react';
 import { X, Clock, Sparkles, RefreshCw, CheckCircle2, Search, Layers } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { googleCalendar } from '../../lib/google-calendar';
@@ -78,6 +78,185 @@ interface RecoverGCalModalProps {
   workspaceId?: string;
 }
 
+// ── Per-row (1:1) mapping ────────────────────────────────────────────────────
+// Every Google Calendar row carries its own classification instead of sharing one global target.
+interface RowMapping {
+  holding: string;
+  roleOperator: string;
+  projectType: string;
+  projectKey: string; // `${project_name}|${holding}|${department_operator}`
+  module: string;
+  bu: string;
+  department: string;
+  actionName: string;
+}
+
+const EMPTY_MAPPING: RowMapping = {
+  holding: '', roleOperator: '', projectType: '', projectKey: '',
+  module: '', bu: '', department: '', actionName: ''
+};
+
+// Cascade order: changing a field clears every field after it.
+const CASCADE_ORDER: (keyof RowMapping)[] = ['holding', 'roleOperator', 'projectType', 'projectKey', 'module', 'bu', 'department'];
+
+const norm = (s?: string | null) => (s || '').trim().toLowerCase();
+
+function pickOption(value: string, options: string[]): string {
+  const hit = options.find(o => norm(o) === norm(value));
+  if (hit) return hit;
+  return options.length === 1 ? options[0] : '';
+}
+
+function holdingOptions(projs: ProjectStructure[]): string[] {
+  return Array.from(new Set(projs.map(p => p.holding).filter(Boolean))).sort() as string[];
+}
+
+function roleOptions(roles: UserRole[], holding: string): string[] {
+  if (!holding) return [];
+  return Array.from(new Set(
+    roles
+      .filter(ur => {
+        const h = norm(ur.holding);
+        return h === 'all' || h === 'all holding' || h === norm(holding);
+      })
+      .map(ur => ur.department_operator)
+      .filter(Boolean)
+  )).sort() as string[];
+}
+
+function typeOptions(projs: ProjectStructure[], holding: string, role: string): string[] {
+  if (!holding || !role) return [];
+  return Array.from(new Set(
+    projs
+      .filter(p => norm(p.holding) === norm(holding) && norm(p.department_operator) === norm(role))
+      .map(p => p.project_type)
+      .filter(Boolean)
+  )).sort() as string[];
+}
+
+function projectOptions(projs: ProjectStructure[], holding: string, role: string, type: string): { label: string; value: string }[] {
+  if (!holding || !role || !type) return [];
+  const seen = new Set<string>();
+  const out: { label: string; value: string }[] = [];
+  for (const p of projs) {
+    if (p.project_type !== type || norm(p.holding) !== norm(holding) || norm(p.department_operator) !== norm(role)) continue;
+    const key = `${p.project_name}|${p.holding}|${p.department_operator}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ label: p.project_name, value: key });
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function moduleOptions(projs: ProjectStructure[], key: string, type: string): string[] {
+  if (!key) return [];
+  const [pName, pHolding, pRole] = key.split('|');
+  return Array.from(new Set(
+    projs
+      .filter(p => p.project_type === type && p.project_name === pName && p.holding === pHolding && p.department_operator === pRole)
+      .map(p => p.module)
+      .filter(Boolean)
+  )).sort() as string[];
+}
+
+function buDeptOptions(projs: ProjectStructure[], key: string, type: string, module: string): { bus: string[]; depts: string[] } {
+  if (!key) return { bus: [], depts: [] };
+  const [pName, pHolding, pRole] = key.split('|');
+  const rows = projs.filter(p =>
+    p.project_type === type &&
+    p.project_name === pName &&
+    p.holding === pHolding &&
+    p.department_operator === pRole &&
+    (!module || p.module === module)
+  );
+  return {
+    bus: Array.from(new Set(rows.map(p => p.bu).filter(Boolean))).sort() as string[],
+    depts: Array.from(new Set(rows.map(p => p.department).filter(Boolean))).sort() as string[]
+  };
+}
+
+function actionOptions(actions: MasterAction[], type: string): string[] {
+  if (actions.length === 0) return [];
+  const all = Array.from(new Set(actions.map(a => a.action_name).filter(Boolean))).sort();
+  if (!type) return all;
+  const t = norm(type);
+  let filtered = actions.filter(a => norm(a.action_category) === t);
+  if (filtered.length === 0) {
+    filtered = actions.filter(a => {
+      const c = norm(a.action_category);
+      return c !== '' && (t.includes(c) || c.includes(t));
+    });
+  }
+  if (filtered.length === 0) return all;
+  return Array.from(new Set(filtered.map(a => a.action_name).filter(Boolean))).sort();
+}
+
+/** Keeps every valid value, auto-fills single-choice fields, clears values that no longer fit. */
+function normalizeMapping(m: RowMapping, projs: ProjectStructure[], roles: UserRole[], actions: MasterAction[]): RowMapping {
+  const holding = pickOption(m.holding, holdingOptions(projs));
+  const roleOperator = pickOption(m.roleOperator, roleOptions(roles, holding));
+  const projectType = pickOption(m.projectType, typeOptions(projs, holding, roleOperator));
+  const projOpts = projectOptions(projs, holding, roleOperator, projectType).map(o => o.value);
+  const projectKey = pickOption(m.projectKey, projOpts);
+  const mod = pickOption(m.module, moduleOptions(projs, projectKey, projectType));
+  const { bus, depts } = buDeptOptions(projs, projectKey, projectType, mod);
+  const bu = pickOption(m.bu, bus);
+  const department = pickOption(m.department, depts);
+  const acts = actionOptions(actions, projectType);
+  const actionName = m.actionName && acts.includes(m.actionName) ? m.actionName : '';
+  return { holding, roleOperator, projectType, projectKey, module: mod, bu, department, actionName };
+}
+
+/** Names of the required fields still empty for a row (empty array = ready to import). */
+function missingFields(m: RowMapping, projs: ProjectStructure[]): string[] {
+  const out: string[] = [];
+  if (!m.holding) out.push('Holding');
+  if (!m.roleOperator) out.push('Role Operator');
+  if (!m.projectType) out.push('Project Type');
+  if (!m.projectKey) out.push('Project Name');
+  if (m.projectKey) {
+    if (moduleOptions(projs, m.projectKey, m.projectType).length > 0 && !m.module) out.push('Module');
+    const { bus, depts } = buDeptOptions(projs, m.projectKey, m.projectType, m.module);
+    if (bus.length > 0 && !m.bu) out.push('BU');
+    if (depts.length > 0 && !m.department) out.push('Department');
+  }
+  if (!m.actionName) out.push('Action');
+  return out;
+}
+
+function buildDefaultMapping(ev: RecoverableEvent, projs: ProjectStructure[], roles: UserRole[], actions: MasterAction[]): RowMapping {
+  if (!ev.hasPattern) return normalizeMapping(EMPTY_MAPPING, projs, roles, actions);
+
+  const seed: RowMapping = {
+    holding: ev.detectedHolding || '',
+    roleOperator: ev.detectedRoleOperator || '',
+    projectType: ev.detectedProjectType || '',
+    projectKey: '',
+    module: ev.detectedModule || '',
+    bu: ev.detectedBu || '',
+    department: ev.detectedDept || '',
+    actionName: ev.detectedActionName || ''
+  };
+  let m = normalizeMapping(seed, projs, roles, actions);
+
+  // Resolve the detected project name to a concrete structure row (preferring the detected type).
+  if (ev.detectedProjectName && m.holding && m.roleOperator) {
+    const wanted = norm(ev.detectedProjectName);
+    let hit = projectOptions(projs, m.holding, m.roleOperator, m.projectType).find(o => norm(o.label) === wanted);
+    let type = m.projectType;
+    if (!hit) {
+      for (const t of typeOptions(projs, m.holding, m.roleOperator)) {
+        hit = projectOptions(projs, m.holding, m.roleOperator, t).find(o => norm(o.label) === wanted);
+        if (hit) { type = t; break; }
+      }
+    }
+    if (hit) {
+      m = normalizeMapping({ ...seed, holding: m.holding, roleOperator: m.roleOperator, projectType: type, projectKey: hit.value }, projs, roles, actions);
+    }
+  }
+  return m;
+}
+
 const MONTH_NAMES = [
   'มกราคม (January)', 'กุมภาพันธ์ (February)', 'มีนาคม (March)', 'เมษายน (April)',
   'พฤษภาคม (May)', 'มิถุนายน (June)', 'กรกฎาคม (July)', 'สิงหาคม (August)',
@@ -114,7 +293,7 @@ export default function RecoverGCalModal({
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
   const [filterTab, setFilterTab] = useState<'all' | 'missing' | 'existing'>('missing');
   const [searchQuery, setSearchQuery] = useState('');
-  const [forceOverrideAll, setForceOverrideAll] = useState(false);
+  const [rowOverrides, setRowOverrides] = useState<Record<string, RowMapping>>({});
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
 
@@ -355,6 +534,7 @@ export default function RecoverGCalModal({
     setIsLoadingEvents(true);
     setEvents([]);
     setSelectedEventIds([]);
+    setRowOverrides({});
 
     try {
       const { data: user } = await supabase
@@ -711,6 +891,56 @@ export default function RecoverGCalModal({
       .reduce((sum, e) => sum + e.duration, 0);
   }, [events, selectedEventIds]);
 
+  // ── Per-row mapping state ─────────────────────────────────────────────────
+  const defaultMappings = useMemo(() => {
+    const out: Record<string, RowMapping> = {};
+    if (allowedProjects.length === 0) return out;
+    for (const ev of events) {
+      if (!ev.alreadyInDB) out[ev.id] = buildDefaultMapping(ev, allowedProjects, mapUserRole, masterActions);
+    }
+    return out;
+  }, [events, allowedProjects, mapUserRole, masterActions]);
+
+  const getMapping = useCallback(
+    (id: string): RowMapping => rowOverrides[id] ?? defaultMappings[id] ?? EMPTY_MAPPING,
+    [rowOverrides, defaultMappings]
+  );
+
+  const setRowField = (id: string, field: keyof RowMapping, value: string) => {
+    const next: RowMapping = { ...getMapping(id), [field]: value };
+    const idx = CASCADE_ORDER.indexOf(field);
+    if (idx >= 0) {
+      for (const f of CASCADE_ORDER.slice(idx + 1)) next[f] = '';
+    }
+    setRowOverrides(prev => ({ ...prev, [id]: normalizeMapping(next, allowedProjects, mapUserRole, masterActions) }));
+  };
+
+  // Copy the shared dropdowns in Section 1 onto every selected row that is not in the DB yet.
+  const applyTemplateToSelected = () => {
+    const template: RowMapping = {
+      holding: selectedHolding,
+      roleOperator: selectedRoleOperator,
+      projectType,
+      projectKey: selectedProjectKey,
+      module,
+      bu,
+      department,
+      actionName
+    };
+    const normalized = normalizeMapping(template, allowedProjects, mapUserRole, masterActions);
+    const targets = events.filter(e => selectedEventIds.includes(e.id) && !e.alreadyInDB);
+    if (targets.length === 0) {
+      showToast('กรุณาเลือกรายการที่ยังไม่มีในระบบอย่างน้อย 1 รายการ', 'warning');
+      return;
+    }
+    setRowOverrides(prev => {
+      const next = { ...prev };
+      for (const ev of targets) next[ev.id] = normalized;
+      return next;
+    });
+    showToast(`ใช้ค่านี้กับ ${targets.length} แถวที่เลือกแล้ว`, 'success');
+  };
+
   // ── Handle Recovery Import ────────────────────────────────────────────────
   const handleExecuteRecovery = async () => {
     if (!sessionUser?.id) return;
@@ -731,43 +961,16 @@ export default function RecoverGCalModal({
       return;
     }
 
-    const hasUnmapped = newItems.some(e => !e.hasPattern || forceOverrideAll);
-    if (hasUnmapped) {
-      if (!selectedHolding) {
-        showToast('กรุณาเลือก Holding', 'error');
-        return;
-      }
-      if (!selectedRoleOperator) {
-        showToast('กรุณาเลือก Role Operator', 'error');
-        return;
-      }
-      if (!projectType) {
-        showToast('กรุณาเลือก Project Type', 'error');
-        return;
-      }
-      if (!selectedProjectKey) {
-        showToast('กรุณาเลือก Project Name', 'error');
-        return;
-      }
-      if (availableModules.length > 0 && !module) {
-        showToast('กรุณาเลือก Module', 'error');
-        return;
-      }
-      const isBuDeptRequired = noModuleMode || (module && (availableBUsForModule.length > 1 || availableDeptsForModule.length > 1));
-      if (isBuDeptRequired) {
-        if (!bu) {
-          showToast('กรุณาเลือก Business Unit (BU)', 'error');
-          return;
-        }
-        if (!department) {
-          showToast('กรุณาเลือก Department', 'error');
-          return;
-        }
-      }
-      if (!actionName) {
-        showToast('กรุณาเลือก Action Name / กิจกรรม', 'error');
-        return;
-      }
+    // 1:1 mapping: every new row must be fully classified on its own.
+    const incomplete = newItems.filter(e => missingFields(getMapping(e.id), allowedProjects).length > 0);
+    if (incomplete.length > 0) {
+      const first = incomplete[0];
+      const lacking = missingFields(getMapping(first.id), allowedProjects).join(', ');
+      showToast(
+        `ยังเลือกข้อมูลไม่ครบ ${incomplete.length} แถว (เช่น ${first.workDate} ${first.startTime} "${first.summary}" ขาด: ${lacking})`,
+        'error'
+      );
+      return;
     }
 
     setIsImporting(true);
@@ -775,19 +978,19 @@ export default function RecoverGCalModal({
 
     try {
       const activeWs = workspaceId || sessionUser.activeWorkspaceId || sessionUser.active_workspace_id;
-      const [defaultProjName] = (selectedProjectKey || '').split('|');
 
       const inserts = newItems.map(ev => {
-        const useDetected = ev.hasPattern && !forceOverrideAll;
+        const map = getMapping(ev.id);
+        const useDetected = ev.hasPattern;
 
-        const finalHolding = useDetected ? (ev.detectedHolding || selectedHolding) : selectedHolding;
-        const finalRoleOperator = useDetected ? (ev.detectedRoleOperator || selectedRoleOperator) : selectedRoleOperator;
-        const finalProjectType = useDetected ? (ev.detectedProjectType || projectType) : projectType;
-        const finalProjectName = useDetected ? (ev.detectedProjectName || defaultProjName) : defaultProjName;
-        const finalModule = useDetected ? (ev.detectedModule || module || null) : (module || null);
-        const finalBu = useDetected ? (ev.detectedBu || bu || '') : (bu || '');
-        const finalDept = useDetected ? (ev.detectedDept || department || '') : (department || '');
-        const finalActionName = useDetected ? (ev.detectedActionName || actionName) : actionName;
+        const finalHolding = map.holding;
+        const finalRoleOperator = map.roleOperator;
+        const finalProjectType = map.projectType;
+        const [finalProjectName] = map.projectKey.split('|');
+        const finalModule = map.module || null;
+        const finalBu = map.bu || '';
+        const finalDept = map.department || '';
+        const finalActionName = map.actionName;
 
         const finalDescription = (useDetected && ev.detectedDescription !== undefined)
           ? ev.detectedDescription
@@ -895,17 +1098,16 @@ export default function RecoverGCalModal({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h3 className="text-xs font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5">
                 <Layers size={14} />
-                <span>1. กำหนด Project ปลายทางสำหรับรายการที่ไม่มี Pattern กำกับ</span>
+                <span>1. ตัวช่วยกรอกเร็ว (ไม่บังคับ) — แต่ละแถวเลือกค่าของตัวเองได้ในตารางด้านล่าง</span>
               </h3>
-              <label className="inline-flex items-center gap-2 cursor-pointer text-xs text-theme-text-secondary hover:text-theme-text select-none">
-                <input
-                  type="checkbox"
-                  checked={forceOverrideAll}
-                  onChange={e => setForceOverrideAll(e.target.checked)}
-                  className="rounded border-slate-500 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span className="font-semibold">บังคับใช้ Project นี้กับทุกรายการที่เลือก</span>
-              </label>
+              <button
+                type="button"
+                onClick={applyTemplateToSelected}
+                disabled={isLoadingMaster || selectedEventIds.length === 0}
+                className="px-3 py-1.5 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+              >
+                ใช้ค่านี้กับแถวที่เลือก
+              </button>
             </div>
 
             <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
@@ -1032,7 +1234,7 @@ export default function RecoverGCalModal({
                   2. รายการนัดหมายที่ตรวจพบบนปฏิทิน ({selectedEventIds.length} จาก {events.length} รายการที่เลือก)
                 </h3>
                 <p className="text-[11px] text-theme-text-secondary mt-0.5">
-                  ระบบคัดกรองขยะ HTML / ข้อความ Teams ลิงก์ยาวๆ ออกให้อัตโนมัติ
+                  แต่ละแถวเลือก Type / Project / Module / Action ของตัวเองได้ (แถวที่ระบบตรวจพบ Pattern จะเติมให้อัตโนมัติ)
                 </p>
               </div>
 
@@ -1125,7 +1327,7 @@ export default function RecoverGCalModal({
             </div>
 
             {/* Table Container */}
-            <div className="border border-theme-border rounded-2xl overflow-hidden max-h-[320px] overflow-y-auto custom-scrollbar bg-theme-surface-secondary/40 shadow-inner">
+            <div className="border border-theme-border rounded-2xl overflow-hidden max-h-[520px] overflow-y-auto custom-scrollbar bg-theme-surface-secondary/40 shadow-inner">
               {isLoadingEvents ? (
                 <div className="p-12 text-center flex flex-col items-center justify-center gap-2.5 text-theme-text-secondary">
                   <RefreshCw size={24} className="animate-spin text-emerald-500" />
@@ -1158,7 +1360,6 @@ export default function RecoverGCalModal({
                       <th className="py-2.5 px-3 w-28">วันที่ / Date</th>
                       <th className="py-2.5 px-3 w-28">เวลา / Time</th>
                       <th className="py-2.5 px-3">นัดหมายใน GCal</th>
-                      <th className="py-2.5 px-3 w-48">Project ปลายทาง</th>
                       <th className="py-2.5 px-3 w-28 text-center">สถานะ</th>
                       <th className="py-2.5 px-3 w-16 text-center">ชม.</th>
                     </tr>
@@ -1166,18 +1367,24 @@ export default function RecoverGCalModal({
                   <tbody className="divide-y divide-theme-border/50">
                     {filteredEvents.map(ev => {
                       const isChecked = selectedEventIds.includes(ev.id);
-                      const [defaultProjName] = (selectedProjectKey || '').split('|');
-                      const willUseDetected = ev.hasPattern && !forceOverrideAll;
-                      const targetProjDisplay = willUseDetected
-                        ? `${ev.detectedProjectName || 'Work Log'}`
-                        : (defaultProjName || 'ยังไม่ระบุ');
-                      const targetActionDisplay = willUseDetected
-                        ? `${ev.detectedActionName || 'General'}`
-                        : (actionName || 'ยังไม่ระบุ');
+                      const rowMap = getMapping(ev.id);
+                      const rowMissing = ev.alreadyInDB ? [] : missingFields(rowMap, allowedProjects);
+                      const rowModules = moduleOptions(allowedProjects, rowMap.projectKey, rowMap.projectType);
+                      const rowBuDept = buDeptOptions(allowedProjects, rowMap.projectKey, rowMap.projectType, rowMap.module);
+                      const rowFields: { field: keyof RowMapping; label: string; options: { label: string; value: string }[]; hidden?: boolean; disabled?: boolean }[] = [
+                        { field: 'holding', label: 'Holding', options: availableHoldings.map(v => ({ label: v, value: v })) },
+                        { field: 'roleOperator', label: 'Role Operator', options: roleOptions(mapUserRole, rowMap.holding).map(v => ({ label: v, value: v })) },
+                        { field: 'projectType', label: 'Project Type', options: typeOptions(allowedProjects, rowMap.holding, rowMap.roleOperator).map(v => ({ label: v, value: v })) },
+                        { field: 'projectKey', label: 'Project Name', options: projectOptions(allowedProjects, rowMap.holding, rowMap.roleOperator, rowMap.projectType) },
+                        { field: 'module', label: 'Module / Phase', options: rowModules.map(v => ({ label: v, value: v })), hidden: !rowMap.projectKey || rowModules.length === 0 },
+                        { field: 'actionName', label: 'Action', options: actionOptions(masterActions, rowMap.projectType).map(v => ({ label: v, value: v })) },
+                        { field: 'bu', label: 'BU', options: rowBuDept.bus.map(v => ({ label: v, value: v })), hidden: rowBuDept.bus.length <= 1 },
+                        { field: 'department', label: 'Department', options: rowBuDept.depts.map(v => ({ label: v, value: v })), hidden: rowBuDept.depts.length <= 1 }
+                      ];
 
                       return (
+                        <Fragment key={ev.id}>
                         <tr
-                          key={ev.id}
                           className={cn(
                             "hover:bg-indigo-500/5 transition-all cursor-pointer",
                             isChecked ? "bg-indigo-500/10 dark:bg-indigo-500/10" : "",
@@ -1212,27 +1419,6 @@ export default function RecoverGCalModal({
                               </span>
                             )}
                           </td>
-                          <td className="py-2.5 px-3 max-w-[190px]">
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-1.5 truncate">
-                                {willUseDetected ? (
-                                  <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-emerald-500/10 text-emerald-500 shrink-0">
-                                    ✨ ตรวจพบ
-                                  </span>
-                                ) : (
-                                  <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-indigo-500/10 text-indigo-400 shrink-0">
-                                    🎯 ค่าที่เลือก
-                                  </span>
-                                )}
-                                <span className="font-bold text-theme-text truncate text-[11px]" title={targetProjDisplay}>
-                                  {targetProjDisplay}
-                                </span>
-                              </div>
-                              <span className="text-[10px] text-theme-text-secondary truncate block pl-0.5" title={targetActionDisplay}>
-                                ⚡ {targetActionDisplay}
-                              </span>
-                            </div>
-                          </td>
                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
                             {ev.alreadyInDB ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
@@ -1250,6 +1436,50 @@ export default function RecoverGCalModal({
                             {ev.duration}
                           </td>
                         </tr>
+                        {!ev.alreadyInDB && (
+                          <tr
+                            className={cn(
+                              "border-b border-theme-border/50",
+                              isChecked ? "bg-indigo-500/10" : "bg-theme-surface-secondary/30"
+                            )}
+                          >
+                            <td />
+                            <td colSpan={5} className="px-3 pb-3 pt-0">
+                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                                {rowFields.filter(f => !f.hidden).map(f => {
+                                  const value = rowMap[f.field];
+                                  const hasValue = f.options.some(o => o.value === value);
+                                  const empty = !value;
+                                  return (
+                                    <div key={f.field}>
+                                      <label className="block text-[9px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">
+                                        {f.label}
+                                      </label>
+                                      <select
+                                        value={hasValue ? value : ''}
+                                        onChange={e => setRowField(ev.id, f.field, e.target.value)}
+                                        disabled={isLoadingMaster || f.options.length === 0}
+                                        className={cn(
+                                          "w-full px-2 py-1 text-[11px] rounded-lg border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500 disabled:opacity-40",
+                                          empty ? "border-rose-500/60" : "border-theme-border"
+                                        )}
+                                      >
+                                        <option value="">— เลือก —</option>
+                                        {f.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                      </select>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              {rowMissing.length > 0 && (
+                                <p className="mt-1 text-[10px] font-semibold text-rose-500">
+                                  ยังไม่ครบ: {rowMissing.join(', ')}
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
                       );
                     })}
                   </tbody>
