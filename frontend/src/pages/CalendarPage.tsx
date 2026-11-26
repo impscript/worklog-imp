@@ -1221,16 +1221,18 @@ export default function CalendarPage() {
     return () => { cancelled = true; };
   }, [selectedUserId, selectedWorkspaceId, refreshTrigger]);
 
-  // Open Log Work for a reminder so the user can add Type / Project / Action on the day.
+  // Open the worklog form for a reminder, in the workspace being viewed (not necessarily the active one),
+  // so the user can add Type / Project / Action on the day.
   const handleLogReminder = (task: CalendarReminderTask, dateStr: string) => {
-    const prefillDescription = task.description ? `${task.title}\n${task.description}` : task.title;
-    navigate('/log', {
-      state: {
-        prefillDescription,
-        prefillDate: dateStr,
-        prefillStartTime: task.start_time ? task.start_time.slice(0, 5) : undefined,
-        prefillEndTime: task.end_time ? task.end_time.slice(0, 5) : undefined,
-      },
+    const description = task.description ? `${task.title}
+${task.description}` : task.title;
+    const toTime = (value: string | null) => (value ? (value.length === 5 ? `${value}:00` : value.slice(0, 8)) : undefined);
+    handleCreateNewLog(dateStr, {
+      description,
+      startTime: toTime(task.start_time),
+      endTime: task.start_time
+        ? (toTime(task.end_time) ?? `${String(Math.min(23, Number(task.start_time.slice(0, 2)) + 1)).padStart(2, '0')}:${task.start_time.slice(3, 5)}:00`)
+        : undefined,
     });
   };
 
@@ -1637,7 +1639,10 @@ export default function CalendarPage() {
     setSelectedDateStr(dStr);
   };
 
-  const handleCreateNewLog = async (workDate: string) => {
+  const handleCreateNewLog = async (
+    workDate: string,
+    prefill?: { description?: string; startTime?: string; endTime?: string }
+  ) => {
     if (!sessionUser) return;
 
     const workspaceId = selectedWorkspaceId || sessionUser.activeWorkspaceId;
@@ -1681,12 +1686,12 @@ export default function CalendarPage() {
       project_name: '',
       action_name: '',
       total_hours: 0,
-      description: '',
+      description: prefill?.description ?? '',
       is_ot: false,
       is_implied_ot: false,
       bu: '',
-      start_time: defaultTimeRange.startTime,
-      end_time: defaultTimeRange.endTime
+      start_time: prefill?.startTime ?? defaultTimeRange.startTime,
+      end_time: prefill?.endTime ?? defaultTimeRange.endTime
     });
   };
 
