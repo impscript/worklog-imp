@@ -10,6 +10,7 @@ import ImportICSModal from '../components/modals/ImportICSModal';
 import { ConfirmDialogModal } from '../components/modals/ConfirmDialogModal';
 import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
 import { compressImage } from '../lib/image-compressor';
+import { resolveTypeColor, useProjectTypeColors } from '../lib/project-type-colors';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -317,6 +318,7 @@ export default function LogWorkPage() {
   const location = useLocation();
   const { t } = useTranslation();
   const [session] = useState(() => JSON.parse(localStorage.getItem('worklog_session') || '{}'));
+  const projectTypeColors = useProjectTypeColors(session.activeWorkspaceId);
 
   useEffect(() => {
     const sessionStr = localStorage.getItem('worklog_session');
@@ -2049,13 +2051,14 @@ export default function LogWorkPage() {
 
             {/* Row 2: Project Type & Project Name */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <DropdownField 
-                label="Project Type" 
-                value={projectType} 
-                onChange={handleSelectProjectType} 
+              <ColorDotDropdown
+                label="Project Type"
+                value={projectType}
+                onChange={handleSelectProjectType}
                 options={availableProjectTypes}
                 disabled={!selectedRoleOperator}
                 placeholder="Select Type"
+                colorFor={(typeName) => resolveTypeColor(projectTypeColors, typeName)}
               />
               <SearchableCombobox
                 label="Project Name"
@@ -2840,6 +2843,87 @@ function DropdownField({ label, value, onChange, options, disabled, placeholder 
       </div>
     </div>
   )
+}
+
+// ─── Dropdown with a colour dot before each option ─────────────────────────
+// Native <select> options cannot hold a coloured marker, so Project Type uses this lightweight listbox.
+function ColorDotDropdown({
+  label,
+  value,
+  onChange,
+  options,
+  disabled,
+  placeholder,
+  colorFor,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  disabled?: boolean;
+  placeholder?: string;
+  colorFor: (option: string) => string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setIsOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} onKeyDown={(e) => { if (e.key === 'Escape') setIsOpen(false); }}>
+      <label className={cn("block text-sm font-medium mb-1.5 transition-colors", disabled ? "text-slate-500" : "text-theme-text-secondary")}>
+        {label}
+      </label>
+      <div className="relative">
+        <button
+          type="button"
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen((o) => !o)}
+          className={cn(
+            "w-full flex items-center gap-2.5 text-left border rounded-lg py-2.5 pl-4 pr-10 focus:outline-none focus:ring-2 transition-all",
+            disabled
+              ? "bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border-theme-border dark:border-theme-border/50 text-slate-500 cursor-not-allowed"
+              : "bg-theme-surface-secondary dark:bg-theme-surface-secondary border-theme-border-strong dark:border-theme-border-strong text-theme-text focus:ring-indigo-500 focus:border-transparent cursor-pointer hover:border-slate-500"
+          )}
+        >
+          {value && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorFor(value) }} />}
+          <span className={cn("truncate", !value && "text-theme-text-secondary")}>{value || placeholder}</span>
+        </button>
+        <ChevronDown size={16} className={cn("absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none", disabled ? "text-slate-600" : "text-theme-text-secondary")} />
+        {isOpen && !disabled && (
+          <ul
+            role="listbox"
+            className="absolute z-30 mt-1 w-full max-h-64 overflow-y-auto rounded-lg border border-theme-border-strong bg-theme-surface-secondary shadow-xl py-1"
+          >
+            {options.map((opt) => (
+              <li key={opt} role="option" aria-selected={opt === value}>
+                <button
+                  type="button"
+                  onClick={() => { onChange(opt); setIsOpen(false); }}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-4 py-2 text-left text-sm text-theme-text hover:bg-theme-surface-tertiary transition-colors",
+                    opt === value && "bg-indigo-500/10"
+                  )}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorFor(opt) }} />
+                  <span className="truncate">{opt}</span>
+                  {opt === value && <Check size={14} className="ml-auto text-indigo-400 shrink-0" />}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ─── Searchable Combobox ──────────────────────────────────────────────────

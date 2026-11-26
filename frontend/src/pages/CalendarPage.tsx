@@ -8,6 +8,7 @@ import EditWorklogModal from '../components/modals/EditWorklogModal';
 import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import RecoverGCalModal from '../components/modals/RecoverGCalModal';
 import { googleCalendar, syncWorklogToGCal } from '../lib/google-calendar';
+import { resolveTypeColor, typeBadgeStyle, useProjectTypeColors } from '../lib/project-type-colors';
 import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
@@ -77,6 +78,7 @@ export default function CalendarPage() {
   const [isRecoverModalOpen, setIsRecoverModalOpen] = useState(false);
   const [sessionUser, setSessionUser] = useState<any>(null);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
+  const projectTypeColors = useProjectTypeColors(selectedWorkspaceId || sessionUser?.activeWorkspaceId);
   const [workspacesList, setWorkspacesList] = useState<{ id: string; workspace_name: string; invite_code: string }[]>([]);
   const { grants } = useWorkspaceGrants();
   const [usersList, setUsersList] = useState<{id: string; full_name: string; emp_id: string}[]>([]);
@@ -1964,7 +1966,8 @@ export default function CalendarPage() {
                   const dStr = formatDateToYMD(cell.date);
                   const dayEntries = entries.filter((e) => e.work_date === dStr);
                   const hoursSum = dayEntries.reduce((sum, e) => sum + e.total_hours, 0);
-                  
+                  const dayTypes = Array.from(new Set(dayEntries.map((e) => e.project_type).filter((t): t is string => !!t)));
+
                   const isSelected = selectedDateStr === dStr;
                   const isToday = formatDateToYMD(new Date()) === dStr;
                   const hasHours = hoursSum > 0;
@@ -2027,6 +2030,21 @@ export default function CalendarPage() {
                           <span className="hidden sm:block text-[8px] font-semibold text-rose-300 truncate w-full select-none" title={holiday.name}>
                             {holiday.name}
                           </span>
+                        )}
+                        {cell.isCurrentMonth && dayTypes.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-0.5 sm:gap-1" aria-label="Project types worked">
+                            {dayTypes.slice(0, 5).map((typeName) => (
+                              <span
+                                key={typeName}
+                                title={typeName}
+                                className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: resolveTypeColor(projectTypeColors, typeName) }}
+                              />
+                            ))}
+                            {dayTypes.length > 5 && (
+                              <span className="text-[8px] leading-none font-bold text-theme-text-secondary">+{dayTypes.length - 5}</span>
+                            )}
+                          </div>
                         )}
                         {cell.isCurrentMonth && hasHours && (
                           <span className={cn(
@@ -2091,9 +2109,12 @@ export default function CalendarPage() {
                 </div>
               ) : (
                 <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-                  {selectedDateEntries.map((e) => (
-                    <div 
+                  {selectedDateEntries.map((e) => {
+                    const typeColor = resolveTypeColor(projectTypeColors, e.project_type);
+                    return (
+                    <div
                       key={e.id}
+                      style={{ borderLeftWidth: 4, borderLeftColor: typeColor }}
                       className={cn(
                         "p-4 bg-theme-surface-secondary dark:bg-theme-surface-secondary/50 border rounded-xl flex flex-col justify-between hover:border-theme-border/50 transition-all",
                         e.is_ot || e.is_implied_ot ? "border-amber-500/20 shadow-sm shadow-amber-500/5" : "border-theme-border/30"
@@ -2102,12 +2123,10 @@ export default function CalendarPage() {
                       <div>
                         <div className="flex justify-between items-start gap-2 mb-2">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className={cn(
-                              "text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider",
-                              e.is_ot || e.is_implied_ot 
-                                ? "text-amber-400 bg-amber-500/10 border border-amber-500/20" 
-                                : "text-indigo-400 bg-indigo-500/10 border border-indigo-500/20"
-                            )}>
+                            <span
+                              className="text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider border"
+                              style={typeBadgeStyle(typeColor)}
+                            >
                               {e.project_name}
                             </span>
                             {(e.is_ot || e.is_implied_ot) && (
@@ -2122,6 +2141,12 @@ export default function CalendarPage() {
                           </span>
                         </div>
                         <h4 className="text-sm font-semibold text-theme-text">{e.action_name}</h4>
+                        {e.project_type && (
+                          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-theme-text-secondary">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: typeColor }} />
+                            <span>{e.project_type}</span>
+                          </div>
+                        )}
                         {e.description && (
                           <p className="text-xs text-theme-text-secondary mt-2 bg-theme-surface-secondary/80 p-2.5 rounded-lg border border-theme-border italic leading-relaxed">
                             "{e.description}"
@@ -2150,8 +2175,9 @@ export default function CalendarPage() {
                         )}
                       </div>
                     </div>
-                  ))}
-                  
+                    );
+                  })}
+
                   {canCreateWorklog && (
                     <button
                       onClick={() => selectedDateStr && handleCreateNewLog(selectedDateStr)}

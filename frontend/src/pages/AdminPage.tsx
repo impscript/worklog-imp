@@ -5,7 +5,7 @@ import { useLocation } from 'react-router-dom';
 import { supabase, ensureValidSupabaseSession } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { getProjectTypeMeta } from '../lib/project-management';
-import { PROJECT_TYPE_COLOR_PRESETS, normalizeHex, typeBadgeStyle } from '../lib/project-type-colors';
+import { GOOGLE_CALENDAR_COLORS, googleColorMatch, normalizeHex, typeBadgeStyle } from '../lib/project-type-colors';
 import { MultiSelectFilter } from '../components/common/MultiSelectFilter';
 import { ADMIN_TABS, getDefaultAdminTab, type AdminTab } from '../lib/admin-tabs';
 import { useNotification } from '../context/NotificationContext';
@@ -2503,29 +2503,25 @@ export default function AdminPage() {
 
                   <label className="block text-sm font-medium text-theme-text-secondary mt-5 mb-2">Color (สี) — applies to this workspace only</label>
                   <div className="flex flex-wrap gap-2">
-                    {PROJECT_TYPE_COLOR_PRESETS.map((hex) => (
+                    {GOOGLE_CALENDAR_COLORS.map((c) => (
                       <button
-                        key={hex}
+                        key={c.hex}
                         type="button"
-                        onClick={() => setFormTypeColor(hex)}
-                        title={hex}
+                        onClick={() => setFormTypeColor(c.hex)}
+                        title={`${c.name} (${c.hex})`}
+                        aria-label={c.name}
                         className={cn(
                           'w-7 h-7 rounded-full border-2 transition-transform hover:scale-110',
-                          normalizeHex(formTypeColor) === hex ? 'border-theme-text scale-110' : 'border-transparent'
+                          normalizeHex(formTypeColor) === c.hex ? 'border-theme-text scale-110' : 'border-transparent'
                         )}
-                        style={{ backgroundColor: hex }}
+                        style={{ backgroundColor: c.hex }}
                       />
                     ))}
                   </div>
                   <div className="flex items-center gap-3 mt-3">
-                    <input
-                      type="color"
-                      value={normalizeHex(formTypeColor) || '#6366F1'}
-                      onChange={(e) => setFormTypeColor(e.target.value.toUpperCase())}
-                      className="w-10 h-8 p-0 border border-theme-border rounded cursor-pointer bg-transparent"
-                      aria-label="Custom color"
-                    />
-                    <span className="text-xs font-mono text-theme-text-secondary">{normalizeHex(formTypeColor) || 'Default'}</span>
+                    <span className="text-xs font-mono text-theme-text-secondary">
+                      {googleColorMatch(formTypeColor)?.exact ? `${googleColorMatch(formTypeColor)?.name} ${normalizeHex(formTypeColor)}` : (normalizeHex(formTypeColor) || 'Default')}
+                    </span>
                     <button
                       type="button"
                       onClick={() => setFormTypeColor('')}
@@ -2534,6 +2530,14 @@ export default function AdminPage() {
                       Reset to default
                     </button>
                   </div>
+                  {googleColorMatch(formTypeColor) && (
+                    <p className="mt-2 text-xs text-theme-text-secondary flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: googleColorMatch(formTypeColor)?.hex }} />
+                      {googleColorMatch(formTypeColor)?.exact
+                        ? `Google Calendar: ${googleColorMatch(formTypeColor)?.name} (same colour)`
+                        : `Older custom shade: Google Calendar shows ${googleColorMatch(formTypeColor)?.name}. Pick one of the colours above to match exactly.`}
+                    </p>
+                  )}
                   <div className="mt-3 flex items-center gap-2">
                     <span className="text-xs text-theme-text-muted">Preview:</span>
                     <span

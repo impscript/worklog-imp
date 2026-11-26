@@ -2,6 +2,7 @@
 // Uses client-side OAuth 2.0 Implicit Flow + Google Calendar API v3 REST
 
 import { supabase, supabaseUrl, supabaseKey } from './supabase';
+import { fetchProjectTypeColors, lookupTypeColor, nearestGoogleColorId } from './project-type-colors';
 
 const GCAL_API_BASE = 'https://www.googleapis.com/calendar/v3';
 const GCAL_CLIENT_ID = '854811423030-gb2805ivlc8psvhg4lsgdike0q7t01it.apps.googleusercontent.com';
@@ -394,7 +395,7 @@ class GoogleCalendarService {
     return { date, time: t };
   }
 
-  buildEventPayload(entry: any, projectTitle: string, actionName: string, projectDescription?: string) {
+  buildEventPayload(entry: any, projectTitle: string, actionName: string, projectDescription?: string, typeColorHex?: string | null) {
     const isOT = entry.is_ot === true || entry.is_ot === 'true';
     const projectType = entry.project_type || 'Task';
     
@@ -457,7 +458,12 @@ class GoogleCalendarService {
     // '2' = Sage/Green (Support)
     // '6' = Tangerine/Orange (OT)
     // '5' = Banana/Yellow (Fallback for other types)
-    if (isOT) {
+    // A colour the workspace chose for this project type wins (nearest of Google's 11 event colours);
+    // the "[OT / ...]" title prefix still marks overtime. Without one, the legacy mapping below applies.
+    const workspaceColorId = nearestGoogleColorId(typeColorHex);
+    if (workspaceColorId) {
+      event.colorId = workspaceColorId;
+    } else if (isOT) {
       event.colorId = '6'; // Orange
     } else if (projectType.toLowerCase() === 'project' || projectType.toLowerCase() === 'upgrade') {
       event.colorId = '9'; // Blue
@@ -1212,11 +1218,18 @@ export async function syncWorklogToGCal(logId: string, action: 'insert' | 'updat
     }
 
     // 5. Build event payload
+    let typeColorHex: string | null = null;
+    try {
+      typeColorHex = lookupTypeColor(await fetchProjectTypeColors(log.workspace_id), log.project_type);
+    } catch (err) {
+      console.warn('[GCal Sync] Failed to load project type colours:', err);
+    }
     const payload = googleCalendar.buildEventPayload(
       log,
       log.project_name || 'Work Log',
       log.action_name || 'Work Log Entry',
-      projectDescription
+      projectDescription,
+      typeColorHex
     );
 
     let eventId = log.gcal_event_id;
