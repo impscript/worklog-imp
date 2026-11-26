@@ -554,23 +554,20 @@ export default function RecoverGCalModal({
       );
 
       // 2. Fetch existing col_worklog records for this user & month range
-      const activeWs = workspaceId || sessionUser.activeWorkspaceId || sessionUser.active_workspace_id;
-      let dbQuery = supabase
+      // Not filtered by workspace: a worklog already synced from this event must never be offered again,
+      // whichever workspace it was saved into.
+      const { data: existingLogs } = await supabase
         .from('col_worklog')
         .select('id, gcal_event_id, work_date, start_time, end_time, project_name, action_name')
         .eq('user_id', sessionUser.id)
         .gte('work_date', monthStart)
         .lte('work_date', monthEnd);
-
-      if (activeWs && activeWs !== 'N/A') {
-        dbQuery = dbQuery.eq('workspace_id', activeWs);
-      }
-
-      const { data: existingLogs } = await dbQuery;
       const existingGcalIdMap = new Map<string, string>();
+      const existingLogIdSet = new Set<string>();
       const existingDateSigSet = new Set<string>();
 
       (existingLogs || []).forEach(log => {
+        existingLogIdSet.add(log.id);
         if (log.gcal_event_id) {
           existingGcalIdMap.set(log.gcal_event_id, log.id);
         }
@@ -609,10 +606,11 @@ export default function RecoverGCalModal({
           endDate = evt.end?.dateTime ? new Date(evt.end.dateTime) : new Date(startDate.getTime() + 3600000);
         }
 
-        const existsById = existingGcalIdMap.has(evt.id);
-        const existingWorklogId = existingGcalIdMap.get(evt.id);
-
         const parsedWorklog = googleCalendar.parseEventDescriptionToWorklog(evt, sessionUser.id);
+        // Match by GCal event id, or by the worklog id stamped in the event (covers events re-created on GCal).
+        const stampedId: string | undefined = parsedWorklog?.id;
+        const existsById = existingGcalIdMap.has(evt.id) || Boolean(stampedId && existingLogIdSet.has(stampedId));
+        const existingWorklogId = existingGcalIdMap.get(evt.id) ?? (stampedId && existingLogIdSet.has(stampedId) ? stampedId : undefined);
         const hasPattern = Boolean(parsedWorklog);
 
         if (isAllDay) {
@@ -713,7 +711,7 @@ export default function RecoverGCalModal({
 
       const missingIds = parsedList.filter(e => !e.alreadyInDB).map(e => e.id);
       setSelectedEventIds(missingIds);
-      setFilterTab(missingIds.length > 0 ? 'missing' : 'all');
+      setFilterTab('missing');
     } catch (err: unknown) {
       console.error('[RecoverGCalModal] Error fetching events:', err);
       const msg = err instanceof Error ? err.message : String(err);
@@ -721,7 +719,7 @@ export default function RecoverGCalModal({
     } finally {
       setIsLoadingEvents(false);
     }
-  }, [sessionUser, monthStart, monthEnd, workspaceId, showToast]);
+  }, [sessionUser, monthStart, monthEnd, showToast]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -869,13 +867,14 @@ export default function RecoverGCalModal({
   }, [events, filterTab, searchQuery]);
 
   const toggleEventSelect = (id: string) => {
+    if (events.find(e => e.id === id)?.alreadyInDB) return;
     setSelectedEventIds(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
 
   const selectAllFiltered = () => {
-    const ids = filteredEvents.map(e => e.id);
+    const ids = filteredEvents.filter(e => !e.alreadyInDB).map(e => e.id);
     setSelectedEventIds(prev => Array.from(new Set([...prev, ...ids])));
   };
 
@@ -1346,7 +1345,7 @@ export default function RecoverGCalModal({
                       <th className="py-2.5 px-3 w-10 text-center">
                         <input
                           type="checkbox"
-                          checked={filteredEvents.length > 0 && filteredEvents.every(e => selectedEventIds.includes(e.id))}
+                          checked={filteredEvents.some(e => !e.alreadyInDB) && filteredEvents.filter(e => !e.alreadyInDB).every(e => selectedEventIds.includes(e.id))}
                           onChange={e => {
                             if (e.target.checked) {
                               selectAllFiltered();
@@ -1396,6 +1395,7 @@ export default function RecoverGCalModal({
                             <input
                               type="checkbox"
                               checked={isChecked}
+                              disabled={ev.alreadyInDB}
                               onChange={() => toggleEventSelect(ev.id)}
                               className="rounded border-slate-500 text-indigo-600 focus:ring-indigo-500"
                             />
