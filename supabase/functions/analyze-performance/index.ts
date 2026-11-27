@@ -183,11 +183,23 @@ async function callLlmWithFallback(
 
   if (provider === 'openrouter') {
     const fallbacks = [
-      'google/gemini-2.0-flash:free',
-      'meta-llama/llama-3.3-70b-instruct:free',
+      'anthropic/claude-sonnet-4.5',
+      'google/gemini-2.5-pro',
+      'google/gemini-2.5-flash',
       'openai/gpt-4o-mini',
-      'deepseek/deepseek-chat',
-      'meta-llama/llama-3.3-70b-instruct',
+    ];
+    for (const fb of fallbacks) { if (fb !== configuredModel) modelsToTry.push(fb); }
+  } else if (provider === 'gemini') {
+    const fallbacks = [
+      'gemini-2.5-pro',
+      'gemini-2.5-flash',
+    ];
+    for (const fb of fallbacks) { if (fb !== configuredModel) modelsToTry.push(fb); }
+  } else if (provider === 'openai') {
+    const fallbacks = [
+      'gpt-6.1-sol',
+      'gpt-4o',
+      'gpt-4o-mini',
     ];
     for (const fb of fallbacks) { if (fb !== configuredModel) modelsToTry.push(fb); }
   } else if (provider === 'opencode') {
@@ -456,7 +468,8 @@ serve(async (req) => {
     }
 
     const provider = body.provider || configs.ai_provider || 'openrouter';
-    const model = body.model || configs.ai_model || 'google/gemini-2.0-flash:free';
+    const model = body.model || configs.ai_model || 'anthropic/claude-sonnet-4.5';
+    const utilityModel = body.model || (configs.ai_utility_model && configs.ai_utility_model.trim()) || model;
 
     let apiKey = '';
     let endpoint = '';
@@ -522,10 +535,10 @@ ${weightsText}
   ]
 }`;
 
-      console.log(`[PROMPT:recommend_jd] system="${systemPrompt.substring(0, 100)}..." user="${userPrompt.substring(0, 200)}..."`);
+      console.log(`[PROMPT:recommend_jd] model="${utilityModel}" system="${systemPrompt.substring(0, 100)}..." user="${userPrompt.substring(0, 200)}..."`);
 
       const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
-        endpoint, llmHeaders, provider, model, systemPrompt, userPrompt, true
+        endpoint, llmHeaders, provider, utilityModel, systemPrompt, userPrompt, true
       );
 
       const aiResult = await response.json();
@@ -585,10 +598,10 @@ ${cappedPdfText}
   ]
 }`;
 
-      console.log(`[PROMPT:parse_jd_pdf] file="${fileName}" chars=${cappedPdfText.length}`);
+      console.log(`[PROMPT:parse_jd_pdf] model="${utilityModel}" file="${fileName}" chars=${cappedPdfText.length}`);
 
       const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
-        endpoint, llmHeaders, provider, model, systemPrompt, userPrompt, true
+        endpoint, llmHeaders, provider, utilityModel, systemPrompt, userPrompt, true
       );
 
       const aiResult = await response.json();
@@ -727,7 +740,7 @@ You MUST respond ONLY with a raw JSON object matching this schema (do NOT wrap i
         .replace('{description}', description || '(Empty)');
 
       const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
-        endpoint, llmHeaders, provider, model, systemPrompt, userPrompt, false
+        endpoint, llmHeaders, provider, utilityModel, systemPrompt, userPrompt, false
       );
 
       const aiResult = await response.json();

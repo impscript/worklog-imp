@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   X, 
@@ -20,7 +20,12 @@ import {
 } from 'lucide-react';
 import ModalPortal from './ModalPortal';
 import InlineJdEditor, { type SavedJdRecord } from './InlineJdEditor';
-import { AI_MODEL_PRESETS, DEFAULT_HR_STANDARD_MODEL } from '../../lib/ai-model-presets';
+import {
+  AI_MODEL_PRESETS,
+  DEFAULT_HR_STANDARD_MODEL,
+  fetchLiveOpenRouterModels,
+  type AiModelPresetOption,
+} from '../../lib/ai-model-presets';
 
 export interface AvailableProviderItem {
   id: string;
@@ -100,16 +105,30 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
   const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
   const [isCustomModelInput, setIsCustomModelInput] = useState<boolean>(false);
   const [isEngineOverrideOpen, setIsEngineOverrideOpen] = useState<boolean>(false);
+  const [liveOpenRouterModels, setLiveOpenRouterModels] = useState<AiModelPresetOption[]>([]);
   const [isJdExpanded, setIsJdExpanded] = useState<boolean>(true);
   const [isEditingJd, setIsEditingJd] = useState<boolean>(() => Boolean(!candidateJd?.jd_text && canEditJd));
   const [isJdDirty, setIsJdDirty] = useState<boolean>(false);
   const [supervisorNotes, setSupervisorNotes] = useState<string>('');
 
+  useEffect(() => {
+    if (!canOverrideAiEngine || !isEngineOverrideOpen || selectedProvider !== 'openrouter') return;
+    let active = true;
+    fetchLiveOpenRouterModels(false).then((list) => {
+      if (active) setLiveOpenRouterModels(list);
+    });
+    return () => {
+      active = false;
+    };
+  }, [canOverrideAiEngine, isEngineOverrideOpen, selectedProvider]);
+
   const isEngineOverridden = selectedProvider !== defaultProvider || selectedModel !== defaultModel;
   const activeProviderLabel =
     availableProviders.find((p) => p.id === selectedProvider)?.label || selectedProvider;
   const activeModelPresetLabel =
-    (presetModels[selectedProvider] || []).find((m) => m.id === selectedModel)?.label || selectedModel;
+    [...(presetModels[selectedProvider] || []), ...(selectedProvider === 'openrouter' ? liveOpenRouterModels : [])].find(
+      (m) => m.id === selectedModel
+    )?.label || selectedModel;
 
   // When provider changes, select the first preset model for that provider if current model doesn't match
   const handleProviderChange = (newProvider: string) => {
@@ -542,12 +561,25 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
                         disabled={isLoading}
                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30"
                       >
-                        {currentPresets.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.label}
-                          </option>
-                        ))}
-                        {!currentPresets.some((m) => m.id === selectedModel) && (
+                        <optgroup label="★ แนะนำสำหรับองค์กร (Curated)">
+                          {currentPresets.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                        {selectedProvider === 'openrouter' && liveOpenRouterModels.length > 0 && (
+                          <optgroup label="🌐 รุ่นทั้งหมดจาก OpenRouter (Live)">
+                            {liveOpenRouterModels.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {![...currentPresets, ...(selectedProvider === 'openrouter' ? liveOpenRouterModels : [])].some(
+                          (m) => m.id === selectedModel
+                        ) && (
                           <option value={selectedModel}>
                             {selectedModel} (กำหนดเอง)
                           </option>

@@ -8,7 +8,12 @@ import { getProjectTypeMeta } from '../lib/project-management';
 import { GOOGLE_CALENDAR_COLORS, googleColorMatch, normalizeHex, snapToGoogleColor, typeBadgeStyle } from '../lib/project-type-colors';
 import { MultiSelectFilter } from '../components/common/MultiSelectFilter';
 import { ADMIN_TABS, getDefaultAdminTab, type AdminTab } from '../lib/admin-tabs';
-import { AI_MODEL_PRESETS } from '../lib/ai-model-presets';
+import {
+  AI_MODEL_PRESETS,
+  DEFAULT_UTILITY_MODEL,
+  fetchLiveOpenRouterModels,
+  type AiModelPresetOption,
+} from '../lib/ai-model-presets';
 import { useNotification } from '../context/NotificationContext';
 
 type TableTab = AdminTab;
@@ -3592,6 +3597,7 @@ function AISettingsManager({ workspaceId, isSuperAdmin }: { workspaceId?: string
   const [configs, setConfigs] = useState<{ [key: string]: string }>({
     ai_provider: 'opencode',
     ai_model: 'big-pickle',
+    ai_utility_model: '',
     openai_api_key: '',
     gemini_api_key: '',
     openrouter_api_key: '',
@@ -3599,6 +3605,40 @@ function AISettingsManager({ workspaceId, isSuperAdmin }: { workspaceId?: string
     cloudflare_account_id: '',
     cloudflare_api_token: '',
   });
+  const [liveOpenRouterModels, setLiveOpenRouterModels] = useState<AiModelPresetOption[]>([]);
+  const [loadingLiveModels, setLoadingLiveModels] = useState(false);
+
+  useEffect(() => {
+    if (configs.ai_provider !== 'openrouter') return;
+    let active = true;
+    setLoadingLiveModels(true);
+    fetchLiveOpenRouterModels(false)
+      .then((list) => {
+        if (active) setLiveOpenRouterModels(list);
+      })
+      .finally(() => {
+        if (active) setLoadingLiveModels(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [configs.ai_provider]);
+
+  const handleRefreshLiveModels = async () => {
+    setLoadingLiveModels(true);
+    try {
+      const list = await fetchLiveOpenRouterModels(true);
+      setLiveOpenRouterModels(list);
+      showToast(
+        list.length > 0
+          ? `อัปเดตรายชื่อโมเดลล่าสุดจาก OpenRouter แล้ว (+${list.length} รุ่น)`
+          : 'ไม่สามารถดึงรายชื่อรุ่นสดได้ กำลังใช้รายการ Curated แทน',
+        list.length > 0 ? 'success' : 'warning'
+      );
+    } finally {
+      setLoadingLiveModels(false);
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -3959,57 +3999,128 @@ function AISettingsManager({ workspaceId, isSuperAdmin }: { workspaceId?: string
               </div>
             </div>
 
-            {/* Active LLM Model ID */}
+            {/* Active LLM Model ID (HR Standard) */}
             <div>
-              <label className="block text-xs font-semibold text-theme-text-secondary mb-2">Active LLM Model ID</label>
-              <div className="flex gap-2 relative">
-                <select
-                  value={
-                    (PROVIDER_PRESET_MODELS[configs.ai_provider] || []).some(m => m.id === configs.ai_model)
-                      ? configs.ai_model
-                      : 'custom'
-                  }
-                  onChange={(e) => {
-                    if (e.target.value !== 'custom') {
-                      setConfigs(prev => ({ ...prev, ai_model: e.target.value }));
-                    } else {
-                      setConfigs(prev => ({ ...prev, ai_model: '' }));
-                    }
-                  }}
-                  className="bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all flex-1 min-w-[150px]"
-                >
-                  {(PROVIDER_PRESET_MODELS[configs.ai_provider] || []).map(m => (
-                    <option key={m.id} value={m.id}>{m.label}</option>
-                  ))}
-                  <option value="custom">กำหนดเอง (Custom)</option>
-                </select>
-
-                {(!PROVIDER_PRESET_MODELS[configs.ai_provider]?.some(m => m.id === configs.ai_model) || configs.ai_model === '') && (
-                  <div className="absolute inset-0 z-10 flex">
-                    <input
-                      type="text"
-                      value={configs.ai_model}
-                      onChange={(e) => setConfigs(prev => ({ ...prev, ai_model: e.target.value }))}
-                      placeholder="Enter custom model ID"
-                      className="flex-1 bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 pr-10 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
-                      autoFocus
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const firstPreset = PROVIDER_PRESET_MODELS[configs.ai_provider]?.[0]?.id || 'gpt-4o-mini';
-                        setConfigs(prev => ({ ...prev, ai_model: firstPreset }));
-                      }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-indigo-400 transition-colors bg-theme-surface-secondary dark:bg-theme-surface-secondary rounded-md"
-                      title="กลับไปเลือกจากรายการ (Back to presets)"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <label className="block text-xs font-semibold text-theme-text-secondary">
+                  Active LLM Model ID (HR Standard)
+                </label>
+                {configs.ai_provider === 'openrouter' && (
+                  <button
+                    type="button"
+                    onClick={handleRefreshLiveModels}
+                    disabled={loadingLiveModels}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-500 hover:text-indigo-400 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw size={11} className={loadingLiveModels ? 'animate-spin' : ''} />
+                    <span>{loadingLiveModels ? 'กำลังดึงรุ่นสด...' : `รีเฟรชรุ่นล่าสุด (${liveOpenRouterModels.length})`}</span>
+                  </button>
                 )}
               </div>
+              {(() => {
+                const curatedList = PROVIDER_PRESET_MODELS[configs.ai_provider] || [];
+                const liveList = configs.ai_provider === 'openrouter' ? liveOpenRouterModels : [];
+                const allKnownModels = [...curatedList, ...liveList];
+                const isKnownModel = allKnownModels.some(m => m.id === configs.ai_model);
+                return (
+                  <div className="flex gap-2 relative">
+                    <select
+                      value={isKnownModel ? configs.ai_model : 'custom'}
+                      onChange={(e) => {
+                        if (e.target.value !== 'custom') {
+                          setConfigs(prev => ({ ...prev, ai_model: e.target.value }));
+                        } else {
+                          setConfigs(prev => ({ ...prev, ai_model: '' }));
+                        }
+                      }}
+                      className="bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all flex-1 min-w-[150px]"
+                    >
+                      <optgroup label="★ แนะนำสำหรับองค์กร (Curated)">
+                        {curatedList.map(m => (
+                          <option key={m.id} value={m.id}>{m.label}</option>
+                        ))}
+                      </optgroup>
+                      {liveList.length > 0 && (
+                        <optgroup label="🌐 รุ่นทั้งหมดจาก OpenRouter (Live)">
+                          {liveList.map(m => (
+                            <option key={m.id} value={m.id}>{m.label}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <option value="custom">กำหนดเอง (Custom)</option>
+                    </select>
+
+                    {(!isKnownModel || configs.ai_model === '') && (
+                      <div className="absolute inset-0 z-10 flex">
+                        <input
+                          type="text"
+                          value={configs.ai_model}
+                          onChange={(e) => setConfigs(prev => ({ ...prev, ai_model: e.target.value }))}
+                          placeholder="Enter custom model ID"
+                          className="flex-1 bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 pr-10 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
+                          autoFocus
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const firstPreset = curatedList[0]?.id || 'anthropic/claude-sonnet-4.5';
+                            setConfigs(prev => ({ ...prev, ai_model: firstPreset }));
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-theme-text-secondary hover:text-indigo-400 transition-colors bg-theme-surface-secondary dark:bg-theme-surface-secondary rounded-md"
+                          title="กลับไปเลือกจากรายการ (Back to presets)"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
+          </div>
+
+          {/* Tier 2: Optional Fast Utility Model (JD Draft / PDF Parse / Worklog Enhance) */}
+          <div className="p-4 rounded-xl bg-theme-surface-secondary/50 border border-theme-border/80 space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <label className="text-xs font-semibold text-theme-text flex items-center gap-1.5">
+                <Cpu size={14} className="text-indigo-400" />
+                <span>Fast Utility Model (ทางเลือก · สำหรับร่าง JD / แกะ PDF / ปรับข้อความ)</span>
+              </label>
+              <span className="text-[11px] text-theme-text-secondary">
+                ช่วยลดต้นทุนงานย่อยโดยไม่ลดคุณภาพรายงานประเมินหลัก
+              </span>
+            </div>
+            <select
+              value={configs.ai_utility_model || ''}
+              onChange={(e) => setConfigs(prev => ({ ...prev, ai_utility_model: e.target.value }))}
+              className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-xl py-2.5 px-3.5 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all"
+            >
+              <option value="">ใช้รุ่นเดียวกับ Model หลักด้านบน (Default)</option>
+              <optgroup label="★ แนะนำสำหรับงานเร็ว & ประหยัด">
+                {(PROVIDER_PRESET_MODELS[configs.ai_provider] || []).map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </optgroup>
+              {configs.ai_provider === 'openrouter' && liveOpenRouterModels.length > 0 && (
+                <optgroup label="🌐 รุ่นทั้งหมดจาก OpenRouter (Live)">
+                  {liveOpenRouterModels.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </optgroup>
+              )}
+              {configs.ai_utility_model &&
+                ![...(PROVIDER_PRESET_MODELS[configs.ai_provider] || []), ...(configs.ai_provider === 'openrouter' ? liveOpenRouterModels : [])].some(
+                  m => m.id === configs.ai_utility_model
+                ) && (
+                  <option value={configs.ai_utility_model}>{configs.ai_utility_model} (กำหนดเอง)</option>
+                )}
+            </select>
+            {configs.ai_provider === 'openrouter' && !configs.ai_utility_model && (
+              <p className="text-[11px] text-theme-text-secondary">
+                💡 แนะนำเลือก <span className="font-mono text-indigo-400">{DEFAULT_UTILITY_MODEL}</span> สำหรับงานร่าง JD และแกะ PDF เพื่อความเร็วและประหยัดค่า API
+              </p>
+            )}
           </div>
 
           {/* Secret Keys Inputs Panel */}

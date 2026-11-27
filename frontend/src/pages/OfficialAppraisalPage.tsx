@@ -1234,6 +1234,8 @@ export default function OfficialAppraisalPage() {
         improvements?: string[];
         markdown_executive_summary?: string;
         dimension_scores?: unknown;
+        actualModel?: string;
+        fallbackOccurred?: boolean;
       } | null = null;
 
       try {
@@ -1251,6 +1253,13 @@ export default function OfficialAppraisalPage() {
         });
         if (!aiErr && aiData) {
           aiResponse = aiData;
+          if (aiData.fallbackOccurred && aiData.actualModel) {
+            showToast(
+              `โมเดลหลักไม่ตอบสนอง ระบบสลับไปใช้ ${formatModelDisplayName(aiData.actualModel)} แทนโดยอัตโนมัติ (แนะนำตรวจสอบที่ Admin → AI Settings)`,
+              'warning',
+              7000
+            );
+          }
         }
       } catch (err) {
         console.warn('Edge function invoke warning:', err);
@@ -1924,7 +1933,7 @@ export default function OfficialAppraisalPage() {
         },
         supervisor_notes: supervisorNotes,
         ai_provider: chosenProvider,
-        ai_model: formatModelDisplayName(chosenModel),
+        ai_model: formatModelDisplayName(aiResponse?.actualModel || chosenModel),
         worklog_stats: {
           total_logs: totalEntries,
           logged_days: uniqueLoggedDays,
