@@ -52,10 +52,12 @@ export interface MemberProjectAggregate {
 }
 
 export interface MemberDossierStats {
+  year: number;
   totalHours: number;
   totalDays: number;
   totalTasks: number;
   projects: string[];
+  supportProjectsCount: number;
   projectSummaries: MemberProjectAggregate[];
   recentLogs: Array<{
     id: string;

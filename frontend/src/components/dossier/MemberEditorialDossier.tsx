@@ -318,18 +318,18 @@ export const MemberEditorialDossier: React.FC<MemberEditorialDossierProps> = ({
                   />
                 </div>
 
-                {/* Floating Badge 1 (Top-Left): AI Appraisal Score */}
-                <div className="absolute -top-4 -left-3 sm:-left-6 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl px-3.5 py-2.5 shadow-lg flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                    <Award size={18} />
+                {/* Floating Badge 1 (Top-Left): AI Appraisal Score — positioned above face */}
+                <div className="absolute -top-6 -left-3 sm:-left-8 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl px-3.5 py-2 shadow-lg flex items-center gap-2.5 whitespace-nowrap">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                    <Award size={16} />
                   </div>
                   <div>
                     <div className="text-[10px] font-bold text-slate-500">
                       {primaryAppraisal
-                        ? `ผลประเมิน ${primaryAppraisal.cycle === 'end_year' ? 'End-Year' : 'Half-Year'}`
-                        : 'AI HR Benchmark'}
+                        ? `ผลประเมิน ${primaryAppraisal.cycle === 'end_year' ? 'End-Year' : 'Half-Year'} ${stats.year}`
+                        : `Worklog ${stats.year}`}
                     </div>
-                    <div className="text-xs sm:text-sm font-black text-slate-900 font-mono tabular-nums">
+                    <div className="text-xs font-black text-slate-900 font-mono tabular-nums">
                       {primaryAppraisal
                         ? `${primaryAppraisal.overallScore}% (${primaryAppraisal.level})`
                         : `${stats.totalDays} วันทำงานจริง`}
@@ -337,15 +337,15 @@ export const MemberEditorialDossier: React.FC<MemberEditorialDossierProps> = ({
                   </div>
                 </div>
 
-                {/* Floating Badge 2 (Bottom-Right): Projects & Hours */}
-                <div className="absolute -bottom-4 -right-3 sm:-right-6 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl px-3.5 py-2.5 shadow-lg flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                    <TrendingUp size={18} />
+                {/* Floating Badge 2 (Bottom-Right): Key Projects & Hours */}
+                <div className="absolute -bottom-5 -right-3 sm:-right-8 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl px-3.5 py-2 shadow-lg flex items-center gap-2.5 whitespace-nowrap">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <TrendingUp size={16} />
                   </div>
                   <div>
-                    <div className="text-[10px] font-bold text-slate-500">ผลงานส่งมอบสะสม</div>
-                    <div className="text-xs sm:text-sm font-black text-slate-900 font-mono tabular-nums">
-                      {stats.projects.length} โครงการ • {stats.totalHours.toLocaleString()} ชม.
+                    <div className="text-[10px] font-bold text-slate-500">ผลงานส่งมอบปี {stats.year}</div>
+                    <div className="text-xs font-black text-slate-900 font-mono tabular-nums">
+                      {stats.projects.length} โครงการหลัก • {stats.totalHours.toLocaleString()} ชม.
                     </div>
                   </div>
                 </div>
@@ -383,13 +383,17 @@ export const MemberEditorialDossier: React.FC<MemberEditorialDossierProps> = ({
 
             <div className="bg-white/90 rounded-2xl border border-slate-200/80 p-4">
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
-                <span>โครงการที่ขับเคลื่อน</span>
+                <span>โครงการหลัก (ปี {stats.year})</span>
                 <FolderGit2 size={14} className="text-amber-500" />
               </div>
               <div className="mt-1 text-2xl font-black text-slate-900 font-mono tabular-nums">
                 {Math.max(stats.projects.length, featuredProjects.length)}
               </div>
-              <div className="text-[11px] text-slate-500">โครงการหลักในองค์กร</div>
+              <div className="text-[11px] text-slate-500">
+                {stats.supportProjectsCount > 0
+                  ? `+ ร่วมสนับสนุนอีก ${stats.supportProjectsCount} งานย่อย`
+                  : 'โครงการสำคัญที่รับผิดชอบ'}
+              </div>
             </div>
 
             <div className="bg-white/90 rounded-2xl border border-slate-200/80 p-4">

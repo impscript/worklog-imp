@@ -20,6 +20,14 @@ import type {
   UserDossierConfig,
 } from '../lib/dossier-types';
 
+const CURRENT_DOSSIER_YEAR = new Date().getFullYear();
+const NON_PROJECT_REGEX = /^(งานประจำ|งานทั่วไป|ทั่วไป|others?|support|ma\b|meeting|ประชุม|admin|ธุรการ|training|อบรม|leave|ลา|internal|hr\s*-)/i;
+
+function isSubstantiveProject(agg: MemberProjectAggregate): boolean {
+  if (NON_PROJECT_REGEX.test(agg.name.trim())) return false;
+  return agg.taskCount >= 3 || agg.totalHours >= 8;
+}
+
 function cleanMilestoneText(raw?: string | null): string {
   if (!raw) return '';
   return raw
@@ -147,10 +155,12 @@ export default function DossierViewerPage() {
   // Dynamic Member State
   const [member, setMember] = useState<MemberDossierProfile | null>(null);
   const [memberStats, setMemberStats] = useState<MemberDossierStats>({
+    year: CURRENT_DOSSIER_YEAR,
     totalHours: 0,
     totalDays: 0,
     totalTasks: 0,
     projects: [],
+    supportProjectsCount: 0,
     projectSummaries: [],
     recentLogs: [],
   });
@@ -320,6 +330,8 @@ export default function DossierViewerPage() {
             .from('col_worklog')
             .select('id, work_date, total_hours, project_name, action_name, description')
             .eq('user_id', foundUser.id)
+            .gte('work_date', `${CURRENT_DOSSIER_YEAR}-01-01`)
+            .lte('work_date', `${CURRENT_DOSSIER_YEAR}-12-31`)
             .order('work_date', { ascending: false }),
           appraisalQuery,
           supabase
@@ -398,16 +410,25 @@ export default function DossierViewerPage() {
             }
           });
 
-          const projectSummaries = Array.from(projMap.values()).sort(
+          const allProjectSummaries = Array.from(projMap.values()).sort(
             (a, b) => b.totalHours - a.totalHours
+          );
+          const keyProjects = allProjectSummaries.filter(isSubstantiveProject);
+          const effectiveKeyProjects =
+            keyProjects.length > 0 ? keyProjects : allProjectSummaries.slice(0, 6);
+          const supportProjectsCount = Math.max(
+            0,
+            allProjectSummaries.length - effectiveKeyProjects.length
           );
 
           setMemberStats({
+            year: CURRENT_DOSSIER_YEAR,
             totalHours: Math.round(totalHours * 10) / 10,
             totalDays: uniqueDays,
             totalTasks: logs.length,
-            projects: projectSummaries.map((p) => p.name),
-            projectSummaries,
+            projects: effectiveKeyProjects.map((p) => p.name),
+            supportProjectsCount,
+            projectSummaries: effectiveKeyProjects,
             recentLogs: logs.slice(0, 10).map((l) => ({
               id: l.id,
               work_date: l.work_date,
