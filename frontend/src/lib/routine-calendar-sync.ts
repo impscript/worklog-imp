@@ -137,6 +137,37 @@ async function removeEvent(userId: string, calendarId: string, eventId: string):
   }
 }
 
+/** Google's id for ONE occurrence of a recurring event: "<eventId>_<start>" (UTC for timed events, plain date for all-day). */
+function occurrenceInstanceId(eventId: string, dateStr: string, startTime: string | null): string {
+  if (!startTime) return `${eventId}_${dateStr.replace(/-/g, '')}`;
+  const utc = new Date(`${dateStr}T${hhmmss(startTime)}+07:00`); // events are created in Asia/Bangkok
+  const stamp = utc.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  return `${eventId}_${stamp}`;
+}
+
+/**
+ * Removes ONE day of a task from the owner's Google Calendar once that day's work has been logged, so the
+ * reminder and the worklog event do not both show up. A recurring task only loses that occurrence; a one-off
+ * task loses its event. Best effort: the caller decides what to do when it throws.
+ */
+export async function removeRoutineOccurrenceFromGCal(
+  task: { id: string; created_by: string; gcal_event_id?: string | null; start_time: string | null; frequency_type: string },
+  dateStr: string,
+  actingUserId: string
+): Promise<RoutineSyncResult> {
+  if (!task.gcal_event_id || task.created_by !== actingUserId) return 'skipped';
+  const target = await getCalendarTarget(actingUserId);
+  if (!target) return 'skipped';
+
+  if (task.frequency_type === 'none') {
+    await removeEvent(actingUserId, target.calendarId, task.gcal_event_id);
+    await supabase.from('tb_routine_task').update({ gcal_event_id: null }).eq('id', task.id);
+    return 'removed';
+  }
+  await removeEvent(actingUserId, target.calendarId, occurrenceInstanceId(task.gcal_event_id, dateStr, task.start_time));
+  return 'removed';
+}
+
 /** Best-effort cleanup before a routine task row is deleted. Never blocks the delete. */
 export async function removeRoutineTaskFromGCal(task: { created_by: string; gcal_event_id?: string | null }, actingUserId: string): Promise<void> {
   if (!task.gcal_event_id || task.created_by !== actingUserId) return;

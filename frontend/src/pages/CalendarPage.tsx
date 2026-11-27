@@ -13,6 +13,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
 import { occurrencesInRange, formatYMD as formatRecurrenceYMD, type RecurrenceFields } from '../lib/routine-recurrence';
+import { removeRoutineOccurrenceFromGCal } from '../lib/routine-calendar-sync';
 import WorkspaceSwitcher from '../components/common/WorkspaceSwitcher';
 import ModalPortal from '../components/modals/ModalPortal';
 import {
@@ -60,6 +61,8 @@ const formatDateToYMD = (date: Date) => {
 // To-do list items the user chose to "save to calendar" — shown as reminders, not worklogs.
 interface CalendarReminderTask extends RecurrenceFields {
   id: string;
+  created_by: string;
+  gcal_event_id: string | null;
   title: string;
   description: string | null;
   start_time: string | null;
@@ -78,6 +81,10 @@ export default function CalendarPage() {
   }, [entries, selectedDateStr]);
   const [isLoading, setIsLoading] = useState(true);
   const [reminderTasks, setReminderTasks] = useState<CalendarReminderTask[]>([]);
+  // "<taskId>|<YYYY-MM-DD>" of reminders whose work has already been logged: they are no longer shown
+  const [doneReminders, setDoneReminders] = useState<Set<string>>(new Set());
+  // The reminder the open worklog form was started from; it is cleared only after that worklog is saved
+  const reminderBeingLoggedRef = useRef<{ task: CalendarReminderTask; dateStr: string } | null>(null);
 
   // ── GCal Re-Sync State ───────────────────────────────────────────────────────
   const [isSyncing, setIsSyncing] = useState(false);
@@ -1184,6 +1191,7 @@ export default function CalendarPage() {
     const to = formatRecurrenceYMD(new Date(visibleYear, visibleMonth + 2, 0));
     for (const task of reminderTasks) {
       for (const dateStr of occurrencesInRange(task, from, to)) {
+        if (doneReminders.has(`${task.id}|${dateStr}`)) continue;
         const list = remindersByDate[dateStr] ?? [];
         list.push(task);
         remindersByDate[dateStr] = list;
@@ -1206,7 +1214,7 @@ export default function CalendarPage() {
       try {
         const { data, error } = await supabase
           .from('tb_routine_task')
-          .select('id, title, description, start_time, end_time, frequency_type, recurrence_interval, days_of_week, day_of_month, month_of_year, monthly_mode, week_position, start_date, recurrence_end_type, recurrence_end_date, recurrence_count, created_at')
+          .select('id, created_by, gcal_event_id, title, description, start_time, end_time, frequency_type, recurrence_interval, days_of_week, day_of_month, month_of_year, monthly_mode, week_position, start_date, recurrence_end_type, recurrence_end_date, recurrence_count, created_at')
           .eq('workspace_id', workspaceId)
           .eq('created_by', session.id)
           .eq('is_active', true)
@@ -1221,9 +1229,64 @@ export default function CalendarPage() {
     return () => { cancelled = true; };
   }, [selectedUserId, selectedWorkspaceId, refreshTrigger]);
 
+  // Days of the visible window whose reminder was already logged (the To-do list's per-day checkmark),
+  // so a logged reminder stays hidden after a reload.
+  useEffect(() => {
+    if (reminderTasks.length === 0) return;
+    const sessionStr = localStorage.getItem('worklog_session');
+    if (!sessionStr) return;
+    const session = JSON.parse(sessionStr);
+    const from = formatRecurrenceYMD(new Date(visibleYear, visibleMonth - 1, 1));
+    const to = formatRecurrenceYMD(new Date(visibleYear, visibleMonth + 2, 0));
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('tb_routine_task_completion')
+        .select('task_id, completed_date')
+        .in('task_id', reminderTasks.map((task) => task.id))
+        .eq('user_id', session.id)
+        .gte('completed_date', from)
+        .lte('completed_date', to);
+      if (error) {
+        console.warn('[Calendar] Failed to load completed reminders:', error);
+        return;
+      }
+      if (!cancelled) {
+        setDoneReminders(new Set(((data || []) as { task_id: string; completed_date: string }[]).map((r) => `${r.task_id}|${r.completed_date.slice(0, 10)}`)));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [reminderTasks, visibleYear, visibleMonth]);
+
+  // The worklog for a reminder was saved: mark that day done and take the reminder off Google Calendar too,
+  // otherwise the calendar would show the reminder AND the logged work as two separate jobs.
+  const completeReminder = async (task: CalendarReminderTask, dateStr: string) => {
+    const key = `${task.id}|${dateStr}`;
+    setDoneReminders((prev) => new Set(prev).add(key));
+    const sessionStr = localStorage.getItem('worklog_session');
+    const session = sessionStr ? JSON.parse(sessionStr) : null;
+    if (!session?.id) return;
+
+    const { error } = await supabase
+      .from('tb_routine_task_completion')
+      .insert({ task_id: task.id, user_id: session.id, completed_date: dateStr });
+    if (error && error.code !== '23505') {
+      console.warn('[Calendar] Failed to mark reminder as done:', error);
+      showToast('บันทึกงานแล้ว แต่ยังซ่อนใบงานร่างไม่สำเร็จ: ' + error.message, 'warning');
+    }
+
+    try {
+      await removeRoutineOccurrenceFromGCal(task, dateStr, session.id);
+    } catch (err) {
+      console.warn('[Calendar] Failed to remove the reminder from Google Calendar:', err);
+      showToast('บันทึกงานแล้ว แต่ลบใบงานร่างออกจาก Google Calendar ไม่สำเร็จ กรุณาลบเองหากแสดงซ้ำ', 'warning');
+    }
+  };
+
   // Open the worklog form for a reminder, in the workspace being viewed (not necessarily the active one),
   // so the user can add Type / Project / Action on the day.
   const handleLogReminder = (task: CalendarReminderTask, dateStr: string) => {
+    reminderBeingLoggedRef.current = { task, dateStr };
     const description = task.description ? `${task.title}
 ${task.description}` : task.title;
     const toTime = (value: string | null) => (value ? (value.length === 5 ? `${value}:00` : value.slice(0, 8)) : undefined);
@@ -1691,7 +1754,9 @@ ${task.description}` : task.title;
       is_implied_ot: false,
       bu: '',
       start_time: prefill?.startTime ?? defaultTimeRange.startTime,
-      end_time: prefill?.endTime ?? defaultTimeRange.endTime
+      end_time: prefill?.endTime ?? defaultTimeRange.endTime,
+      // times that came from a reminder are the user's plan: the form must not replace them with "next free slot"
+      prefill_time: Boolean(prefill?.startTime)
     });
   };
 
@@ -2281,8 +2346,14 @@ ${task.description}` : task.title;
         <EditWorklogModal
           isOpen={!!editingLog}
           log={editingLog}
-          onClose={() => setEditingLog(null)}
+          onClose={() => {
+            reminderBeingLoggedRef.current = null;
+            setEditingLog(null);
+          }}
           onSaveSuccess={() => {
+            const reminder = reminderBeingLoggedRef.current;
+            reminderBeingLoggedRef.current = null;
+            if (reminder && !editingLog?.id) void completeReminder(reminder.task, reminder.dateStr);
             setEditingLog(null);
             setRefreshTrigger(prev => prev + 1); // Triggers re-fetch of all entries & side panel updates
           }}

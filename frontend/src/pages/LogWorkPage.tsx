@@ -2109,7 +2109,7 @@ export default function LogWorkPage() {
                 <div className="flex items-center gap-1.5 font-bold text-indigo-600 dark:text-indigo-400">
                   <span>📖 Project Background & Objectives:</span>
                 </div>
-                <p className="font-normal text-theme-text-secondary italic">
+                <p className="font-normal text-theme-text-secondary italic whitespace-pre-wrap">
                   {selectedProjectDescription}
                 </p>
                 <div className="flex justify-end mt-1">
@@ -2436,11 +2436,11 @@ export default function LogWorkPage() {
             </div>
 
             <textarea 
-              rows={6}
+              rows={16}
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="กรอกรายละเอียดงานของคุณที่นี่..."
-              className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg p-4 text-theme-text placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none mb-2 font-sans text-xs leading-relaxed"
+              className="w-full min-h-[20rem] bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border-strong dark:border-theme-border-strong rounded-lg p-4 text-theme-text placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-y mb-2 font-sans text-xs leading-relaxed"
             ></textarea>
 
             {/* Image Attachment Upload Section */}

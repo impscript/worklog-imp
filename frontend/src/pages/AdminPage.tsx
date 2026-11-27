@@ -3217,8 +3217,8 @@ export default function AdminPage() {
                       value={formStructDescription}
                       onChange={(e) => setFormStructDescription(e.target.value)}
                       placeholder="Enter project background info, objectives, or external context..."
-                      rows={3}
-                      className="w-full bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                      rows={12}
+                      className="w-full min-h-[14rem] bg-theme-surface-secondary dark:bg-theme-surface-secondary border border-theme-border rounded-lg py-2 px-3 text-xs leading-relaxed text-theme-text placeholder:text-theme-text-secondary focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
                     />
                   </div>
                   {crossHoldingTwins.length > 0 && (

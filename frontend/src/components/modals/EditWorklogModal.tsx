@@ -77,6 +77,8 @@ interface WorklogEntry {
   channel?: string;
   action_channel?: string | null;
   image_urls?: string[];
+  /** New worklog whose start/end came from a To-do reminder: keep them instead of suggesting the next free slot. */
+  prefill_time?: boolean;
 }
 
 interface SplitEntry {
@@ -552,7 +554,8 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
       setEndTime(initialEndTime);
       lastValidStartTime.current = initialStartTime;
       lastValidEndTime.current = initialEndTime;
-      isTimeCustomizedRef.current = false;
+      // A reminder's own times count as already chosen, so the "next free slot" suggestion leaves them alone
+      isTimeCustomizedRef.current = !log.id && Boolean(log.prefill_time);
       setIsBreak(log.break_time !== undefined ? log.break_time : true);
       setDescription(log.description || '');
       setIsExplicitOt(log.is_ot);
@@ -843,6 +846,29 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
 
     return Array.from(new Set(filtered.map(a => a.action_name).filter(Boolean))).sort();
   }, [projectType, masterActions]);
+
+  // New worklog: when a field has exactly one choice, pick it so the user has nothing to click. Each pick
+  // unlocks the next field, so this walks down the chain (holding -> role -> type -> project -> module/BU/Dept -> action).
+  // Done while rendering (React re-renders at once), one field per pass, so it never fights the prefill above.
+  if (isOpen && log && !log.id) {
+    if (!holding) {
+      if (availableHoldings.length === 1) setHolding(availableHoldings[0]);
+    } else if (!role) {
+      if (availableRoles.length === 1) setRole(availableRoles[0]);
+    } else if (!projectType) {
+      if (availableProjectTypes.length === 1) setProjectType(availableProjectTypes[0]);
+    } else if (!projectName) {
+      if (availableProjects.length === 1) setProjectName(availableProjects[0]);
+    } else if (availableModules.length > 0 && !module) {
+      if (availableModules.length === 1) setModule(availableModules[0]);
+    } else if (noModuleMode && !bu) {
+      if (availableBUs.length === 1) setBu(availableBUs[0]);
+    } else if (noModuleMode && !department) {
+      if (availableDepts.length === 1) setDepartment(availableDepts[0]);
+    } else if (!actionName) {
+      if (availableActions.length === 1) setActionName(availableActions[0]);
+    }
+  }
 
   // Cascade resets
   const handleHoldingChange = (val: string) => {
@@ -1742,11 +1768,11 @@ export default function EditWorklogModal({ isOpen, onClose, log, onSaveSuccess }
             </div>
 
             <textarea
-              rows={8}
+              rows={16}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="กรอกรายละเอียดงานที่ปฏิบัติ..."
-              className="w-full min-h-[10rem] resize-y bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 border border-theme-border dark:border-theme-border rounded-2xl py-3 px-4 text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all leading-relaxed"
+              className="w-full min-h-[20rem] resize-y bg-theme-surface-secondary dark:bg-theme-surface-secondary/80 border border-theme-border dark:border-theme-border rounded-2xl py-3 px-4 text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all leading-relaxed"
             />
           </div>
 
