@@ -163,10 +163,19 @@ function formatModelDisplayName(model?: string): string {
   if (!model || !model.trim()) return 'AI Standard Model';
   const clean = model.trim();
   const modelMap: Record<string, string> = {
+    'anthropic/claude-opus-5.5': 'Claude Opus 5.5',
+    'anthropic/claude-sonnet-5.5': 'Claude Sonnet 5.5',
+    'anthropic/claude-sonnet-4.5': 'Claude Sonnet 4.5',
+    'anthropic/claude-haiku-5.5': 'Claude Haiku 5.5',
     'anthropic/claude-3.7-sonnet': 'Claude 3.7 Sonnet',
     'anthropic/claude-3.5-sonnet': 'Claude 3.5 Sonnet',
     'anthropic/claude-sonnet-5': 'Claude Sonnet 5',
     'claude-sonnet-5-preview': 'Claude Sonnet 5',
+    'openai/gpt-6.2-astra': 'GPT-6.2 Astra',
+    'gpt-6.2-astra': 'GPT-6.2 Astra',
+    'openai/gpt-6.1-sol': 'GPT-6.1 Sol',
+    'gpt-6.1-sol': 'GPT-6.1 Sol',
+    'openai/gpt-6-luna': 'GPT-6 Luna',
     'openai/gpt-5': 'GPT-5',
     'gpt-5': 'GPT-5',
     'openai/gpt-4.5-preview': 'GPT-4.5 Preview',
@@ -177,6 +186,12 @@ function formatModelDisplayName(model?: string): string {
     'gpt-4o': 'GPT-4o',
     'openai/gpt-4o-mini': 'GPT-4o Mini',
     'gpt-4o-mini': 'GPT-4o Mini',
+    'google/gemini-4-carbon': 'Gemini 4 Carbon',
+    'gemini-4-carbon': 'Gemini 4 Carbon',
+    'google/gemini-4-neon': 'Gemini 4 Neon',
+    'gemini-4-neon': 'Gemini 4 Neon',
+    'google/gemini-4-hydrogen': 'Gemini 4 Hydrogen',
+    'gemini-4-hydrogen': 'Gemini 4 Hydrogen',
     'google/gemini-2.5-pro': 'Gemini 2.5 Pro',
     'gemini-2.5-pro': 'Gemini 2.5 Pro',
     'google/gemini-2.5-flash': 'Gemini 2.5 Flash',
@@ -606,7 +621,7 @@ export default function OfficialAppraisalPage() {
     availableProviders: AvailableProviderItem[];
   }>({
     provider: 'openrouter',
-    model: 'openai/gpt-4o-mini',
+    model: 'anthropic/claude-sonnet-4.5',
     availableProviders: [
       { id: 'openrouter', label: 'OpenRouter', isConfigured: true },
       { id: 'gemini', label: 'Google Gemini', isConfigured: false },
@@ -887,7 +902,7 @@ export default function OfficialAppraisalPage() {
         });
 
         const activeProvider = configs.ai_provider || 'openrouter';
-        const activeModel = configs.ai_model || 'openai/gpt-4o-mini';
+        const activeModel = configs.ai_model || 'anthropic/claude-sonnet-4.5';
 
         const providersList: AvailableProviderItem[] = [
           {
@@ -4421,6 +4436,9 @@ ${r.calendar_logging_guide}
             (currentUser.id === evaluatedUser.id ||
               currentUser.role === 'admin' ||
               isCurrentWorkspaceAdmin)
+          )}
+          canOverrideAiEngine={Boolean(
+            currentUser && (currentUser.role === 'admin' || isCurrentWorkspaceAdmin)
           )}
           onJdSaved={(savedJd) => {
             setCandidateJd({

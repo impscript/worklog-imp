@@ -13,10 +13,14 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
-  Edit3
+  Edit3,
+  ShieldCheck,
+  SlidersHorizontal,
+  RotateCcw
 } from 'lucide-react';
 import ModalPortal from './ModalPortal';
 import InlineJdEditor, { type SavedJdRecord } from './InlineJdEditor';
+import { AI_MODEL_PRESETS, DEFAULT_HR_STANDARD_MODEL } from '../../lib/ai-model-presets';
 
 export interface AvailableProviderItem {
   id: string;
@@ -49,6 +53,7 @@ export interface AppraisalConfirmModalProps {
   } | null;
   workspaceId: string;
   canEditJd?: boolean;
+  canOverrideAiEngine?: boolean;
   onJdSaved?: (savedJd: SavedJdRecord) => void;
   isManagerEvaluated: boolean;
   selectedCycle: 'half_year' | 'end_year';
@@ -64,55 +69,7 @@ export interface AppraisalConfirmModalProps {
   presetModels?: Record<string, { id: string; label: string }[]>;
 }
 
-const DEFAULT_APPRAISAL_PRESET_MODELS: Record<string, { id: string; label: string }[]> = {
-  gemini: [
-    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (ฉลาดลึกซึ้ง · แม่นยำสูงสุด)' },
-    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (เร็ว & คุณภาพสูง)' },
-    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (แนะนำ · เสถียร)' },
-    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Next-Gen Preview)' },
-    { id: 'gemini-2.0-flash-thinking-exp', label: 'Gemini 2.0 Flash Thinking (วิเคราะห์เชิงลึก)' },
-    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (บริบท 2M)' },
-  ],
-  openrouter: [
-    { id: 'anthropic/claude-3.7-sonnet', label: 'Claude 3.7 Sonnet (Hybrid Reasoning · ล่าสุด)' },
-    { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (ฉลาดที่สุด · ยอดนิยม)' },
-    { id: 'anthropic/claude-sonnet-5', label: 'Claude Sonnet 5 (Next-Gen Preview)' },
-    { id: 'openai/gpt-5', label: 'GPT-5 (Next-Gen Preview)' },
-    { id: 'openai/gpt-4.5-preview', label: 'GPT-4.5 Preview (Orion · ลึกซึ้ง)' },
-    { id: 'openai/o3-mini', label: 'OpenAI o3-mini (Reasoning Model ความเร็วสูง)' },
-    { id: 'openai/gpt-4o', label: 'GPT-4o (เต็มประสิทธิภาพ)' },
-    { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini (คุ้มค่า · สมดุล)' },
-    { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro (ฉลาดวิเคราะห์)' },
-    { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (เร็ว & คุณภาพสูง)' },
-    { id: 'google/gemini-3.8-flash', label: 'Gemini 3.8 Flash (Next-Gen Preview)' },
-    { id: 'google/gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-    { id: 'google/gemini-2.0-flash:free', label: 'Gemini 2.0 Flash (Free ใช้งานฟรี)' },
-    { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1 (Reasoning ชั้นนำ)' },
-    { id: 'deepseek/deepseek-chat', label: 'DeepSeek V3 (ประหยัด)' },
-    { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (Free)' },
-  ],
-  openai: [
-    { id: 'gpt-5', label: 'GPT-5 (Next-Gen Preview)' },
-    { id: 'gpt-4.5-preview', label: 'GPT-4.5 Preview' },
-    { id: 'o3-mini', label: 'o3-mini (Reasoning Model แนะนำ)' },
-    { id: 'gpt-4o', label: 'GPT-4o (เต็มประสิทธิภาพ)' },
-    { id: 'gpt-4o-mini', label: 'GPT-4o Mini (คุ้มค่า)' },
-  ],
-  opencode: [
-    { id: 'deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
-    { id: 'gemini-3.8-flash-free', label: 'Gemini 3.8 Flash Free (Next-Gen)' },
-    { id: 'claude-sonnet-5-preview', label: 'Claude Sonnet 5 Preview' },
-    { id: 'nemotron-3-super-free', label: 'Nemotron 3 Super Free' },
-    { id: 'big-pickle', label: 'Big Pickle' },
-  ],
-  cloudflare: [
-    { id: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', label: 'Llama 3.3 70B Fast (Free)' },
-    { id: '@cf/qwen/qwen2.5-72b-instruct', label: 'Qwen 2.5 72B (แม่นยำ)' },
-    { id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b', label: 'DeepSeek R1 Distill 32B (Reasoning)' },
-    { id: '@cf/meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B (เร็ว)' },
-    { id: '@cf/google/gemma-7b-it', label: 'Gemma 7B (Free)' },
-  ],
-};
+const DEFAULT_APPRAISAL_PRESET_MODELS = AI_MODEL_PRESETS;
 
 const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'isOpen'>> = ({
   onClose,
@@ -122,6 +79,7 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
   candidateJd,
   workspaceId,
   canEditJd = false,
+  canOverrideAiEngine = false,
   onJdSaved,
   isManagerEvaluated,
   selectedCycle,
@@ -136,13 +94,22 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
   availableProviders,
   presetModels = DEFAULT_APPRAISAL_PRESET_MODELS,
 }) => {
-  const [selectedProvider, setSelectedProvider] = useState<string>(systemProvider || 'openrouter');
-  const [selectedModel, setSelectedModel] = useState<string>(systemModel || 'google/gemini-2.0-flash:free');
+  const defaultProvider = systemProvider || 'openrouter';
+  const defaultModel = systemModel || DEFAULT_HR_STANDARD_MODEL;
+  const [selectedProvider, setSelectedProvider] = useState<string>(defaultProvider);
+  const [selectedModel, setSelectedModel] = useState<string>(defaultModel);
   const [isCustomModelInput, setIsCustomModelInput] = useState<boolean>(false);
+  const [isEngineOverrideOpen, setIsEngineOverrideOpen] = useState<boolean>(false);
   const [isJdExpanded, setIsJdExpanded] = useState<boolean>(true);
   const [isEditingJd, setIsEditingJd] = useState<boolean>(() => Boolean(!candidateJd?.jd_text && canEditJd));
   const [isJdDirty, setIsJdDirty] = useState<boolean>(false);
   const [supervisorNotes, setSupervisorNotes] = useState<string>('');
+
+  const isEngineOverridden = selectedProvider !== defaultProvider || selectedModel !== defaultModel;
+  const activeProviderLabel =
+    availableProviders.find((p) => p.id === selectedProvider)?.label || selectedProvider;
+  const activeModelPresetLabel =
+    (presetModels[selectedProvider] || []).find((m) => m.id === selectedModel)?.label || selectedModel;
 
   // When provider changes, select the first preset model for that provider if current model doesn't match
   const handleProviderChange = (newProvider: string) => {
@@ -465,87 +432,136 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
               </p>
             </div>
 
-            {/* 3. AI Engine Configuration (Run-time Switcher) */}
+            {/* 3. AI Engine Configuration (HR Standard Engine + Admin-only Run-time Override) */}
             <div className="p-4 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                   <Cpu size={16} className="text-indigo-600 dark:text-indigo-400" />
                   <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                     เครื่องมือ AI ที่ใช้ประมวลผล (AI Engine)
                   </span>
                 </div>
-                <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
-                  สลับได้เฉพาะรอบนี้ (Run-time)
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Provider Selector */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                    AI Provider (ผู้ให้บริการ)
-                  </label>
-                  <select
-                    value={selectedProvider}
-                    onChange={(e) => handleProviderChange(e.target.value)}
-                    disabled={isLoading}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30"
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                      isEngineOverridden
+                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60'
+                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
+                    }`}
                   >
-                    {availableProviders.map((p) => (
-                      <option key={p.id} value={p.id} disabled={!p.isConfigured}>
-                        {p.label} {p.isConfigured ? '✓ (พร้อมใช้งาน)' : '✕ (ยังไม่ได้ใส่ Key)'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Model Selector */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                      AI Model (โมเดล)
-                    </label>
+                    <ShieldCheck size={11} />
+                    {isEngineOverridden ? 'กำหนดเองเฉพาะรอบนี้' : 'HR Standard Engine'}
+                  </span>
+                  {canOverrideAiEngine && (
                     <button
                       type="button"
-                      onClick={() => setIsCustomModelInput(!isCustomModelInput)}
-                      className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer font-medium"
+                      onClick={() => setIsEngineOverrideOpen((prev) => !prev)}
+                      disabled={isLoading}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      {isCustomModelInput ? 'เลือกจาก Preset' : 'พิมพ์ Model เอง'}
+                      <SlidersHorizontal size={12} />
+                      <span>{isEngineOverrideOpen ? 'ซ่อนตัวเลือก' : 'สลับ Model เฉพาะรอบนี้'}</span>
                     </button>
-                  </div>
-                  {isCustomModelInput ? (
-                    <input
-                      type="text"
-                      value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value)}
-                      disabled={isLoading}
-                      placeholder="เช่น google/gemini-3.8-flash, anthropic/claude-sonnet-5"
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-mono"
-                    />
-                  ) : (
-                    <select
-                      value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value)}
-                      disabled={isLoading}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30"
-                    >
-                      {currentPresets.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.label}
-                        </option>
-                      ))}
-                      {!currentPresets.some((m) => m.id === selectedModel) && (
-                        <option value={selectedModel}>
-                          {selectedModel} (กำหนดเอง)
-                        </option>
-                      )}
-                    </select>
                   )}
                 </div>
               </div>
 
+              {/* Compact Standard Engine Summary */}
+              <div className="flex items-center justify-between gap-3 flex-wrap px-3 py-2.5 rounded-xl bg-white/90 dark:bg-slate-900/70 border border-indigo-100/80 dark:border-indigo-900/50">
+                <div className="text-xs text-slate-700 dark:text-slate-200 flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-indigo-700 dark:text-indigo-300">{activeProviderLabel}</span>
+                  <span className="text-slate-300 dark:text-slate-600">•</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-100">{activeModelPresetLabel}</span>
+                </div>
+                {canOverrideAiEngine && isEngineOverridden && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProvider(defaultProvider);
+                      setSelectedModel(defaultModel);
+                      setIsCustomModelInput(false);
+                    }}
+                    disabled={isLoading}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300 cursor-pointer disabled:opacity-50"
+                  >
+                    <RotateCcw size={11} />
+                    <span>คืนค่ามาตรฐาน</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Expandable Admin-Only Override Controls */}
+              {canOverrideAiEngine && isEngineOverrideOpen && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Provider Selector */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                      AI Provider (ผู้ให้บริการ)
+                    </label>
+                    <select
+                      value={selectedProvider}
+                      onChange={(e) => handleProviderChange(e.target.value)}
+                      disabled={isLoading}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30"
+                    >
+                      {availableProviders.map((p) => (
+                        <option key={p.id} value={p.id} disabled={!p.isConfigured}>
+                          {p.label} {p.isConfigured ? '✓ (พร้อมใช้งาน)' : '✕ (ยังไม่ได้ใส่ Key)'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Model Selector */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                        AI Model (โมเดล)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomModelInput(!isCustomModelInput)}
+                        className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer font-medium"
+                      >
+                        {isCustomModelInput ? 'เลือกจาก Preset' : 'พิมพ์ Model เอง'}
+                      </button>
+                    </div>
+                    {isCustomModelInput ? (
+                      <input
+                        type="text"
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        disabled={isLoading}
+                        placeholder="เช่น anthropic/claude-sonnet-4.5, google/gemini-2.5-pro"
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-mono"
+                      />
+                    ) : (
+                      <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        disabled={isLoading}
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30"
+                      >
+                        {currentPresets.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label}
+                          </option>
+                        ))}
+                        {!currentPresets.some((m) => m.id === selectedModel) && (
+                          <option value={selectedModel}>
+                            {selectedModel} (กำหนดเอง)
+                          </option>
+                        )}
+                      </select>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                ℹ️ การเปลี่ยน Provider หรือ Model ในหน้านี้จะใช้เฉพาะการวิเคราะห์ครั้งนี้เท่านั้น โดยไม่กระทบค่าเริ่มต้นของระบบส่วนกลาง
+                {canOverrideAiEngine
+                  ? 'ℹ️ ค่าเริ่มต้นอ้างอิงจาก Admin → AI Settings เพื่อให้ทุกคนในรอบประเมินใช้มาตรฐานเดียวกัน (Admin สามารถสลับเฉพาะรอบนี้ได้โดยไม่กระทบค่ากลาง)'
+                  : 'ℹ️ ใช้โมเดลมาตรฐานกลางของ Workspace เพื่อความยุติธรรมและมาตรฐานเดียวกันทั้งรอบประเมิน'}
               </p>
             </div>
 
