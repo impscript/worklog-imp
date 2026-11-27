@@ -32,12 +32,14 @@ import {
 import AppLayout from '../components/layout/AppLayout';
 import { AppraisalConfirmModal, type AvailableProviderItem } from '../components/modals/AppraisalConfirmModal';
 import AppraisalProgressCard from '../components/appraisal/AppraisalProgressCard';
+import ExecutiveInfographicView from '../components/appraisal/ExecutiveInfographicView';
 import { useNotification } from '../context/NotificationContext';
 import {
   MANAGER_PROMPT_MD,
   OFFICER_PROMPT_MD,
   buildExecutedPrompt,
-  downloadMarkdownFile
+  downloadMarkdownFile,
+  formatThaiDateRange,
 } from '../lib/appraisalPromptStandards';
 import { getUserAvatarUrl, getUiAvatarFallbackUrl } from '../lib/project-management';
 
@@ -2330,8 +2332,9 @@ ${r.calendar_logging_guide}
     <AppLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* ========================================================= */}
-        {/* 1. Header Banner & Official Standard Badge                */}
+        {/* 1. Header Banner & Official Standard Badge (Internal View) */}
         {/* ========================================================= */}
+        {!isSharedView && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-50/90 via-white to-purple-50/60 dark:from-slate-900 dark:via-indigo-950/70 dark:to-slate-900 border border-indigo-100 dark:border-indigo-500/20 shadow-xs dark:shadow-xl p-6 print:hidden">
           <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
@@ -2372,6 +2375,7 @@ ${r.calendar_logging_guide}
             </div>
           </div>
         </div>
+        )}
 
         {/* Shared View Loading State */}
         {isShareLoading && (
@@ -2412,56 +2416,34 @@ ${r.calendar_logging_guide}
           </div>
         )}
 
-        {/* Shared View Header Banner */}
+        {/* Compact Shared View Context Strip (No Duplicate Profile/Buttons) */}
         {isSharedView && !shareError && appraisalResult && (
-          <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 dark:border-emerald-500/20 rounded-2xl p-5 text-slate-900 dark:text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs print:hidden">
-            <div className="flex items-center gap-3.5">
-              <img
-                src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
-                }}
-                alt={evaluatedUser?.full_name || 'Avatar'}
-                className="w-13 h-13 rounded-2xl object-cover border-2 border-emerald-500/40 shadow-xs shrink-0 bg-slate-100 dark:bg-slate-800"
-              />
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 uppercase tracking-wide">
-                    Public Shared Appraisal
-                  </span>
-                  {appraisalResult.ai_model && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
-                      <Cpu size={12} className="text-indigo-500" />
-                      <span>Model: {appraisalResult.ai_model}</span>
-                    </span>
-                  )}
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    {evaluatedUser?.full_name} {evaluatedUser?.emp_id ? `(${evaluatedUser.emp_id})` : ''}
-                  </span>
-                  <span className="text-xs text-slate-500">•</span>
-                  <span className="text-xs text-slate-600 dark:text-slate-400">
-                    {evaluatedUser?.position || 'Position'}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                  รายงานผลการประเมินรอบ {selectedCycle === 'half_year' ? 'Half-Year' : 'End-Year'} ({dateRange.start} ถึง {dateRange.end}) พร้อมชุดคำสั่ง Prompt ตามเกณฑ์ HR 100%
-                </p>
-              </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/25 border border-emerald-200/80 dark:border-emerald-800/50 text-xs print:hidden">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/60">
+                <ShieldCheck size={12} />
+                <span>Verified Official Appraisal</span>
+              </span>
+              <span className="font-semibold text-slate-700 dark:text-slate-200">
+                รอบ {appraisalResult.cycle} ({formatThaiDateRange(appraisalResult.period)})
+              </span>
             </div>
-            <div className="flex items-center gap-2 self-stretch md:self-auto shrink-0">
+            <div className="flex items-center gap-3 shrink-0">
               <button
-                onClick={copyShareLink}
-                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                type="button"
+                onClick={() => setIsRefModalOpen(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:underline cursor-pointer"
               >
-                <Share2 size={13} />
-                <span>คัดลอกลิงก์นี้</span>
+                <BookOpen size={12} />
+                <span>เกณฑ์มาตรฐาน HR</span>
               </button>
               {currentUser && (
                 <button
+                  type="button"
                   onClick={() => {
                     window.location.href = '/appraisal';
                   }}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-300 hover:underline cursor-pointer"
                 >
                   กลับสู่ระบบของฉัน
                 </button>
@@ -2882,38 +2864,38 @@ ${r.calendar_logging_guide}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md p-6 space-y-6 print:border-none print:shadow-none print:p-0 print:bg-white">
             {/* Results Navigation Tabs & Actions (Hidden on Print) */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-200 dark:border-slate-800 print:hidden">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   onClick={() => setActiveResultTab('infographic')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeResultTab === 'infographic'
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${activeResultTab === 'infographic'
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
                 >
                   <Eye size={14} />
-                  <span>1. Executive Infographic (Dashboard & Deck)</span>
+                  <span>Executive Summary</span>
                 </button>
 
                 <button
                   onClick={() => setActiveResultTab('report')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeResultTab === 'report'
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${activeResultTab === 'report'
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
                 >
                   <FileCheck size={14} />
-                  <span>2. Official HR Report (เอกสารทางการ)</span>
+                  <span>Official HR Report</span>
                 </button>
 
                 <button
                   onClick={() => setActiveResultTab('growth')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeResultTab === 'growth'
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${activeResultTab === 'growth'
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
                 >
                   <TrendingUp size={14} />
-                  <span>3. Growth & Action Plan</span>
+                  <span>Growth Plan</span>
                 </button>
               </div>
 
@@ -2965,19 +2947,13 @@ ${r.calendar_logging_guide}
                     )}
                   </>
                 ) : (
-                  <>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50">
-                      <Globe size={13} className="text-emerald-500" />
-                      <span>แชร์สาธารณะ (Public View)</span>
-                    </div>
-                    <button
-                      onClick={copyShareLink}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 cursor-pointer"
-                    >
-                      <Share2 size={13} />
-                      <span>คัดลอกลิงก์นี้</span>
-                    </button>
-                  </>
+                  <button
+                    onClick={copyShareLink}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 cursor-pointer"
+                  >
+                    <Share2 size={13} />
+                    <span>คัดลอกลิงก์</span>
+                  </button>
                 )}
 
                 {/* 2. Manual Save (Only in private/logged-in view) */}
@@ -3113,290 +3089,41 @@ ${r.calendar_logging_guide}
 
               {/* TAB 1: EXECUTIVE INFOGRAPHIC */}
               {activeResultTab === 'infographic' && (
-                <div className="space-y-6">
-                  {/* Infographic Sub-mode Switcher (Hidden on Print) */}
-                  <div className="flex justify-between items-center bg-slate-100 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 print:hidden">
-                    <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                      <Sparkles size={14} className="text-cyan-500 dark:text-cyan-400" />
-                      <span>Executive Visualization: ธีม Premium Modern รองรับการนำเสนอ C-Level</span>
-                    </div>
-                    <div className="flex p-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
-                      <button
-                        onClick={() => setInfographicMode('single')}
-                        className={`px-3 py-1 rounded-md transition-all font-semibold ${infographicMode === 'single'
-                          ? 'bg-cyan-50 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/30'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                      >
-                        Option 1: One-Pager Dashboard
-                      </button>
-                      <button
-                        onClick={() => setInfographicMode('deck')}
-                        className={`px-3 py-1 rounded-md transition-all font-semibold ${infographicMode === 'deck'
-                          ? 'bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                      >
-                        Option 2: 3-Slide Deck
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Single Page Dashboard View */}
-                  {infographicMode === 'single' ? (
-                    <div className="rounded-2xl bg-white dark:bg-[#07090e] border border-slate-200 dark:border-cyan-500/20 p-6 text-slate-900 dark:text-white space-y-6 shadow-sm dark:shadow-2xl print:border-none print:shadow-none print:p-0">
-                      {/* Top KPI Banner */}
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-5 border-b border-slate-200 dark:border-slate-800/80">
-                        <div className="flex items-center gap-4">
-                          <img
-                            src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
-                            }}
-                            alt={evaluatedUser?.full_name || 'Avatar'}
-                            className="w-16 h-16 rounded-2xl object-cover border-2 border-cyan-500/40 shadow-sm shrink-0 bg-slate-100 dark:bg-slate-800"
-                          />
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <span className="text-xs text-cyan-600 dark:text-cyan-400 font-bold uppercase tracking-wider">
-                                EXECUTIVE PERFORMANCE APPRAISAL • {appraisalResult.cycle}
-                              </span>
-                              {appraisalResult.ai_model && (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50">
-                                  <Cpu size={12} className="text-indigo-500" />
-                                  <span>Model: {appraisalResult.ai_model}</span>
-                                </span>
-                              )}
-                            </div>
-                            <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                              {evaluatedUser?.full_name}
-                              {evaluatedUser?.emp_id && (
-                                <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 font-mono">
-                                  ({evaluatedUser.emp_id})
-                                </span>
-                              )}
-                            </h2>
-                            <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                              {evaluatedUser?.position} • ฝ่าย {evaluatedUser?.department} • รอบ {appraisalResult.period}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-4 bg-cyan-50/70 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-500/30 px-5 py-3 rounded-2xl">
-                          <div className="text-right">
-                            <div className="text-xs text-slate-600 dark:text-slate-400 font-medium">คะแนนประเมินรวม</div>
-                            <div className="text-sm font-bold text-cyan-700 dark:text-cyan-400">ระดับ "{appraisalResult.level}"</div>
-                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-medium">
-                              สม่ำเสมอ {displayStats.coverage_pct}% ({formatAttendanceRatio(displayStats.logged_days, displayStats.business_days)})
-                            </div>
-                          </div>
-                          <div className="w-16 h-16 rounded-full border-2 border-cyan-500 flex flex-col items-center justify-center bg-cyan-100/60 dark:bg-cyan-500/10 shadow-xs dark:shadow-[0_0_20px_rgba(6,182,212,0.3)]">
-                            <span className="text-xl font-black text-cyan-900 dark:text-white">{appraisalResult.overall_score}</span>
-                            <span className="text-[8px] text-cyan-700 dark:text-slate-400 font-bold">/ 100</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Modern Operating Model: 3 Loops */}
-                      <div className="space-y-3">
-                        <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                          <BrainCircuit size={14} className="text-purple-600 dark:text-purple-400" />
-                          <span>MODERN OPERATING PARADIGM: AI LEAD × HUMAN × EXPERT IN THE LOOP</span>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {/* 1. AI LEAD */}
-                          <div className={`p-4 rounded-xl border space-y-2 transition-all ${appraisalResult.operating_paradigm?.ai_lead.has_evidence
-                            ? 'bg-purple-50/70 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/30'
-                            : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
-                            }`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold leading-snug">
-                                1. AI LEAD (Machine Velocity)
-                              </span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 whitespace-nowrap ${appraisalResult.operating_paradigm?.ai_lead.has_evidence
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
-                                : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                }`}>
-                                {appraisalResult.operating_paradigm?.ai_lead.badge || (candidateLogs.some((l) => /ai|script|auto/i.test(l.description)) ? 'พบหลักฐาน' : 'ยังไม่มีหลักฐาน')}
-                              </span>
-                            </div>
-                            <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                              {appraisalResult.operating_paradigm?.ai_lead.title || 'เร่งสปีดการวิเคราะห์และขึ้นระบบ'}
-                            </h4>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                              {appraisalResult.operating_paradigm?.ai_lead.detail || 'นำ AI เข้ามาช่วยวิเคราะห์ สรุปข้อมูล และร่างโครงสร้างระบบ ลดระยะเวลาทำงานซ้ำซ้อน'}
-                            </p>
-                          </div>
-
-                          {/* 2. HUMAN IN THE LOOP */}
-                          <div className={`p-4 rounded-xl border space-y-2 transition-all ${appraisalResult.operating_paradigm?.human_in_the_loop.has_evidence
-                            ? 'bg-cyan-50/70 dark:bg-cyan-500/10 border-cyan-200 dark:border-cyan-500/30'
-                            : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
-                            }`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold leading-snug">
-                                2. HUMAN IN THE LOOP (Context)
-                              </span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 whitespace-nowrap ${appraisalResult.operating_paradigm?.human_in_the_loop.has_evidence
-                                ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400'
-                                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
-                                }`}>
-                                {appraisalResult.operating_paradigm?.human_in_the_loop.badge || 'สัมผัสผู้ใช้งาน'}
-                              </span>
-                            </div>
-                            <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                              {appraisalResult.operating_paradigm?.human_in_the_loop.title || 'ตอบโจทย์การใช้งานจริงของคน'}
-                            </h4>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                              {appraisalResult.operating_paradigm?.human_in_the_loop.detail || 'สัมผัส Pain Point จากผู้ใช้งานจริงและหน่วยงานที่เกี่ยวข้อง เพื่อปรับแต่งให้ตอบโจทย์หน้างานและเกิด Adoption สูงสุด'}
-                            </p>
-                          </div>
-
-                          {/* 3. EXPERT IN THE LOOP */}
-                          <div className={`p-4 rounded-xl border space-y-2 transition-all ${appraisalResult.operating_paradigm?.expert_in_the_loop.has_evidence
-                            ? 'bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30'
-                            : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
-                            }`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold leading-snug">
-                                3. EXPERT IN THE LOOP (Governance)
-                              </span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 whitespace-nowrap ${appraisalResult.operating_paradigm?.expert_in_the_loop.has_evidence
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
-                                : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                }`}>
-                                {appraisalResult.operating_paradigm?.expert_in_the_loop.badge || 'การกำกับดูแล'}
-                              </span>
-                            </div>
-                            <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                              {appraisalResult.operating_paradigm?.expert_in_the_loop.title || 'ธรรมาภิบาลและการโค้ชชิ่ง'}
-                            </h4>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                              {appraisalResult.operating_paradigm?.expert_in_the_loop.detail || 'ตรวจทานความถูกต้อง กำกับทิศทาง และโค้ชชิ่งทีมงานตามมาตรฐานวิชาชีพ'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 5 Pillars Progress Bars & Summary */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-3">
-                        <div className="space-y-3">
-                          <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                            5 HR PERFORMANCE PILLARS (คะแนนจำแนก 5 มิติ)
-                          </div>
-
-                          {/* Pillar 1 */}
-                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-slate-800 dark:text-slate-200">1. Quantity (ความครบถ้วนของงาน)</span>
-                              <span className="text-cyan-600 dark:text-cyan-400 font-bold">{appraisalResult.scores?.quantity?.score ?? 0} / 20</span>
-                            </div>
-                            <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                              <div
-                                className="h-full bg-cyan-500 rounded-full"
-                                style={{ width: `${((appraisalResult.scores?.quantity?.score ?? 0) / 20) * 100}%` }}
-                              />
-                            </div>
-                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores?.quantity?.reason ?? ''}</div>
-                          </div>
-
-                          {/* Pillar 2 */}
-                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-slate-800 dark:text-slate-200">2. Quality (คุณภาพและผลลัพธ์)</span>
-                              <span className="text-sky-600 dark:text-sky-400 font-bold">{appraisalResult.scores?.quality?.score ?? 0} / 20</span>
-                            </div>
-                            <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                              <div
-                                className="h-full bg-sky-500 rounded-full"
-                                style={{ width: `${((appraisalResult.scores?.quality?.score ?? 0) / 20) * 100}%` }}
-                              />
-                            </div>
-                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores?.quality?.reason ?? ''}</div>
-                          </div>
-
-                          {/* Pillar 3 */}
-                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-slate-800 dark:text-slate-200">3. Learning (การเรียนรู้และการส่งต่อ)</span>
-                              <span className="text-purple-600 dark:text-purple-400 font-bold">{appraisalResult.scores?.learning?.score ?? 0} / 20</span>
-                            </div>
-                            <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                              <div
-                                className="h-full bg-purple-500 rounded-full"
-                                style={{ width: `${((appraisalResult.scores?.learning?.score ?? 0) / 20) * 100}%` }}
-                              />
-                            </div>
-                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores?.learning?.reason ?? ''}</div>
-                          </div>
-
-                          {/* Pillar 4 */}
-                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-slate-800 dark:text-slate-200">4. Accountability (ความรับผิดชอบและการดูแลทีม)</span>
-                              <span className="text-amber-600 dark:text-amber-400 font-bold">{appraisalResult.scores?.accountability?.score ?? 0} / 20</span>
-                            </div>
-                            <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                              <div
-                                className="h-full bg-amber-500 rounded-full"
-                                style={{ width: `${((appraisalResult.scores?.accountability?.score ?? 0) / 20) * 100}%` }}
-                              />
-                            </div>
-                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores?.accountability?.reason ?? ''}</div>
-                          </div>
-
-                          {/* Pillar 5 */}
-                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                            <div className="flex justify-between text-xs font-semibold">
-                              <span className="text-slate-800 dark:text-slate-200">5. Proactiveness (การคิดและลงมือก่อน)</span>
-                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">{appraisalResult.scores?.proactiveness?.score ?? 0} / 20</span>
-                            </div>
-                            <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
-                              <div
-                                className="h-full bg-emerald-500 rounded-full"
-                                style={{ width: `${((appraisalResult.scores?.proactiveness?.score ?? 0) / 20) * 100}%` }}
-                              />
-                            </div>
-                            <div className="text-[10px] text-slate-600 dark:text-slate-400">{appraisalResult.scores?.proactiveness?.reason ?? ''}</div>
-                          </div>
-                        </div>
-
-                        {/* Right: Key Deliverables & Growth */}
-                        <div className="space-y-4">
-                          <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                            STRATEGIC DELIVERABLES & IMPACT
-                          </div>
-                          <div className="space-y-2">
-                            {appraisalResult.work_status.completed.slice(0, 3).map((item, idx) => (
-                              <div
-                                key={idx}
-                                className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <CheckCircle2 size={14} className="text-emerald-500 dark:text-emerald-400 shrink-0" />
-                                  <span className="font-semibold text-slate-900 dark:text-white">{cleanDeliverableDisplay(item)}</span>
-                                </div>
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-bold shrink-0">
-                                  COMPLETED
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Top Strengths */}
-                          <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-500/20 space-y-1.5">
-                            <div className="text-xs font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1.5">
-                              <Award size={14} /> จุดแข็งสำคัญ (Top Strengths)
-                            </div>
-                            <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-1 list-disc list-inside">
-                              {appraisalResult.top_strengths.map((s, i) => (
-                                <li key={i}>{s}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
+                <div className="space-y-4">
+                  {/* Compact Sub-mode Switcher (Internal View Only — Shared View is Scroll-First) */}
+                  {!isSharedView && (
+                    <div className="flex justify-end print:hidden">
+                      <div className="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs">
+                        <button
+                          onClick={() => setInfographicMode('single')}
+                          className={`px-3 py-1 rounded-md transition-all font-semibold cursor-pointer ${infographicMode === 'single'
+                            ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-2xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                        >
+                          One-Pager
+                        </button>
+                        <button
+                          onClick={() => setInfographicMode('deck')}
+                          className={`px-3 py-1 rounded-md transition-all font-semibold cursor-pointer ${infographicMode === 'deck'
+                            ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-2xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                        >
+                          3-Slide Deck
+                        </button>
                       </div>
                     </div>
+                  )}
+
+                  {/* Single Page Executive Dashboard View (Default & Always Used on Shared Links) */}
+                  {(isSharedView || infographicMode === 'single') ? (
+                    <ExecutiveInfographicView
+                      evaluatedUser={evaluatedUser}
+                      result={appraisalResult}
+                      displayStats={displayStats}
+                      candidateLogsCount={candidateLogs.length}
+                    />
                   ) : (
                     /* 3-Slide Deck View */
                     <div className="space-y-6">

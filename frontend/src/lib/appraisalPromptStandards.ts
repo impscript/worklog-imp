@@ -260,6 +260,40 @@ ${(ctx.sampleWorklogs || []).slice(0, 15).map((l, i) => `${i + 1}. [${l.date}] $
   };
 }
 
+const THAI_MONTHS_SHORT = [
+  'ม.ค.',
+  'ก.พ.',
+  'มี.ค.',
+  'เม.ย.',
+  'พ.ค.',
+  'มิ.ย.',
+  'ก.ค.',
+  'ส.ค.',
+  'ก.ย.',
+  'ต.ค.',
+  'พ.ย.',
+  'ธ.ค.',
+];
+
+/**
+ * Formats an ISO period string (e.g. "2026-06-01 ถึง 2026-10-31") into readable Thai ("1 มิ.ย. – 31 ต.ค. 2026").
+ */
+export function formatThaiDateRange(period: string): string {
+  const match = period.match(/(\d{4})-(\d{2})-(\d{2})\s*(?:ถึง|-|–|to)\s*(\d{4})-(\d{2})-(\d{2})/i);
+  if (!match) return period;
+
+  const [, y1, m1, d1, y2, m2, d2] = match;
+  const month1 = THAI_MONTHS_SHORT[Number(m1) - 1] || m1;
+  const month2 = THAI_MONTHS_SHORT[Number(m2) - 1] || m2;
+  const day1 = Number(d1);
+  const day2 = Number(d2);
+
+  if (y1 === y2) {
+    return `${day1} ${month1} – ${day2} ${month2} ${y2}`;
+  }
+  return `${day1} ${month1} ${y1} – ${day2} ${month2} ${y2}`;
+}
+
 /**
  * Downloads a string as a Markdown file in the browser
  */
