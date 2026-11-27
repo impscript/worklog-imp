@@ -1526,6 +1526,129 @@
       line-height: 1.4;
     }
 
+    .btn-appraisal-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      margin-top: 8px;
+      padding: 9px 14px;
+      border-radius: 12px;
+      font-size: 11.5px;
+      font-weight: 700;
+      text-decoration: none;
+      color: #4f46e5;
+      background: rgba(79, 70, 229, 0.06);
+      border: 1px solid rgba(79, 70, 229, 0.22);
+      transition: all 0.2s ease;
+    }
+
+    .btn-appraisal-secondary:hover {
+      background: rgba(79, 70, 229, 0.12);
+      color: #3730a3;
+    }
+
+    /* Half-Year -> End-Year Promotion Trajectory Strip */
+    .trajectory-strip {
+      margin-top: 22px;
+      padding: 20px 22px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(238, 242, 255, 0.72) 0%, rgba(236, 253, 245, 0.65) 100%);
+      border: 1px solid rgba(99, 102, 241, 0.18);
+    }
+
+    .trajectory-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .trajectory-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text-hero);
+      letter-spacing: -0.01em;
+    }
+
+    .trajectory-pill {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(5, 150, 105, 0.12);
+      color: #047857;
+      border: 1px solid rgba(5, 150, 105, 0.22);
+    }
+
+    .trajectory-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .trajectory-card {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      border-radius: 14px;
+      padding: 13px 14px;
+    }
+
+    .trajectory-lbl {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .trajectory-nums {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .trajectory-val {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--text-hero);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .trajectory-delta {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      color: #059669;
+      background: rgba(16, 185, 129, 0.12);
+      padding: 2px 7px;
+      border-radius: 999px;
+    }
+
+    .trajectory-sub {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 900px) {
+      .trajectory-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .trajectory-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* Pillars Breakdown System */
     .appraisal-pillars-container {
       margin-top: 40px;
@@ -2995,8 +3118,8 @@
         <div class="float-badge badge-top-left">
           <div class="float-icon" style="background: #eef2ff; color: #4f46e5;">⚡</div>
           <div>
-            <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">ผลวิเคราะห์ Half-Year โดย AI</div>
-            <strong style="font-size: 14px; color: var(--text-hero); font-family: 'Space Grotesk', sans-serif;">92.5% (Grade A / ดีเยี่ยม)</strong>
+            <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">ผลประเมิน Half-Year &amp; End-Year 2026</div>
+            <strong style="font-size: 14px; color: var(--text-hero); font-family: 'Space Grotesk', sans-serif;">92.5% ต่อเนื่อง (Grade A / ดีเยี่ยม)</strong>
           </div>
         </div>
 
@@ -3585,11 +3708,11 @@
             <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <strong style="color: var(--emerald); font-family: 'Space Grotesk', sans-serif; font-size: 16px;">92.5 / 100</strong>
-                <div style="font-size: 10.5px; color: var(--text-muted);">คะแนนประเมินโดย AI</div>
+                <div style="font-size: 10.5px; color: var(--text-muted);">Half-Year &amp; End-Year ต่อเนื่อง</div>
               </div>
               <div>
-                <strong style="color: var(--primary); font-family: 'Space Grotesk', sans-serif; font-size: 16px;">63 / 62 วัน (100%)</strong>
-                <div style="font-size: 10.5px; color: var(--text-muted);">ความสม่ำเสมอ 100% ไร้ขาด</div>
+                <strong style="color: var(--primary); font-family: 'Space Grotesk', sans-serif; font-size: 16px;">104 / 104 วัน (100%)</strong>
+                <div style="font-size: 10.5px; color: var(--text-muted);">สม่ำเสมอ 100% (+1 วันหยุด)</div>
               </div>
             </div>
           </div>
@@ -4490,51 +4613,97 @@
       <div class="section-header-center">
         <div class="section-kicker">
           <span>🤖</span>
-          <span>HR OFFICIAL EVALUATION BENCHMARK • HALF-YEAR 2026</span>
+          <span>HR OFFICIAL EVALUATION BENCHMARK • HALF-YEAR &amp; END-YEAR 2026</span>
         </div>
         <h2 class="section-title">
-          ผลการวิเคราะห์การปฏิบัติงานด้วย AI <span class="gradient-text">(Google Calendar)</span>
+          ผลการประเมินการปฏิบัติงานด้วย AI <span class="gradient-text">(Half-Year → End-Year)</span>
         </h2>
         <p class="section-desc">
-          การประเมินผลการปฏิบัติงานรอบครึ่งปี (1 มิ.ย. – 31 ส.ค. 2569) ประมวลผลโดย AI (Google Gemini 3.8 Flash) อิงตามเกณฑ์มาตรฐาน HR 5 มิติหลัก ครบ 100% ไร้การคาดเดา พร้อมหลักฐานในระบบจริง
+          ผลประเมินรอบสิ้นปี End-Year 2026 (1 มิ.ย. – 31 ต.ค. 2569) ประมวลผลโดย AI (Google Gemini 4 Carbon) อิงเกณฑ์มาตรฐาน HR 5 มิติหลัก 100% ไร้การคาดเดา แสดงความต่อเนื่องและพัฒนาการภาวะผู้นำจากรอบครึ่งปีสู่ระดับ Department Manager
         </p>
       </div>
 
       <!-- Top Score Hero & Verification Strip -->
       <div class="appraisal-hero-card">
         <div class="appraisal-score-block">
-          <div class="appraisal-grade-pill">ระดับดีเยี่ยม • GRADE A</div>
+          <div class="appraisal-grade-pill">ระดับดีเยี่ยม • GRADE A (ต่อเนื่อง 2 รอบ)</div>
           <div class="appraisal-score-number">
             92.5<span>/100</span>
           </div>
-          <div class="appraisal-score-label">คะแนนประเมินรวมตามเกณฑ์ HR</div>
+          <div class="appraisal-score-label">คะแนนรวม End-Year 2026 (คงระดับจาก Half-Year)</div>
         </div>
 
         <div class="appraisal-stats-grid">
           <div class="appraisal-stat-box">
             <div class="appraisal-stat-val">100%</div>
             <div class="appraisal-stat-lbl">ความสม่ำเสมอในการบันทึก</div>
-            <div class="appraisal-stat-sub">63 วัน จาก 62 วันทำการ (129 รายการ)</div>
+            <div class="appraisal-stat-sub">104/104 วันทำการ (+1 วันหยุด) • 215 รายการ</div>
           </div>
           <div class="appraisal-stat-box">
-            <div class="appraisal-stat-val">93.0%</div>
-            <div class="appraisal-stat-lbl">JD Alignment Score</div>
-            <div class="appraisal-stat-sub">ครอบคลุม 5/5 หน้าที่หลัก และ 15 โครงการ</div>
+            <div class="appraisal-stat-val">5 / 5</div>
+            <div class="appraisal-stat-lbl">JD Coverage ครบ 100%</div>
+            <div class="appraisal-stat-sub">ครอบคลุมทุกหน้าที่หลัก และ 21 โครงการ</div>
           </div>
           <div class="appraisal-stat-box">
             <div class="appraisal-stat-val">High</div>
             <div class="appraisal-stat-lbl">Evidence Sufficiency</div>
-            <div class="appraisal-stat-sub">ความเพียงพอของหลักฐานระดับสูงครบทุกมิติ</div>
+            <div class="appraisal-stat-sub">หลักฐานเชิงประจักษ์ระดับสูงครบทั้ง 5 มิติ</div>
           </div>
         </div>
 
         <div class="appraisal-action-block">
-          <a href="https://worklog-imp.pages.dev/appraisal?share=9e37670c-75d9-4bb3-880f-fe6f1fd40d3a" target="_blank" rel="noreferrer" class="btn-appraisal-live">
-            <span>🌐 เปิดดูรายงานทางการในระบบ (Public Shared)</span>
+          <a href="https://worklog-imp.pages.dev/appraisal?share=ea8ca619-c99d-48b0-a040-9a7aee04b5d5" target="_blank" rel="noreferrer" class="btn-appraisal-live">
+            <span>🌐 เปิดรายงาน End-Year 2026 (ล่าสุด)</span>
             <span class="btn-arrow">➔</span>
           </a>
+          <a href="https://worklog-imp.pages.dev/appraisal?share=9e37670c-75d9-4bb3-880f-fe6f1fd40d3a" target="_blank" rel="noreferrer" class="btn-appraisal-secondary">
+            <span>ดูรายงานรอบ Half-Year 2026 (มิ.ย.–ส.ค.)</span>
+            <span>↗</span>
+          </a>
           <div class="appraisal-audit-note">
-            ✓ ยืนยันข้อมูลจริงจากระบบ Worklog Database • Model: Gemini 3.8 Flash
+            ✓ ยืนยันข้อมูลจริงจาก Worklog Database • Model: Gemini 4 Carbon
+          </div>
+        </div>
+      </div>
+
+      <!-- Half-Year -> End-Year Promotion Readiness Trajectory -->
+      <div class="trajectory-strip">
+        <div class="trajectory-header">
+          <div class="trajectory-title">📈 พัฒนาการความพร้อมสู่ระดับ Department Manager (Half-Year → End-Year 2026)</div>
+          <span class="trajectory-pill">Verified Growth from 215 Worklogs</span>
+        </div>
+        <div class="trajectory-grid">
+          <div class="trajectory-card">
+            <div class="trajectory-lbl">ขอบเขตโครงการที่ขับเคลื่อน</div>
+            <div class="trajectory-nums">
+              <span class="trajectory-val">15 → 21</span>
+              <span class="trajectory-delta">+40%</span>
+            </div>
+            <div class="trajectory-sub">ขยายการดูแลข้ามสายงานเพิ่มขึ้น 6 โครงการ</div>
+          </div>
+          <div class="trajectory-card">
+            <div class="trajectory-lbl">งานส่งมอบสำเร็จ (Deliverables)</div>
+            <div class="trajectory-nums">
+              <span class="trajectory-val">73 → 147</span>
+              <span class="trajectory-delta">+101%</span>
+            </div>
+            <div class="trajectory-sub">ปริมาณการปิดงานและส่งมอบผลลัพธ์เพิ่ม 2 เท่า</div>
+          </div>
+          <div class="trajectory-card">
+            <div class="trajectory-lbl">การสร้างคน &amp; ถ่ายทอดความรู้</div>
+            <div class="trajectory-nums">
+              <span class="trajectory-val">30 → 74</span>
+              <span class="trajectory-delta">+147%</span>
+            </div>
+            <div class="trajectory-sub">Knowledge Sharing +147% • Coaching 44 → 77 ครั้ง</div>
+          </div>
+          <div class="trajectory-card">
+            <div class="trajectory-lbl">การบริหาร &amp; มอบหมายงาน</div>
+            <div class="trajectory-nums">
+              <span class="trajectory-val">17 → 56</span>
+              <span class="trajectory-delta">+229%</span>
+            </div>
+            <div class="trajectory-sub">Delegation เพิ่ม 3.3 เท่า • Proactive 38% → 46%</div>
           </div>
         </div>
       </div>
@@ -4564,7 +4733,7 @@
               <div class="pillar-progress-bar" style="width: 95%;"></div>
             </div>
             <div class="pillar-evidence">
-              <strong>หลักฐานเชิงประจักษ์:</strong> บันทึกงานสม่ำเสมอ 100% ของวันทำการ (63/62 วัน) รวม 129 รายการ ครอบคลุมบทบาทภารกิจตาม JD ครบ 5/5 ด้านหลัก และมีส่วนขับเคลื่อน 15 โครงการสำคัญ
+              <strong>หลักฐานเชิงประจักษ์ (End-Year):</strong> บันทึกงานสม่ำเสมอ 100% ของวันทำการ (104/104 วันทำการ +1 วันหยุด) รวม 215 รายการ ครอบคลุมบทบาทภารกิจตาม JD ครบ 5/5 ด้านหลัก และขับเคลื่อน 21 โครงการสำคัญ
             </div>
             <div class="pillar-footer">
               <span class="pillar-status">ระดับ: ดีเยี่ยม</span>
@@ -4587,7 +4756,7 @@
               <div class="pillar-progress-bar" style="width: 92.5%;"></div>
             </div>
             <div class="pillar-evidence">
-              <strong>หลักฐานเชิงประจักษ์:</strong> ส่งมอบงาน 73 รายการใน TeamOps, Application form - Website, 304 CRM Ticket และบันทึก Result/Outcome เชิงประจักษ์ชัดเจน 19 รายการ
+              <strong>หลักฐานเชิงประจักษ์ (End-Year):</strong> ส่งมอบงาน 147 รายการใน Application form - Website, TeamOps, 304 CRM Ticket และบันทึก Result/Outcome เชิงประจักษ์ชัดเจน 21 รายการ
             </div>
             <div class="pillar-footer">
               <span class="pillar-status">ระดับ: ดีเยี่ยม</span>
@@ -4610,7 +4779,7 @@
               <div class="pillar-progress-bar" style="width: 92.5%;"></div>
             </div>
             <div class="pillar-evidence">
-              <strong>หลักฐานเชิงประจักษ์:</strong> วัฏจักร <em>Learn → Apply → Share</em>: พบบันทึกการเรียนรู้ 79 รายการ, นำไปใช้จริง 36 รายการ, และถ่ายทอด/สอนงาน 30 รายการ มีการถ่ายทอดสม่ำเสมอ
+              <strong>หลักฐานเชิงประจักษ์ (End-Year):</strong> วัฏจักร <em>Learn → Apply → Share</em>: พบบันทึกการเรียนรู้ 135 รายการ, นำไปใช้จริง 81 รายการ, และถ่ายทอด/สอนงาน 74 รายการ มีการถ่ายทอดสม่ำเสมอ
             </div>
             <div class="pillar-footer">
               <span class="pillar-status">ระดับ: ดีเยี่ยม</span>
@@ -4633,7 +4802,7 @@
               <div class="pillar-progress-bar" style="width: 92.5%;"></div>
             </div>
             <div class="pillar-evidence">
-              <strong>หลักฐานเชิงประจักษ์:</strong> วัฏจักร <em>Own → Follow-up → Close</em>: กำกับดูแล TeamOps 52 ครั้ง, โค้ชชิ่งพัฒนาทีม 44 ครั้ง, มอบหมายงาน (Delegation) 17 ครั้ง (สงวน 1.0 คะแนนสำหรับ 360° Review ข้ามสายงาน)
+              <strong>หลักฐานเชิงประจักษ์ (End-Year):</strong> วัฏจักร <em>Own → Follow-up → Close</em>: กำกับดูแล TeamOps 125 ครั้ง, โค้ชชิ่งพัฒนาทีม 77 ครั้ง, มอบหมายงาน (Delegation) 56 ครั้ง (สงวน 1.0 คะแนนสำหรับ 360° Review ข้ามสายงาน)
             </div>
             <div class="pillar-footer">
               <span class="pillar-status">ระดับ: ดีเยี่ยม</span>
@@ -4656,7 +4825,7 @@
               <div class="pillar-progress-bar" style="width: 92.5%;"></div>
             </div>
             <div class="pillar-evidence">
-              <strong>หลักฐานเชิงประจักษ์:</strong> วัฏจักร <em>Anticipate → Initiate → Prevent</em>: พบกิจกรรม Proactive เชิงรุก 49 รายการ (38% ของงานทั้งหมด) วางระบบป้องกันปัญหาซ้ำซ้อน (สงวน 1.5 คะแนนสำหรับนวัตกรรมระดับสายงาน)
+              <strong>หลักฐานเชิงประจักษ์ (End-Year):</strong> วัฏจักร <em>Anticipate → Initiate → Prevent</em>: พบกิจกรรม Proactive เชิงรุก 99 รายการ (46% ของงานทั้งหมด) วางระบบป้องกันปัญหาซ้ำซ้อน (สงวน 1.5 คะแนนสำหรับนวัตกรรมระดับสายงาน)
             </div>
             <div class="pillar-footer">
               <span class="pillar-status">ระดับ: ดีเยี่ยม</span>
@@ -4679,7 +4848,7 @@
               <div class="p-item-content">
                 <div class="p-item-top">
                   <span class="p-item-label">1. AI LEAD (Machine Velocity)</span>
-                  <span class="p-item-count">พบ 59 รายการ</span>
+                  <span class="p-item-count">พบ 75 รายการ</span>
                 </div>
                 <div class="p-item-desc">
                   ประยุกต์ใช้ AI และระบบ Automation ในงานจริง (เช่น TeamOps, 304 CRM Ticket) ช่วยลดภาระงานซ้ำซ้อน
@@ -4692,7 +4861,7 @@
               <div class="p-item-content">
                 <div class="p-item-top">
                   <span class="p-item-label">2. HUMAN IN THE LOOP (Context & Empathy)</span>
-                  <span class="p-item-count">พบ 56 รายการ</span>
+                  <span class="p-item-count">พบ 124 รายการ</span>
                 </div>
                 <div class="p-item-desc">
                   เข้าใจบริบทและ Pain Point ผู้ใช้จริง ร่วมกับผู้ใช้งานและ Stakeholders (เช่น 304 CRM Ticket, BOI) หนุนให้ Adoption สูง
@@ -4705,7 +4874,7 @@
               <div class="p-item-content">
                 <div class="p-item-top">
                   <span class="p-item-label">3. EXPERT IN THE LOOP (Governance & Quality)</span>
-                  <span class="p-item-count">พบ 59 รายการ</span>
+                  <span class="p-item-count">พบ 139 รายการ</span>
                 </div>
                 <div class="p-item-desc">
                   มี Quality Gate และการกำกับดูแล ตรวจทาน Audit, Review หรือปรึกษาผู้จัดการ (เช่น TeamOps, Precast) สร้างมาตรฐานถูกต้อง
@@ -4725,8 +4894,8 @@
               <div class="takeaway-badge strengths">Top Strengths</div>
               <ul class="takeaway-ul">
                 <li><strong>การวางแผนและดำเนินการที่มีระบบ (Systematic Execution):</strong> คุมภารกิจต่อเนื่อง ไร้งานตกค้าง</li>
-                <li><strong>ภาวะผู้นำและการโค้ชชิ่ง (Leadership & Coaching):</strong> มีบันทึก Coaching 44 ครั้ง และ TeamOps 52 ครั้ง</li>
-                <li><strong>การเรียนรู้และส่งต่อ (Continuous Learning):</strong> เรียนรู้ 79 ครั้ง นำไปใช้ 36 ครั้ง ถ่ายทอด 30 ครั้ง</li>
+                <li><strong>ภาวะผู้นำและการโค้ชชิ่ง (Leadership &amp; Coaching):</strong> มีบันทึก Coaching 77 ครั้ง, Delegation 56 ครั้ง และ TeamOps 125 ครั้ง</li>
+                <li><strong>การเรียนรู้และส่งต่อ (Continuous Learning):</strong> เรียนรู้ 135 ครั้ง นำไปใช้จริง 81 ครั้ง ถ่ายทอดต่อในทีม 74 ครั้ง</li>
               </ul>
             </div>
 

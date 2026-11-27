@@ -12,11 +12,123 @@ import {
   Download, 
   Briefcase, 
   Building2, 
-  TrendingUp, 
-  Clock, 
-  FolderGit2 
+  TrendingUp,
+  Clock,
+  FolderGit2,
+  ExternalLink,
+  Cpu
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { formatThaiDateRange } from '../lib/appraisalPromptStandards';
+
+interface MemberAppraisalSummary {
+  id: string;
+  cycle: 'half_year' | 'end_year';
+  overallScore: number;
+  level: string;
+  confidence: string;
+  period: string;
+  modelName: string;
+  coveragePct: number | null;
+  loggedDays: number | null;
+  businessDays: number | null;
+  shareToken: string | null;
+  isPublic: boolean;
+  pillars: {
+    quantity: number;
+    quality: number;
+    learning: number;
+    accountability: number;
+    proactiveness: number;
+  };
+}
+
+function cleanMilestoneText(raw?: string | null): string {
+  if (!raw) return '';
+  return raw
+    .split('\n')[0]
+    .replace(/\[.*?\]/g, '')
+    .replace(/^[\s:–—-]+/, '')
+    .trim();
+}
+
+function parseAppraisalRow(row: Record<string, unknown>, cycle: 'half_year' | 'end_year'): MemberAppraisalSummary {
+  const rawData =
+    typeof row.analysis_data === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(row.analysis_data) as Record<string, unknown>;
+          } catch {
+            return {};
+          }
+        })()
+      : (row.analysis_data && typeof row.analysis_data === 'object'
+          ? (row.analysis_data as Record<string, unknown>)
+          : {});
+
+  const overallScore =
+    typeof rawData.overall_score === 'number'
+      ? rawData.overall_score
+      : typeof row.score === 'number'
+        ? row.score
+        : 0;
+  const level =
+    typeof rawData.level === 'string' && rawData.level.trim()
+      ? rawData.level
+      : overallScore >= 85
+        ? 'ดีเยี่ยม'
+        : overallScore >= 75
+          ? 'ดีมาก'
+          : overallScore >= 60
+            ? 'มาตรฐาน'
+            : 'ต้องพัฒนา';
+
+  const scores =
+    rawData.scores && typeof rawData.scores === 'object'
+      ? (rawData.scores as Record<string, Record<string, unknown>>)
+      : {};
+  const fallbackPillar = Math.min(20, Math.max(0, Number(((overallScore / 100) * 20).toFixed(1))));
+  const readScore = (k: string) => (typeof scores[k]?.score === 'number' ? (scores[k].score as number) : fallbackPillar);
+
+  const stats =
+    rawData.worklog_stats && typeof rawData.worklog_stats === 'object'
+      ? (rawData.worklog_stats as Record<string, unknown>)
+      : null;
+
+  const rawPeriod =
+    typeof rawData.period === 'string' && rawData.period.trim()
+      ? rawData.period
+      : `${String(row.start_date || '-')} ถึง ${String(row.end_date || '-')}`;
+
+  const modelName =
+    typeof rawData.ai_model === 'string' && rawData.ai_model.trim()
+      ? rawData.ai_model
+      : typeof row.engine_model === 'string' && row.engine_model.trim()
+        ? row.engine_model
+        : 'AI Standard';
+
+  return {
+    id: String(row.id || ''),
+    cycle,
+    overallScore,
+    level,
+    confidence: typeof rawData.confidence === 'string' ? rawData.confidence : 'Medium',
+    period: formatThaiDateRange(rawPeriod),
+    modelName,
+    coveragePct: typeof stats?.coverage_pct === 'number' ? (stats.coverage_pct as number) : null,
+    loggedDays: typeof stats?.logged_days === 'number' ? (stats.logged_days as number) : null,
+    businessDays: typeof stats?.business_days === 'number' ? (stats.business_days as number) : null,
+    shareToken: typeof row.share_token === 'string' ? row.share_token : null,
+    isPublic: Boolean(row.is_public),
+    pillars: {
+      quantity: readScore('quantity'),
+      quality: readScore('quality'),
+      learning: readScore('learning'),
+      accountability: readScore('accountability'),
+      proactiveness: readScore('proactiveness'),
+    },
+  };
+}
 
 interface MemberData {
   id: string;
@@ -79,6 +191,8 @@ export default function DossierViewerPage() {
     projects: [],
     recentLogs: []
   });
+  const [halfYearAppraisal, setHalfYearAppraisal] = useState<MemberAppraisalSummary | null>(null);
+  const [endYearAppraisal, setEndYearAppraisal] = useState<MemberAppraisalSummary | null>(null);
   const [notFound, setNotFound] = useState(false);
 
   // Keyboard shortcut listener to forward Cmd+P / Ctrl+P directly
@@ -218,15 +332,29 @@ export default function DossierViewerPage() {
         setIsOwner(!!isUserOwner);
         setIsPublic(true);
 
-        // Fetch their col_worklog stats
-        const { data: logs } = await supabase
-          .from('col_worklog')
-          .select('id, work_date, total_hours, project_name, task_title, task_description')
+        // Fetch their col_worklog stats & real Half-Year / End-Year appraisals in parallel
+        let appraisalQuery = supabase
+          .from('tb_ai_individual_analysis')
+          .select('id, template_id, score, analysis_data, start_date, end_date, engine_model, share_token, is_public, analysis_date, created_at')
           .eq('user_id', foundUser.id)
-          .order('work_date', { ascending: false });
+          .order('analysis_date', { ascending: false, nullsFirst: false })
+          .limit(20);
+        if (!isUserOwner) {
+          appraisalQuery = appraisalQuery.eq('is_public', true);
+        }
 
+        const [logsRes, appraisalsRes] = await Promise.allSettled([
+          supabase
+            .from('col_worklog')
+            .select('id, work_date, total_hours, project_name, action_name, description')
+            .eq('user_id', foundUser.id)
+            .order('work_date', { ascending: false }),
+          appraisalQuery,
+        ]);
+
+        const logs = logsRes.status === 'fulfilled' ? logsRes.value.data : null;
         if (logs && logs.length > 0) {
-          const totalHours = logs.reduce((sum, item) => sum + (parseFloat(item.total_hours) || 0), 0);
+          const totalHours = logs.reduce((sum, item) => sum + (parseFloat(String(item.total_hours || 0)) || 0), 0);
           const uniqueDays = new Set(logs.map(item => item.work_date)).size;
           const projects = Array.from(new Set(logs.map(item => item.project_name).filter(Boolean))) as string[];
           setMemberStats({
@@ -237,13 +365,32 @@ export default function DossierViewerPage() {
             recentLogs: logs.slice(0, 8).map(l => ({
               id: l.id,
               work_date: l.work_date,
-              task_title: l.task_title,
-              task_description: l.task_description,
-              total_hours: parseFloat(l.total_hours) || 0,
+              task_title: cleanMilestoneText(l.description) || l.action_name || l.project_name || 'บันทึกงาน',
+              task_description: l.description || undefined,
+              total_hours: parseFloat(String(l.total_hours || 0)) || 0,
               project_name: l.project_name
             }))
           });
         }
+
+        const appraisalRows =
+          appraisalsRes.status === 'fulfilled' && Array.isArray(appraisalsRes.value.data)
+            ? (appraisalsRes.value.data as Record<string, unknown>[])
+            : [];
+
+        const latestEndYear = appraisalRows.find((r) => {
+          const tpl = String(r.template_id || '');
+          const cycle = (r.analysis_data as Record<string, unknown> | null)?.cycle;
+          return tpl.startsWith('end_year') || cycle === 'End-Year';
+        });
+        const latestHalfYear = appraisalRows.find((r) => {
+          const tpl = String(r.template_id || '');
+          const cycle = (r.analysis_data as Record<string, unknown> | null)?.cycle;
+          return tpl.startsWith('half_year') || cycle === 'Half-Year';
+        });
+
+        setEndYearAppraisal(latestEndYear ? parseAppraisalRow(latestEndYear, 'end_year') : null);
+        setHalfYearAppraisal(latestHalfYear ? parseAppraisalRow(latestHalfYear, 'half_year') : null);
       } catch (err) {
         console.error('Error fetching member dossier:', err);
         setNotFound(true);
@@ -379,6 +526,8 @@ export default function DossierViewerPage() {
   }
 
   // Dynamic Personal Career Dossier for Other Team Members
+  const primaryAppraisal = endYearAppraisal || halfYearAppraisal;
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30">
       {/* Top Navbar */}
@@ -459,13 +608,31 @@ export default function DossierViewerPage() {
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-2 shrink-0 bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">AI Evaluation Index</span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-3xl font-black text-emerald-400 font-mono">Grade A</span>
-                <span className="text-xs text-slate-400 font-bold">(91.5%)</span>
-              </div>
-              <span className="text-[11px] text-slate-400">ประมวลผลตามเกณฑ์ HR 5 เสาหลัก</span>
+            <div className="flex flex-col items-end gap-1.5 shrink-0 bg-slate-900/60 border border-slate-800 rounded-2xl p-4 min-w-[200px]">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {primaryAppraisal
+                  ? `AI Evaluation • ${primaryAppraisal.cycle === 'end_year' ? 'End-Year' : 'Half-Year'}`
+                  : 'AI Evaluation Index'}
+              </span>
+              {primaryAppraisal ? (
+                <>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl font-black text-emerald-400 font-mono tabular-nums">
+                      {primaryAppraisal.overallScore}
+                    </span>
+                    <span className="text-xs text-slate-400 font-bold">/ 100 ({primaryAppraisal.level})</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                    <Cpu size={11} className="text-indigo-400" />
+                    <span>{primaryAppraisal.modelName}</span>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-base font-bold text-slate-300">ยังไม่มีผลประเมินสาธารณะ</span>
+                  <span className="text-[11px] text-slate-400">สร้างได้จากหน้า AI Half - End Year</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -477,7 +644,7 @@ export default function DossierViewerPage() {
               <span className="text-xs font-bold uppercase tracking-wider">Total Work Hours</span>
               <Clock size={16} className="text-indigo-400" />
             </div>
-            <div className="text-2xl font-black text-white font-mono">{memberStats.totalHours.toLocaleString()}</div>
+            <div className="text-2xl font-black text-white font-mono tabular-nums">{memberStats.totalHours.toLocaleString()}</div>
             <p className="text-[11px] text-slate-400 mt-1">ชั่วโมงงานที่บันทึกสะสม</p>
           </div>
 
@@ -486,8 +653,8 @@ export default function DossierViewerPage() {
               <span className="text-xs font-bold uppercase tracking-wider">Logged Days</span>
               <Calendar size={16} className="text-emerald-400" />
             </div>
-            <div className="text-2xl font-black text-white font-mono">{memberStats.totalDays}</div>
-            <p className="text-[11px] text-slate-400 mt-1">วันทำงานที่มีการบันทึกจริง</p>
+            <div className="text-2xl font-black text-white font-mono tabular-nums">{memberStats.totalDays}</div>
+            <p className="text-[11px] text-slate-400 mt-1">วันทำงานที่มีการบันทึกจริง ({memberStats.totalTasks} งาน)</p>
           </div>
 
           <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
@@ -495,7 +662,7 @@ export default function DossierViewerPage() {
               <span className="text-xs font-bold uppercase tracking-wider">Active Projects</span>
               <FolderGit2 size={16} className="text-amber-400" />
             </div>
-            <div className="text-2xl font-black text-white font-mono">{memberStats.projects.length || 1}</div>
+            <div className="text-2xl font-black text-white font-mono tabular-nums">{memberStats.projects.length}</div>
             <p className="text-[11px] text-slate-400 mt-1">โครงการสำคัญที่รับผิดชอบ</p>
           </div>
 
@@ -504,48 +671,132 @@ export default function DossierViewerPage() {
               <span className="text-xs font-bold uppercase tracking-wider">Work Consistency</span>
               <Award size={16} className="text-purple-400" />
             </div>
-            <div className="text-2xl font-black text-white font-mono">98.5%</div>
-            <p className="text-[11px] text-slate-400 mt-1">ความสม่ำเสมอตามเกณฑ์</p>
+            <div className="text-2xl font-black text-white font-mono tabular-nums">
+              {primaryAppraisal?.coveragePct != null ? `${primaryAppraisal.coveragePct}%` : '—'}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {primaryAppraisal?.loggedDays != null && primaryAppraisal?.businessDays != null
+                ? `${primaryAppraisal.loggedDays}/${primaryAppraisal.businessDays} วันทำการในรอบล่าสุด`
+                : 'คำนวณอัตโนมัติเมื่อประเมิน AI'}
+            </p>
           </div>
         </div>
 
-        {/* 5 HR Performance Pillars Breakdown */}
+        {/* Half-Year & End-Year Official Appraisal Trajectory */}
+        {(halfYearAppraisal || endYearAppraisal) && (
+          <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <Award size={20} className="text-emerald-400" />
+                <h3 className="text-lg font-bold text-white tracking-tight">
+                  ผลประเมินทางการ Half-Year &amp; End-Year (Official AI Appraisal)
+                </h3>
+              </div>
+              <span className="text-xs text-slate-400 font-mono">Verified from Worklog Database</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { label: 'รอบครึ่งปี (Half-Year)', item: halfYearAppraisal },
+                { label: 'รอบสิ้นปี (End-Year)', item: endYearAppraisal },
+              ].map(({ label, item }) => (
+                <div
+                  key={label}
+                  className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between gap-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-bold text-indigo-300">{label}</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        {item ? item.period : 'ยังไม่มีข้อมูลผลประเมินในรอบนี้'}
+                      </div>
+                    </div>
+                    {item ? (
+                      <div className="text-right shrink-0">
+                        <div className="text-2xl font-black text-emerald-400 font-mono tabular-nums">
+                          {item.overallScore}
+                          <span className="text-xs text-slate-400 font-bold">/100</span>
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-300">ระดับ &quot;{item.level}&quot;</div>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+                        รอประเมิน
+                      </span>
+                    )}
+                  </div>
+                  {item && (
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                      <span className="text-slate-400 flex items-center gap-1">
+                        <Cpu size={11} className="text-indigo-400" />
+                        <span>{item.modelName}</span>
+                      </span>
+                      {item.isPublic && item.shareToken && (
+                        <a
+                          href={`/appraisal?share=${item.shareToken}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-bold text-indigo-400 hover:text-indigo-300"
+                        >
+                          <span>เปิดรายงานทางการ</span>
+                          <ExternalLink size={11} />
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 5 HR Performance Pillars Breakdown (Real Data) */}
         <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2.5">
               <TrendingUp size={20} className="text-indigo-400" />
               <h3 className="text-lg font-bold text-white tracking-tight">
                 HR Official Performance Pillars (เกณฑ์ประเมิน 5 มิติ)
               </h3>
             </div>
-            <span className="text-xs text-slate-400 font-mono">Gemini AI Audit Engine</span>
+            <span className="text-xs text-slate-400 font-mono">
+              {primaryAppraisal
+                ? `${primaryAppraisal.cycle === 'end_year' ? 'End-Year' : 'Half-Year'} • ${primaryAppraisal.modelName}`
+                : 'ยังไม่มีผลประเมิน'}
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 pt-2">
-            {[
-              { name: '1. Quantity', desc: 'ปริมาณงานและความครบถ้วน', score: '18.5/20', pct: 92.5, color: 'bg-indigo-500' },
-              { name: '2. Quality', desc: 'คุณภาพและผลลัพธ์เชิงประจักษ์', score: '18.0/20', pct: 90.0, color: 'bg-emerald-500' },
-              { name: '3. Learning', desc: 'การเรียนรู้และการส่งต่องาน', score: '18.5/20', pct: 92.5, color: 'bg-sky-500' },
-              { name: '4. Accountability', desc: 'ความรับผิดชอบและการปิดจบ', score: '18.0/20', pct: 90.0, color: 'bg-purple-500' },
-              { name: '5. Proactiveness', desc: 'การคิดเชิงรุกและการป้องกัน', score: '18.5/20', pct: 92.5, color: 'bg-amber-500' },
-            ].map(pillar => (
-              <div key={pillar.name} className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
-                <div>
-                  <div className="text-xs font-bold text-white mb-1">{pillar.name}</div>
-                  <p className="text-[10px] text-slate-400 leading-tight mb-3">{pillar.desc}</p>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-200 mb-1.5">
-                    <span>Score</span>
-                    <span>{pillar.score}</span>
+          {primaryAppraisal ? (
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 pt-2">
+              {[
+                { name: '1. Quantity', desc: 'ปริมาณงานและความครบถ้วน', val: primaryAppraisal.pillars.quantity, color: 'bg-indigo-500' },
+                { name: '2. Quality', desc: 'คุณภาพและผลลัพธ์เชิงประจักษ์', val: primaryAppraisal.pillars.quality, color: 'bg-emerald-500' },
+                { name: '3. Learning', desc: 'การเรียนรู้และการส่งต่องาน', val: primaryAppraisal.pillars.learning, color: 'bg-sky-500' },
+                { name: '4. Accountability', desc: 'ความรับผิดชอบและการปิดจบ', val: primaryAppraisal.pillars.accountability, color: 'bg-purple-500' },
+                { name: '5. Proactiveness', desc: 'การคิดเชิงรุกและการป้องกัน', val: primaryAppraisal.pillars.proactiveness, color: 'bg-amber-500' },
+              ].map((pillar) => (
+                <div key={pillar.name} className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-white mb-1">{pillar.name}</div>
+                    <p className="text-[10px] text-slate-400 leading-tight mb-3">{pillar.desc}</p>
                   </div>
-                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div className={`${pillar.color} h-full rounded-full`} style={{ width: `${pillar.pct}%` }} />
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-mono tabular-nums font-bold text-slate-200 mb-1.5">
+                      <span>Score</span>
+                      <span>{pillar.val}/20</span>
+                    </div>
+                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                      <div className={`${pillar.color} h-full rounded-full`} style={{ width: `${Math.min(100, (pillar.val / 20) * 100)}%` }} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-6 text-center text-xs text-slate-400">
+              ยังไม่มีผลประเมิน 5 มิติที่เปิดแชร์สาธารณะ (สามารถสร้างและเปิดแชร์ได้ที่เมนู <strong className="text-indigo-300">AI Half - End Year</strong>)
+            </div>
+          )}
         </div>
 
         {/* Projects & Work Deliverables */}
