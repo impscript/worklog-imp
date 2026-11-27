@@ -228,10 +228,10 @@ function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): App
   const overallScore = typeof data.overall_score === 'number'
     ? data.overall_score
     : typeof item?.score === 'number'
-    ? item.score
-    : typeof item?.jd_alignment_score === 'number'
-    ? item.jd_alignment_score
-    : 75;
+      ? item.score
+      : typeof item?.jd_alignment_score === 'number'
+        ? item.jd_alignment_score
+        : 75;
 
   const defaultPillarScore = Math.min(20, Math.max(0, Math.round((overallScore / 100) * 20)));
   const defaultLevel = overallScore >= 85 ? 'ดีเยี่ยม' : overallScore >= 75 ? 'ดีมาก' : overallScore >= 60 ? 'มาตรฐาน' : 'ต้องพัฒนา';
@@ -244,8 +244,8 @@ function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): App
     const dimArray = Array.isArray(data.dimension_scores)
       ? data.dimension_scores
       : Array.isArray(data.scores)
-      ? data.scores
-      : null;
+        ? data.scores
+        : null;
 
     if (dimArray && dimArray.length > 0) {
       dimArray.forEach((d) => {
@@ -331,13 +331,13 @@ function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): App
   const safeTopStrengths = Array.isArray(data.top_strengths) && data.top_strengths.length > 0
     ? (data.top_strengths as string[])
     : Array.isArray(item?.strengths) && item.strengths.length > 0
-    ? (item.strengths as string[])
-    : ['มีความมุ่งมั่นในการส่งมอบงานและรับผิดชอบโครงการที่ได้รับมอบหมาย'];
+      ? (item.strengths as string[])
+      : ['มีความมุ่งมั่นในการส่งมอบงานและรับผิดชอบโครงการที่ได้รับมอบหมาย'];
   const safeDevPriorities = Array.isArray(data.development_priorities) && data.development_priorities.length > 0
     ? (data.development_priorities as string[])
     : Array.isArray(item?.improvements) && item.improvements.length > 0
-    ? (item.improvements as string[])
-    : ['เพิ่มการบันทึกตัวชี้วัดผลลัพธ์ (Result/Outcome) และการสรุปบทเรียน Case Study'];
+      ? (item.improvements as string[])
+      : ['เพิ่มการบันทึกตัวชี้วัดผลลัพธ์ (Result/Outcome) และการสรุปบทเรียน Case Study'];
   const safeRecommendations = Array.isArray(data.recommendations) && data.recommendations.length > 0
     ? (data.recommendations as string[])
     : [typeof data.executive_summary === 'string' ? data.executive_summary.slice(0, 150) : 'สามารถบันทึกงานอย่างสม่ำเสมอตามสูตร [What] -> [Action] -> [Result]'];
@@ -374,8 +374,8 @@ function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): App
     const promptText = typeof pInfo?.fullPrompt === 'string'
       ? pInfo.fullPrompt
       : typeof pInfo?.userPrompt === 'string'
-      ? pInfo.userPrompt
-      : '';
+        ? pInfo.userPrompt
+        : '';
 
     if (promptText) {
       const bMatch = promptText.match(/วันทำการทั้งหมด:\s*(\d+)/);
@@ -471,22 +471,22 @@ function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): App
     ai_provider: typeof data.ai_provider === 'string' && data.ai_provider.trim()
       ? data.ai_provider
       : typeof (item as any)?.ai_provider === 'string' && (item as any)?.ai_provider.trim()
-      ? (item as any).ai_provider
-      : 'OpenRouter',
+        ? (item as any).ai_provider
+        : 'OpenRouter',
     ai_model: formatModelDisplayName(
       (typeof data.ai_model === 'string' && data.ai_model.trim())
         ? data.ai_model
         : (typeof (item as any)?.engine_model === 'string' && (item as any)?.engine_model.trim())
-        ? (item as any).engine_model
-        : (typeof (data as any)?.engine_model === 'string' && (data as any)?.engine_model.trim())
-        ? (data as any).engine_model
-        : (typeof (data as any)?.model === 'string' && (data as any)?.model.trim())
-        ? (data as any).model
-        : (typeof (item as any)?.model === 'string' && (item as any)?.model.trim())
-        ? (item as any).model
-        : (data.prompt_info && typeof (data.prompt_info as any)?.model === 'string')
-        ? (data.prompt_info as any).model
-        : 'Claude 3.5 Sonnet'
+          ? (item as any).engine_model
+          : (typeof (data as any)?.engine_model === 'string' && (data as any)?.engine_model.trim())
+            ? (data as any).engine_model
+            : (typeof (data as any)?.model === 'string' && (data as any)?.model.trim())
+              ? (data as any).model
+              : (typeof (item as any)?.model === 'string' && (item as any)?.model.trim())
+                ? (item as any).model
+                : (data.prompt_info && typeof (data.prompt_info as any)?.model === 'string')
+                  ? (data.prompt_info as any).model
+                  : 'Claude 3.5 Sonnet'
     ),
     worklog_stats: safeStats,
     prompt_info: data.prompt_info && typeof data.prompt_info === 'object'
@@ -528,6 +528,7 @@ export default function OfficialAppraisalPage() {
     }
   });
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
+  const [isCurrentWorkspaceAdmin, setIsCurrentWorkspaceAdmin] = useState<boolean>(false);
   const [loadingUsers, setLoadingUsers] = useState<boolean>(true);
 
   // Mode: Self vs Team
@@ -789,6 +790,11 @@ export default function OfficialAppraisalPage() {
             .eq('workspace_id', currentWsId);
 
           if (!memErr && memData && memData.length > 0) {
+            const currentMembership = (
+              memData as unknown as { user_id?: string; role?: string }[]
+            ).find((row) => row.user_id === currentUser.id);
+            setIsCurrentWorkspaceAdmin(currentMembership?.role === 'admin');
+
             loadedUsers = (memData as unknown as { users: UserProfile | null }[])
               .map((row) => row.users)
               .filter((u): u is UserProfile => Boolean(u))
@@ -962,12 +968,12 @@ export default function OfficialAppraisalPage() {
         end: `${selectedYear}-08-31`,
       };
     }
-    // End-Year: Sept - Dec
+    // End-Year: Manager (June - Oct), Officer (July - Oct)
     return {
-      start: `${selectedYear}-09-01`,
-      end: `${selectedYear}-12-31`,
+      start: isManagerEvaluated ? `${selectedYear}-06-01` : `${selectedYear}-07-01`,
+      end: `${selectedYear}-10-31`,
     };
-  }, [sharedDateRange, selectedCycle, selectedYear, isCustomDate, customStartDate, customEndDate]);
+  }, [sharedDateRange, selectedCycle, selectedYear, isCustomDate, customStartDate, customEndDate, isManagerEvaluated]);
 
   // NOTE: appraisalResult & roleOverride are reset directly in event handlers below (no useEffect needed)
 
@@ -1262,10 +1268,10 @@ export default function OfficialAppraisalPage() {
           const matched = deliverableLogs.length > 0
             ? deliverableLogs
             : candidateLogs.filter((l) =>
-                /deploy|release|uat|sign.?off|deliver|ส่งมอบ|ผลลัพธ์|result|เสร็จ|milestone|production|implement|coding|develop|build|ship|สำเร็จ/i.test(
-                  (l.project_name || '') + ' ' + (l.action_name || '') + ' ' + (l.description || '')
-                )
-              );
+              /deploy|release|uat|sign.?off|deliver|ส่งมอบ|ผลลัพธ์|result|เสร็จ|milestone|production|implement|coding|develop|build|ship|สำเร็จ/i.test(
+                (l.project_name || '') + ' ' + (l.action_name || '') + ' ' + (l.description || '')
+              )
+            );
           if (matched.length > 0) {
             const sampleProj = Array.from(new Set(matched.map((m) => m.project_name).filter(Boolean))).slice(0, 2).join(', ');
             return {
@@ -1500,7 +1506,7 @@ export default function OfficialAppraisalPage() {
       const qtyLevel = ratioToLevel(qtyCompositeRatio);
       const qtySufficiency: 'High' | 'Medium' | 'Low' =
         totalEntries >= 30 && loggingCoveragePct >= 60 ? 'High' :
-        totalEntries >= 10 ? 'Medium' : 'Low';
+          totalEntries >= 10 ? 'Medium' : 'Low';
       const jdNoteQty = jdResponsibilities.length > 0
         ? `ครอบคลุม JD ${jdMatchCount}/${jdTotal} หน้าที่หลัก, ${sortedProjects.length} โครงการ`
         : `ครอบคลุม ${sortedProjects.length} โครงการหลัก`;
@@ -1774,9 +1780,8 @@ export default function OfficialAppraisalPage() {
       const roleFocusText = isManagerEvaluated
         ? 'การวางแผนกำกับดูแลทีมงาน (TeamOps) และการผลักดันโครงการเชิงกลยุทธ์'
         : `การส่งมอบงานในโครงการหลัก (${sortedProjects.slice(0, 2).map((p) => p.name).join(', ') || 'งานที่ได้รับมอบหมาย'})`;
-      const executiveSummary = `${evaluatedUser.full_name} (${evaluatedUser.position || 'พนักงาน'}) ปฏิบัติงานในรอบ ${
-        selectedCycle === 'half_year' ? 'ครึ่งปีแรก' : 'สิ้นปี'
-      } ${disciplineText} โดยมีภาระงานหลักขับเคลื่อนใน ${sortedProjects.slice(0, 3).map((p) => p.name).join(', ') || 'โครงการหลัก'} มีจุดแข็งสำคัญในด้าน ${roleFocusText} โดยควรต่อยอดด้านการบันทึกตัวชี้วัดผลกระทบเชิงธุรกิจ (Business Outcome Metrics) และการปิดลูปตรวจรับงาน (Closure) ให้สมบูรณ์ยิ่งขึ้น`;
+      const executiveSummary = `${evaluatedUser.full_name} (${evaluatedUser.position || 'พนักงาน'}) ปฏิบัติงานในรอบ ${selectedCycle === 'half_year' ? 'ครึ่งปีแรก' : 'สิ้นปี'
+        } ${disciplineText} โดยมีภาระงานหลักขับเคลื่อนใน ${sortedProjects.slice(0, 3).map((p) => p.name).join(', ') || 'โครงการหลัก'} มีจุดแข็งสำคัญในด้าน ${roleFocusText} โดยควรต่อยอดด้านการบันทึกตัวชี้วัดผลกระทบเชิงธุรกิจ (Business Outcome Metrics) และการปิดลูปตรวจรับงาน (Closure) ให้สมบูรณ์ยิ่งขึ้น`;
 
       // ─────────────────────────────────────────────────────────────────
       // 12. Strengths, Priorities & Recommendations (all derived, none hardcoded)
@@ -1983,7 +1988,14 @@ export default function OfficialAppraisalPage() {
     setSaveStatus('saving');
     setSaveMessage('กำลังบันทึกประวัติการประเมินลงฐานข้อมูล...');
     try {
-      const templateId = isManagerEvaluated ? 'half_year_manager' : 'half_year_officer';
+      const templateId =
+        selectedCycle === 'end_year'
+          ? isManagerEvaluated
+            ? 'end_year_manager'
+            : 'end_year_officer'
+          : isManagerEvaluated
+            ? 'half_year_manager'
+            : 'half_year_officer';
       const payload: Record<string, unknown> = {
         user_id: evaluatedUser.id,
         template_id: templateId,
@@ -2283,7 +2295,7 @@ ${r.calendar_logging_guide}
                 </h1>
               </div>
               <p className="text-xs text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
-                ระบบประเมินผลการปฏิบัติงานรอบครึ่งปี (Half-Year: มิ.ย.-ส.ค.) และรอบสิ้นปี (End-Year: ก.ย.-ธ.ค.)
+                ระบบประเมินผลการปฏิบัติงานรอบครึ่งปี (Half-Year: มิ.ย.-ส.ค.) และรอบสิ้นปี (End-Year: Manager มิ.ย.-ต.ค. / Officer ก.ค.-ต.ค.)
                 ประเมินจากหลักฐานในระบบจริงตามเกณฑ์มาตรฐาน HR 100% ไร้การคาดเดา
               </p>
             </div>
@@ -2412,348 +2424,341 @@ ${r.calendar_logging_guide}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 print:hidden">
             {/* Left Column: Target & Mode (5 cols) */}
             <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <BrainCircuit size={18} className="text-indigo-500" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">ผู้รับการประเมิน (Evaluation Target)</h3>
-              </div>
-
-              {/* Dual Mode Switcher if Admin/Leader */}
-              {(currentUser?.role === 'admin' || isCurrentUserLeader) && (
-                <div className="flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium">
-                  <button
-                    onClick={() => {
-                      setEvalMode('self');
-                      setAppraisalResult(null);
-                      setRoleOverride('auto');
-                      if (currentUser) setSelectedTargetUserId(currentUser.id);
-                    }}
-                    className={`px-2.5 py-1 rounded-md transition-all ${
-                      evalMode === 'self'
-                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 font-bold shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    ประเมินตนเอง
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEvalMode('team');
-                      setAppraisalResult(null);
-                      setRoleOverride('auto');
-                      if (usersList.length > 0 && !usersList.some((u) => u.id === selectedTargetUserId)) {
-                        setSelectedTargetUserId(usersList[0].id);
-                      }
-                    }}
-                    className={`px-2.5 py-1 rounded-md transition-all ${
-                      evalMode === 'team'
-                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 font-bold shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    ประเมินทีมงาน
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Target Select */}
-            {evalMode === 'team' ? (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">เลือกพนักงานในสังกัด:</label>
-                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/40 font-medium">
-                    🏢 {currentUser?.workspaceName || 'Workspace ปัจจุบัน'} ({usersList.length} คน)
-                  </span>
-                </div>
-                <select
-                  value={selectedTargetUserId}
-                  onChange={(e) => {
-                    setSelectedTargetUserId(e.target.value);
-                    setAppraisalResult(null);
-                    setRoleOverride('auto');
-                  }}
-                  className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-                >
-                  {loadingUsers ? (
-                    <option>กำลังโหลดรายชื่อพนักงานใน Workspace...</option>
-                  ) : usersList.length === 0 ? (
-                    <option>ไม่พบพนักงานใน Workspace นี้</option>
-                  ) : (
-                    usersList.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} ({u.emp_id}) — {u.position || u.department || 'Staff'}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-            ) : null}
-
-            {/* Selected Profile Card */}
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md overflow-hidden shrink-0 relative">
-                  <img
-                    src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
-                    alt={evaluatedUser?.full_name || 'Avatar'}
-                    className="w-full h-full object-cover absolute inset-0"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
-                    }}
-                  />
-                  <span className="font-bold text-sm select-none">
-                    {evaluatedUser?.full_name ? evaluatedUser.full_name.trim().slice(0, 2) : 'EM'}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
-                    <span>{evaluatedUser?.full_name}</span>
-                    <span className="text-[10px] text-slate-500 font-mono shrink-0">({evaluatedUser?.emp_id})</span>
-                  </div>
-                  <div className="text-xs text-indigo-600 dark:text-indigo-400 font-medium truncate">
-                    {evaluatedUser?.position || 'ตำแหน่งไม่ระบุ'} • {evaluatedUser?.department || 'IMP'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Smart Role Detection & Override */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">ชุดคำสั่งที่เลือกใช้ (Prompt Standard):</span>
-                <span
-                  className={`text-[11px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border ${
-                    isManagerEvaluated
-                      ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40'
-                      : 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40'
-                  }`}
-                >
-                  {isManagerEvaluated ? <Award size={12} /> : <FileCheck size={12} />}
-                  {isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md'}
-                </span>
-              </div>
-
-              {/* Manual Override Buttons */}
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-[10px] text-slate-500 dark:text-slate-400">สลับเกณฑ์:</span>
-                <button
-                  type="button"
-                  onClick={() => setRoleOverride('auto')}
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${
-                    roleOverride === 'auto'
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  ตรวจจับอัตโนมัติ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRoleOverride('manager')}
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${
-                    roleOverride === 'manager'
-                      ? 'bg-purple-600 text-white border-purple-600 shadow-2xs font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  👔 ระดับผู้จัดการ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRoleOverride('officer')}
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${
-                    roleOverride === 'officer'
-                      ? 'bg-sky-600 text-white border-sky-600 shadow-2xs font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  💼 พนักงานทั่วไป
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column: Cycle & Pre-flight Evidence Status (7 cols) */}
-          <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <Clock size={18} className="text-indigo-500" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">รอบการประเมิน (Appraisal Cycle)</h3>
-              </div>
-
-              {/* Year Switcher */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">ปี:</span>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="px-2 py-1 rounded-md text-xs bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold"
-                >
-                  <option value={2026}>2026 (ปัจจุบัน)</option>
-                  <option value={2025}>2025</option>
-                  <option value={2024}>2024</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Cycle Selection Cards */}
-            <div className="grid grid-cols-2 gap-3">
-              <div
-                onClick={() => {
-                  setSelectedCycle('half_year');
-                  setIsCustomDate(false);
-                  setAppraisalResult(null);
-                  setRoleOverride('auto');
-                }}
-                className={`cursor-pointer rounded-xl p-3 border transition-all ${
-                  selectedCycle === 'half_year' && !isCustomDate
-                    ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-500 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`text-xs font-bold ${selectedCycle === 'half_year' && !isCustomDate ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300'}`}>
-                    รอบครึ่งปี (Half-Year)
-                  </span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${selectedCycle === 'half_year' && !isCustomDate ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30' : 'bg-slate-200/80 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300'}`}>
-                    มิ.ย. - ส.ค.
-                  </span>
-                </div>
-                <div className={`text-[11px] ${selectedCycle === 'half_year' && !isCustomDate ? 'text-indigo-700 dark:text-indigo-300/90 font-semibold' : 'text-slate-600 dark:text-slate-400'}`}>
-                  1 มิ.ย. {selectedYear} – 31 ส.ค. {selectedYear}
-                </div>
-              </div>
-
-              <div
-                onClick={() => {
-                  setSelectedCycle('end_year');
-                  setIsCustomDate(false);
-                  setAppraisalResult(null);
-                  setRoleOverride('auto');
-                }}
-                className={`cursor-pointer rounded-xl p-3 border transition-all ${
-                  selectedCycle === 'end_year' && !isCustomDate
-                    ? 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-400 dark:border-purple-500 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`text-xs font-bold ${selectedCycle === 'end_year' && !isCustomDate ? 'text-purple-700 dark:text-purple-300' : 'text-slate-700 dark:text-slate-300'}`}>
-                    รอบสิ้นปี (End-Year)
-                  </span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${selectedCycle === 'end_year' && !isCustomDate ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30' : 'bg-slate-200/80 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300'}`}>
-                    ก.ย. - ธ.ค.
-                  </span>
-                </div>
-                <div className={`text-[11px] ${selectedCycle === 'end_year' && !isCustomDate ? 'text-purple-700 dark:text-purple-300/90 font-semibold' : 'text-slate-600 dark:text-slate-400'}`}>
-                  1 ก.ย. {selectedYear} – 31 ธ.ค. {selectedYear}
-                </div>
-              </div>
-            </div>
-
-            {/* Custom Dates Option Toggle */}
-            <div className="pt-1 space-y-2">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-500 dark:text-slate-400">ช่วงวันที่จริงที่ใช้:</span>
-                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                    {dateRange.start} ถึง {dateRange.end}
-                  </span>
+                  <BrainCircuit size={18} className="text-indigo-500" />
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">ผู้รับการประเมิน (Evaluation Target)</h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsCustomDate(!isCustomDate)}
-                  className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-semibold underline underline-offset-2"
-                >
-                  {isCustomDate ? 'ใช้ช่วงมาตรฐาน' : 'กำหนดวันที่เอง'}
-                </button>
-              </div>
 
-              {isCustomDate && (
-                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-                  <div>
-                    <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 font-medium">วันเริ่มต้น:</label>
-                    <input
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="w-full px-2 py-1 text-xs rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 font-medium">วันสิ้นสุด:</label>
-                    <input
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="w-full px-2 py-1 text-xs rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Pre-flight Data Stats */}
-            <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-center">
-                <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">บันทึกงาน</div>
-                <div className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 mt-0.5">
-                  {isPreflightLoading ? '...' : `${candidateLogs.length} งาน`}
-                </div>
-              </div>
-              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-center">
-                <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">วันทำการ</div>
-                <div className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
-                  {isPreflightLoading ? '...' : `${uniqueLoggedDays}/${businessDays}`}
-                </div>
-                {holidayCountInPeriod > 0 && (
-                  <div className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
-                    (หักวันหยุด {holidayCountInPeriod} วัน)
+                {/* Dual Mode Switcher if Admin/Leader */}
+                {(currentUser?.role === 'admin' || isCurrentUserLeader) && (
+                  <div className="flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium">
+                    <button
+                      onClick={() => {
+                        setEvalMode('self');
+                        setAppraisalResult(null);
+                        setRoleOverride('auto');
+                        if (currentUser) setSelectedTargetUserId(currentUser.id);
+                      }}
+                      className={`px-2.5 py-1 rounded-md transition-all ${evalMode === 'self'
+                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 font-bold shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                    >
+                      ประเมินตนเอง
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEvalMode('team');
+                        setAppraisalResult(null);
+                        setRoleOverride('auto');
+                        if (usersList.length > 0 && !usersList.some((u) => u.id === selectedTargetUserId)) {
+                          setSelectedTargetUserId(usersList[0].id);
+                        }
+                      }}
+                      className={`px-2.5 py-1 rounded-md transition-all ${evalMode === 'team'
+                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 font-bold shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                    >
+                      ประเมินทีมงาน
+                    </button>
                   </div>
                 )}
               </div>
-              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-center">
-                <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">ความสม่ำเสมอ</div>
-                <div className="text-sm font-extrabold text-sky-600 dark:text-sky-400 mt-0.5">
-                  {isPreflightLoading ? '...' : `${loggingCoveragePct}%`}
+
+              {/* Target Select */}
+              {evalMode === 'team' ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">เลือกพนักงานในสังกัด:</label>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/40 font-medium">
+                      🏢 {currentUser?.workspaceName || 'Workspace ปัจจุบัน'} ({usersList.length} คน)
+                    </span>
+                  </div>
+                  <select
+                    value={selectedTargetUserId}
+                    onChange={(e) => {
+                      setSelectedTargetUserId(e.target.value);
+                      setAppraisalResult(null);
+                      setRoleOverride('auto');
+                    }}
+                    className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {loadingUsers ? (
+                      <option>กำลังโหลดรายชื่อพนักงานใน Workspace...</option>
+                    ) : usersList.length === 0 ? (
+                      <option>ไม่พบพนักงานใน Workspace นี้</option>
+                    ) : (
+                      usersList.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.full_name} ({u.emp_id}) — {u.position || u.department || 'Staff'}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              ) : null}
+
+              {/* Selected Profile Card */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md overflow-hidden shrink-0 relative">
+                    <img
+                      src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
+                      alt={evaluatedUser?.full_name || 'Avatar'}
+                      className="w-full h-full object-cover absolute inset-0"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
+                      }}
+                    />
+                    <span className="font-bold text-sm select-none">
+                      {evaluatedUser?.full_name ? evaluatedUser.full_name.trim().slice(0, 2) : 'EM'}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
+                      <span>{evaluatedUser?.full_name}</span>
+                      <span className="text-[10px] text-slate-500 font-mono shrink-0">({evaluatedUser?.emp_id})</span>
+                    </div>
+                    <div className="text-xs text-indigo-600 dark:text-indigo-400 font-medium truncate">
+                      {evaluatedUser?.position || 'ตำแหน่งไม่ระบุ'} • {evaluatedUser?.department || 'IMP'}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-center">
-                <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">สถานะ JD</div>
-                <div className="text-xs font-bold text-purple-600 dark:text-purple-400 mt-1">
-                  {isPreflightLoading ? '...' : candidateJd ? 'พร้อม' : 'ทั่วไป'}
+
+              {/* Smart Role Detection & Override */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">ชุดคำสั่งที่เลือกใช้ (Prompt Standard):</span>
+                  <span
+                    className={`text-[11px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border ${isManagerEvaluated
+                      ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40'
+                      : 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40'
+                      }`}
+                  >
+                    {isManagerEvaluated ? <Award size={12} /> : <FileCheck size={12} />}
+                    {isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md'}
+                  </span>
+                </div>
+
+                {/* Manual Override Buttons */}
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">สลับเกณฑ์:</span>
+                  <button
+                    type="button"
+                    onClick={() => setRoleOverride('auto')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${roleOverride === 'auto'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs font-bold'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
+                      }`}
+                  >
+                    ตรวจจับอัตโนมัติ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRoleOverride('manager')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${roleOverride === 'manager'
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-2xs font-bold'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
+                      }`}
+                  >
+                    👔 ระดับผู้จัดการ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRoleOverride('officer')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${roleOverride === 'officer'
+                      ? 'bg-sky-600 text-white border-sky-600 shadow-2xs font-bold'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
+                      }`}
+                  >
+                    💼 พนักงานทั่วไป
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Action Button: Start Appraisal */}
-            <button
-              onClick={() => setIsConfirmModalOpen(true)}
-              disabled={isAnalyzing || isPreflightLoading || candidateLogs.length === 0}
-              className={`w-full py-3 px-4 rounded-xl font-bold text-xs tracking-wide flex items-center justify-center gap-2 shadow-lg transition-all ${
-                isAnalyzing || candidateLogs.length === 0
+            {/* Right Column: Cycle & Pre-flight Evidence Status (7 cols) */}
+            <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs p-5 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Clock size={18} className="text-indigo-500" />
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">รอบการประเมิน (Appraisal Cycle)</h3>
+                </div>
+
+                {/* Year Switcher */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">ปี:</span>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    className="px-2 py-1 rounded-md text-xs bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold"
+                  >
+                    <option value={2026}>2026 (ปัจจุบัน)</option>
+                    <option value={2025}>2025</option>
+                    <option value={2024}>2024</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Cycle Selection Cards */}
+              <div className="grid grid-cols-2 gap-3">
+                <div
+                  onClick={() => {
+                    setSelectedCycle('half_year');
+                    setIsCustomDate(false);
+                    setAppraisalResult(null);
+                    setRoleOverride('auto');
+                  }}
+                  className={`cursor-pointer rounded-xl p-3 border transition-all ${selectedCycle === 'half_year' && !isCustomDate
+                    ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-500 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-xs font-bold ${selectedCycle === 'half_year' && !isCustomDate ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                      รอบครึ่งปี (Half-Year)
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${selectedCycle === 'half_year' && !isCustomDate ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30' : 'bg-slate-200/80 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300'}`}>
+                      มิ.ย. - ส.ค.
+                    </span>
+                  </div>
+                  <div className={`text-[11px] ${selectedCycle === 'half_year' && !isCustomDate ? 'text-indigo-700 dark:text-indigo-300/90 font-semibold' : 'text-slate-600 dark:text-slate-400'}`}>
+                    1 มิ.ย. {selectedYear} – 31 ส.ค. {selectedYear}
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => {
+                    setSelectedCycle('end_year');
+                    setIsCustomDate(false);
+                    setAppraisalResult(null);
+                    setRoleOverride('auto');
+                  }}
+                  className={`cursor-pointer rounded-xl p-3 border transition-all ${selectedCycle === 'end_year' && !isCustomDate
+                    ? 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-400 dark:border-purple-500 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-xs font-bold ${selectedCycle === 'end_year' && !isCustomDate ? 'text-purple-700 dark:text-purple-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                      รอบสิ้นปี (End-Year)
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${selectedCycle === 'end_year' && !isCustomDate ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30' : 'bg-slate-200/80 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300'}`}>
+                      {isManagerEvaluated ? 'มิ.ย. - ต.ค.' : 'ก.ค. - ต.ค.'}
+                    </span>
+                  </div>
+                  <div className={`text-[11px] ${selectedCycle === 'end_year' && !isCustomDate ? 'text-purple-700 dark:text-purple-300/90 font-semibold' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {isManagerEvaluated
+                      ? `1 มิ.ย. ${selectedYear} – 31 ต.ค. ${selectedYear}`
+                      : `1 ก.ค. ${selectedYear} – 31 ต.ค. ${selectedYear}`}
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Dates Option Toggle */}
+              <div className="pt-1 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500 dark:text-slate-400">ช่วงวันที่จริงที่ใช้:</span>
+                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                      {dateRange.start} ถึง {dateRange.end}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomDate(!isCustomDate)}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-semibold underline underline-offset-2"
+                  >
+                    {isCustomDate ? 'ใช้ช่วงมาตรฐาน' : 'กำหนดวันที่เอง'}
+                  </button>
+                </div>
+
+                {isCustomDate && (
+                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 font-medium">วันเริ่มต้น:</label>
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="w-full px-2 py-1 text-xs rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 dark:text-slate-400 mb-0.5 font-medium">วันสิ้นสุด:</label>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="w-full px-2 py-1 text-xs rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Pre-flight Data Stats */}
+              <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-center">
+                  <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">บันทึกงาน</div>
+                  <div className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400 mt-0.5">
+                    {isPreflightLoading ? '...' : `${candidateLogs.length} งาน`}
+                  </div>
+                </div>
+                <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-center">
+                  <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">วันทำการ</div>
+                  <div className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    {isPreflightLoading ? '...' : `${uniqueLoggedDays}/${businessDays}`}
+                  </div>
+                  {holidayCountInPeriod > 0 && (
+                    <div className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
+                      (หักวันหยุด {holidayCountInPeriod} วัน)
+                    </div>
+                  )}
+                </div>
+                <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-center">
+                  <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">ความสม่ำเสมอ</div>
+                  <div className="text-sm font-extrabold text-sky-600 dark:text-sky-400 mt-0.5">
+                    {isPreflightLoading ? '...' : `${loggingCoveragePct}%`}
+                  </div>
+                </div>
+                <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-center">
+                  <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">สถานะ JD</div>
+                  <div className="text-xs font-bold text-purple-600 dark:text-purple-400 mt-1">
+                    {isPreflightLoading ? '...' : candidateJd ? 'พร้อม' : 'ทั่วไป'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Button: Start Appraisal */}
+              <button
+                onClick={() => setIsConfirmModalOpen(true)}
+                disabled={isAnalyzing || isPreflightLoading || candidateLogs.length === 0}
+                className={`w-full py-3 px-4 rounded-xl font-bold text-xs tracking-wide flex items-center justify-center gap-2 shadow-lg transition-all ${isAnalyzing || candidateLogs.length === 0
                   ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
                   : 'bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-indigo-500/25 active:scale-[0.99]'
-              }`}
-            >
-              {isAnalyzing ? (
-                <>
-                  <RefreshCw size={16} className="animate-spin text-white" />
-                  <span>{analysisPhase || 'กำลังวิเคราะห์ผลงานตามเกณฑ์มาตรฐาน...'}</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} />
-                  <span>
-                    เริ่มประเมินผลงานรอบ {selectedCycle === 'half_year' ? 'Half-Year' : 'End-Year'} ด้วย AI
-                  </span>
-                </>
-              )}
-            </button>
+                  }`}
+              >
+                {isAnalyzing ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin text-white" />
+                    <span>{analysisPhase || 'กำลังวิเคราะห์ผลงานตามเกณฑ์มาตรฐาน...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} />
+                    <span>
+                      เริ่มประเมินผลงานรอบ {selectedCycle === 'half_year' ? 'Half-Year' : 'End-Year'} ด้วย AI
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
         {/* ========================================================= */}
         {/* 3. Results Hub (Infographic / Official Report / Growth)   */}
@@ -2823,11 +2828,10 @@ ${r.calendar_logging_guide}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setActiveResultTab('infographic')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    activeResultTab === 'infographic'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeResultTab === 'infographic'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
                 >
                   <Eye size={14} />
                   <span>1. Executive Infographic (Dashboard & Deck)</span>
@@ -2835,11 +2839,10 @@ ${r.calendar_logging_guide}
 
                 <button
                   onClick={() => setActiveResultTab('report')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    activeResultTab === 'report'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeResultTab === 'report'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
                 >
                   <FileCheck size={14} />
                   <span>2. Official HR Report (เอกสารทางการ)</span>
@@ -2847,11 +2850,10 @@ ${r.calendar_logging_guide}
 
                 <button
                   onClick={() => setActiveResultTab('growth')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    activeResultTab === 'growth'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${activeResultTab === 'growth'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
                 >
                   <TrendingUp size={14} />
                   <span>3. Growth & Action Plan</span>
@@ -2866,11 +2868,10 @@ ${r.calendar_logging_guide}
                     <button
                       onClick={handleToggleSharePublicly}
                       title={isCurrentPublic ? 'คลิกเพื่อเปลี่ยนเป็น Private (ปิดการเข้าถึงภายนอก)' : 'คลิกเพื่อเปิดเป็น Public (อนุญาตให้ HR/ผู้ตรวจ ดูผ่านลิงก์ได้)'}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                        isCurrentPublic
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700'
-                      }`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${isCurrentPublic
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700'
+                        }`}
                     >
                       {isCurrentPublic ? (
                         <Globe size={14} className="text-emerald-600 dark:text-emerald-400" />
@@ -2927,13 +2928,12 @@ ${r.calendar_logging_guide}
                   <button
                     onClick={handleManualSave}
                     disabled={saveStatus === 'saving'}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                      saveStatus === 'saved'
-                        ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
-                        : saveStatus === 'saving'
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${saveStatus === 'saved'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
+                      : saveStatus === 'saving'
                         ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border-slate-300 dark:border-slate-700'
-                    }`}
+                      }`}
                   >
                     {saveStatus === 'saved' ? (
                       <>
@@ -2993,11 +2993,10 @@ ${r.calendar_logging_guide}
             )}
 
             {saveMessage && (
-              <div className={`p-2.5 rounded-lg text-xs font-medium border flex items-center gap-2 print:hidden ${
-                saveStatus === 'saved'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800'
-                  : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-800'
-              }`}>
+              <div className={`p-2.5 rounded-lg text-xs font-medium border flex items-center gap-2 print:hidden ${saveStatus === 'saved'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800'
+                : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-800'
+                }`}>
                 <Info size={14} />
                 <span>{saveMessage}</span>
               </div>
@@ -3022,7 +3021,7 @@ ${r.calendar_logging_guide}
                         WORKLOG SYSTEM • OFFICIAL PERFORMANCE APPRAISAL
                       </div>
                       <h1 className="text-xl font-black text-slate-900">
-                        รายงานผลการประเมินการปฏิบัติงานทางการ ({selectedCycle === 'half_year' ? 'HALF-YEAR: มิ.ย.-ส.ค.' : 'END-YEAR: ก.ย.-ธ.ค.'} {selectedYear})
+                        รายงานผลการประเมินการปฏิบัติงานทางการ ({selectedCycle === 'half_year' ? 'HALF-YEAR: มิ.ย.-ส.ค.' : isManagerEvaluated ? 'END-YEAR: มิ.ย.-ต.ค.' : 'END-YEAR: ก.ค.-ต.ค.'} {selectedYear})
                       </h1>
                       <div className="text-xs text-slate-600 mt-0.5">
                         ตามเกณฑ์มาตรฐาน HR ({isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md'})
@@ -3058,21 +3057,19 @@ ${r.calendar_logging_guide}
                     <div className="flex p-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
                       <button
                         onClick={() => setInfographicMode('single')}
-                        className={`px-3 py-1 rounded-md transition-all font-semibold ${
-                          infographicMode === 'single'
-                            ? 'bg-cyan-50 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/30'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                        }`}
+                        className={`px-3 py-1 rounded-md transition-all font-semibold ${infographicMode === 'single'
+                          ? 'bg-cyan-50 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/30'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
                       >
                         Option 1: One-Pager Dashboard
                       </button>
                       <button
                         onClick={() => setInfographicMode('deck')}
-                        className={`px-3 py-1 rounded-md transition-all font-semibold ${
-                          infographicMode === 'deck'
-                            ? 'bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                        }`}
+                        className={`px-3 py-1 rounded-md transition-all font-semibold ${infographicMode === 'deck'
+                          ? 'bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
                       >
                         Option 2: 3-Slide Deck
                       </button>
@@ -3142,20 +3139,18 @@ ${r.calendar_logging_guide}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {/* 1. AI LEAD */}
-                          <div className={`p-4 rounded-xl border space-y-2 transition-all ${
-                            appraisalResult.operating_paradigm?.ai_lead.has_evidence
-                              ? 'bg-purple-50/70 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/30'
-                              : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
-                          }`}>
+                          <div className={`p-4 rounded-xl border space-y-2 transition-all ${appraisalResult.operating_paradigm?.ai_lead.has_evidence
+                            ? 'bg-purple-50/70 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/30'
+                            : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
+                            }`}>
                             <div className="flex items-center justify-between gap-1 flex-wrap">
                               <span className="text-[10px] px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold">
                                 1. AI LEAD (Machine Velocity)
                               </span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                                appraisalResult.operating_paradigm?.ai_lead.has_evidence
-                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
-                                  : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                              }`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${appraisalResult.operating_paradigm?.ai_lead.has_evidence
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
+                                : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                }`}>
                                 {appraisalResult.operating_paradigm?.ai_lead.badge || (candidateLogs.some((l) => /ai|script|auto/i.test(l.description)) ? 'พบหลักฐาน' : 'ยังไม่มีหลักฐาน')}
                               </span>
                             </div>
@@ -3168,20 +3163,18 @@ ${r.calendar_logging_guide}
                           </div>
 
                           {/* 2. HUMAN IN THE LOOP */}
-                          <div className={`p-4 rounded-xl border space-y-2 transition-all ${
-                            appraisalResult.operating_paradigm?.human_in_the_loop.has_evidence
-                              ? 'bg-cyan-50/70 dark:bg-cyan-500/10 border-cyan-200 dark:border-cyan-500/30'
-                              : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
-                          }`}>
+                          <div className={`p-4 rounded-xl border space-y-2 transition-all ${appraisalResult.operating_paradigm?.human_in_the_loop.has_evidence
+                            ? 'bg-cyan-50/70 dark:bg-cyan-500/10 border-cyan-200 dark:border-cyan-500/30'
+                            : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
+                            }`}>
                             <div className="flex items-center justify-between gap-1 flex-wrap">
                               <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold">
                                 2. HUMAN IN THE LOOP (Context)
                               </span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                                appraisalResult.operating_paradigm?.human_in_the_loop.has_evidence
-                                  ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400'
-                                  : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
-                              }`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${appraisalResult.operating_paradigm?.human_in_the_loop.has_evidence
+                                ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
+                                }`}>
                                 {appraisalResult.operating_paradigm?.human_in_the_loop.badge || 'สัมผัสผู้ใช้งาน'}
                               </span>
                             </div>
@@ -3194,20 +3187,18 @@ ${r.calendar_logging_guide}
                           </div>
 
                           {/* 3. EXPERT IN THE LOOP */}
-                          <div className={`p-4 rounded-xl border space-y-2 transition-all ${
-                            appraisalResult.operating_paradigm?.expert_in_the_loop.has_evidence
-                              ? 'bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30'
-                              : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
-                          }`}>
+                          <div className={`p-4 rounded-xl border space-y-2 transition-all ${appraisalResult.operating_paradigm?.expert_in_the_loop.has_evidence
+                            ? 'bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30'
+                            : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
+                            }`}>
                             <div className="flex items-center justify-between gap-1 flex-wrap">
                               <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold">
                                 3. EXPERT IN THE LOOP (Governance)
                               </span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                                appraisalResult.operating_paradigm?.expert_in_the_loop.has_evidence
-                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
-                                  : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                              }`}>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${appraisalResult.operating_paradigm?.expert_in_the_loop.has_evidence
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
+                                : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                }`}>
                                 {appraisalResult.operating_paradigm?.expert_in_the_loop.badge || 'การกำกับดูแล'}
                               </span>
                             </div>
@@ -3474,445 +3465,444 @@ ${r.calendar_logging_guide}
                 </div>
               )}
 
-            {/* TAB 2: OFFICIAL HR REPORT */}
-            {activeResultTab === 'report' && (
-              <div className="space-y-6 text-slate-900 dark:text-slate-100">
-                {/* Employee Profile & AI Model Header Card */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-[#07090e] border border-slate-200 dark:border-indigo-500/20 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <img
-                      src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
-                      }}
-                      alt={evaluatedUser?.full_name || 'Avatar'}
-                      className="w-16 h-16 rounded-2xl object-cover border-2 border-indigo-500/30 dark:border-indigo-500/40 shadow-sm shrink-0 bg-slate-100 dark:bg-slate-800"
-                    />
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 uppercase tracking-wide">
-                          {isManagerEvaluated ? 'หัวหน้างาน (Section Manager+)' : 'พนักงาน/เจ้าหน้าที่ (Officer)'}
-                        </span>
-                        {appraisalResult.ai_model && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
-                            <Cpu size={12} className="text-purple-500" />
-                            <span>AI Model: {appraisalResult.ai_model}</span>
+              {/* TAB 2: OFFICIAL HR REPORT */}
+              {activeResultTab === 'report' && (
+                <div className="space-y-6 text-slate-900 dark:text-slate-100">
+                  {/* Employee Profile & AI Model Header Card */}
+                  <div className="p-5 rounded-2xl bg-white dark:bg-[#07090e] border border-slate-200 dark:border-indigo-500/20 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <img
+                        src={getUserAvatarUrl(evaluatedUser?.full_name, evaluatedUser?.emp_id)}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = getUiAvatarFallbackUrl(evaluatedUser?.full_name);
+                        }}
+                        alt={evaluatedUser?.full_name || 'Avatar'}
+                        className="w-16 h-16 rounded-2xl object-cover border-2 border-indigo-500/30 dark:border-indigo-500/40 shadow-sm shrink-0 bg-slate-100 dark:bg-slate-800"
+                      />
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 uppercase tracking-wide">
+                            {isManagerEvaluated ? 'หัวหน้างาน (Section Manager+)' : 'พนักงาน/เจ้าหน้าที่ (Officer)'}
                           </span>
-                        )}
-                        {appraisalResult.ai_provider && (
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                            ({appraisalResult.ai_provider})
-                          </span>
-                        )}
-                      </div>
-                      <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                        {evaluatedUser?.full_name}
-                        {evaluatedUser?.emp_id && (
-                          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 font-mono">
-                            ({evaluatedUser.emp_id})
-                          </span>
-                        )}
-                      </h2>
-                      <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                        {evaluatedUser?.position || '-'} • ฝ่าย {evaluatedUser?.department || '-'} • รอบ {appraisalResult.period}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-4 py-2.5 rounded-xl shrink-0 self-stretch md:self-auto justify-between md:justify-end">
-                    <div className="text-right">
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">คะแนนประเมิน</div>
-                      <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400">ระดับ "{appraisalResult.level}"</div>
-                    </div>
-                    <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 pl-2 border-l border-slate-200 dark:border-slate-700">
-                      {appraisalResult.overall_score}<span className="text-xs text-slate-400 font-normal">/100</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* AI Prompt Transparency & Governance Card */}
-                {(() => {
-                  const templateFilename = isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md';
-                  const baseSystemPrompt = isManagerEvaluated ? MANAGER_PROMPT_MD : OFFICER_PROMPT_MD;
-
-                  // If appraisalResult already has prompt_info, use it. Otherwise, construct accurate representation
-                  const promptInfo = appraisalResult.prompt_info || {
-                    systemPrompt: baseSystemPrompt,
-                    templateFile: templateFilename,
-                    fullPrompt: buildExecutedPrompt({
-                      role: isManagerEvaluated ? 'manager' : 'officer',
-                      employeeName: evaluatedUser?.full_name || 'พนักงาน',
-                      empId: evaluatedUser?.emp_id,
-                      position: evaluatedUser?.position || 'Officer',
-                      department: evaluatedUser?.department || 'IMP',
-                      period: `${dateRange.start} ถึง ${dateRange.end}`,
-                      totalWorkingDays: businessDays,
-                      loggedDays: uniqueLoggedDays,
-                      coveragePercent: loggingCoveragePct,
-                      totalLogsCount: candidateLogs.length,
-                      deliverablesCount: (appraisalResult.work_status?.completed || []).length,
-                      learningCount: (appraisalResult.evidences?.learning || []).length,
-                      proactiveCount: (appraisalResult.evidences?.proactiveness || []).length,
-                      jdText: candidateJd?.jd_text,
-                      supervisorNotes: appraisalResult.supervisor_notes || undefined,
-                      sampleWorklogs: candidateLogs.slice(0, 15).map((l) => ({
-                        date: l.work_date,
-                        project: l.project_name,
-                        action: l.action_name,
-                        description: l.description,
-                      })),
-                    }).fullPrompt,
-                    userPrompt: ''
-                  };
-
-                  return (
-                    <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-50/90 via-purple-50/40 to-white dark:from-slate-900/90 dark:via-indigo-950/40 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-500/30 shadow-xs space-y-3.5">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-indigo-100 dark:border-indigo-900/50">
-                        <div className="flex items-center gap-2">
-                          <BrainCircuit size={18} className="text-indigo-600 dark:text-indigo-400" />
-                          <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                            ความโปร่งใสของชุดคำสั่งประเมิน (AI Prompt Transparency & Governance)
-                          </h4>
+                          {appraisalResult.ai_model && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
+                              <Cpu size={12} className="text-purple-500" />
+                              <span>AI Model: {appraisalResult.ai_model}</span>
+                            </span>
+                          )}
+                          {appraisalResult.ai_provider && (
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                              ({appraisalResult.ai_provider})
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                            <ShieldCheck size={11} /> 100% Verbatim HR Standard
-                          </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-mono font-semibold">
-                            {templateFilename}
-                          </span>
+                        <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                          {evaluatedUser?.full_name}
+                          {evaluatedUser?.emp_id && (
+                            <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 font-mono">
+                              ({evaluatedUser.emp_id})
+                            </span>
+                          )}
+                        </h2>
+                        <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                          {evaluatedUser?.position || '-'} • ฝ่าย {evaluatedUser?.department || '-'} • รอบ {appraisalResult.period}
                         </div>
                       </div>
+                    </div>
 
-                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                        ฝ่ายบุคคล (HR) และผู้บริหารสามารถตรวจสอบชุดคำสั่ง (System Prompt + ข้อมูลประจักษ์จริง + JD) ที่ส่งเข้า AI ได้อย่างโปร่งใส 
-                        เพื่อยืนยันว่าไม่มีการเสริมแต่งหรือผ่อนปรนเกณฑ์ สามารถคัดลอกไปทดสอบรันผลใน Gemini หรือดาวน์โหลดแม่บท .md ได้ทันที
-                      </p>
-
-                      {/* Action Buttons Row */}
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPreviewPromptModal({
-                              isOpen: true,
-                              title: `Prompt ฉบับเต็มที่ส่งให้ AI ประเมิน (${evaluatedUser?.full_name || 'พนักงาน'})`,
-                              content: promptInfo.fullPrompt || promptInfo.systemPrompt,
-                              filename: `executed-prompt-${evaluatedUser?.emp_id || 'employee'}.txt`
-                            });
-                          }}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow-xs transition-all active:scale-[0.98] cursor-pointer"
-                        >
-                          <Eye size={13} />
-                          <span>ดู Prompt ฉบับเต็ม (Inspect Prompt)</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(promptInfo.fullPrompt || promptInfo.systemPrompt);
-                            showToast('คัดลอกชุดคำสั่ง Prompt ทั้งหมดลง Clipboard แล้ว นำไปทดสอบใน Gemini ได้ทันที', 'success');
-                          }}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                        >
-                          <Copy size={13} />
-                          <span>คัดลอก Prompt สำหรับทดสอบใน Gemini</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            downloadMarkdownFile(templateFilename, baseSystemPrompt);
-                            showToast(`ดาวน์โหลดไฟล์เกณฑ์แม่บท ${templateFilename} เรียบร้อย`, 'success');
-                          }}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                        >
-                          <Download size={13} />
-                          <span>ดาวน์โหลดเกณฑ์ HR ({templateFilename})</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPreviewPromptModal({
-                              isOpen: true,
-                              title: `แม่บทคำสั่งมาตรฐาน HR (${templateFilename})`,
-                              content: baseSystemPrompt,
-                              filename: templateFilename
-                            });
-                          }}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <FileText size={13} />
-                          <span>ดูแม่บทมาตรฐาน</span>
-                        </button>
+                    <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-4 py-2.5 rounded-xl shrink-0 self-stretch md:self-auto justify-between md:justify-end">
+                      <div className="text-right">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">คะแนนประเมิน</div>
+                        <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400">ระดับ "{appraisalResult.level}"</div>
+                      </div>
+                      <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 pl-2 border-l border-slate-200 dark:border-slate-700">
+                        {appraisalResult.overall_score}<span className="text-xs text-slate-400 font-normal">/100</span>
                       </div>
                     </div>
-                  );
-                })()}
-
-                {/* Executive Summary */}
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <h4 className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
-                      Executive Summary (สรุปภาพรวม)
-                    </h4>
-                    {(appraisalResult.ai_provider || appraisalResult.ai_model) && (
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50 font-mono flex items-center gap-1">
-                        <Cpu size={11} className="text-indigo-500" />
-                        <span>AI Model: {appraisalResult.ai_model || 'Standard Engine'} ({appraisalResult.ai_provider || 'OpenRouter'})</span>
-                      </span>
-                    )}
                   </div>
-                  <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
-                    {appraisalResult.executive_summary}
-                  </p>
-                </div>
 
-                {/* Supervisor Focus & Offline Milestones (If provided) */}
-                {appraisalResult.supervisor_notes && (
-                  <div className="p-4 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <FileCheck size={14} className="text-purple-600 dark:text-purple-400" />
-                      <h4 className="text-xs font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider">
-                        ข้อคิดเห็น & ผลงานเสริมนอกระบบจากหัวหน้างาน (Supervisor Focus & Milestones)
+                  {/* AI Prompt Transparency & Governance Card */}
+                  {(() => {
+                    const templateFilename = isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md';
+                    const baseSystemPrompt = isManagerEvaluated ? MANAGER_PROMPT_MD : OFFICER_PROMPT_MD;
+
+                    // If appraisalResult already has prompt_info, use it. Otherwise, construct accurate representation
+                    const promptInfo = appraisalResult.prompt_info || {
+                      systemPrompt: baseSystemPrompt,
+                      templateFile: templateFilename,
+                      fullPrompt: buildExecutedPrompt({
+                        role: isManagerEvaluated ? 'manager' : 'officer',
+                        employeeName: evaluatedUser?.full_name || 'พนักงาน',
+                        empId: evaluatedUser?.emp_id,
+                        position: evaluatedUser?.position || 'Officer',
+                        department: evaluatedUser?.department || 'IMP',
+                        period: `${dateRange.start} ถึง ${dateRange.end}`,
+                        totalWorkingDays: businessDays,
+                        loggedDays: uniqueLoggedDays,
+                        coveragePercent: loggingCoveragePct,
+                        totalLogsCount: candidateLogs.length,
+                        deliverablesCount: (appraisalResult.work_status?.completed || []).length,
+                        learningCount: (appraisalResult.evidences?.learning || []).length,
+                        proactiveCount: (appraisalResult.evidences?.proactiveness || []).length,
+                        jdText: candidateJd?.jd_text,
+                        supervisorNotes: appraisalResult.supervisor_notes || undefined,
+                        sampleWorklogs: candidateLogs.slice(0, 15).map((l) => ({
+                          date: l.work_date,
+                          project: l.project_name,
+                          action: l.action_name,
+                          description: l.description,
+                        })),
+                      }).fullPrompt,
+                      userPrompt: ''
+                    };
+
+                    return (
+                      <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-50/90 via-purple-50/40 to-white dark:from-slate-900/90 dark:via-indigo-950/40 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-500/30 shadow-xs space-y-3.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-indigo-100 dark:border-indigo-900/50">
+                          <div className="flex items-center gap-2">
+                            <BrainCircuit size={18} className="text-indigo-600 dark:text-indigo-400" />
+                            <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                              ความโปร่งใสของชุดคำสั่งประเมิน (AI Prompt Transparency & Governance)
+                            </h4>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                              <ShieldCheck size={11} /> 100% Verbatim HR Standard
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-mono font-semibold">
+                              {templateFilename}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                          ฝ่ายบุคคล (HR) และผู้บริหารสามารถตรวจสอบชุดคำสั่ง (System Prompt + ข้อมูลประจักษ์จริง + JD) ที่ส่งเข้า AI ได้อย่างโปร่งใส
+                          เพื่อยืนยันว่าไม่มีการเสริมแต่งหรือผ่อนปรนเกณฑ์ สามารถคัดลอกไปทดสอบรันผลใน Gemini หรือดาวน์โหลดแม่บท .md ได้ทันที
+                        </p>
+
+                        {/* Action Buttons Row */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewPromptModal({
+                                isOpen: true,
+                                title: `Prompt ฉบับเต็มที่ส่งให้ AI ประเมิน (${evaluatedUser?.full_name || 'พนักงาน'})`,
+                                content: promptInfo.fullPrompt || promptInfo.systemPrompt,
+                                filename: `executed-prompt-${evaluatedUser?.emp_id || 'employee'}.txt`
+                              });
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+                          >
+                            <Eye size={13} />
+                            <span>ดู Prompt ฉบับเต็ม (Inspect Prompt)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(promptInfo.fullPrompt || promptInfo.systemPrompt);
+                              showToast('คัดลอกชุดคำสั่ง Prompt ทั้งหมดลง Clipboard แล้ว นำไปทดสอบใน Gemini ได้ทันที', 'success');
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                          >
+                            <Copy size={13} />
+                            <span>คัดลอก Prompt สำหรับทดสอบใน Gemini</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              downloadMarkdownFile(templateFilename, baseSystemPrompt);
+                              showToast(`ดาวน์โหลดไฟล์เกณฑ์แม่บท ${templateFilename} เรียบร้อย`, 'success');
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                          >
+                            <Download size={13} />
+                            <span>ดาวน์โหลดเกณฑ์ HR ({templateFilename})</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewPromptModal({
+                                isOpen: true,
+                                title: `แม่บทคำสั่งมาตรฐาน HR (${templateFilename})`,
+                                content: baseSystemPrompt,
+                                filename: templateFilename
+                              });
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <FileText size={13} />
+                            <span>ดูแม่บทมาตรฐาน</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Executive Summary */}
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h4 className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
+                        Executive Summary (สรุปภาพรวม)
                       </h4>
+                      {(appraisalResult.ai_provider || appraisalResult.ai_model) && (
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50 font-mono flex items-center gap-1">
+                          <Cpu size={11} className="text-indigo-500" />
+                          <span>AI Model: {appraisalResult.ai_model || 'Standard Engine'} ({appraisalResult.ai_provider || 'OpenRouter'})</span>
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-line pl-6">
-                      {appraisalResult.supervisor_notes}
+                    <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
+                      {appraisalResult.executive_summary}
                     </p>
                   </div>
-                )}
 
-                {/* 5-Pillar Score Summary Table */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    ตารางคะแนนประเมิน 5 ด้าน (คะแนนเต็ม 100%)
-                  </h4>
-                  <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-bold">
-                        <tr>
-                          <th className="py-2.5 px-4">หัวข้อการประเมิน</th>
-                          <th className="py-2.5 px-3 text-center">คะแนนเต็ม</th>
-                          <th className="py-2.5 px-3 text-center">คะแนนที่ได้</th>
-                          <th className="py-2.5 px-3 text-center">ระดับ</th>
-                          <th className="py-2.5 px-3 text-center">Evidence Sufficiency</th>
-                          <th className="py-2.5 px-4">เหตุผลเชิงประจักษ์</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                        <tr>
-                          <td className="py-2.5 px-4 font-semibold">1. Quantity (ความครบถ้วนของงาน)</td>
-                          <td className="py-2.5 px-3 text-center">20</td>
-                          <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
-                            {appraisalResult.scores?.quantity?.score ?? 0}
-                          </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.quantity?.level ?? '-'}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
-                              {appraisalResult.scores?.quantity?.sufficiency ?? 'Medium'}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
-                            {appraisalResult.scores?.quantity?.reason ?? '-'}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="py-2.5 px-4 font-semibold">2. Quality (คุณภาพและผลลัพธ์)</td>
-                          <td className="py-2.5 px-3 text-center">20</td>
-                          <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
-                            {appraisalResult.scores?.quality?.score ?? 0}
-                          </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.quality?.level ?? '-'}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400">
-                              {appraisalResult.scores?.quality?.sufficiency ?? 'Medium'}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
-                            {appraisalResult.scores?.quality?.reason ?? '-'}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="py-2.5 px-4 font-semibold">3. Learning (การเรียนรู้และการส่งต่อ)</td>
-                          <td className="py-2.5 px-3 text-center">20</td>
-                          <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
-                            {appraisalResult.scores?.learning?.score ?? 0}
-                          </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.learning?.level ?? '-'}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
-                              {appraisalResult.scores?.learning?.sufficiency ?? 'Medium'}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
-                            {appraisalResult.scores?.learning?.reason ?? '-'}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="py-2.5 px-4 font-semibold">4. Accountability (ความรับผิดชอบต่องาน)</td>
-                          <td className="py-2.5 px-3 text-center">20</td>
-                          <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
-                            {appraisalResult.scores?.accountability?.score ?? 0}
-                          </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.accountability?.level ?? '-'}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
-                              {appraisalResult.scores?.accountability?.sufficiency ?? 'Medium'}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
-                            {appraisalResult.scores?.accountability?.reason ?? '-'}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="py-2.5 px-4 font-semibold">5. Proactiveness (การคิดและลงมือก่อน)</td>
-                          <td className="py-2.5 px-3 text-center">20</td>
-                          <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
-                            {appraisalResult.scores?.proactiveness?.score ?? 0}
-                          </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.proactiveness?.level ?? '-'}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
-                              {appraisalResult.scores?.proactiveness?.sufficiency ?? 'Medium'}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
-                            {appraisalResult.scores?.proactiveness?.reason ?? '-'}
-                          </td>
-                        </tr>
-                        <tr className="bg-slate-50 dark:bg-slate-800/40 font-bold">
-                          <td className="py-2.5 px-4">รวมคะแนนทั้งสิ้น</td>
-                          <td className="py-2.5 px-3 text-center">100</td>
-                          <td className="py-2.5 px-3 text-center text-sm font-black text-indigo-600 dark:text-indigo-400">
-                            {appraisalResult.overall_score}
-                          </td>
-                          <td className="py-2.5 px-3 text-center">{appraisalResult.level}</td>
-                          <td className="py-2.5 px-3 text-center text-emerald-500">{appraisalResult.confidence}</td>
-                          <td className="py-2.5 px-4 text-slate-500">ผ่านเกณฑ์มาตรฐานการประเมิน</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                  {/* Supervisor Focus & Offline Milestones (If provided) */}
+                  {appraisalResult.supervisor_notes && (
+                    <div className="p-4 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <FileCheck size={14} className="text-purple-600 dark:text-purple-400" />
+                        <h4 className="text-xs font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider">
+                          ข้อคิดเห็น & ผลงานเสริมนอกระบบจากหัวหน้างาน (Supervisor Focus & Milestones)
+                        </h4>
+                      </div>
+                      <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-line pl-6">
+                        {appraisalResult.supervisor_notes}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 5-Pillar Score Summary Table */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      ตารางคะแนนประเมิน 5 ด้าน (คะแนนเต็ม 100%)
+                    </h4>
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 font-bold">
+                          <tr>
+                            <th className="py-2.5 px-4">หัวข้อการประเมิน</th>
+                            <th className="py-2.5 px-3 text-center">คะแนนเต็ม</th>
+                            <th className="py-2.5 px-3 text-center">คะแนนที่ได้</th>
+                            <th className="py-2.5 px-3 text-center">ระดับ</th>
+                            <th className="py-2.5 px-3 text-center">Evidence Sufficiency</th>
+                            <th className="py-2.5 px-4">เหตุผลเชิงประจักษ์</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                          <tr>
+                            <td className="py-2.5 px-4 font-semibold">1. Quantity (ความครบถ้วนของงาน)</td>
+                            <td className="py-2.5 px-3 text-center">20</td>
+                            <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
+                              {appraisalResult.scores?.quantity?.score ?? 0}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.quantity?.level ?? '-'}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
+                                {appraisalResult.scores?.quantity?.sufficiency ?? 'Medium'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
+                              {appraisalResult.scores?.quantity?.reason ?? '-'}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="py-2.5 px-4 font-semibold">2. Quality (คุณภาพและผลลัพธ์)</td>
+                            <td className="py-2.5 px-3 text-center">20</td>
+                            <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
+                              {appraisalResult.scores?.quality?.score ?? 0}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.quality?.level ?? '-'}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400">
+                                {appraisalResult.scores?.quality?.sufficiency ?? 'Medium'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
+                              {appraisalResult.scores?.quality?.reason ?? '-'}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="py-2.5 px-4 font-semibold">3. Learning (การเรียนรู้และการส่งต่อ)</td>
+                            <td className="py-2.5 px-3 text-center">20</td>
+                            <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
+                              {appraisalResult.scores?.learning?.score ?? 0}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.learning?.level ?? '-'}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
+                                {appraisalResult.scores?.learning?.sufficiency ?? 'Medium'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
+                              {appraisalResult.scores?.learning?.reason ?? '-'}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="py-2.5 px-4 font-semibold">4. Accountability (ความรับผิดชอบต่องาน)</td>
+                            <td className="py-2.5 px-3 text-center">20</td>
+                            <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
+                              {appraisalResult.scores?.accountability?.score ?? 0}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.accountability?.level ?? '-'}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
+                                {appraisalResult.scores?.accountability?.sufficiency ?? 'Medium'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
+                              {appraisalResult.scores?.accountability?.reason ?? '-'}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="py-2.5 px-4 font-semibold">5. Proactiveness (การคิดและลงมือก่อน)</td>
+                            <td className="py-2.5 px-3 text-center">20</td>
+                            <td className="py-2.5 px-3 text-center font-bold text-indigo-500">
+                              {appraisalResult.scores?.proactiveness?.score ?? 0}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">{appraisalResult.scores?.proactiveness?.level ?? '-'}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">
+                                {appraisalResult.scores?.proactiveness?.sufficiency ?? 'Medium'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
+                              {appraisalResult.scores?.proactiveness?.reason ?? '-'}
+                            </td>
+                          </tr>
+                          <tr className="bg-slate-50 dark:bg-slate-800/40 font-bold">
+                            <td className="py-2.5 px-4">รวมคะแนนทั้งสิ้น</td>
+                            <td className="py-2.5 px-3 text-center">100</td>
+                            <td className="py-2.5 px-3 text-center text-sm font-black text-indigo-600 dark:text-indigo-400">
+                              {appraisalResult.overall_score}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">{appraisalResult.level}</td>
+                            <td className="py-2.5 px-3 text-center text-emerald-500">{appraisalResult.confidence}</td>
+                            <td className="py-2.5 px-4 text-slate-500">ผ่านเกณฑ์มาตรฐานการประเมิน</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
 
-                {/* JD Coverage */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    ความสอดคล้องกับ Job Description (JD Coverage)
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    {appraisalResult.jd_coverage.map((jd, i) => (
-                      <div
-                        key={i}
-                        className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
-                          jd.status === 'Found'
+                  {/* JD Coverage */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      ความสอดคล้องกับ Job Description (JD Coverage)
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {appraisalResult.jd_coverage.map((jd, i) => (
+                        <div
+                          key={i}
+                          className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${jd.status === 'Found'
                             ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800'
                             : 'bg-amber-500/5 border-amber-500/20'
-                        }`}
-                      >
-                        {jd.status === 'Found' ? (
-                          <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
-                        ) : (
-                          <AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0" />
-                        )}
-                        <div>
-                          <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                            {jd.item}
-                            {jd.status === 'Found' ? (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-normal">
-                                พบหลักฐาน
-                              </span>
-                            ) : (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-normal">
-                                รอประสานเพิ่ม
-                              </span>
-                            )}
+                            }`}
+                        >
+                          {jd.status === 'Found' ? (
+                            <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                          ) : (
+                            <AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0" />
+                          )}
+                          <div>
+                            <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                              {jd.item}
+                              {jd.status === 'Found' ? (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-normal">
+                                  พบหลักฐาน
+                                </span>
+                              ) : (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-normal">
+                                  รอประสานเพิ่ม
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">{jd.details}</div>
                           </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5">{jd.details}</div>
                         </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Evidence Gaps */}
+                  {appraisalResult.evidence_gaps.length > 0 ? (
+                    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1.5">
+                      <div className="text-xs font-bold text-amber-500 dark:text-amber-400 flex items-center gap-1.5">
+                        <AlertCircle size={14} /> ข้อมูลที่ต้องประสานเพิ่มเติม (Evidence Gap)
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Evidence Gaps */}
-                {appraisalResult.evidence_gaps.length > 0 ? (
-                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1.5">
-                    <div className="text-xs font-bold text-amber-500 dark:text-amber-400 flex items-center gap-1.5">
-                      <AlertCircle size={14} /> ข้อมูลที่ต้องประสานเพิ่มเติม (Evidence Gap)
+                      <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-1 list-disc list-inside">
+                        {appraisalResult.evidence_gaps.map((g, i) => (
+                          <li key={i}>{g}</li>
+                        ))}
+                      </ul>
                     </div>
-                    <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-1 list-disc list-inside">
-                      {appraisalResult.evidence_gaps.map((g, i) => (
-                        <li key={i}>{g}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-1.5">
-                    <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                      <CheckCircle2 size={14} /> ข้อมูลหลักฐานครบถ้วนตามเกณฑ์มาตรฐาน (No Critical Evidence Gap)
+                  ) : (
+                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-1.5">
+                      <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                        <CheckCircle2 size={14} /> ข้อมูลหลักฐานครบถ้วนตามเกณฑ์มาตรฐาน (No Critical Evidence Gap)
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300">
+                        พบบันทึกงานและหลักฐานเชิงประจักษ์ครอบคลุมหน้าที่ความรับผิดชอบตาม JD และกรอบการประเมิน พร้อมสำหรับการประเมินร่วมกับ Supervisor
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300">
-                      พบบันทึกงานและหลักฐานเชิงประจักษ์ครอบคลุมหน้าที่ความรับผิดชอบตาม JD และกรอบการประเมิน พร้อมสำหรับการประเมินร่วมกับ Supervisor
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
 
-            {/* TAB 3: GROWTH & ACTION PLAN */}
-            {activeResultTab === 'growth' && (
-              <div className="space-y-6">
-                {/* Top 3 Priorities */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
-                    <h4 className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <TrendingUp size={14} /> จุดที่ควรพัฒนาในรอบถัดไป (Development Priorities)
-                    </h4>
-                    <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-2">
-                      {appraisalResult.development_priorities.map((p, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                            {i + 1}
-                          </span>
-                          <span>{p}</span>
-                        </li>
-                      ))}
-                    </ul>
+              {/* TAB 3: GROWTH & ACTION PLAN */}
+              {activeResultTab === 'growth' && (
+                <div className="space-y-6">
+                  {/* Top 3 Priorities */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
+                      <h4 className="text-xs font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <TrendingUp size={14} /> จุดที่ควรพัฒนาในรอบถัดไป (Development Priorities)
+                      </h4>
+                      <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-2">
+                        {appraisalResult.development_priorities.map((p, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                              {i + 1}
+                            </span>
+                            <span>{p}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
+                      <h4 className="text-xs font-bold text-purple-500 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Award size={14} /> พฤติกรรมที่แนะนำให้ปรับใช้ (Actionable Behaviors)
+                      </h4>
+                      <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-2">
+                        {appraisalResult.recommendations.map((r, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <CheckCircle2 size={14} className="text-purple-500 mt-0.5 shrink-0" />
+                            <span>{r}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
 
-                  <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
-                    <h4 className="text-xs font-bold text-purple-500 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Award size={14} /> พฤติกรรมที่แนะนำให้ปรับใช้ (Actionable Behaviors)
-                    </h4>
-                    <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-2">
-                      {appraisalResult.recommendations.map((r, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <CheckCircle2 size={14} className="text-purple-500 mt-0.5 shrink-0" />
-                          <span>{r}</span>
-                        </li>
-                      ))}
-                    </ul>
+                  {/* Calendar Logging Formula Banner */}
+                  <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-50/80 via-white to-purple-50/60 dark:from-indigo-900/30 dark:via-slate-900 dark:to-indigo-950/30 border border-indigo-100 dark:border-indigo-500/30 space-y-2">
+                    <div className="text-xs font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-2">
+                      <CalendarCheck size={16} />
+                      <span>สูตรการบันทึก Worklog & Calendar ในรอบถัดไปให้สะท้อนผลงานชัดเจน</span>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-white dark:bg-black/40 border border-slate-200 dark:border-slate-800 font-mono text-xs text-indigo-950 dark:text-indigo-200 space-y-1">
+                      <div>[What] ➔ ระบุชื่องาน หรือปัญหาที่พบให้ชัดเจน</div>
+                      <div>[Action] ➔ ระบุสิ่งที่ทำ บทบาท และเทคนิค/AI ที่ใช้</div>
+                      <div>[Result] ➔ ระบุผลลัพธ์ที่ได้จริงหรือประโยชน์ที่เกิดขึ้น</div>
+                      <div>[Follow-up] ➔ ระบุขั้นตอนถัดไปและกำหนดวันปิดงาน (Closure)</div>
+                    </div>
                   </div>
                 </div>
-
-                {/* Calendar Logging Formula Banner */}
-                <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-50/80 via-white to-purple-50/60 dark:from-indigo-900/30 dark:via-slate-900 dark:to-indigo-950/30 border border-indigo-100 dark:border-indigo-500/30 space-y-2">
-                  <div className="text-xs font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-2">
-                    <CalendarCheck size={16} />
-                    <span>สูตรการบันทึก Worklog & Calendar ในรอบถัดไปให้สะท้อนผลงานชัดเจน</span>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-white dark:bg-black/40 border border-slate-200 dark:border-slate-800 font-mono text-xs text-indigo-950 dark:text-indigo-200 space-y-1">
-                    <div>[What] ➔ ระบุชื่องาน หรือปัญหาที่พบให้ชัดเจน</div>
-                    <div>[Action] ➔ ระบุสิ่งที่ทำ บทบาท และเทคนิค/AI ที่ใช้</div>
-                    <div>[Result] ➔ ระบุผลลัพธ์ที่ได้จริงหรือประโยชน์ที่เกิดขึ้น</div>
-                    <div>[Follow-up] ➔ ระบุขั้นตอนถัดไปและกำหนดวันปิดงาน (Closure)</div>
-                  </div>
-                </div>
-              </div>
-            )}
+              )}
             </div>
           </div>
         )}
@@ -4135,11 +4125,10 @@ ${r.calendar_logging_guide}
               <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-950/40 px-4 pt-2 gap-2 text-xs">
                 <button
                   onClick={() => setHistoryFilterTab('official')}
-                  className={`pb-2 px-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
-                    historyFilterTab === 'official'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                  }`}
+                  className={`pb-2 px-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${historyFilterTab === 'official'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
                 >
                   <span>รอบ Half - End Year</span>
                   <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-bold">
@@ -4148,11 +4137,10 @@ ${r.calendar_logging_guide}
                 </button>
                 <button
                   onClick={() => setHistoryFilterTab('all')}
-                  className={`pb-2 px-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
-                    historyFilterTab === 'all'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                  }`}
+                  className={`pb-2 px-3 font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${historyFilterTab === 'all'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
                 >
                   <span>ประวัติอื่นทั้งหมด</span>
                   <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
@@ -4188,38 +4176,38 @@ ${r.calendar_logging_guide}
                       item.score != null
                         ? item.score
                         : (item.analysis_data as { overall_score?: number } | null)?.overall_score ??
-                          (item as { jd_alignment_score?: number }).jd_alignment_score ?? null;
+                        (item as { jd_alignment_score?: number }).jd_alignment_score ?? null;
                     const displayScore = rawScore != null ? Math.round(Number(rawScore)) : null;
 
                     // Human-readable role label
                     const roleLabel =
                       item.template_id === 'half_year_manager' ? 'Manager (ครึ่งปี)' :
-                      item.template_id === 'half_year_officer' ? 'Officer (ครึ่งปี)' :
-                      item.template_id === 'end_year_manager' ? 'Manager (สิ้นปี)' :
-                      item.template_id === 'end_year_officer' ? 'Officer (สิ้นปี)' :
-                      item.template_id === 'perf_evaluation' ? '5 Dimensions (Performance)' :
-                      item.template_id === 'master' ? 'HRBP Diagnostics' :
-                      item.template_id === 'coaching_fairness' ? 'Coaching & Fairness' :
-                      item.template_id === 'individual_coach' ? 'Executive Coach' :
-                      item.template_id ?? 'ทั่วไป';
+                        item.template_id === 'half_year_officer' ? 'Officer (ครึ่งปี)' :
+                          item.template_id === 'end_year_manager' ? 'Manager (สิ้นปี)' :
+                            item.template_id === 'end_year_officer' ? 'Officer (สิ้นปี)' :
+                              item.template_id === 'perf_evaluation' ? '5 Dimensions (Performance)' :
+                                item.template_id === 'master' ? 'HRBP Diagnostics' :
+                                  item.template_id === 'coaching_fairness' ? 'Coaching & Fairness' :
+                                    item.template_id === 'individual_coach' ? 'Executive Coach' :
+                                      item.template_id ?? 'ทั่วไป';
 
                     const roleBadgeColor =
                       item.template_id?.includes('manager')
                         ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30'
                         : item.template_id?.includes('officer')
-                        ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
-                        : item.template_id === 'perf_evaluation'
-                        ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30'
-                        : item.template_id === 'master'
-                        ? 'bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30'
-                        : 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30';
+                          ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
+                          : item.template_id === 'perf_evaluation'
+                            ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30'
+                            : item.template_id === 'master'
+                              ? 'bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30'
+                              : 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30';
 
                     const scoreColor =
                       displayScore == null ? 'text-slate-400' :
-                      displayScore >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
-                      displayScore >= 75 ? 'text-indigo-600 dark:text-cyan-400' :
-                      displayScore >= 60 ? 'text-amber-600 dark:text-amber-400' :
-                      'text-red-500 dark:text-red-400';
+                        displayScore >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
+                          displayScore >= 75 ? 'text-indigo-600 dark:text-cyan-400' :
+                            displayScore >= 60 ? 'text-amber-600 dark:text-amber-400' :
+                              'text-red-500 dark:text-red-400';
 
                     return (
                       <div
@@ -4242,11 +4230,10 @@ ${r.calendar_logging_guide}
                               {roleLabel}
                             </span>
                             <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1 ${
-                                item.is_public
-                                  ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
-                                  : 'bg-slate-200/80 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400'
-                              }`}
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1 ${item.is_public
+                                ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
+                                : 'bg-slate-200/80 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400'
+                                }`}
                             >
                               {item.is_public ? <Globe size={10} /> : <Lock size={10} />}
                               <span>{item.is_public ? 'Public' : 'Private'}</span>
@@ -4256,13 +4243,13 @@ ${r.calendar_logging_guide}
                             <span>
                               ประเมินล่าสุด: {item.analysis_date || item.created_at
                                 ? `${new Date(item.analysis_date || item.created_at || '').toLocaleDateString('th-TH', {
-                                    day: 'numeric',
-                                    month: 'short',
-                                    year: 'numeric',
-                                  })} ${new Date(item.analysis_date || item.created_at || '').toLocaleTimeString('th-TH', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })} น.`
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })} ${new Date(item.analysis_date || item.created_at || '').toLocaleTimeString('th-TH', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })} น.`
                                 : '-'}
                             </span>
                             <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40">
@@ -4284,11 +4271,10 @@ ${r.calendar_logging_guide}
                             <button
                               type="button"
                               onClick={() => handleToggleHistoryItemShare(item.id, !!item.is_public)}
-                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all cursor-pointer flex items-center gap-1 ${
-                                item.is_public
-                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/50 hover:bg-emerald-100'
-                                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-200'
-                              }`}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all cursor-pointer flex items-center gap-1 ${item.is_public
+                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/50 hover:bg-emerald-100'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-200'
+                                }`}
                             >
                               {item.is_public ? <Globe size={11} className="text-emerald-500" /> : <Lock size={11} />}
                               <span>{item.is_public ? 'เปิดแชร์อยู่ (เปลี่ยนเป็น Private)' : 'ตั้งเป็น Public'}</span>
@@ -4428,6 +4414,32 @@ ${r.calendar_logging_guide}
           isLoading={isAnalyzing}
           evaluatedUser={evaluatedUser}
           candidateJd={candidateJd}
+          workspaceId={currentWsId}
+          canEditJd={Boolean(
+            currentUser &&
+            evaluatedUser &&
+            (currentUser.id === evaluatedUser.id ||
+              currentUser.role === 'admin' ||
+              isCurrentWorkspaceAdmin)
+          )}
+          onJdSaved={(savedJd) => {
+            setCandidateJd({
+              id: savedJd.id,
+              jd_text: savedJd.jd_text,
+              position_name: savedJd.position_name,
+              key_responsibilities: savedJd.key_responsibilities.map((item) => ({
+                category: item.category,
+                weight: item.weight,
+              })),
+            });
+            if (savedJd.position_name && evaluatedUser?.id) {
+              setUsersList((prev) =>
+                prev.map((u) =>
+                  u.id === evaluatedUser.id ? { ...u, position: savedJd.position_name } : u
+                )
+              );
+            }
+          }}
           isManagerEvaluated={isManagerEvaluated}
           selectedCycle={selectedCycle}
           dateRange={dateRange}

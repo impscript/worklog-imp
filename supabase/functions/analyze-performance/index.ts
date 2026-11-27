@@ -543,6 +543,91 @@ ${weightsText}
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ── ACTION: parse_jd_pdf ────────────────────────────────────────────────
+    if (action === 'parse_jd_pdf') {
+      const rawPdfText = typeof body.pdf_text === 'string' ? body.pdf_text.trim() : '';
+      const fileName = typeof body.file_name === 'string' ? body.file_name : 'jd.pdf';
+      const defaultPosition = typeof body.default_position === 'string' ? body.default_position : '';
+
+      if (rawPdfText.length < 20) {
+        return new Response(JSON.stringify({
+          error: 'ข้อความที่ดึงได้จากไฟล์ PDF สั้นเกินไป ไม่เพียงพอสำหรับสกัด JD',
+        }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const cappedPdfText = rawPdfText.slice(0, 16000);
+
+      const systemPrompt = `คุณคือผู้เชี่ยวชาญด้าน HR ที่ทำหน้าที่สกัดข้อมูล Job Description (JD) และสัดส่วนน้ำหนักความรับผิดชอบจากข้อความที่ดึงมาจากไฟล์ PDF
+กฎเข้มงวด:
+- ห้ามแต่งเติมหรือสมมติหน้าที่ความรับผิดชอบที่ไม่ได้ปรากฏในเอกสาร
+- รักษาภาษาหลักของเอกสาร (ไทยหรืออังกฤษ) ให้ถูกต้องตามต้นฉบับ
+- หากในเอกสารมีตารางสัดส่วนน้ำหนัก (%) ให้ดึงหมวดงานและตัวเลข % ตามเอกสารจริง
+- หากในเอกสารไม่มีตัวเลข % หรือผลรวมไม่เท่ากับ 100% ให้ระบุข้อสังเกตไว้ใน extraction_notes อย่างชัดเจนเพื่อให้ผู้ใช้ตรวจสอบก่อนบันทึก
+- ตอบเป็น raw JSON เท่านั้น ห้ามครอบด้วย markdown หรือข้อความอื่น`;
+
+      const userPrompt = `สกัดโครงสร้าง Job Description จากข้อความไฟล์ PDF ชื่อ "${fileName}"
+ตำแหน่งอ้างอิงเดิม (ใช้เป็น fallback หากในไฟล์ไม่ระบุชื่อตำแหน่ง): "${defaultPosition || '-'}"
+
+--- ข้อความจากไฟล์ PDF ---
+${cappedPdfText}
+--- จบข้อความ ---
+
+ตอบเป็น JSON รูปแบบดังนี้เท่านั้น:
+{
+  "position_name": "ชื่อตำแหน่งที่ระบุในไฟล์ (หรือใช้ตำแหน่งอ้างอิงเดิมถ้าไม่พบ)",
+  "jd_text": "สรุปขอบเขตหน้าที่ความรับผิดชอบหลักจากไฟล์อย่างเป็นระเบียบ (bullet points ชัดเจน)",
+  "key_responsibilities": [
+    { "category": "ชื่อหมวดความรับผิดชอบ", "weight": <integer 0-100> }
+  ],
+  "confidence": "high | medium | low",
+  "extraction_notes": [
+    "ข้อสังเกตสั้นๆ เช่น พบตารางน้ำหนักรวม 100% ครบถ้วน หรือ ไม่พบ % ในไฟล์จึงประมาณการเบื้องต้น"
+  ]
+}`;
+
+      console.log(`[PROMPT:parse_jd_pdf] file="${fileName}" chars=${cappedPdfText.length}`);
+
+      const { response, actualModel, modelsTried, fallbackOccurred } = await callLlmWithFallback(
+        endpoint, llmHeaders, provider, model, systemPrompt, userPrompt, true
+      );
+
+      const aiResult = await response.json();
+      const rawContent = aiResult.choices?.[0]?.message?.content || '{}';
+      const parsed = robustParseJson(rawContent);
+
+      const cleanResponsibilities = Array.isArray(parsed.key_responsibilities)
+        ? parsed.key_responsibilities
+            .filter((item: any) => item && typeof item.category === 'string' && item.category.trim())
+            .map((item: any) => ({
+              category: String(item.category).trim(),
+              weight: Math.min(100, Math.max(0, Math.round(Number(item.weight) || 0))),
+            }))
+        : [];
+
+      const confidence = ['high', 'medium', 'low'].includes(String(parsed.confidence))
+        ? String(parsed.confidence)
+        : 'medium';
+
+      const extractionNotes = Array.isArray(parsed.extraction_notes)
+        ? parsed.extraction_notes.filter((n: unknown) => typeof n === 'string' && n.trim()).map((n: string) => n.trim())
+        : [];
+
+      return new Response(JSON.stringify({
+        position_name: typeof parsed.position_name === 'string' && parsed.position_name.trim()
+          ? parsed.position_name.trim()
+          : defaultPosition,
+        jd_text: typeof parsed.jd_text === 'string' ? parsed.jd_text.trim() : '',
+        key_responsibilities: cleanResponsibilities,
+        confidence,
+        extraction_notes: extractionNotes,
+        actualModel,
+        provider,
+        fallbackOccurred,
+        modelsTried,
+        ...(includeDebug ? { debug_prompts: { system: systemPrompt, user: userPrompt } } : {}),
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // ── ACTION: enhance_description ──────────────────────────────────────────
     if (action === 'enhance_description') {
       const { description, project_name, action_name, duration } = body;

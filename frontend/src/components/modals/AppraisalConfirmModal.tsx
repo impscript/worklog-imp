@@ -12,9 +12,11 @@ import {
   Briefcase,
   AlertCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Edit3
 } from 'lucide-react';
 import ModalPortal from './ModalPortal';
+import InlineJdEditor, { type SavedJdRecord } from './InlineJdEditor';
 
 export interface AvailableProviderItem {
   id: string;
@@ -45,6 +47,9 @@ export interface AppraisalConfirmModalProps {
     position_name?: string;
     key_responsibilities?: Record<string, unknown>[];
   } | null;
+  workspaceId: string;
+  canEditJd?: boolean;
+  onJdSaved?: (savedJd: SavedJdRecord) => void;
   isManagerEvaluated: boolean;
   selectedCycle: 'half_year' | 'end_year';
   dateRange: { start: string; end: string };
@@ -115,6 +120,9 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
   isLoading = false,
   evaluatedUser,
   candidateJd,
+  workspaceId,
+  canEditJd = false,
+  onJdSaved,
   isManagerEvaluated,
   selectedCycle,
   dateRange,
@@ -132,6 +140,8 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
   const [selectedModel, setSelectedModel] = useState<string>(systemModel || 'google/gemini-2.0-flash:free');
   const [isCustomModelInput, setIsCustomModelInput] = useState<boolean>(false);
   const [isJdExpanded, setIsJdExpanded] = useState<boolean>(true);
+  const [isEditingJd, setIsEditingJd] = useState<boolean>(() => Boolean(!candidateJd?.jd_text && canEditJd));
+  const [isJdDirty, setIsJdDirty] = useState<boolean>(false);
   const [supervisorNotes, setSupervisorNotes] = useState<string>('');
 
   // When provider changes, select the first preset model for that provider if current model doesn't match
@@ -261,9 +271,9 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
               </div>
             </div>
 
-            {/* 1.5 Job Description (JD) Review Card */}
+            {/* 1.5 Job Description (JD) Review & Inline Editor Card */}
             <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-slate-850 border border-indigo-100/90 dark:border-indigo-900/40 space-y-3">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
                   <Briefcase size={16} className="text-indigo-600 dark:text-indigo-400" />
                   <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
@@ -279,9 +289,29 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
                     }`}
                   >
                     {candidateJd?.jd_text ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
-                    {candidateJd?.jd_text ? 'พบเอกสาร JD ในระบบ' : 'อ้างอิงตำแหน่งมาตรฐาน'}
+                    {candidateJd?.jd_text ? 'พบเอกสาร JD ในระบบ' : 'ยังไม่มี JD เฉพาะบุคคล'}
                   </span>
-                  {candidateJd?.jd_text && (
+                  {canEditJd && evaluatedUser?.id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditingJd((prev) => !prev);
+                        if (isEditingJd) setIsJdDirty(false);
+                      }}
+                      disabled={isLoading}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <Edit3 size={12} />
+                      <span>
+                        {isEditingJd
+                          ? 'ปิดหน้าแก้ไข'
+                          : candidateJd?.jd_text
+                          ? 'แก้ไข JD / น้ำหนัก'
+                          : 'เพิ่ม JD ที่นี่เลย'}
+                      </span>
+                    </button>
+                  )}
+                  {candidateJd?.jd_text && !isEditingJd && (
                     <button
                       type="button"
                       onClick={() => setIsJdExpanded(!isJdExpanded)}
@@ -294,67 +324,101 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
                 </div>
               </div>
 
-              {/* Position Header & Responsibilities Count */}
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="text-xs text-slate-700 dark:text-slate-300">
-                  <span className="text-slate-500 dark:text-slate-400">ตำแหน่งงาน: </span>
-                  <strong className="text-indigo-700 dark:text-indigo-300 font-semibold">
-                    {candidateJd?.position_name || evaluatedUser?.position || 'ตำแหน่งงานทั่วไป'}
-                  </strong>
-                </div>
-                {candidateJd?.key_responsibilities && candidateJd.key_responsibilities.length > 0 && (
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                    ({candidateJd.key_responsibilities.length} หมวดภารกิจ)
-                  </span>
-                )}
-              </div>
-
-              {/* Responsibilities Chips */}
-              {candidateJd?.key_responsibilities && candidateJd.key_responsibilities.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  {candidateJd.key_responsibilities.map((resp, i) => {
-                    const category = (resp as { category?: string }).category || `หมวดที่ ${i + 1}`;
-                    const weight = (resp as { weight?: number; weight_percentage?: number }).weight ?? (resp as { weight?: number; weight_percentage?: number }).weight_percentage;
-                    return (
-                      <span
-                        key={i}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs"
-                      >
-                        <span>{category}</span>
-                        {weight != null && (
-                          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                            {weight}%
-                          </span>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* JD Text Display (Scrollable review area) */}
-              {candidateJd?.jd_text ? (
-                isJdExpanded && (
-                  <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-1.5 animate-in fade-in duration-200">
-                    <div className="flex items-center justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                      <span>เนื้อหา Job Description ที่ใช้เป็นเกณฑ์เปรียบเทียบ:</span>
-                      <span className="font-mono text-[10px]">{candidateJd.jd_text.length.toLocaleString()} ตัวอักษร</span>
-                    </div>
-                    <div className="max-h-36 overflow-y-auto custom-scrollbar text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed select-text font-sans pr-1">
-                      {candidateJd.jd_text}
-                    </div>
-                  </div>
-                )
+              {isEditingJd && evaluatedUser?.id ? (
+                <InlineJdEditor
+                  userId={evaluatedUser.id}
+                  workspaceId={workspaceId}
+                  defaultPosition={evaluatedUser.position}
+                  initialJd={candidateJd}
+                  isManagerEvaluated={isManagerEvaluated}
+                  canEdit={canEditJd}
+                  disabled={isLoading}
+                  onDirtyChange={setIsJdDirty}
+                  onCancel={
+                    candidateJd?.jd_text
+                      ? () => {
+                          setIsEditingJd(false);
+                          setIsJdDirty(false);
+                        }
+                      : undefined
+                  }
+                  onSaved={(savedJd) => {
+                    onJdSaved?.(savedJd);
+                    setIsJdDirty(false);
+                    setIsEditingJd(false);
+                    setIsJdExpanded(true);
+                  }}
+                />
               ) : (
-                <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/40 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
-                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                  <div className="space-y-0.5 leading-relaxed">
-                    <div className="font-bold text-[11px]">ยังไม่พบเอกสาร JD เฉพาะบุคคลในระบบ</div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-300">
-                      ระบบจะวิเคราะห์จากกิจกรรมในบันทึกจริง (Worklog) ควบคู่กับกรอบมาตรฐานตำแหน่ง <strong>{evaluatedUser?.position || 'Officer'}</strong> ({isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md'}) โดยอัตโนมัติ
-                    </p>
+                <>
+                  {/* Position Header & Responsibilities Count */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="text-xs text-slate-700 dark:text-slate-300">
+                      <span className="text-slate-500 dark:text-slate-400">ตำแหน่งงาน: </span>
+                      <strong className="text-indigo-700 dark:text-indigo-300 font-semibold">
+                        {candidateJd?.position_name || evaluatedUser?.position || 'ตำแหน่งงานทั่วไป'}
+                      </strong>
+                    </div>
+                    {candidateJd?.key_responsibilities && candidateJd.key_responsibilities.length > 0 && (
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        ({candidateJd.key_responsibilities.length} หมวดภารกิจ)
+                      </span>
+                    )}
                   </div>
-                </div>
+
+                  {/* Responsibilities Chips */}
+                  {candidateJd?.key_responsibilities && candidateJd.key_responsibilities.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {candidateJd.key_responsibilities.map((resp, i) => {
+                        const category = (resp as { category?: string }).category || `หมวดที่ ${i + 1}`;
+                        const weight =
+                          (resp as { weight?: number; weight_percentage?: number }).weight ??
+                          (resp as { weight?: number; weight_percentage?: number }).weight_percentage;
+                        return (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs"
+                          >
+                            <span>{category}</span>
+                            {weight != null && (
+                              <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                {weight}%
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* JD Text Display (Scrollable review area) */}
+                  {candidateJd?.jd_text ? (
+                    isJdExpanded && (
+                      <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-1.5 animate-in fade-in duration-200">
+                        <div className="flex items-center justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                          <span>เนื้อหา Job Description ที่ใช้เป็นเกณฑ์เปรียบเทียบ:</span>
+                          <span className="font-mono text-[10px]">{candidateJd.jd_text.length.toLocaleString()} ตัวอักษร</span>
+                        </div>
+                        <div className="max-h-36 overflow-y-auto custom-scrollbar text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed select-text font-sans pr-1">
+                          {candidateJd.jd_text}
+                        </div>
+                      </div>
+                    )
+                  ) : (
+                    <div className="p-3 rounded-xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/40 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                      <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                      <div className="space-y-0.5 leading-relaxed">
+                        <div className="font-bold text-[11px]">ยังไม่พบเอกสาร JD เฉพาะบุคคลในระบบ</div>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                          ระบบจะวิเคราะห์จากกิจกรรมในบันทึกจริง (Worklog) ควบคู่กับกรอบมาตรฐานตำแหน่ง{' '}
+                          <strong>{evaluatedUser?.position || 'Officer'}</strong> (
+                          {isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md'}) โดยอัตโนมัติ
+                          {!canEditJd && ' • เฉพาะเจ้าของบัญชี, Admin ของ Workspace หรือ System Admin เท่านั้นที่สามารถบันทึก JD แทนได้'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -511,33 +575,43 @@ const AppraisalConfirmModalContent: React.FC<Omit<AppraisalConfirmModalProps, 'i
           </div>
 
           {/* Modal Footer */}
-          <div className="px-6 py-4 bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isLoading}
-              className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-xl transition-all cursor-pointer disabled:opacity-50"
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="button"
-              onClick={handleStart}
-              disabled={isLoading || candidateLogsCount === 0}
-              className="px-5 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 text-white hover:from-indigo-500 hover:to-purple-500 shadow-md hover:shadow-indigo-500/25 transition-all inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
+          <div className="px-6 py-4 bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5">
+              {isEditingJd && isJdDirty && (
                 <>
-                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>กำลังเริ่มต้น...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={15} />
-                  <span>ยืนยันและเริ่มประเมินด้วย AI ทันที</span>
+                  <AlertCircle size={13} className="shrink-0" />
+                  <span>มีการแก้ไข JD ที่ยังไม่บันทึก — กรุณากด "บันทึก JD ลงระบบ" ก่อนเริ่มประเมิน</span>
                 </>
               )}
-            </button>
+            </div>
+            <div className="flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isLoading}
+                className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleStart}
+                disabled={isLoading || candidateLogsCount === 0 || (isEditingJd && isJdDirty)}
+                className="px-5 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 text-white hover:from-indigo-500 hover:to-purple-500 shadow-md hover:shadow-indigo-500/25 transition-all inline-flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>กำลังเริ่มต้น...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={15} />
+                    <span>ยืนยันและเริ่มประเมินด้วย AI ทันที</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -549,7 +623,7 @@ export const AppraisalConfirmModal: React.FC<AppraisalConfirmModalProps> = (prop
   if (!props.isOpen) return null;
   return (
     <AppraisalConfirmModalContent
-      key={`${props.isOpen}-${props.systemProvider}-${props.systemModel}`}
+      key={`${props.isOpen}-${props.evaluatedUser?.id || ''}-${props.systemProvider}-${props.systemModel}`}
       {...props}
     />
   );
