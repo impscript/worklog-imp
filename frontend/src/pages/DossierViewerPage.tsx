@@ -1,47 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { 
-  Lock, 
-  ArrowLeft, 
-  ShieldCheck, 
-  ShieldAlert, 
-  Sparkles, 
-  Award, 
-  Calendar, 
-  CheckCircle2, 
-  Download, 
-  Briefcase, 
-  Building2, 
-  TrendingUp,
-  Clock,
-  FolderGit2,
-  ExternalLink,
-  Cpu
+import {
+  Lock,
+  ArrowLeft,
+  ShieldCheck,
+  ShieldAlert,
+  Briefcase,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { formatThaiDateRange } from '../lib/appraisalPromptStandards';
-
-interface MemberAppraisalSummary {
-  id: string;
-  cycle: 'half_year' | 'end_year';
-  overallScore: number;
-  level: string;
-  confidence: string;
-  period: string;
-  modelName: string;
-  coveragePct: number | null;
-  loggedDays: number | null;
-  businessDays: number | null;
-  shareToken: string | null;
-  isPublic: boolean;
-  pillars: {
-    quantity: number;
-    quality: number;
-    learning: number;
-    accountability: number;
-    proactiveness: number;
-  };
-}
+import MemberEditorialDossier from '../components/dossier/MemberEditorialDossier';
+import DossierEditorModal from '../components/dossier/DossierEditorModal';
+import type {
+  MemberAppraisalSummary,
+  MemberDossierJd,
+  MemberDossierProfile,
+  MemberDossierStats,
+  MemberProjectAggregate,
+  UserDossierConfig,
+} from '../lib/dossier-types';
 
 function cleanMilestoneText(raw?: string | null): string {
   if (!raw) return '';
@@ -52,7 +29,10 @@ function cleanMilestoneText(raw?: string | null): string {
     .trim();
 }
 
-function parseAppraisalRow(row: Record<string, unknown>, cycle: 'half_year' | 'end_year'): MemberAppraisalSummary {
+function parseAppraisalRow(
+  row: Record<string, unknown>,
+  cycle: 'half_year' | 'end_year'
+): MemberAppraisalSummary {
   const rawData =
     typeof row.analysis_data === 'string'
       ? (() => {
@@ -62,9 +42,9 @@ function parseAppraisalRow(row: Record<string, unknown>, cycle: 'half_year' | 'e
             return {};
           }
         })()
-      : (row.analysis_data && typeof row.analysis_data === 'object'
-          ? (row.analysis_data as Record<string, unknown>)
-          : {});
+      : row.analysis_data && typeof row.analysis_data === 'object'
+        ? (row.analysis_data as Record<string, unknown>)
+        : {};
 
   const overallScore =
     typeof rawData.overall_score === 'number'
@@ -72,6 +52,7 @@ function parseAppraisalRow(row: Record<string, unknown>, cycle: 'half_year' | 'e
       : typeof row.score === 'number'
         ? row.score
         : 0;
+
   const level =
     typeof rawData.level === 'string' && rawData.level.trim()
       ? rawData.level
@@ -88,7 +69,8 @@ function parseAppraisalRow(row: Record<string, unknown>, cycle: 'half_year' | 'e
       ? (rawData.scores as Record<string, Record<string, unknown>>)
       : {};
   const fallbackPillar = Math.min(20, Math.max(0, Number(((overallScore / 100) * 20).toFixed(1))));
-  const readScore = (k: string) => (typeof scores[k]?.score === 'number' ? (scores[k].score as number) : fallbackPillar);
+  const readScore = (k: string) =>
+    typeof scores[k]?.score === 'number' ? (scores[k].score as number) : fallbackPillar;
 
   const stats =
     rawData.worklog_stats && typeof rawData.worklog_stats === 'object'
@@ -107,6 +89,10 @@ function parseAppraisalRow(row: Record<string, unknown>, cycle: 'half_year' | 'e
         ? row.engine_model
         : 'AI Standard';
 
+  const topStrengths = Array.isArray(rawData.top_strengths)
+    ? (rawData.top_strengths as unknown[]).filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    : [];
+
   return {
     id: String(row.id || ''),
     cycle,
@@ -115,11 +101,14 @@ function parseAppraisalRow(row: Record<string, unknown>, cycle: 'half_year' | 'e
     confidence: typeof rawData.confidence === 'string' ? rawData.confidence : 'Medium',
     period: formatThaiDateRange(rawPeriod),
     modelName,
+    executiveSummary:
+      typeof rawData.executive_summary === 'string' ? rawData.executive_summary : undefined,
     coveragePct: typeof stats?.coverage_pct === 'number' ? (stats.coverage_pct as number) : null,
     loggedDays: typeof stats?.logged_days === 'number' ? (stats.logged_days as number) : null,
     businessDays: typeof stats?.business_days === 'number' ? (stats.business_days as number) : null,
     shareToken: typeof row.share_token === 'string' ? row.share_token : null,
     isPublic: Boolean(row.is_public),
+    topStrengths,
     pillars: {
       quantity: readScore('quantity'),
       quality: readScore('quality'),
@@ -128,35 +117,6 @@ function parseAppraisalRow(row: Record<string, unknown>, cycle: 'half_year' | 'e
       proactiveness: readScore('proactiveness'),
     },
   };
-}
-
-interface MemberData {
-  id: string;
-  full_name: string;
-  nickname?: string;
-  position?: string;
-  employee_level?: string;
-  company_name?: string;
-  department?: string;
-  role_start_date?: string;
-  manager_name?: string;
-  email?: string;
-  emp_id?: string;
-}
-
-interface MemberStats {
-  totalHours: number;
-  totalDays: number;
-  totalTasks: number;
-  projects: string[];
-  recentLogs: Array<{
-    id: string;
-    work_date: string;
-    task_title: string;
-    task_description?: string;
-    total_hours: number;
-    project_name?: string;
-  }>;
 }
 
 export default function DossierViewerPage() {
@@ -172,30 +132,35 @@ export default function DossierViewerPage() {
     // fallback to raw
   }
   const currentSlug = decodedSlug.toLowerCase().trim();
-  const isChatchawan = !currentSlug || 
-    currentSlug === 'chatchawan' || 
-    currentSlug === '10005208' || 
-    currentSlug === 'portfolio' || 
+  const isChatchawan =
+    !currentSlug ||
+    currentSlug === 'chatchawan' ||
+    currentSlug === '10005208' ||
+    currentSlug === 'portfolio' ||
     currentSlug.includes('chatchawan');
 
   const [isPublic, setIsPublic] = useState<boolean | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
 
-  // Dynamic Member State for multi-user personal dossiers
-  const [member, setMember] = useState<MemberData | null>(null);
-  const [memberStats, setMemberStats] = useState<MemberStats>({
+  // Dynamic Member State
+  const [member, setMember] = useState<MemberDossierProfile | null>(null);
+  const [memberStats, setMemberStats] = useState<MemberDossierStats>({
     totalHours: 0,
     totalDays: 0,
     totalTasks: 0,
     projects: [],
-    recentLogs: []
+    projectSummaries: [],
+    recentLogs: [],
   });
+  const [memberJd, setMemberJd] = useState<MemberDossierJd | null>(null);
+  const [dossierConfig, setDossierConfig] = useState<UserDossierConfig | null>(null);
   const [halfYearAppraisal, setHalfYearAppraisal] = useState<MemberAppraisalSummary | null>(null);
   const [endYearAppraisal, setEndYearAppraisal] = useState<MemberAppraisalSummary | null>(null);
   const [notFound, setNotFound] = useState(false);
 
-  // Keyboard shortcut listener to forward Cmd+P / Ctrl+P directly
+  // Keyboard shortcut listener to forward Cmd+P / Ctrl+P
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'p') {
@@ -221,18 +186,18 @@ export default function DossierViewerPage() {
       setIsLoading(true);
       setNotFound(false);
 
-      // 1. Detect if active session is owner / admin
       let ownerSession = false;
-      let sessionData: any = null;
+      let sessionData: Record<string, unknown> | null = null;
       try {
         const sessionStr = localStorage.getItem('worklog_session');
         if (sessionStr) {
-          sessionData = JSON.parse(sessionStr);
+          sessionData = JSON.parse(sessionStr) as Record<string, unknown>;
+          const sEmail = typeof sessionData.email === 'string' ? sessionData.email : '';
           if (
             sessionData.empId === '10005208' ||
             sessionData.role === 'admin' ||
             sessionData.role === 'super_admin' ||
-            sessionData.email?.includes('chatchawan')
+            sEmail.includes('chatchawan')
           ) {
             ownerSession = true;
           }
@@ -243,7 +208,6 @@ export default function DossierViewerPage() {
 
       if (isChatchawan) {
         setIsOwner(ownerSession);
-        // Fetch visibility status for Chatchawan master dossier
         try {
           const { data, error } = await supabase
             .from('tb_system_config')
@@ -253,27 +217,24 @@ export default function DossierViewerPage() {
 
           if (!error && data?.config_value) {
             setIsPublic(data.config_value === 'public');
+          } else if (ownerSession) {
+            const localVis = localStorage.getItem('chatchawan_dossier_visibility');
+            setIsPublic(localVis !== 'private');
           } else {
-            if (ownerSession) {
-              const localVis = localStorage.getItem('chatchawan_dossier_visibility');
-              setIsPublic(localVis !== 'private');
-            } else {
-              setIsPublic(false);
-            }
+            setIsPublic(false);
           }
         } catch {
-          setIsPublic(ownerSession ? true : false);
+          setIsPublic(ownerSession);
         } finally {
           setIsLoading(false);
         }
         return;
       }
 
-      // 2. Dynamic Member Lookup for any user in the company
+      // Dynamic Member Lookup for any user in the company
       try {
-        let foundUser: any = null;
+        let foundUser: MemberDossierProfile | null = null;
 
-        // Try lookup by nickname
         const { data: byNickname } = await supabase
           .from('users')
           .select('*')
@@ -281,42 +242,51 @@ export default function DossierViewerPage() {
           .maybeSingle();
 
         if (byNickname) {
-          foundUser = byNickname;
+          foundUser = byNickname as MemberDossierProfile;
         } else {
-          // Try lookup by email prefix, emp_id, or full_name
-          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentSlug);
+          const isUuid =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentSlug);
           let query = supabase.from('users').select('*');
           if (isUuid) {
             query = query.or(`id.eq.${currentSlug},emp_id.eq.${currentSlug}`);
           } else {
-            query = query.or(`emp_id.eq.${currentSlug},email.ilike.${currentSlug}%,full_name.ilike.%${currentSlug}%`);
+            query = query.or(
+              `emp_id.eq.${currentSlug},email.ilike.${currentSlug}%,full_name.ilike.%${currentSlug}%`
+            );
           }
           const { data: byOther } = await query.maybeSingle();
-          foundUser = byOther;
+          if (byOther) foundUser = byOther as MemberDossierProfile;
         }
 
-        // If not found in DB (e.g. strict public RLS or offline cache), fallback to session if user matches
         if (!foundUser && sessionData) {
-          const matchSession = 
+          const sEmail = typeof sessionData.email === 'string' ? sessionData.email.toLowerCase() : '';
+          const sNick = typeof sessionData.nickname === 'string' ? sessionData.nickname : '';
+          const sName = typeof sessionData.name === 'string' ? sessionData.name : '';
+          const matchSession =
             sessionData.empId === currentSlug ||
-            sessionData.email?.toLowerCase().startsWith(currentSlug) ||
-            sessionData.nickname?.toLowerCase() === currentSlug ||
-            sessionData.nickname === decodedSlug ||
-            sessionData.name?.toLowerCase().includes(currentSlug);
+            sEmail.startsWith(currentSlug) ||
+            sNick.toLowerCase() === currentSlug ||
+            sNick === decodedSlug ||
+            sName.toLowerCase().includes(currentSlug);
 
           if (matchSession) {
             foundUser = {
-              id: sessionData.id,
-              full_name: sessionData.name || sessionData.full_name,
-              nickname: sessionData.nickname,
-              position: sessionData.position,
-              employee_level: sessionData.employee_level,
-              company_name: sessionData.company_name,
-              department: sessionData.department,
-              role_start_date: sessionData.role_start_date,
-              manager_name: sessionData.manager_name,
-              email: sessionData.email,
-              emp_id: sessionData.empId
+              id: String(sessionData.id || ''),
+              full_name: String(sessionData.name || sessionData.full_name || currentSlug),
+              nickname: sNick || undefined,
+              position: typeof sessionData.position === 'string' ? sessionData.position : undefined,
+              employee_level:
+                typeof sessionData.employee_level === 'string' ? sessionData.employee_level : undefined,
+              company_name:
+                typeof sessionData.company_name === 'string' ? sessionData.company_name : undefined,
+              department:
+                typeof sessionData.department === 'string' ? sessionData.department : undefined,
+              role_start_date:
+                typeof sessionData.role_start_date === 'string' ? sessionData.role_start_date : undefined,
+              manager_name:
+                typeof sessionData.manager_name === 'string' ? sessionData.manager_name : undefined,
+              email: sEmail || undefined,
+              emp_id: typeof sessionData.empId === 'string' ? sessionData.empId : undefined,
             };
           }
         }
@@ -328,14 +298,16 @@ export default function DossierViewerPage() {
         }
 
         setMember(foundUser);
-        const isUserOwner = sessionData && (sessionData.id === foundUser.id || sessionData.role === 'admin');
-        setIsOwner(!!isUserOwner);
-        setIsPublic(true);
+        const isUserOwner = Boolean(
+          sessionData && (sessionData.id === foundUser.id || sessionData.role === 'admin')
+        );
+        setIsOwner(isUserOwner);
 
-        // Fetch their col_worklog stats & real Half-Year / End-Year appraisals in parallel
         let appraisalQuery = supabase
           .from('tb_ai_individual_analysis')
-          .select('id, template_id, score, analysis_data, start_date, end_date, engine_model, share_token, is_public, analysis_date, created_at')
+          .select(
+            'id, template_id, score, analysis_data, start_date, end_date, engine_model, share_token, is_public, analysis_date, created_at'
+          )
           .eq('user_id', foundUser.id)
           .order('analysis_date', { ascending: false, nullsFirst: false })
           .limit(20);
@@ -343,36 +315,112 @@ export default function DossierViewerPage() {
           appraisalQuery = appraisalQuery.eq('is_public', true);
         }
 
-        const [logsRes, appraisalsRes] = await Promise.allSettled([
+        const [logsRes, appraisalsRes, jdRes, dossierRes] = await Promise.allSettled([
           supabase
             .from('col_worklog')
             .select('id, work_date, total_hours, project_name, action_name, description')
             .eq('user_id', foundUser.id)
             .order('work_date', { ascending: false }),
           appraisalQuery,
+          supabase
+            .from('tb_user_jd')
+            .select('position_name, jd_text, key_responsibilities')
+            .eq('user_id', foundUser.id)
+            .maybeSingle(),
+          supabase
+            .from('tb_user_dossier')
+            .select('*')
+            .eq('user_id', foundUser.id)
+            .maybeSingle(),
         ]);
 
+        // Dossier custom config (gracefully falls back to null if migration not yet applied)
+        if (dossierRes.status === 'fulfilled' && dossierRes.value.data && !dossierRes.value.error) {
+          const cfg = dossierRes.value.data as UserDossierConfig;
+          setDossierConfig(cfg);
+          setIsPublic(cfg.is_public);
+        } else {
+          setDossierConfig(null);
+          setIsPublic(true);
+        }
+
+        // JD
+        if (jdRes.status === 'fulfilled' && jdRes.value.data) {
+          const jdRow = jdRes.value.data as {
+            position_name?: string;
+            jd_text?: string;
+            key_responsibilities?: Array<{ category?: string; weight?: number; weight_percentage?: number }>;
+          };
+          setMemberJd({
+            position_name: jdRow.position_name,
+            jd_text: jdRow.jd_text,
+            key_responsibilities: Array.isArray(jdRow.key_responsibilities)
+              ? jdRow.key_responsibilities
+                  .filter((r) => typeof r.category === 'string' && r.category.trim().length > 0)
+                  .map((r) => ({
+                    category: String(r.category).trim(),
+                    weight: Number(r.weight ?? r.weight_percentage ?? 0),
+                  }))
+              : [],
+          });
+        } else {
+          setMemberJd(null);
+        }
+
+        // Worklog stats + project aggregates
         const logs = logsRes.status === 'fulfilled' ? logsRes.value.data : null;
         if (logs && logs.length > 0) {
-          const totalHours = logs.reduce((sum, item) => sum + (parseFloat(String(item.total_hours || 0)) || 0), 0);
-          const uniqueDays = new Set(logs.map(item => item.work_date)).size;
-          const projects = Array.from(new Set(logs.map(item => item.project_name).filter(Boolean))) as string[];
+          const totalHours = logs.reduce(
+            (sum, item) => sum + (parseFloat(String(item.total_hours || 0)) || 0),
+            0
+          );
+          const uniqueDays = new Set(logs.map((item) => item.work_date)).size;
+
+          const projMap = new Map<string, MemberProjectAggregate>();
+          logs.forEach((l) => {
+            const pName = (l.project_name || '').trim();
+            if (!pName) return;
+            const hrs = parseFloat(String(l.total_hours || 0)) || 0;
+            const snippet = cleanMilestoneText(l.description) || l.action_name || '';
+            const existing = projMap.get(pName);
+            if (!existing) {
+              projMap.set(pName, {
+                name: pName,
+                taskCount: 1,
+                totalHours: hrs,
+                latestDate: l.work_date,
+                highlight: snippet,
+              });
+            } else {
+              existing.taskCount += 1;
+              existing.totalHours += hrs;
+              if (!existing.highlight && snippet) existing.highlight = snippet;
+            }
+          });
+
+          const projectSummaries = Array.from(projMap.values()).sort(
+            (a, b) => b.totalHours - a.totalHours
+          );
+
           setMemberStats({
-            totalHours,
+            totalHours: Math.round(totalHours * 10) / 10,
             totalDays: uniqueDays,
             totalTasks: logs.length,
-            projects,
-            recentLogs: logs.slice(0, 8).map(l => ({
+            projects: projectSummaries.map((p) => p.name),
+            projectSummaries,
+            recentLogs: logs.slice(0, 10).map((l) => ({
               id: l.id,
               work_date: l.work_date,
-              task_title: cleanMilestoneText(l.description) || l.action_name || l.project_name || 'บันทึกงาน',
+              task_title:
+                cleanMilestoneText(l.description) || l.action_name || l.project_name || 'บันทึกงาน',
               task_description: l.description || undefined,
               total_hours: parseFloat(String(l.total_hours || 0)) || 0,
-              project_name: l.project_name
-            }))
+              project_name: l.project_name,
+            })),
           });
         }
 
+        // Appraisals (Half-Year & End-Year)
         const appraisalRows =
           appraisalsRes.status === 'fulfilled' && Array.isArray(appraisalsRes.value.data)
             ? (appraisalsRes.value.data as Record<string, unknown>[])
@@ -400,106 +448,102 @@ export default function DossierViewerPage() {
     }
 
     initDossier();
-  }, [currentSlug, isChatchawan]);
+  }, [currentSlug, decodedSlug, isChatchawan]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center gap-4">
-        <div className="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
-        <p className="text-sm font-medium text-slate-400 font-mono tracking-wider">กำลังตรวจสอบและโหลดแฟ้มผลงาน AI...</p>
+      <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col items-center justify-center gap-4">
+        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        <p className="text-sm font-medium text-slate-500 font-mono tracking-wider">
+          กำลังโหลดแฟ้มผลงาน...
+        </p>
       </div>
     );
   }
 
-  // Not Found Screen
   if (notFound) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center select-none">
-        <div className="w-20 h-20 bg-indigo-500/10 border border-indigo-500/20 rounded-3xl flex items-center justify-center text-indigo-400 mb-6 shadow-2xl shadow-indigo-500/10">
+      <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col items-center justify-center p-6 text-center select-none">
+        <div className="w-20 h-20 bg-indigo-50 border border-indigo-200 rounded-3xl flex items-center justify-center text-indigo-600 mb-6 shadow-sm">
           <Briefcase size={36} />
         </div>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">
           <span>Dossier Not Found</span>
         </div>
-        <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white mb-2">
+        <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 mb-2">
           ไม่พบแฟ้มผลงานสำหรับ &ldquo;{currentSlug}&rdquo;
         </h1>
-        <p className="text-sm text-slate-400 max-w-md mb-8 leading-relaxed">
-          ยังไม่มีการสร้างแฟ้มผลงานในชื่อนี้ หรือรหัสพนักงานไม่ถูกต้อง สมาชิกในทีมสามารถเข้าสู่ระบบเพื่อกดสร้างแฟ้มผลงานของตนเองได้ที่หน้า Profile
+        <p className="text-sm text-slate-500 max-w-md mb-8 leading-relaxed">
+          ยังไม่มีการสร้างแฟ้มผลงานในชื่อนี้ หรือรหัสพนักงานไม่ถูกต้อง สมาชิกในทีมสามารถเข้าสู่ระบบเพื่อดูและปรับแต่งแฟ้มผลงานของตนเองได้ที่หน้า Profile
         </p>
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold px-5 py-2.5 rounded-xl border border-slate-800 transition-all active:scale-95"
+            className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-5 py-2.5 rounded-xl border border-slate-200 transition-all cursor-pointer"
           >
             <ArrowLeft size={14} />
-            <span>กลับหน้าหลัก (Back to Home)</span>
+            <span>กลับหน้าหลัก</span>
           </button>
           <button
             onClick={() => navigate('/profile')}
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-600/30"
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer"
           >
-            <span>ไปสร้างที่หน้า Profile</span>
+            <span>ไปที่หน้า Profile</span>
           </button>
         </div>
       </div>
     );
   }
 
-  // If private and not owner -> Show Private Locked Screen
   if (isPublic === false && !isOwner) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center select-none">
-        <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/20 rounded-3xl flex items-center justify-center text-amber-400 mb-6 shadow-2xl shadow-amber-500/10 animate-pulse">
+      <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col items-center justify-center p-6 text-center select-none">
+        <div className="w-20 h-20 bg-amber-50 border border-amber-200 rounded-3xl flex items-center justify-center text-amber-600 mb-6 shadow-sm">
           <Lock size={36} />
         </div>
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">
           <span>Private Dossier</span>
         </div>
-        <h1 className="text-3xl font-black tracking-tight text-white mb-3">
+        <h1 className="text-3xl font-black tracking-tight text-slate-900 mb-3">
           แฟ้มผลงานนี้ถูกตั้งค่าเป็นส่วนตัว
         </h1>
-        <p className="text-sm text-slate-400 max-w-md mb-8 leading-relaxed">
-          Executive Promotion Dossier นี้เปิดให้เข้าถึงเฉพาะช่วงเวลาประเมินผลงานเท่านั้น 
-          ผู้บริหารหรือคณะกรรมการที่ต้องการเข้าถึงข้อมูล โปรดติดต่อเจ้าของข้อมูลโดยตรง
+        <p className="text-sm text-slate-500 max-w-md mb-8 leading-relaxed">
+          แฟ้มผลงานนี้ถูกตั้งค่าเป็นส่วนตัว ผู้บริหารหรือคณะกรรมการที่ต้องการเข้าถึงข้อมูล โปรดติดต่อเจ้าของข้อมูลโดยตรง
         </p>
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/')}
-            className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold px-5 py-2.5 rounded-xl border border-slate-800 transition-all active:scale-95"
+            className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-5 py-2.5 rounded-xl border border-slate-200 transition-all cursor-pointer"
           >
             <ArrowLeft size={14} />
-            <span>กลับหน้าหลัก (Back to Home)</span>
+            <span>กลับหน้าหลัก</span>
           </button>
           <button
             onClick={() => navigate('/login')}
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-600/30"
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer"
           >
-            <span>เข้าสู่ระบบ (Sign In)</span>
+            <span>เข้าสู่ระบบ</span>
           </button>
         </div>
       </div>
     );
   }
 
-  // Master Portfolio for Chatchawan (Delivered with 100% Canva Master PDF & Interactive Iframe)
+  // Master Portfolio for Chatchawan (Canva Master PDF & Interactive Iframe)
   if (isChatchawan) {
     return (
       <div className="w-screen h-screen overflow-hidden bg-slate-950 relative">
-        {/* Floating Discreet Control Pill for Owner */}
         {isOwner && (
           <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 bg-slate-900/85 hover:bg-slate-900 text-slate-200 px-3 py-1.5 rounded-full backdrop-blur-md border border-slate-700/60 shadow-xl transition-all text-xs font-medium">
             <button
               onClick={() => navigate('/profile')}
-              className="inline-flex items-center gap-1.5 hover:text-white transition-colors"
+              className="inline-flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
               title="กลับไปหน้าตั้งค่าโปรไฟล์ Worklog"
             >
               <ArrowLeft size={13} />
               <span>กลับหน้า Profile</span>
             </button>
-
             <span className="w-px h-3.5 bg-slate-700 mx-1" />
-
             {isPublic ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400">
                 <ShieldCheck size={12} />
@@ -513,8 +557,6 @@ export default function DossierViewerPage() {
             )}
           </div>
         )}
-
-        {/* Full-bleed Portfolio Iframe (Portfolio has its own responsive navbar, buttons, and PDF download) */}
         <iframe
           ref={iframeRef}
           src="/dossier/portfolio.html"
@@ -525,341 +567,37 @@ export default function DossierViewerPage() {
     );
   }
 
-  // Dynamic Personal Career Dossier for Other Team Members
-  const primaryAppraisal = endYearAppraisal || halfYearAppraisal;
-
+  // Editorial Light Portfolio for All Other Team Members
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30">
-      {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/80 px-4 md:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-1.5 text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 rounded-xl transition-all"
-            title="ย้อนกลับ"
-          >
-            <ArrowLeft size={16} />
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-white tracking-tight">
-                {member?.full_name || currentSlug}
-              </span>
-              {member?.nickname && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                  {member.nickname}
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-slate-400">
-              {member?.position || 'Career Performance Dossier'} • {member?.company_name || 'Double A Group'}
-            </p>
-          </div>
-        </div>
+    <>
+      {member && (
+        <MemberEditorialDossier
+          member={member}
+          stats={memberStats}
+          jd={memberJd}
+          dossierConfig={dossierConfig}
+          halfYearAppraisal={halfYearAppraisal}
+          endYearAppraisal={endYearAppraisal}
+          canEdit={isOwner}
+          onBack={() => navigate(-1)}
+          onOpenEditor={() => setIsEditorOpen(true)}
+        />
+      )}
 
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-sm shadow-emerald-600/30 active:scale-95"
-          >
-            <Download size={14} />
-            <span>พิมพ์ / บันทึก PDF</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Main Dossier Content */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-8 space-y-6">
-        {/* Hero Card */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900/95 to-indigo-950/40 border border-slate-800 p-6 md:p-10 shadow-2xl">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="flex items-center gap-5">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-2xl font-black shadow-xl shadow-indigo-500/20">
-                {member?.full_name ? member.full_name.charAt(0) : (member?.nickname ? member.nickname.charAt(0) : 'U')}
-              </div>
-              <div className="space-y-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-[11px] font-bold text-indigo-300">
-                  <Sparkles size={12} />
-                  <span>AI Performance & Career Dossier</span>
-                </div>
-                <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">
-                  {member?.full_name || currentSlug}
-                </h1>
-                <p className="text-sm text-slate-300 font-medium">
-                  {member?.position || 'Process Specialist'} {member?.employee_level ? `• Level ${member.employee_level}` : ''}
-                </p>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 pt-1">
-                  {member?.company_name && (
-                    <span className="flex items-center gap-1.5">
-                      <Building2 size={13} className="text-slate-500" />
-                      <span>{member.company_name}</span>
-                    </span>
-                  )}
-                  {member?.manager_name && (
-                    <span className="flex items-center gap-1.5">
-                      <Briefcase size={13} className="text-slate-500" />
-                      <span>หัวหน้างาน: {member.manager_name}</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-end gap-1.5 shrink-0 bg-slate-900/60 border border-slate-800 rounded-2xl p-4 min-w-[200px]">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                {primaryAppraisal
-                  ? `AI Evaluation • ${primaryAppraisal.cycle === 'end_year' ? 'End-Year' : 'Half-Year'}`
-                  : 'AI Evaluation Index'}
-              </span>
-              {primaryAppraisal ? (
-                <>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-3xl font-black text-emerald-400 font-mono tabular-nums">
-                      {primaryAppraisal.overallScore}
-                    </span>
-                    <span className="text-xs text-slate-400 font-bold">/ 100 ({primaryAppraisal.level})</span>
-                  </div>
-                  <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                    <Cpu size={11} className="text-indigo-400" />
-                    <span>{primaryAppraisal.modelName}</span>
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="text-base font-bold text-slate-300">ยังไม่มีผลประเมินสาธารณะ</span>
-                  <span className="text-[11px] text-slate-400">สร้างได้จากหน้า AI Half - End Year</span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 4-Metric Executive KPI Strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">Total Work Hours</span>
-              <Clock size={16} className="text-indigo-400" />
-            </div>
-            <div className="text-2xl font-black text-white font-mono tabular-nums">{memberStats.totalHours.toLocaleString()}</div>
-            <p className="text-[11px] text-slate-400 mt-1">ชั่วโมงงานที่บันทึกสะสม</p>
-          </div>
-
-          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">Logged Days</span>
-              <Calendar size={16} className="text-emerald-400" />
-            </div>
-            <div className="text-2xl font-black text-white font-mono tabular-nums">{memberStats.totalDays}</div>
-            <p className="text-[11px] text-slate-400 mt-1">วันทำงานที่มีการบันทึกจริง ({memberStats.totalTasks} งาน)</p>
-          </div>
-
-          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">Active Projects</span>
-              <FolderGit2 size={16} className="text-amber-400" />
-            </div>
-            <div className="text-2xl font-black text-white font-mono tabular-nums">{memberStats.projects.length}</div>
-            <p className="text-[11px] text-slate-400 mt-1">โครงการสำคัญที่รับผิดชอบ</p>
-          </div>
-
-          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">Work Consistency</span>
-              <Award size={16} className="text-purple-400" />
-            </div>
-            <div className="text-2xl font-black text-white font-mono tabular-nums">
-              {primaryAppraisal?.coveragePct != null ? `${primaryAppraisal.coveragePct}%` : '—'}
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {primaryAppraisal?.loggedDays != null && primaryAppraisal?.businessDays != null
-                ? `${primaryAppraisal.loggedDays}/${primaryAppraisal.businessDays} วันทำการในรอบล่าสุด`
-                : 'คำนวณอัตโนมัติเมื่อประเมิน AI'}
-            </p>
-          </div>
-        </div>
-
-        {/* Half-Year & End-Year Official Appraisal Trajectory */}
-        {(halfYearAppraisal || endYearAppraisal) && (
-          <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
-              <div className="flex items-center gap-2.5">
-                <Award size={20} className="text-emerald-400" />
-                <h3 className="text-lg font-bold text-white tracking-tight">
-                  ผลประเมินทางการ Half-Year &amp; End-Year (Official AI Appraisal)
-                </h3>
-              </div>
-              <span className="text-xs text-slate-400 font-mono">Verified from Worklog Database</span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { label: 'รอบครึ่งปี (Half-Year)', item: halfYearAppraisal },
-                { label: 'รอบสิ้นปี (End-Year)', item: endYearAppraisal },
-              ].map(({ label, item }) => (
-                <div
-                  key={label}
-                  className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between gap-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-bold text-indigo-300">{label}</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">
-                        {item ? item.period : 'ยังไม่มีข้อมูลผลประเมินในรอบนี้'}
-                      </div>
-                    </div>
-                    {item ? (
-                      <div className="text-right shrink-0">
-                        <div className="text-2xl font-black text-emerald-400 font-mono tabular-nums">
-                          {item.overallScore}
-                          <span className="text-xs text-slate-400 font-bold">/100</span>
-                        </div>
-                        <div className="text-[10px] font-bold text-slate-300">ระดับ &quot;{item.level}&quot;</div>
-                      </div>
-                    ) : (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
-                        รอประเมิน
-                      </span>
-                    )}
-                  </div>
-                  {item && (
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
-                      <span className="text-slate-400 flex items-center gap-1">
-                        <Cpu size={11} className="text-indigo-400" />
-                        <span>{item.modelName}</span>
-                      </span>
-                      {item.isPublic && item.shareToken && (
-                        <a
-                          href={`/appraisal?share=${item.shareToken}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 font-bold text-indigo-400 hover:text-indigo-300"
-                        >
-                          <span>เปิดรายงานทางการ</span>
-                          <ExternalLink size={11} />
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 5 HR Performance Pillars Breakdown (Real Data) */}
-        <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
-            <div className="flex items-center gap-2.5">
-              <TrendingUp size={20} className="text-indigo-400" />
-              <h3 className="text-lg font-bold text-white tracking-tight">
-                HR Official Performance Pillars (เกณฑ์ประเมิน 5 มิติ)
-              </h3>
-            </div>
-            <span className="text-xs text-slate-400 font-mono">
-              {primaryAppraisal
-                ? `${primaryAppraisal.cycle === 'end_year' ? 'End-Year' : 'Half-Year'} • ${primaryAppraisal.modelName}`
-                : 'ยังไม่มีผลประเมิน'}
-            </span>
-          </div>
-
-          {primaryAppraisal ? (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 pt-2">
-              {[
-                { name: '1. Quantity', desc: 'ปริมาณงานและความครบถ้วน', val: primaryAppraisal.pillars.quantity, color: 'bg-indigo-500' },
-                { name: '2. Quality', desc: 'คุณภาพและผลลัพธ์เชิงประจักษ์', val: primaryAppraisal.pillars.quality, color: 'bg-emerald-500' },
-                { name: '3. Learning', desc: 'การเรียนรู้และการส่งต่องาน', val: primaryAppraisal.pillars.learning, color: 'bg-sky-500' },
-                { name: '4. Accountability', desc: 'ความรับผิดชอบและการปิดจบ', val: primaryAppraisal.pillars.accountability, color: 'bg-purple-500' },
-                { name: '5. Proactiveness', desc: 'การคิดเชิงรุกและการป้องกัน', val: primaryAppraisal.pillars.proactiveness, color: 'bg-amber-500' },
-              ].map((pillar) => (
-                <div key={pillar.name} className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-white mb-1">{pillar.name}</div>
-                    <p className="text-[10px] text-slate-400 leading-tight mb-3">{pillar.desc}</p>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between text-xs font-mono tabular-nums font-bold text-slate-200 mb-1.5">
-                      <span>Score</span>
-                      <span>{pillar.val}/20</span>
-                    </div>
-                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                      <div className={`${pillar.color} h-full rounded-full`} style={{ width: `${Math.min(100, (pillar.val / 20) * 100)}%` }} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-6 text-center text-xs text-slate-400">
-              ยังไม่มีผลประเมิน 5 มิติที่เปิดแชร์สาธารณะ (สามารถสร้างและเปิดแชร์ได้ที่เมนู <strong className="text-indigo-300">AI Half - End Year</strong>)
-            </div>
-          )}
-        </div>
-
-        {/* Projects & Work Deliverables */}
-        <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2.5">
-              <Briefcase size={20} className="text-emerald-400" />
-              <h3 className="text-lg font-bold text-white tracking-tight">
-                ผลงานและโครงการหลักที่ส่งมอบ (Key Projects & Focus Areas)
-              </h3>
-            </div>
-            <span className="text-xs text-slate-400 font-mono">จากบันทึก Col Worklog</span>
-          </div>
-
-          {memberStats.projects.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
-              {memberStats.projects.map((proj, idx) => (
-                <div key={idx} className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 flex items-start gap-3">
-                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0 mt-0.5">
-                    <CheckCircle2 size={16} />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-bold text-white truncate">{proj}</h4>
-                    <p className="text-[11px] text-slate-400 mt-1">ส่งมอบงานเชิงระบบและกระบวนการ</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400 py-4 text-center">กำลังซิงค์ประวัติโครงการจากฐานข้อมูล...</p>
-          )}
-
-          {/* Recent Task Entries */}
-          {memberStats.recentLogs.length > 0 && (
-            <div className="pt-4 border-t border-slate-800 space-y-2.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                ตัวอย่างบันทึกการปฏิบัติงานล่าสุด (Recent Milestones)
-              </span>
-              <div className="divide-y divide-slate-800/80">
-                {memberStats.recentLogs.slice(0, 5).map(log => (
-                  <div key={log.id} className="py-2.5 flex items-center justify-between gap-4 text-xs">
-                    <div className="min-w-0 flex items-center gap-2.5">
-                      <span className="font-mono text-slate-400 text-[11px] shrink-0">{log.work_date}</span>
-                      <span className="text-slate-200 font-medium truncate">{log.task_title}</span>
-                      {log.project_name && (
-                        <span className="hidden sm:inline-block px-2 py-0.5 rounded-md bg-slate-800 text-[10px] text-slate-400 border border-slate-700/60 shrink-0">
-                          {log.project_name}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-indigo-400 font-mono font-bold shrink-0">{log.total_hours} ชม.</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <footer className="pt-6 pb-12 text-center text-xs text-slate-400 border-t border-slate-800">
-          <p>© 2026 IMP Worklog Ecosystem • Double A Group. Verified with AI Audit Benchmark.</p>
-        </footer>
-      </main>
-    </div>
+      {member && (
+        <DossierEditorModal
+          isOpen={isEditorOpen}
+          onClose={() => setIsEditorOpen(false)}
+          userId={member.id}
+          userName={member.full_name}
+          initialConfig={dossierConfig}
+          availableProjects={memberStats.projects}
+          onSaved={(saved) => {
+            setDossierConfig(saved);
+            setIsPublic(saved.is_public);
+          }}
+        />
+      )}
+    </>
   );
 }

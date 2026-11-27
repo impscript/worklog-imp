@@ -7,6 +7,8 @@ import { supabase } from '../lib/supabase';
 import { googleCalendar } from '../lib/google-calendar';
 import { setSuperAdminPin, clearSuperAdminPin } from '../lib/security-pin';
 import SecretAccessLogsModal from '../components/modals/SecretAccessLogsModal';
+import DossierEditorModal from '../components/dossier/DossierEditorModal';
+import type { UserDossierConfig } from '../lib/dossier-types';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -28,6 +30,9 @@ export default function ProfilePage() {
 
   // Edit Profile States
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDossierEditorOpen, setIsDossierEditorOpen] = useState(false);
+  const [userDossierConfig, setUserDossierConfig] = useState<UserDossierConfig | null>(null);
+  const [userProjectNames, setUserProjectNames] = useState<string[]>([]);
   const [editNickname, setEditNickname] = useState('');
   const [editPosition, setEditPosition] = useState('');
   const [editEmployeeLevel, setEditEmployeeLevel] = useState('');
@@ -801,7 +806,47 @@ export default function ProfilePage() {
                       {dossierUrl}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    {!isChatchawan && session?.id && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const [cfgRes, projRes] = await Promise.allSettled([
+                              supabase
+                                .from('tb_user_dossier')
+                                .select('*')
+                                .eq('user_id', session.id)
+                                .maybeSingle(),
+                              supabase
+                                .from('col_worklog')
+                                .select('project_name')
+                                .eq('user_id', session.id),
+                            ]);
+                            if (cfgRes.status === 'fulfilled' && cfgRes.value.data && !cfgRes.value.error) {
+                              setUserDossierConfig(cfgRes.value.data as UserDossierConfig);
+                            }
+                            if (projRes.status === 'fulfilled' && Array.isArray(projRes.value.data)) {
+                              const unique = Array.from(
+                                new Set(
+                                  projRes.value.data
+                                    .map((r: { project_name?: string | null }) => (r.project_name || '').trim())
+                                    .filter(Boolean)
+                                )
+                              );
+                              setUserProjectNames(unique);
+                            }
+                          } catch {
+                            // Gracefully open editor even before migration is applied
+                          }
+                          setIsDossierEditorOpen(true);
+                        }}
+                        className="bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/70 text-xs font-bold px-4 py-2.5 rounded-xl transition-all active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <Edit size={13} />
+                        <span>ปรับแต่ง Portfolio</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -884,6 +929,17 @@ export default function ProfilePage() {
                   )}
                 </div>
               </div>
+              {!isChatchawan && session?.id && (
+                <DossierEditorModal
+                  isOpen={isDossierEditorOpen}
+                  onClose={() => setIsDossierEditorOpen(false)}
+                  userId={session.id}
+                  userName={session.name || session.full_name || 'พนักงาน'}
+                  initialConfig={userDossierConfig}
+                  availableProjects={userProjectNames}
+                  onSaved={(saved) => setUserDossierConfig(saved)}
+                />
+              )}
             </div>
           );
         })()}
