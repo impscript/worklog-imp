@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import { AppraisalConfirmModal, type AvailableProviderItem } from '../components/modals/AppraisalConfirmModal';
+import AppraisalProgressCard from '../components/appraisal/AppraisalProgressCard';
 import { useNotification } from '../context/NotificationContext';
 import {
   MANAGER_PROMPT_MD,
@@ -333,8 +334,8 @@ function normalizeAppraisalResult(raw: unknown, item?: AnalysisHistoryItem): App
 
   const rawWorkStatus = (data.work_status && typeof data.work_status === 'object') ? (data.work_status as Record<string, unknown>) : {};
   const safeWorkStatus = {
-    completed: Array.isArray(rawWorkStatus.completed) ? (rawWorkStatus.completed as string[]) : [],
-    in_progress: Array.isArray(rawWorkStatus.in_progress) ? (rawWorkStatus.in_progress as string[]) : [],
+    completed: Array.isArray(rawWorkStatus.completed) ? (rawWorkStatus.completed as string[]).map(cleanDeliverableDisplay) : [],
+    in_progress: Array.isArray(rawWorkStatus.in_progress) ? (rawWorkStatus.in_progress as string[]).map(cleanDeliverableDisplay) : [],
     pending: Array.isArray(rawWorkStatus.pending) ? (rawWorkStatus.pending as string[]) : [],
     overdue: Array.isArray(rawWorkStatus.overdue) ? (rawWorkStatus.overdue as string[]) : [],
   };
@@ -514,6 +515,25 @@ function computeFutureExpiryIso(days = 30): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString();
+}
+
+function cleanWorklogSnippet(raw: string): string {
+  return raw
+    .split('\n')[0]
+    .replace(/\[.*?\]/g, '')
+    .replace(/^[\s:–—-]+/, '')
+    .trim();
+}
+
+function cleanDeliverableDisplay(item: string): string {
+  return item.replace(/:\s*:\s*/g, ': ').trim();
+}
+
+function formatAttendanceRatio(loggedDays: number, businessDays: number): string {
+  if (loggedDays > businessDays) {
+    return `${businessDays}/${businessDays} วันทำการ (+${loggedDays - businessDays} วันหยุด)`;
+  }
+  return `${loggedDays}/${businessDays} วันทำการ`;
 }
 
 export default function OfficialAppraisalPage() {
@@ -1463,7 +1483,8 @@ export default function OfficialAppraisalPage() {
 
       // Completed: only logs with clear closure/deliverable marker
       deliverableLogs.slice(0, 4).forEach((l) => {
-        const text = l.description.split('\n')[0].replace(/\[.*?\]/g, '').trim();
+        const text = cleanWorklogSnippet(l.description);
+        if (!text) return;
         const item = `${l.project_name || 'งาน'}: ${text.slice(0, 80)}`;
         if (!completedList.includes(item)) completedList.push(item);
       });
@@ -1472,7 +1493,7 @@ export default function OfficialAppraisalPage() {
       sortedProjects.slice(0, 5).forEach((p) => {
         const hasDeliverable = deliverableLogs.some((l) => l.project_name === p.name);
         if (!hasDeliverable && inProgressList.length < 3) {
-          const sample = p.sampleLogs[0]?.description.split('\n')[0].replace(/\[.*?\]/g, '').trim() || 'ดำเนินงานต่อเนื่อง';
+          const sample = cleanWorklogSnippet(p.sampleLogs[0]?.description || '') || 'ดำเนินงานต่อเนื่อง';
           const item = `${p.name}: ${sample.slice(0, 80)}`;
           if (!completedList.includes(item)) inProgressList.push(item);
         }
@@ -1534,7 +1555,7 @@ export default function OfficialAppraisalPage() {
       const jdNoteQty = jdResponsibilities.length > 0
         ? `ครอบคลุม JD ${jdMatchCount}/${jdTotal} หน้าที่หลัก, ${sortedProjects.length} โครงการ`
         : `ครอบคลุม ${sortedProjects.length} โครงการหลัก`;
-      let qtyReason = `บันทึกงาน ${loggingCoveragePct}% ของวันทำการ (${uniqueLoggedDays}/${businessDays} วัน) รวม ${totalEntries} รายการ; ${jdNoteQty}`;
+      let qtyReason = `บันทึกงาน ${loggingCoveragePct}% ของวันทำการ (${formatAttendanceRatio(uniqueLoggedDays, businessDays)}) รวม ${totalEntries} รายการ; ${jdNoteQty}`;
       if (qtyDeduction > 0) {
         qtyReason += ` (ปรับลด ${qtyDeduction} คะแนน: ${jdResponsibilities.length > 0 ? `พบหน้าที่ตาม JD ที่ยังไม่มีบันทึกชัดเจน ${jdTotal - jdMatchCount} ข้อ` : 'อ้างอิงตำแหน่งมาตรฐานยังไม่มีเอกสาร JD เฉพาะบุคคล'})`;
       }
@@ -2007,8 +2028,8 @@ export default function OfficialAppraisalPage() {
   };
 
   // Robust Database Persistence (Upsert with Query Check Fallback)
-  const persistAppraisalResult = async (result: AppraisalResult) => {
-    if (!evaluatedUser?.id) return;
+  const persistAppraisalResult = async (result: AppraisalResult): Promise<string | null> => {
+    if (!evaluatedUser?.id) return null;
     setSaveStatus('saving');
     setSaveMessage('กำลังบันทึกประวัติการประเมินลงฐานข้อมูล...');
     try {
@@ -2093,12 +2114,20 @@ export default function OfficialAppraisalPage() {
 
       setSaveStatus('saved');
       setSaveMessage('บันทึกประวัติการประเมินสำเร็จเรียบร้อย');
-      setTimeout(() => setSaveStatus('idle'), 4000);
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 4000);
+      return savedRow?.id || null;
     } catch (saveErr) {
       console.warn('Could not cache analysis row to DB:', saveErr);
       setSaveStatus('error');
       setSaveMessage('ไม่สามารถบันทึกประวัติลงฐานข้อมูลได้ โปรดตรวจสอบสิทธิ์');
-      setTimeout(() => setSaveStatus('idle'), 4000);
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setSaveMessage('');
+      }, 5000);
+      return null;
     }
   };
 
@@ -2110,15 +2139,15 @@ export default function OfficialAppraisalPage() {
 
   // Share Public / Private Toggle
   const handleToggleSharePublicly = async () => {
-    if (!currentRecordId) {
+    let targetId = currentRecordId;
+    if (!targetId) {
       if (appraisalResult) {
-        await persistAppraisalResult(appraisalResult);
+        targetId = await persistAppraisalResult(appraisalResult);
       } else {
         showToast('ยังไม่มีผลการประเมิน กรุณาดำเนินการประเมินก่อน', 'warning');
         return;
       }
     }
-    const targetId = currentRecordId;
     if (!targetId) return;
 
     const newIsPublic = !isCurrentPublic;
@@ -2789,21 +2818,25 @@ ${r.calendar_logging_guide}
         {/* ========================================================= */}
         {/* Loading / Analyzing Progress Card */}
         {isAnalyzing && (
-          <div ref={progressCardRef} className="bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 p-8 text-center space-y-4 shadow-lg animate-pulse">
-            <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center">
-              <RefreshCw size={28} className="animate-spin" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                กำลังประมวลผลการประเมินด้วย AI...
-              </h3>
-              <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                {analysisPhase || 'กำลังวิเคราะห์ผลงานตามเกณฑ์มาตรฐาน...'}
-              </p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                วิเคราะห์ {candidateLogs.length} บันทึกงานของ {evaluatedUser?.full_name} เปรียบเทียบกับเกณฑ์มาตรฐาน 5 มิติ (Quantity, Quality, Learning, Accountability, Proactiveness)
-              </p>
-            </div>
+          <div ref={progressCardRef}>
+            <AppraisalProgressCard
+              employeeName={evaluatedUser?.full_name || 'พนักงาน'}
+              cycleLabel={selectedCycle === 'half_year' ? 'Half-Year' : 'End-Year'}
+              periodLabel={`${dateRange.start} ถึง ${dateRange.end}`}
+              modelName={formatModelDisplayName(aiConfig.model)}
+              logsCount={candidateLogs.length}
+              loggedDays={uniqueLoggedDays}
+              businessDays={businessDays}
+              sampleLogs={candidateLogs}
+              jdCategories={
+                Array.isArray(candidateJd?.key_responsibilities)
+                  ? candidateJd.key_responsibilities
+                      .map((r) => (typeof (r as { category?: unknown }).category === 'string' ? (r as { category: string }).category : ''))
+                      .filter(Boolean)
+                  : []
+              }
+              analysisPhase={analysisPhase}
+            />
           </div>
         )}
 
@@ -3016,12 +3049,21 @@ ${r.calendar_logging_guide}
               </div>
             )}
 
-            {saveMessage && (
-              <div className={`p-2.5 rounded-lg text-xs font-medium border flex items-center gap-2 print:hidden ${saveStatus === 'saved'
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800'
-                : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-800'
-                }`}>
-                <Info size={14} />
+            {saveMessage && saveStatus !== 'idle' && (
+              <div className={`p-2.5 rounded-lg text-xs font-medium border flex items-center gap-2 print:hidden ${
+                saveStatus === 'saved'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-800'
+                  : saveStatus === 'saving'
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-300 dark:border-indigo-800'
+                    : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-800'
+              }`}>
+                {saveStatus === 'saved' ? (
+                  <CheckCircle2 size={14} className="shrink-0" />
+                ) : saveStatus === 'saving' ? (
+                  <RefreshCw size={14} className="animate-spin shrink-0" />
+                ) : (
+                  <AlertCircle size={14} className="shrink-0" />
+                )}
                 <span>{saveMessage}</span>
               </div>
             )}
@@ -3045,10 +3087,10 @@ ${r.calendar_logging_guide}
                         WORKLOG SYSTEM • OFFICIAL PERFORMANCE APPRAISAL
                       </div>
                       <h1 className="text-xl font-black text-slate-900">
-                        รายงานผลการประเมินการปฏิบัติงานทางการ ({selectedCycle === 'half_year' ? 'HALF-YEAR: มิ.ย.-ส.ค.' : isManagerEvaluated ? 'END-YEAR: มิ.ย.-ต.ค.' : 'END-YEAR: ก.ค.-ต.ค.'} {selectedYear})
+                        รายงานผลการประเมินการปฏิบัติงานทางการ ({appraisalResult.cycle.toUpperCase()} • {appraisalResult.period})
                       </h1>
                       <div className="text-xs text-slate-600 mt-0.5">
-                        ตามเกณฑ์มาตรฐาน HR ({isManagerEvaluated ? 'half-year-manager.md' : 'half-year-officer.md'})
+                        ตามเกณฑ์มาตรฐาน HR ({appraisalResult.role_type === 'manager' ? 'half-year-manager.md' : 'half-year-officer.md'})
                         {appraisalResult.ai_model && (
                           <span className="font-semibold text-slate-800 ml-2">• AI Model: {appraisalResult.ai_model}</span>
                         )}
@@ -3145,7 +3187,7 @@ ${r.calendar_logging_guide}
                             <div className="text-xs text-slate-600 dark:text-slate-400 font-medium">คะแนนประเมินรวม</div>
                             <div className="text-sm font-bold text-cyan-700 dark:text-cyan-400">ระดับ "{appraisalResult.level}"</div>
                             <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-medium">
-                              สม่ำเสมอ {displayStats.coverage_pct}% ({displayStats.logged_days}/{displayStats.business_days} วัน)
+                              สม่ำเสมอ {displayStats.coverage_pct}% ({formatAttendanceRatio(displayStats.logged_days, displayStats.business_days)})
                             </div>
                           </div>
                           <div className="w-16 h-16 rounded-full border-2 border-cyan-500 flex flex-col items-center justify-center bg-cyan-100/60 dark:bg-cyan-500/10 shadow-xs dark:shadow-[0_0_20px_rgba(6,182,212,0.3)]">
@@ -3167,11 +3209,11 @@ ${r.calendar_logging_guide}
                             ? 'bg-purple-50/70 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/30'
                             : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
                             }`}>
-                            <div className="flex items-center justify-between gap-1 flex-wrap">
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold leading-snug">
                                 1. AI LEAD (Machine Velocity)
                               </span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${appraisalResult.operating_paradigm?.ai_lead.has_evidence
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 whitespace-nowrap ${appraisalResult.operating_paradigm?.ai_lead.has_evidence
                                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
                                 : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                                 }`}>
@@ -3191,11 +3233,11 @@ ${r.calendar_logging_guide}
                             ? 'bg-cyan-50/70 dark:bg-cyan-500/10 border-cyan-200 dark:border-cyan-500/30'
                             : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
                             }`}>
-                            <div className="flex items-center justify-between gap-1 flex-wrap">
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold leading-snug">
                                 2. HUMAN IN THE LOOP (Context)
                               </span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${appraisalResult.operating_paradigm?.human_in_the_loop.has_evidence
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 whitespace-nowrap ${appraisalResult.operating_paradigm?.human_in_the_loop.has_evidence
                                 ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-400'
                                 : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
                                 }`}>
@@ -3215,11 +3257,11 @@ ${r.calendar_logging_guide}
                             ? 'bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30'
                             : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
                             }`}>
-                            <div className="flex items-center justify-between gap-1 flex-wrap">
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold leading-snug">
                                 3. EXPERT IN THE LOOP (Governance)
                               </span>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${appraisalResult.operating_paradigm?.expert_in_the_loop.has_evidence
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 whitespace-nowrap ${appraisalResult.operating_paradigm?.expert_in_the_loop.has_evidence
                                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
                                 : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                                 }`}>
@@ -3330,9 +3372,9 @@ ${r.calendar_logging_guide}
                                 key={idx}
                                 className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
                               >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
                                   <CheckCircle2 size={14} className="text-emerald-500 dark:text-emerald-400 shrink-0" />
-                                  <span className="font-semibold text-slate-900 dark:text-white">{item}</span>
+                                  <span className="font-semibold text-slate-900 dark:text-white">{cleanDeliverableDisplay(item)}</span>
                                 </div>
                                 <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-bold shrink-0">
                                   COMPLETED
@@ -4243,6 +4285,13 @@ ${r.calendar_logging_guide}
                           setCurrentShareToken(item.share_token || null);
                           setIsCurrentPublic(item.is_public ?? false);
                           setCurrentExpiresAt(item.expires_at || null);
+                          setSaveStatus('idle');
+                          setSaveMessage('');
+                          if (item.template_id?.startsWith('end_year') || safeData.cycle === 'End-Year') {
+                            setSelectedCycle('end_year');
+                          } else if (item.template_id?.startsWith('half_year') || safeData.cycle === 'Half-Year') {
+                            setSelectedCycle('half_year');
+                          }
                           setIsHistoryModalOpen(false);
                         }}
                         className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50/70 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 cursor-pointer flex justify-between items-center text-xs transition-all"
