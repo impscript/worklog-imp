@@ -257,6 +257,9 @@ function buildDefaultMapping(ev: RecoverableEvent, projs: ProjectStructure[], ro
   return m;
 }
 
+/** Largest range pulled in one go; keeps each batch small enough to review and import. */
+const MAX_RANGE_DAYS = 62;
+
 const MONTH_NAMES = [
   'มกราคม (January)', 'กุมภาพันธ์ (February)', 'มีนาคม (March)', 'เมษายน (April)',
   'พฤษภาคม (May)', 'มิถุนายน (June)', 'กรกฎาคม (July)', 'สิงหาคม (August)',
@@ -280,6 +283,21 @@ export default function RecoverGCalModal({
   const lastDay = new Date(year, month + 1, 0).getDate();
   const monthEnd = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   const monthLabel = `${MONTH_NAMES[month]} ${year}`;
+
+  // ── Date range to pull (so a big calendar can be recovered a little at a time) ──
+  const [rangeStart, setRangeStart] = useState(monthStart);
+  const [rangeEnd, setRangeEnd] = useState(monthEnd);
+  const [scannedRange, setScannedRange] = useState<{ start: string; end: string } | null>(null);
+  const weekChunks = useMemo(() => {
+    const ym = monthStart.slice(0, 8);
+    const d = (n: number) => `${ym}${String(n).padStart(2, '0')}`;
+    return [
+      { label: `1–7`, start: d(1), end: d(Math.min(7, lastDay)) },
+      { label: `8–14`, start: d(8), end: d(Math.min(14, lastDay)) },
+      { label: `15–21`, start: d(15), end: d(Math.min(21, lastDay)) },
+      { label: `22–${lastDay}`, start: d(22), end: d(lastDay) }
+    ];
+  }, [monthStart, lastDay]);
 
   // ── Master Data States ───────────────────────────────────────────────────
   const [allowedProjects, setAllowedProjects] = useState<ProjectStructure[]>([]);
@@ -529,9 +547,22 @@ export default function RecoverGCalModal({
     }
   }, [sessionUser, workspaceId, applyCascades]);
 
-  // ── Fetch & Parse GCal Events for Target Month ───────────────────────────
-  const fetchMonthGCalEvents = useCallback(async () => {
+  // ── Fetch & Parse GCal Events for the chosen date range ──────────────────
+  const fetchGCalEvents = useCallback(async (rangeFrom: string, rangeTo: string) => {
     if (!sessionUser?.id) return;
+    if (!rangeFrom || !rangeTo) {
+      showToast('กรุณาเลือกวันที่เริ่มต้นและวันที่สิ้นสุด', 'warning');
+      return;
+    }
+    if (rangeFrom > rangeTo) {
+      showToast('วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด', 'warning');
+      return;
+    }
+    const spanDays = Math.round((new Date(`${rangeTo}T00:00:00`).getTime() - new Date(`${rangeFrom}T00:00:00`).getTime()) / 86400000) + 1;
+    if (spanDays > MAX_RANGE_DAYS) {
+      showToast(`เลือกช่วงวันที่ได้ไม่เกิน ${MAX_RANGE_DAYS} วันต่อครั้ง (ตอนนี้ ${spanDays} วัน)`, 'warning');
+      return;
+    }
     setIsLoadingEvents(true);
     setEvents([]);
     setSelectedEventIds([]);
@@ -550,8 +581,8 @@ export default function RecoverGCalModal({
       const rawEvents = await googleCalendar.listEventsForRange(
         sessionUser.id,
         calendarId,
-        monthStart,
-        monthEnd
+        rangeFrom,
+        rangeTo
       );
 
       // 2. Fetch existing col_worklog records for this user & month range
@@ -561,8 +592,8 @@ export default function RecoverGCalModal({
         .from('col_worklog')
         .select('id, gcal_event_id, work_date, start_time, end_time, project_name, action_name')
         .eq('user_id', sessionUser.id)
-        .gte('work_date', monthStart)
-        .lte('work_date', monthEnd);
+        .gte('work_date', rangeFrom)
+        .lte('work_date', rangeTo);
       const existingGcalIdMap = new Map<string, string>();
       const existingLogIdSet = new Set<string>();
       const existingDateSigSet = new Set<string>();
@@ -705,14 +736,17 @@ export default function RecoverGCalModal({
         }
       }
 
-      parsedList.sort((a, b) => {
+      // Events that straddle the edge of the range (multi-day or overnight) only contribute the days inside it.
+      const inRange = parsedList.filter(e => e.workDate >= rangeFrom && e.workDate <= rangeTo);
+      inRange.sort((a, b) => {
         if (a.workDate !== b.workDate) return a.workDate.localeCompare(b.workDate);
         return a.startTime.localeCompare(b.startTime);
       });
 
-      setEvents(parsedList);
+      setEvents(inRange);
+      setScannedRange({ start: rangeFrom, end: rangeTo });
 
-      const missingIds = parsedList.filter(e => !e.alreadyInDB).map(e => e.id);
+      const missingIds = inRange.filter(e => !e.alreadyInDB).map(e => e.id);
       setSelectedEventIds(missingIds);
       setFilterTab('missing');
     } catch (err: unknown) {
@@ -722,16 +756,22 @@ export default function RecoverGCalModal({
     } finally {
       setIsLoadingEvents(false);
     }
-  }, [sessionUser, monthStart, monthEnd, showToast]);
+  }, [sessionUser, showToast]);
 
+  // Opening the modal loads the master data only. Nothing is pulled from Google until a date range is chosen.
   useEffect(() => {
     if (!isOpen) return;
     const timer = setTimeout(() => {
       loadMasterData();
-      fetchMonthGCalEvents();
+      setRangeStart(monthStart);
+      setRangeEnd(monthEnd);
+      setScannedRange(null);
+      setEvents([]);
+      setSelectedEventIds([]);
+      setRowOverrides({});
     }, 0);
     return () => clearTimeout(timer);
-  }, [isOpen, loadMasterData, fetchMonthGCalEvents]);
+  }, [isOpen, loadMasterData, monthStart, monthEnd]);
 
   // ── Derived Options for Render ───────────────────────────────────────────
   const availableHoldings = useMemo(() => {
@@ -1079,7 +1119,9 @@ export default function RecoverGCalModal({
                 </span>
               </h2>
               <p className="text-xs text-theme-text-secondary mt-0.5">
-                ประจำเดือน <span className="font-bold text-theme-text">{monthLabel}</span> • สแกนพบ {events.length} รายการ ({missingCount} ยังไม่เคยนำเข้า)
+                {scannedRange
+                  ? <>ช่วง <span className="font-bold text-theme-text">{scannedRange.start} ถึง {scannedRange.end}</span> • สแกนพบ {events.length} รายการ ({missingCount} ยังไม่เคยนำเข้า)</>
+                  : <>ประจำเดือน <span className="font-bold text-theme-text">{monthLabel}</span> • เลือกช่วงวันที่ที่ต้องการดึงก่อน</>}
               </p>
             </div>
           </div>
@@ -1094,6 +1136,78 @@ export default function RecoverGCalModal({
 
         {/* ── Modal Body (Scrollable) ───────────────────────────────────── */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
+
+          {/* Date range to pull */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">
+              ช่วงวันที่ที่ต้องการดึงจาก Google Calendar
+            </h3>
+            <div className="bg-theme-surface-secondary dark:bg-theme-surface-secondary/30 border border-theme-border rounded-xl p-3 space-y-2.5 shadow-sm">
+              <div className="flex flex-wrap items-end gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">ตั้งแต่วันที่</label>
+                  <input
+                    type="date"
+                    value={rangeStart}
+                    max={rangeEnd || undefined}
+                    onChange={e => setRangeStart(e.target.value)}
+                    disabled={isLoadingEvents || isImporting}
+                    className="px-2.5 py-1 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-theme-text-secondary uppercase tracking-wider mb-0.5">ถึงวันที่</label>
+                  <input
+                    type="date"
+                    value={rangeEnd}
+                    min={rangeStart || undefined}
+                    onChange={e => setRangeEnd(e.target.value)}
+                    disabled={isLoadingEvents || isImporting}
+                    className="px-2.5 py-1 text-xs rounded-xl border border-theme-border bg-theme-surface-secondary text-theme-text focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fetchGCalEvents(rangeStart, rangeEnd)}
+                  disabled={isLoadingEvents || isImporting || !rangeStart || !rangeEnd}
+                  className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-black rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                >
+                  <RefreshCw size={13} className={isLoadingEvents ? 'animate-spin' : ''} />
+                  <span>{scannedRange ? 'ดึงข้อมูลใหม่' : 'ดึงข้อมูล'}</span>
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-theme-text-muted mr-1">เลือกเร็ว ({monthLabel}):</span>
+                {weekChunks.map(c => (
+                  <button
+                    key={c.label}
+                    type="button"
+                    onClick={() => { setRangeStart(c.start); setRangeEnd(c.end); fetchGCalEvents(c.start, c.end); }}
+                    disabled={isLoadingEvents || isImporting}
+                    className={cn(
+                      "px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none",
+                      rangeStart === c.start && rangeEnd === c.end
+                        ? "bg-indigo-600 border-indigo-600 text-white"
+                        : "border-theme-border text-theme-text-secondary hover:text-theme-text hover:bg-slate-500/10"
+                    )}
+                  >
+                    วันที่ {c.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => { setRangeStart(monthStart); setRangeEnd(monthEnd); }}
+                  disabled={isLoadingEvents || isImporting}
+                  className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-theme-border text-theme-text-secondary hover:text-theme-text hover:bg-slate-500/10 transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+                >
+                  ทั้งเดือน
+                </button>
+              </div>
+              <p className="text-[11px] text-theme-text-muted">
+                ดึงทีละช่วงแล้วกู้คืนให้เสร็จ จากนั้นเปิดหน้านี้ใหม่เพื่อเลือกช่วงถัดไป (สูงสุด {MAX_RANGE_DAYS} วันต่อครั้ง) รายการที่นำเข้าแล้วจะแสดงว่า "มีในระบบแล้ว" และไม่ถูกนำเข้าซ้ำ
+              </p>
+            </div>
+          </div>
 
           {/* Section 1: Destination Project Classification */}
           <div className="space-y-3">
@@ -1258,8 +1372,8 @@ export default function RecoverGCalModal({
                 </span>
                 <button
                   type="button"
-                  onClick={fetchMonthGCalEvents}
-                  disabled={isLoadingEvents}
+                  onClick={() => fetchGCalEvents(scannedRange?.start ?? rangeStart, scannedRange?.end ?? rangeEnd)}
+                  disabled={isLoadingEvents || (!scannedRange && (!rangeStart || !rangeEnd))}
                   className="p-1.5 rounded-xl border border-theme-border text-theme-text-secondary hover:text-theme-text hover:bg-slate-500/10 transition-all cursor-pointer"
                   title="สแกนใหม่อีกครั้ง"
                 >
@@ -1344,13 +1458,15 @@ export default function RecoverGCalModal({
               {isLoadingEvents ? (
                 <div className="p-12 text-center flex flex-col items-center justify-center gap-2.5 text-theme-text-secondary">
                   <RefreshCw size={24} className="animate-spin text-emerald-500" />
-                  <span className="text-xs font-semibold">กำลังสแกนปฏิทิน Google Calendar ในเดือน {monthLabel}...</span>
+                  <span className="text-xs font-semibold">กำลังสแกนปฏิทิน Google Calendar ช่วง {rangeStart} ถึง {rangeEnd}...</span>
                 </div>
               ) : filteredEvents.length === 0 ? (
                 <div className="p-12 text-center text-theme-text-muted italic text-xs">
-                  {events.length === 0
-                    ? `ไม่พบรายการนัดหมายบนปฏิทิน Google Calendar ในเดือน ${monthLabel}`
-                    : 'ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา'}
+                  {!scannedRange
+                    ? 'เลือกช่วงวันที่ด้านบน แล้วกด "ดึงข้อมูล" เพื่อสแกนปฏิทิน'
+                    : events.length === 0
+                      ? `ไม่พบรายการนัดหมายบนปฏิทิน Google Calendar ในช่วง ${scannedRange.start} ถึง ${scannedRange.end}`
+                      : 'ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา'}
                 </div>
               ) : (
                 <table className="w-full border-collapse text-left text-xs">
