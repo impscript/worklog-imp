@@ -151,7 +151,7 @@ function occurrenceInstanceId(eventId: string, dateStr: string, startTime: strin
  * task loses its event. Best effort: the caller decides what to do when it throws.
  */
 export async function removeRoutineOccurrenceFromGCal(
-  task: { id: string; created_by: string; gcal_event_id?: string | null; start_time: string | null; frequency_type: string },
+  task: RoutineOccurrenceRef,
   dateStr: string,
   actingUserId: string
 ): Promise<RoutineSyncResult> {
@@ -164,8 +164,42 @@ export async function removeRoutineOccurrenceFromGCal(
     await supabase.from('tb_routine_task').update({ gcal_event_id: null }).eq('id', task.id);
     return 'removed';
   }
-  await removeEvent(actingUserId, target.calendarId, occurrenceInstanceId(task.gcal_event_id, dateStr, task.start_time));
+  await removeEvent(actingUserId, target.calendarId, occurrenceInstanceId(task.gcal_event_id, dateStr, task.start_time ?? null));
   return 'removed';
+}
+
+export interface RoutineOccurrenceRef {
+  id: string;
+  created_by: string;
+  gcal_event_id?: string | null;
+  start_time?: string | null;
+  frequency_type: string;
+}
+
+/**
+ * The work for one day of a To-do task has been logged: tick that day off (the To-do list's per-day
+ * checkmark, which also hides the Calendar reminder) and take it off Google Calendar. Never throws; the
+ * caller shows a warning for whichever part failed.
+ */
+export async function completeRoutineOccurrence(
+  task: RoutineOccurrenceRef,
+  dateStr: string,
+  userId: string
+): Promise<{ doneError: string | null; gcalError: string | null }> {
+  let doneError: string | null = null;
+  let gcalError: string | null = null;
+
+  const { error } = await supabase
+    .from('tb_routine_task_completion')
+    .insert({ task_id: task.id, user_id: userId, completed_date: dateStr });
+  if (error && error.code !== '23505') doneError = error.message; // 23505 = already ticked
+
+  try {
+    await removeRoutineOccurrenceFromGCal(task, dateStr, userId);
+  } catch (err) {
+    gcalError = err instanceof Error ? err.message : String(err);
+  }
+  return { doneError, gcalError };
 }
 
 /** Best-effort cleanup before a routine task row is deleted. Never blocks the delete. */

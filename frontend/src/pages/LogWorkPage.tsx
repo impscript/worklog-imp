@@ -9,6 +9,7 @@ import ViewWorklogModal from '../components/modals/ViewWorklogModal';
 import ImportICSModal from '../components/modals/ImportICSModal';
 import { ConfirmDialogModal } from '../components/modals/ConfirmDialogModal';
 import { syncWorklogToGCal, googleCalendar } from '../lib/google-calendar';
+import { completeRoutineOccurrence, type RoutineOccurrenceRef } from '../lib/routine-calendar-sync';
 import { compressImage } from '../lib/image-compressor';
 import { resolveTypeColor, useProjectTypeColors } from '../lib/project-type-colors';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -359,6 +360,12 @@ export default function LogWorkPage() {
     }
     return { date: state.prefillDate, startTime: state.prefillStartTime, endTime };
   });
+
+  // "Log this task" from the To-do list also says which task/day it is for. Once that worklog is saved the day is
+  // ticked off and its Google Calendar reminder removed, so the reminder and the logged work are not both shown.
+  const routineOccurrenceRef = useRef<{ task: RoutineOccurrenceRef; date: string } | null>(
+    (location.state as { routineOccurrence?: { task: RoutineOccurrenceRef; date: string } } | null)?.routineOccurrence ?? null
+  );
 
   // Form State
   const [date, setDate] = useState(() => {
@@ -1818,7 +1825,18 @@ export default function LogWorkPage() {
       }
       
       showToast(t('logWork.saveSuccess'), 'success');
-      
+
+      const occurrence = routineOccurrenceRef.current;
+      if (occurrence) {
+        routineOccurrenceRef.current = null;
+        const sessionUserId = JSON.parse(localStorage.getItem('worklog_session') || '{}')?.id;
+        if (sessionUserId) {
+          const { doneError, gcalError } = await completeRoutineOccurrence(occurrence.task, occurrence.date, sessionUserId);
+          if (doneError) showToast('บันทึกงานแล้ว แต่ยังซ่อนใบงานร่างไม่สำเร็จ: ' + doneError, 'warning');
+          if (gcalError) showToast('บันทึกงานแล้ว แต่ลบใบงานร่างออกจาก Google Calendar ไม่สำเร็จ กรุณาลบเองหากแสดงซ้ำ', 'warning');
+        }
+      }
+
       // Clear form inputs so the user has a clean state for the next entry
       setProjectType('');
       setSelectedProjectKey('');

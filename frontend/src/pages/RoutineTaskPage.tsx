@@ -195,7 +195,26 @@ export default function RoutineTaskPage() {
 
   const handleLogThisTask = (task: RoutineTask) => {
     const prefillDescription = task.description ? `${task.title}\n${task.description}` : task.title;
-    navigate('/log', { state: { prefillDescription } });
+    const todayStr = formatDateToYMD(new Date());
+    navigate('/log', {
+      state: {
+        prefillDescription,
+        // the task's own day and times, and which task/day to tick off (and take off Google Calendar) once saved
+        prefillDate: todayStr,
+        prefillStartTime: task.start_time ? task.start_time.slice(0, 5) : undefined,
+        prefillEndTime: task.start_time && task.end_time ? task.end_time.slice(0, 5) : undefined,
+        routineOccurrence: {
+          task: {
+            id: task.id,
+            created_by: task.created_by,
+            gcal_event_id: task.gcal_event_id ?? null,
+            start_time: task.start_time ?? null,
+            frequency_type: task.frequency_type,
+          },
+          date: todayStr,
+        },
+      },
+    });
   };
 
   const handleEdit = (task: RoutineTask) => {

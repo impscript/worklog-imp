@@ -13,7 +13,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceGrants } from '../hooks/useWorkspaceGrants';
 import { occurrencesInRange, formatYMD as formatRecurrenceYMD, type RecurrenceFields } from '../lib/routine-recurrence';
-import { removeRoutineOccurrenceFromGCal } from '../lib/routine-calendar-sync';
+import { completeRoutineOccurrence } from '../lib/routine-calendar-sync';
 import WorkspaceSwitcher from '../components/common/WorkspaceSwitcher';
 import ModalPortal from '../components/modals/ModalPortal';
 import {
@@ -1189,9 +1189,20 @@ export default function CalendarPage() {
   if (reminderTasks.length > 0) {
     const from = formatRecurrenceYMD(new Date(visibleYear, visibleMonth - 1, 1));
     const to = formatRecurrenceYMD(new Date(visibleYear, visibleMonth + 2, 0));
+    // A reminder is also treated as done when that day already has a worklog that starts with the task's title:
+    // "Log this task" copies the title into the description, so this covers work logged before the done-mark existed.
+    const loggedTextByDate = new Map<string, string[]>();
+    for (const entry of entries) {
+      const text = (entry.description || '').trim();
+      if (!text) continue;
+      const list = loggedTextByDate.get(entry.work_date);
+      if (list) list.push(text); else loggedTextByDate.set(entry.work_date, [text]);
+    }
     for (const task of reminderTasks) {
+      const title = task.title.trim();
       for (const dateStr of occurrencesInRange(task, from, to)) {
         if (doneReminders.has(`${task.id}|${dateStr}`)) continue;
+        if (title && loggedTextByDate.get(dateStr)?.some((text) => text.startsWith(title))) continue;
         const list = remindersByDate[dateStr] ?? [];
         list.push(task);
         remindersByDate[dateStr] = list;
@@ -1267,18 +1278,13 @@ export default function CalendarPage() {
     const session = sessionStr ? JSON.parse(sessionStr) : null;
     if (!session?.id) return;
 
-    const { error } = await supabase
-      .from('tb_routine_task_completion')
-      .insert({ task_id: task.id, user_id: session.id, completed_date: dateStr });
-    if (error && error.code !== '23505') {
-      console.warn('[Calendar] Failed to mark reminder as done:', error);
-      showToast('บันทึกงานแล้ว แต่ยังซ่อนใบงานร่างไม่สำเร็จ: ' + error.message, 'warning');
+    const { doneError, gcalError } = await completeRoutineOccurrence(task, dateStr, session.id);
+    if (doneError) {
+      console.warn('[Calendar] Failed to mark reminder as done:', doneError);
+      showToast('บันทึกงานแล้ว แต่ยังซ่อนใบงานร่างไม่สำเร็จ: ' + doneError, 'warning');
     }
-
-    try {
-      await removeRoutineOccurrenceFromGCal(task, dateStr, session.id);
-    } catch (err) {
-      console.warn('[Calendar] Failed to remove the reminder from Google Calendar:', err);
+    if (gcalError) {
+      console.warn('[Calendar] Failed to remove the reminder from Google Calendar:', gcalError);
       showToast('บันทึกงานแล้ว แต่ลบใบงานร่างออกจาก Google Calendar ไม่สำเร็จ กรุณาลบเองหากแสดงซ้ำ', 'warning');
     }
   };
